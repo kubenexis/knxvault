@@ -57,6 +57,8 @@ type Config struct {
 	TracingEnabled     bool
 	OTLPEndpoint       string
 	TracingSampleRatio float64
+
+	Raft RaftConfig
 }
 
 // Load reads configuration from the environment with sensible defaults.
@@ -196,6 +198,15 @@ func Load() (Config, error) {
 			return Config{}, fmt.Errorf("KNXVAULT_TRACING_SAMPLE_RATIO: %w", err)
 		}
 		cfg.TracingSampleRatio = ratio
+	}
+
+	raftCfg, err := loadRaftConfig()
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.Raft = raftCfg
+	if err := cfg.Raft.Validate(); err != nil {
+		return Config{}, err
 	}
 
 	return cfg, nil

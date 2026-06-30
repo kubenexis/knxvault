@@ -14,21 +14,29 @@ type ReadinessChecker interface {
 	Ready(ctx context.Context) error
 }
 
+// HAStatusProvider exposes HA and Raft probe fields.
+type HAStatusProvider interface {
+	HAEnabled() bool
+	IsLeader() bool
+	RaftEnabled() bool
+	RaftReady() bool
+}
+
 // HealthHandler serves liveness and readiness probes.
 type HealthHandler struct {
-	version   string
-	ready     ReadinessChecker
-	haEnabled bool
-	isLeader  func() bool
+	version  string
+	ready    ReadinessChecker
+	ha       HAStatusProvider
+	isLeader func() bool
 }
 
 // NewHealthHandler constructs a HealthHandler.
-func NewHealthHandler(version string, ready ReadinessChecker, haEnabled bool, isLeader func() bool) *HealthHandler {
+func NewHealthHandler(version string, ready ReadinessChecker, ha HAStatusProvider, isLeader func() bool) *HealthHandler {
 	return &HealthHandler{
-		version:   version,
-		ready:     ready,
-		haEnabled: haEnabled,
-		isLeader:  isLeader,
+		version:  version,
+		ready:    ready,
+		ha:       ha,
+		isLeader: isLeader,
 	}
 }
 
@@ -46,10 +54,12 @@ func (h *HealthHandler) Live(c *gin.Context) {
 func (h *HealthHandler) Ready(c *gin.Context) {
 	if h.ready != nil {
 		if err := h.ready.Ready(c.Request.Context()); err != nil {
-			c.JSON(http.StatusServiceUnavailable, dto.HealthResponse{
+			resp := dto.HealthResponse{
 				Status:  "not_ready",
 				Version: h.version,
-			})
+			}
+			h.applyHA(&resp)
+			c.JSON(http.StatusServiceUnavailable, resp)
 			return
 		}
 	}
@@ -63,7 +73,12 @@ func (h *HealthHandler) Ready(c *gin.Context) {
 }
 
 func (h *HealthHandler) applyHA(resp *dto.HealthResponse) {
-	if !h.haEnabled {
+	if h.ha != nil && h.ha.RaftEnabled() {
+		resp.RaftEnabled = true
+		ready := h.ha.RaftReady()
+		resp.RaftReady = &ready
+	}
+	if h.ha == nil || !h.ha.HAEnabled() {
 		return
 	}
 	resp.HAEnabled = true

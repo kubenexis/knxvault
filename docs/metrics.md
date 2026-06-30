@@ -28,7 +28,11 @@ prometheus.io/port: "8200"
 | `knxvault_http_request_duration_seconds` | Histogram | `method`, `route` | Request latency |
 | `knxvault_build_info` | Gauge | `version` | Build version (always 1) |
 | `knxvault_leader` | Gauge | — | `1` when this instance is the HA leader |
-| `knxvault_rate_limited_total` | Counter | `client` | Requests rejected by rate limiter |
+| `knxvault_raft_leader` | Gauge | — | `1` when this node is the Raft leader |
+| `knxvault_raft_term` | Gauge | — | Current Raft term |
+| `knxvault_raft_commit_index` | Gauge | — | Committed Raft log index |
+| `knxvault_raft_propose_duration_seconds` | Histogram | — | Vault command propose latency |
+| `knxvault_rate_limited_total` | Counter | — | Requests rejected by rate limiter |
 
 Go runtime metrics are also exposed via the default Prometheus registry.
 

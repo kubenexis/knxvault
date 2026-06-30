@@ -6,7 +6,8 @@ Lightweight, production-grade secrets management and PKI built in Go.
 
 - Go 1.25+ (auto-downloaded via `GOTOOLCHAIN=go1.25.11` in the Makefile)
 - `golangci-lint` v2, `gosec`, `trivy` (install: `make install-tools`)
-- PostgreSQL 15+ (optional; in-memory repos used when unset)
+- Dragonboat Raft storage (`KNXVAULT_RAFT_ENABLED=true`) for production; in-memory repos used when unset
+- PostgreSQL 15+ (optional legacy backend via `KNXVAULT_DATABASE_URL`)
 - OpenSSL 3.x (required for PKI operations)
 - Docker (optional; for `make docker-build` and Postgres integration tests)
 
@@ -110,8 +111,13 @@ Secrets injection: [`docs/deploy/secrets-injection.md`](docs/deploy/secrets-inje
 | `KNXVAULT_LOG_LEVEL` | `info` | Log level |
 | `KNXVAULT_VERSION` | `0.1.0-dev` | Version string |
 | `KNXVAULT_SHUTDOWN_GRACE` | `10s` | Graceful shutdown timeout |
-| `KNXVAULT_DATABASE_URL` | _(empty)_ | PostgreSQL URL (in-memory if unset) |
-| `KNXVAULT_AUTO_MIGRATE` | `true` | Apply SQL migrations on startup |
+| `KNXVAULT_RAFT_ENABLED` | `false` | Enable Dragonboat Raft storage |
+| `KNXVAULT_RAFT_NODE_ID` | _(auto from pod name)_ | Raft node ID |
+| `KNXVAULT_RAFT_ADDRESS` | `127.0.0.1:63001` | Raft advertise/listen address |
+| `KNXVAULT_RAFT_DATA_DIR` | `/var/lib/knxvault/raft` | Raft data directory |
+| `KNXVAULT_RAFT_INITIAL_MEMBERS` | _(empty)_ | `id=host:port,...` peer map |
+| `KNXVAULT_DATABASE_URL` | _(empty)_ | **Deprecated** legacy PostgreSQL backend |
+| `KNXVAULT_AUTO_MIGRATE` | `true` | Apply SQL migrations (legacy Postgres only) |
 | `KNXVAULT_MASTER_KEY` | _(empty)_ | Base64-encoded 32-byte master key |
 | `KNXVAULT_MASTER_KEY_FILE` | _(empty)_ | Path to base64 master key file |
 | `KNXVAULT_ROOT_TOKEN` | _(empty)_ | Bootstrap admin token |
@@ -153,7 +159,7 @@ Reference: [`docs/cli/reference.md`](docs/cli/reference.md) · Backup: [`docs/de
 ```bash
 make all                   # fmt, vet, lint, gosec, licenses, scan, test, test-integration, build, build-cli, sbom
 make test                  # unit tests only
-make test-integration      # API integration tests (+ Postgres if Docker available)
+make test-integration      # API + 3-node Raft integration tests
 make gosec                 # security static analysis
 make docker-build          # container image
 ```

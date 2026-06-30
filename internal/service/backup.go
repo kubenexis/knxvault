@@ -12,12 +12,24 @@ import (
 	"github.com/kubenexis/knxvault/internal/domain/common"
 )
 
+// SnapshotImporter replaces vault state from a portable snapshot.
+type SnapshotImporter interface {
+	ImportSnapshot(ctx context.Context, snapshot *backup.Snapshot) error
+}
+
+// SnapshotRequester triggers an on-disk Dragonboat snapshot.
+type SnapshotRequester interface {
+	RequestSnapshot(ctx context.Context) error
+}
+
 // BackupService creates and restores encrypted vault snapshots.
 type BackupService struct {
-	repos  backup.Repos
-	pool   *pgxpool.Pool
-	crypto *kvncrypto.Service
-	audit  *auditsvc.Service
+	repos     backup.Repos
+	pool      *pgxpool.Pool
+	crypto    *kvncrypto.Service
+	audit     *auditsvc.Service
+	importer  SnapshotImporter
+	snapshots SnapshotRequester
 }
 
 // NewBackupService constructs a backup service.
@@ -33,6 +45,16 @@ func NewBackupService(
 		crypto: cryptoSvc,
 		audit:  audit,
 	}
+}
+
+// SetSnapshotImporter configures Raft snapshot restore.
+func (s *BackupService) SetSnapshotImporter(importer SnapshotImporter) {
+	s.importer = importer
+}
+
+// SetSnapshotRequester configures Dragonboat snapshot persistence after export.
+func (s *BackupService) SetSnapshotRequester(requester SnapshotRequester) {
+	s.snapshots = requester
 }
 
 func (s *BackupService) actor(ctx context.Context) string {
@@ -52,12 +74,19 @@ func (s *BackupService) Create(ctx context.Context, opts backup.ExportOptions) (
 		s.record(ctx, "backup.create", "sys/backup", err, nil)
 		return nil, err
 	}
+	if s.snapshots != nil {
+		_ = s.snapshots.RequestSnapshot(ctx)
+	}
 	data, err := backup.Seal(s.crypto, snapshot)
-	s.record(ctx, "backup.create", "sys/backup", err, map[string]any{
+	if err != nil {
+		s.record(ctx, "backup.create", "sys/backup", err, nil)
+		return nil, err
+	}
+	s.record(ctx, "backup.create", "sys/backup", nil, map[string]any{
 		"cas":     len(snapshot.CAs),
 		"secrets": len(snapshot.Secrets),
 	})
-	return data, err
+	return data, nil
 }
 
 // Restore decrypts and imports a backup archive.
@@ -70,7 +99,11 @@ func (s *BackupService) Restore(ctx context.Context, data []byte) error {
 		s.record(ctx, "backup.restore", "sys/restore", err, nil)
 		return err
 	}
-	err = backup.Restore(ctx, s.repos, s.pool, snapshot)
+	if s.importer != nil {
+		err = s.importer.ImportSnapshot(ctx, snapshot)
+	} else {
+		err = backup.Restore(ctx, s.repos, s.pool, snapshot)
+	}
 	s.record(ctx, "backup.restore", "sys/restore", err, map[string]any{
 		"cas":     len(snapshot.CAs),
 		"secrets": len(snapshot.Secrets),

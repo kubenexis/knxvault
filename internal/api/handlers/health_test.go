@@ -17,7 +17,7 @@ func init() {
 }
 
 func TestHealthHandlerLive(t *testing.T) {
-	h := handlers.NewHealthHandler("1.2.3", nil, false, nil)
+	h := handlers.NewHealthHandler("1.2.3", nil, nil, nil)
 	r := gin.New()
 	r.GET("/health", h.Live)
 

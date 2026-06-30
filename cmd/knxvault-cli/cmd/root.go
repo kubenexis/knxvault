@@ -33,6 +33,7 @@ func init() {
 	rootCmd.AddCommand(kvCmd)
 	rootCmd.AddCommand(pkiCmd)
 	rootCmd.AddCommand(backupCmd)
+	rootCmd.AddCommand(migrateCmd)
 }
 
 func apiClient() *client.Client {

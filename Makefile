@@ -123,22 +123,10 @@ test: ## Run unit tests
 	$(call require_cmd,go)
 	$(GO) test $$(go list ./... | grep -v '/test/integration') -count=1
 
-test-integration: ## Run integration tests (API always; Postgres if compose available)
+test-integration: ## Run integration tests (API + Raft)
 	$(call log,Running integration tests)
 	$(call require_cmd,go)
 	$(GO) test ./test/integration/... -count=1
-	@if [ -n "$(DOCKER)" ] && [ -f docker-compose.test.yml ]; then \
-		$(MAKE) --no-print-directory test-integration-postgres; \
-	fi
-
-test-integration-postgres: ## Run Postgres integration tests via docker compose
-	$(call log,Starting test PostgreSQL)
-	$(DOCKER) compose -f docker-compose.test.yml up -d --wait
-	@KNXVAULT_TEST_DATABASE_URL='postgres://knxvault:knxvault@localhost:54329/knxvault?sslmode=disable' \
-		$(GO) test ./test/integration/... -run TestIntegrationPostgres -count=1; \
-		status=$$?; \
-		$(DOCKER) compose -f docker-compose.test.yml down; \
-		exit $$status
 
 docker-build: ## Build container image ($(IMAGE))
 	$(call log,Building Docker image $(IMAGE))

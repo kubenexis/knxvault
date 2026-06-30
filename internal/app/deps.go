@@ -22,9 +22,11 @@ import (
 	"github.com/kubenexis/knxvault/internal/infra/k8s"
 	"github.com/kubenexis/knxvault/internal/infra/leader"
 	"github.com/kubenexis/knxvault/internal/inject"
+	"github.com/kubenexis/knxvault/internal/raft"
 	"github.com/kubenexis/knxvault/internal/repository"
+	"github.com/kubenexis/knxvault/internal/repository/dragonboat"
 	"github.com/kubenexis/knxvault/internal/repository/memory"
-	"github.com/kubenexis/knxvault/internal/repository/postgres"
+	postgres "github.com/kubenexis/knxvault/internal/repository/postgres" //nolint:staticcheck // legacy backend
 	"github.com/kubenexis/knxvault/internal/service"
 )
 
@@ -33,6 +35,7 @@ type Dependencies struct {
 	Crypto         *crypto.Service
 	OpenSSL        *openssl.Wrapper
 	Pool           *pgxpool.Pool
+	Raft           *raft.NodeHostBundle
 	CARepo         repository.CARepository
 	SecretRepo     repository.SecretRepository
 	AuditRepo      repository.AuditRepository
@@ -84,7 +87,35 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 		log.Warn("master key not configured; envelope encryption disabled", zap.Error(err))
 	}
 
-	if cfg.DatabaseURL != "" {
+	if cfg.Raft.Enabled {
+		raftCfg := cfg.Raft
+		members, err := raft.ParseInitialMembers(raftCfg.InitialMembersRaw)
+		if err != nil {
+			return nil, fmt.Errorf("raft initial members: %w", err)
+		}
+		raftCfg.InitialMembers = members
+
+		bundle, err := raft.StartNodeHost(raftCfg)
+		if err != nil {
+			return nil, err
+		}
+		deps.Raft = bundle
+		repos := dragonboat.NewRepos(bundle.Client)
+		deps.CARepo = repos.CA
+		deps.SecretRepo = repos.Secret
+		deps.AuditRepo = repos.Audit
+		deps.RevokeRepo = repos.Revoke
+		deps.LeaseRepo = repos.Lease
+		deps.PolicyRepo = repos.Policy
+		deps.RoleRepo = repos.Role
+		deps.DBRoleRepo = repos.DBRole
+		deps.IssuedCertRepo = repos.IssuedCert
+		deps.Leader = raft.NewLeaderElector(bundle.Client)
+		log.Info("dragonboat raft repositories initialized",
+			zap.Uint64("node_id", raftCfg.NodeID),
+			zap.String("raft_address", raftCfg.RaftAddress),
+		)
+	} else if cfg.DatabaseURL != "" {
 		pool, err := postgres.NewPool(ctx, cfg.DatabaseURL)
 		if err != nil {
 			return nil, err
@@ -108,9 +139,9 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 		deps.RoleRepo = postgres.NewRoleRepository(pool)
 		deps.DBRoleRepo = postgres.NewDatabaseRoleRepository(pool)
 		deps.IssuedCertRepo = postgres.NewIssuedCertRepository(pool)
-		log.Info("postgresql repositories initialized")
+		log.Warn("postgresql repositories initialized (legacy backend; prefer KNXVAULT_RAFT_ENABLED)")
 	} else {
-		log.Warn("database not configured; using in-memory repositories")
+		log.Warn("storage not configured; using in-memory repositories")
 		deps.CARepo = memory.NewCARepository()
 		deps.SecretRepo = memory.NewSecretRepository()
 		deps.AuditRepo = memory.NewAuditRepository()
@@ -179,10 +210,17 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 			DBRole:     deps.DBRoleRepo,
 			IssuedCert: deps.IssuedCertRepo,
 		}, deps.Pool, deps.Crypto, deps.AuditService)
+		if deps.Raft != nil {
+			importer := raft.NewSnapshotImporter(deps.Raft.Client)
+			deps.BackupService.SetSnapshotImporter(importer)
+			deps.BackupService.SetSnapshotRequester(deps.Raft.Client)
+		}
 	}
 
-	deps.Leader = leader.NewNoopElector()
-	if cfg.HAEnabled {
+	if deps.Leader == nil {
+		deps.Leader = leader.NewNoopElector()
+	}
+	if !cfg.Raft.Enabled && cfg.HAEnabled {
 		k8sLeader, err := k8s.NewLeaderElector(k8s.LeaderConfig{
 			Namespace: cfg.HANamespace,
 			LeaseName: cfg.HALeaseName,
@@ -207,9 +245,15 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 	return deps, nil
 }
 
-// Close releases database connections.
+// Close releases database connections and stops Raft.
 func (d *Dependencies) Close() {
-	if d != nil && d.Pool != nil {
+	if d == nil {
+		return
+	}
+	if d.Raft != nil {
+		d.Raft.Stop()
+	}
+	if d.Pool != nil {
 		d.Pool.Close()
 	}
 }
@@ -217,6 +261,12 @@ func (d *Dependencies) Close() {
 // Ready reports whether configured dependencies are reachable.
 func (d *Dependencies) Ready(ctx context.Context) error {
 	if d == nil {
+		return nil
+	}
+	if d.Raft != nil {
+		if !d.Raft.Ready() {
+			return fmt.Errorf("raft cluster has no leader")
+		}
 		return nil
 	}
 	if d.Pool != nil {
@@ -229,7 +279,20 @@ func (d *Dependencies) Ready(ctx context.Context) error {
 
 // HAEnabled reports whether HA mode is configured.
 func (d *Dependencies) HAEnabled() bool {
-	return d != nil && d.cfg.HAEnabled
+	if d == nil {
+		return false
+	}
+	return d.cfg.Raft.Enabled || d.cfg.HAEnabled
+}
+
+// RaftEnabled reports whether Dragonboat storage is active.
+func (d *Dependencies) RaftEnabled() bool {
+	return d != nil && d.cfg.Raft.Enabled
+}
+
+// RaftReady reports whether the Raft cluster has a known leader.
+func (d *Dependencies) RaftReady() bool {
+	return d != nil && d.Raft != nil && d.Raft.Ready()
 }
 
 // IsLeader reports whether this instance is the elected leader.

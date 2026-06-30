@@ -40,7 +40,8 @@ The canonical machine-readable list lives in [`config/licenses.allow`](../config
 
 | Module | License | Rationale | ADR |
 | ------ | ------- | --------- | --- |
-| _(none)_ | — | Default deny posture; no exceptions recorded. | — |
+| `github.com/lni/dragonboat/v3` (+ transitive Hashicorp/MPL, juju/LGPL) | MPL-2.0, LGPL-3.0 | Embedded Raft storage backend (Phase 3); static Go linking only. | W23-01 |
+| `github.com/pkg/errors` | BSD-2-Clause | Dragonboat transitive; no LICENSE file in module root (Dave Cheney, 2015). | W23-01 |
 
 ## OpenSSL
 

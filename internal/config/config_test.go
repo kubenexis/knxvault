@@ -108,3 +108,27 @@ func TestLoadTracing(t *testing.T) {
 		t.Errorf("TracingSampleRatio = %v, want 0.5", cfg.TracingSampleRatio)
 	}
 }
+
+func TestLoadRaft(t *testing.T) {
+	t.Setenv("KNXVAULT_RAFT_ENABLED", "true")
+	t.Setenv("KNXVAULT_RAFT_NODE_ID", "2")
+	t.Setenv("KNXVAULT_RAFT_ADDRESS", "10.0.0.2:63001")
+	t.Setenv("KNXVAULT_RAFT_DATA_DIR", "/tmp/raft")
+	t.Setenv("KNXVAULT_RAFT_INITIAL_MEMBERS", "1=10.0.0.1:63001,2=10.0.0.2:63001")
+	t.Setenv("KNXVAULT_RAFT_ELECTION_RTT", "12")
+	t.Setenv("KNXVAULT_RAFT_HEARTBEAT_RTT", "2")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() = %v", err)
+	}
+	if !cfg.Raft.Enabled {
+		t.Fatal("Raft.Enabled = false")
+	}
+	if cfg.Raft.NodeID != 2 {
+		t.Errorf("Raft.NodeID = %d", cfg.Raft.NodeID)
+	}
+	if cfg.Raft.ElectionRTT != 12 || cfg.Raft.HeartbeatRTT != 2 {
+		t.Errorf("raft RTT = %d/%d", cfg.Raft.ElectionRTT, cfg.Raft.HeartbeatRTT)
+	}
+}

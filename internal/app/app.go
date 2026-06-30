@@ -45,7 +45,7 @@ func New(ctx context.Context, cfg config.Config, log *zap.Logger) (*App, error) 
 		InjectService:      deps.InjectService,
 		BackupService:      deps.BackupService,
 		TokenTTL:           deps.TokenTTL,
-		HAEnabled:          deps.HAEnabled(),
+		HAStatus:           deps,
 		IsLeader:           deps.IsLeader,
 		RateLimiter:        deps.RateLimiter,
 		RequestSigning:     deps.RequestSigning,

@@ -26,7 +26,7 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 	metrics.SetBuildInfo(version)
 	r.GET("/metrics", metrics.Handler())
 
-	health := handlers.NewHealthHandler(version, deps.Ready, deps.HAEnabled, deps.IsLeader)
+	health := handlers.NewHealthHandler(version, deps.Ready, deps.HAStatus, deps.IsLeader)
 	r.GET("/health", health.Live)
 	r.GET("/ready", health.Ready)
 

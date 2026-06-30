@@ -3,6 +3,7 @@ package api
 import (
 	"time"
 
+	"github.com/kubenexis/knxvault/internal/api/handlers"
 	"github.com/kubenexis/knxvault/internal/api/middleware"
 	"github.com/kubenexis/knxvault/internal/auth"
 	"github.com/kubenexis/knxvault/internal/service"
@@ -22,6 +23,6 @@ type RouterDeps struct {
 	TokenTTL           time.Duration
 	RateLimiter        *middleware.RateLimiter
 	RequestSigning     *middleware.RequestSigning
-	HAEnabled          bool
+	HAStatus           handlers.HAStatusProvider
 	IsLeader           func() bool
 }

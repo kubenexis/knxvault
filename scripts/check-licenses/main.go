@@ -59,6 +59,21 @@ var licensePatterns = []struct {
 		regexp.MustCompile(`(?i)CC0 1\.0`),
 		regexp.MustCompile(`(?i)SPDX-License-Identifier:\s*CC0-1\.0`),
 	}},
+	{spdx: "MPL-2.0", matches: []*regexp.Regexp{
+		regexp.MustCompile(`(?i)Mozilla Public License,?\s+version 2\.0`),
+		regexp.MustCompile(`(?i)Mozilla Public License Version 2\.0`),
+		regexp.MustCompile(`(?i)SPDX-License-Identifier:\s*MPL-2\.0`),
+	}},
+	{spdx: "LGPL-3.0", matches: []*regexp.Regexp{
+		regexp.MustCompile(`(?i)GNU Lesser General Public License`),
+		regexp.MustCompile(`(?i)SPDX-License-Identifier:\s*LGPL-3\.0`),
+	}},
+}
+
+// moduleLicenseOverrides maps modules without standard LICENSE files to SPDX IDs.
+var moduleLicenseOverrides = map[string]string{
+	"github.com/pkg/errors":            "BSD-2-Clause",
+	"github.com/cockroachdb/sentry-go": "BSD-3-Clause",
 }
 
 func main() {
@@ -170,6 +185,10 @@ func listModules(root string) ([]module, error) {
 }
 
 func moduleLicense(root string, mod module) (string, error) {
+	if spdx, ok := moduleLicenseOverrides[mod.Path]; ok {
+		return spdx, nil
+	}
+
 	version := mod.Version
 	if version == "" {
 		version = "latest"

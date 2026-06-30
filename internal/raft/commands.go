@@ -1,0 +1,109 @@
+// Package raft implements the Dragonboat-backed vault state machine.
+package raft
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+
+	"github.com/kubenexis/knxvault/internal/domain/common"
+)
+
+// Command is a replicated state machine operation.
+type Command struct {
+	Op      string          `json:"op"`
+	Payload json.RawMessage `json:"payload,omitempty"`
+}
+
+// Response wraps command results or domain errors.
+type Response struct {
+	ErrorCode string          `json:"error_code,omitempty"`
+	Message   string          `json:"message,omitempty"`
+	Data      json.RawMessage `json:"data,omitempty"`
+}
+
+const (
+	OpCASave             = "ca.save"
+	OpCAGetByID          = "ca.get_by_id"
+	OpCAGetByName        = "ca.get_by_name"
+	OpCAList             = "ca.list"
+	OpSecretSaveVersion  = "secret.save_version"
+	OpSecretGetLatest    = "secret.get_latest"
+	OpSecretGetVersion   = "secret.get_version"
+	OpSecretListByPath   = "secret.list_by_path"
+	OpSecretNextVersion  = "secret.next_version"
+	OpAuditAppend        = "audit.append"
+	OpAuditList          = "audit.list"
+	OpAuditLatestHash    = "audit.latest_hash"
+	OpRevoke             = "revoke.save"
+	OpRevokeIs           = "revoke.is"
+	OpRevokeListByCA     = "revoke.list_by_ca"
+	OpLeaseSave          = "lease.save"
+	OpLeaseGet           = "lease.get"
+	OpLeaseList          = "lease.list"
+	OpLeaseListExpired   = "lease.list_expired"
+	OpLeaseRevoke        = "lease.revoke"
+	OpPolicySave         = "policy.save"
+	OpPolicyGet          = "policy.get_by_name"
+	OpPolicyList         = "policy.list"
+	OpPolicyDelete       = "policy.delete"
+	OpRoleSave           = "role.save"
+	OpRoleGet            = "role.get"
+	OpRoleList           = "role.list"
+	OpRoleDelete         = "role.delete"
+	OpDBRoleSave         = "db_role.save"
+	OpDBRoleGet          = "db_role.get"
+	OpDBRoleList         = "db_role.list"
+	OpDBRoleDelete       = "db_role.delete"
+	OpIssuedSave         = "issued.save"
+	OpIssuedGetBySerial  = "issued.get_by_serial"
+	OpIssuedList         = "issued.list"
+	OpIssuedListExpiring = "issued.list_expiring"
+	OpImportSnapshot     = "snapshot.import"
+)
+
+func encodeCommand(op string, payload any) ([]byte, error) {
+	var raw json.RawMessage
+	if payload != nil {
+		b, err := json.Marshal(payload)
+		if err != nil {
+			return nil, err
+		}
+		raw = b
+	}
+	return json.Marshal(Command{Op: op, Payload: raw})
+}
+
+func decodeCommand(data []byte) (Command, error) {
+	var cmd Command
+	if err := json.Unmarshal(data, &cmd); err != nil {
+		return Command{}, err
+	}
+	if cmd.Op == "" {
+		return Command{}, fmt.Errorf("command op is required")
+	}
+	return cmd, nil
+}
+
+func encodeResponse(data any, err error) ([]byte, error) {
+	resp := Response{}
+	if err != nil {
+		var kv *common.KNXVaultError
+		if errors.As(err, &kv) {
+			resp.ErrorCode = string(kv.Code)
+			resp.Message = kv.Message
+		} else {
+			resp.ErrorCode = string(common.ErrCodeInternal)
+			resp.Message = err.Error()
+		}
+		return json.Marshal(resp)
+	}
+	if data != nil {
+		b, err := json.Marshal(data)
+		if err != nil {
+			return nil, err
+		}
+		resp.Data = b
+	}
+	return json.Marshal(resp)
+}
