@@ -96,7 +96,7 @@ all: ## Run fmt, vet, lint, gosec, licenses, scan, test, test-integration, build
 # Go quality
 # =============================================================================
 
-.PHONY: fmt vet lint gosec semgrep licenses test test-integration build build-cli build-csi build-webhook generate-clients sbom scan tidy install-tools docker-build
+.PHONY: fmt vet lint gosec semgrep licenses test test-integration build build-cli build-csi build-webhook generate-clients sbom scan tidy install-tools docker-build clean
 
 fmt: ## Check Go formatting (gofmt)
 	$(call log,Checking gofmt)
@@ -214,6 +214,12 @@ tidy: ## Run go mod tidy
 	$(call require_cmd,go)
 	$(GO) mod tidy
 
+clean: ## Remove built binaries and generated artifacts
+	$(call log,Cleaning build artifacts)
+	@rm -rf bin
+	@rm -f $(SBOM_FILE) sbom-binary.json coverage.out trivy-report.json trivy-results.sarif
+	@printf "$(COLOR_GREEN)Clean complete.$(COLOR_RESET)\n"
+
 install-tools: ## Install golangci-lint v2 and gosec (Go 1.25 toolchain)
 	$(call log,Installing golangci-lint v2 and gosec)
 	$(call require_cmd,go)
@@ -241,4 +247,5 @@ help: ## Show available targets and descriptions
 	@printf "\n$(COLOR_BOLD)Examples$(COLOR_RESET)\n\n"
 	@printf "  make all\n"
 	@printf "  make build\n"
+	@printf "  make clean\n"
 	@printf "  make test\n"
