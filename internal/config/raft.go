@@ -28,6 +28,9 @@ type RaftConfig struct {
 	HeartbeatRTT      uint64
 	RTTMillisecond    uint64
 	Join              bool
+	MTLSCertFile      string
+	MTLSKeyFile       string
+	MTLSCAFile        string
 }
 
 // Validate checks Raft settings when enabled.
@@ -62,6 +65,9 @@ func loadRaftConfig() (RaftConfig, error) {
 		HeartbeatRTT:      defaultRaftHeartbeatRTT,
 		RTTMillisecond:    defaultRaftRTTMillisecond,
 		InitialMembersRaw: strings.TrimSpace(os.Getenv("KNXVAULT_RAFT_INITIAL_MEMBERS")),
+		MTLSCertFile:      strings.TrimSpace(os.Getenv("KNXVAULT_RAFT_MTLS_CERT")),
+		MTLSKeyFile:       strings.TrimSpace(os.Getenv("KNXVAULT_RAFT_MTLS_KEY")),
+		MTLSCAFile:        strings.TrimSpace(os.Getenv("KNXVAULT_RAFT_MTLS_CA")),
 	}
 
 	if v := os.Getenv("KNXVAULT_RAFT_ENABLED"); v != "" {

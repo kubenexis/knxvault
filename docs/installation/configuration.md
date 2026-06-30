@@ -44,6 +44,9 @@ KNXVault is configured entirely via environment variables. No config file is req
 | `KNXVAULT_RAFT_HEARTBEAT_RTT` | `1` | No | Heartbeat interval (RTT ticks) |
 | `KNXVAULT_RAFT_RTT_MILLISECOND` | `1` | No | Logical RTT milliseconds |
 | `KNXVAULT_POD_NAME` | — | K8s | StatefulSet pod name for node ID derivation |
+| `KNXVAULT_RAFT_MTLS_CERT` | — | No | Raft peer TLS certificate (stub — W38-14) |
+| `KNXVAULT_RAFT_MTLS_KEY` | — | No | Raft peer TLS private key |
+| `KNXVAULT_RAFT_MTLS_CA` | — | No | Raft peer CA bundle for mutual TLS |
 
 See [Dragonboat storage](../storage/dragonboat.md) for topology examples.
 
@@ -62,7 +65,9 @@ Jobs run on the **Raft leader** when Raft is enabled.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `KNXVAULT_AUDIT_SIGNING_KEY` | — | HMAC key for audit export signatures |
+| `KNXVAULT_AUDIT_SIGNING_KEY` | — | HMAC key for audit export and per-entry signatures |
+| `KNXVAULT_AUDIT_FORWARD_URL` | — | HTTP sink for async audit entry forwarding |
+| `KNXVAULT_CORS_ALLOWED_ORIGINS` | — | Comma-separated origins for CORS (e.g. `https://app.example.com`) |
 | `KNXVAULT_RATE_LIMIT_ENABLED` | `false` | Per-token/IP rate limiting |
 | `KNXVAULT_RATE_LIMIT_RPM` | `300` | Requests per minute per client |
 | `KNXVAULT_REQUEST_SIGNING_KEY` | — | HMAC key for `X-KNX-Signature` header |
@@ -101,9 +106,10 @@ Secrets (never in ConfigMap):
 ```yaml
 KNXVAULT_MASTER_KEY: "<base64-32-bytes>"
 KNXVAULT_ROOT_TOKEN: "<bootstrap-token>"
-KNXVAULT_JWT_SECRET: "<k8s-jwt-hmac>"
 KNXVAULT_AUDIT_SIGNING_KEY: "<audit-hmac>"
 ```
+
+Kubernetes auth uses in-cluster **TokenReview** automatically — do not set `KNXVAULT_JWT_SECRET` or `KNXVAULT_K8S_AUTH_INSECURE` in production.
 
 ## Operator security notes
 

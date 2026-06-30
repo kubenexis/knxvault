@@ -2,12 +2,16 @@
 package api
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.uber.org/zap"
 
 	"github.com/kubenexis/knxvault/internal/api/handlers"
 	"github.com/kubenexis/knxvault/internal/api/middleware"
+	"github.com/kubenexis/knxvault/internal/crypto/openssl"
+	"github.com/kubenexis/knxvault/internal/domain/common"
 	"github.com/kubenexis/knxvault/internal/infra/metrics"
 )
 
@@ -19,6 +23,9 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 		r.Use(otelgin.Middleware("knxvault"))
 	}
 	r.Use(middleware.RequestID())
+	r.Use(middleware.SecurityHeaders(middleware.SecurityHeadersConfig{
+		CORSAllowedOrigins: deps.CORSAllowedOrigins,
+	}))
 	r.Use(metrics.Middleware())
 	r.Use(middleware.RequestLogger(log))
 	r.Use(middleware.ErrorHandler())
@@ -39,6 +46,16 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 			authGroup.POST("/kubernetes", authHandler.LoginKubernetes)
 			authGroup.POST("/token", authHandler.LoginToken)
 		}
+		securedAuth := authGroup.Group("/")
+		securedAuth.Use(middleware.Auth(deps.AuthService))
+		{
+			securedAuth.POST("/token/create",
+				middleware.RequirePermission(deps.AuthService, "sys/auth", "write"),
+				authHandler.CreateToken,
+			)
+			securedAuth.POST("/token/renew", authHandler.RenewToken)
+			securedAuth.DELETE("/token/self", authHandler.RevokeSelfToken)
+		}
 	}
 
 	secured := r.Group("/")
@@ -53,8 +70,16 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 	}
 
 	if deps.AuthService != nil {
-		sys := handlers.NewSysHandler(deps.AuthService)
+		sys := handlers.NewSysHandler(deps.AuthService, deps.PKIService, deps.MasterKey)
 		secured.GET("/sys/capabilities", sys.Capabilities)
+		secured.POST("/sys/init",
+			middleware.RequirePermission(deps.AuthService, "sys/init", "write"),
+			sys.Init,
+		)
+		secured.POST("/sys/tls/issue-listener",
+			middleware.RequirePermission(deps.AuthService, "sys/tls", "write"),
+			sys.IssueListenerTLS,
+		)
 	}
 
 	if deps.PKIService != nil {
@@ -63,14 +88,18 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 		if deps.AuthService != nil {
 			pkiGroup := secured.Group("/pki")
 			pkiGroup.Use(middleware.RequirePermission(deps.AuthService, "pki", "write"))
+			pkiGroup.Use(openSSLBreakerMiddleware(deps.OpenSSL))
 			{
 				pkiGroup.POST("/root", pkiHandler.CreateRoot)
 				pkiGroup.POST("/intermediate", pkiHandler.CreateIntermediate)
 				pkiGroup.POST("/issue", pkiHandler.Issue)
 				pkiGroup.POST("/renew", pkiHandler.Renew)
 				pkiGroup.POST("/revoke", pkiHandler.Revoke)
+				pkiGroup.POST("/ca/import", pkiHandler.ImportCA)
+				pkiGroup.POST("/ca/:id/rotate", pkiHandler.RotateCA)
 			}
 			secured.GET("/pki/ca/:id", middleware.RequirePermission(deps.AuthService, "pki", "read"), pkiHandler.GetCA)
+			secured.GET("/pki/ca/:id/export", middleware.RequirePermission(deps.AuthService, "pki", "read"), pkiHandler.ExportCA)
 			secured.GET("/pki/crl/:id", middleware.RequirePermission(deps.AuthService, "pki", "read"), pkiHandler.CRL)
 		}
 	}
@@ -161,4 +190,17 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 	}
 
 	return r
+}
+
+func openSSLBreakerMiddleware(ossl *openssl.Wrapper) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if ossl != nil && ossl.BreakerOpen() {
+			c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{
+				"error_code": string(common.ErrCodeInternal),
+				"message":    "openssl circuit breaker open",
+			})
+			return
+		}
+		c.Next()
+	}
 }

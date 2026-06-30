@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	"github.com/kubenexis/knxvault/pkg/client"
 )
@@ -24,8 +26,14 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVar(&addr, "addr", envOr("KNXVAULT_ADDR", "http://localhost:8200"), "KNXVault API address")
-	rootCmd.PersistentFlags().StringVar(&token, "token", os.Getenv("KNXVAULT_TOKEN"), "Client token")
+	cobra.OnInitialize(initConfig)
+
+	rootCmd.PersistentFlags().StringVar(&addr, "addr", "http://localhost:8200", "KNXVault API address")
+	rootCmd.PersistentFlags().StringVar(&token, "token", "", "Client token")
+	_ = viper.BindPFlag("addr", rootCmd.PersistentFlags().Lookup("addr"))
+	_ = viper.BindPFlag("token", rootCmd.PersistentFlags().Lookup("token"))
+	_ = viper.BindEnv("addr", "KNXVAULT_ADDR")
+	_ = viper.BindEnv("token", "KNXVAULT_TOKEN")
 
 	rootCmd.AddCommand(healthCmd)
 	rootCmd.AddCommand(statusCmd)
@@ -33,6 +41,28 @@ func init() {
 	rootCmd.AddCommand(kvCmd)
 	rootCmd.AddCommand(pkiCmd)
 	rootCmd.AddCommand(backupCmd)
+	rootCmd.AddCommand(completionCmd)
+}
+
+func initConfig() {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+	viper.SetConfigName("config")
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath(filepath.Join(home, ".knxvault"))
+	_ = viper.ReadInConfig()
+
+	if v := viper.GetString("addr"); v != "" {
+		addr = v
+	}
+	if v := viper.GetString("token"); v != "" && token == "" {
+		token = v
+	}
+	if token == "" {
+		token = os.Getenv("KNXVAULT_TOKEN")
+	}
 }
 
 func apiClient() *client.Client {

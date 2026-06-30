@@ -23,6 +23,8 @@ type TokenRecord struct {
 	Subject   string
 	Policies  []string
 	ExpiresAt time.Time
+	Renewable bool
+	Revoked   bool
 }
 
 // TokenStore manages in-memory client tokens.
@@ -45,6 +47,14 @@ func NewTokenStore(ttl time.Duration) *TokenStore {
 
 // Issue creates a new opaque client token.
 func (s *TokenStore) Issue(subject string, policies []string) (string, *TokenRecord, error) {
+	return s.Create(subject, policies, s.ttl, true)
+}
+
+// Create issues a token with explicit TTL and renewability.
+func (s *TokenStore) Create(subject string, policies []string, ttl time.Duration, renewable bool) (string, *TokenRecord, error) {
+	if ttl <= 0 {
+		ttl = s.ttl
+	}
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
 		return "", nil, fmt.Errorf("generate token: %w", err)
@@ -54,7 +64,8 @@ func (s *TokenStore) Issue(subject string, policies []string) (string, *TokenRec
 		ID:        hashToken(token),
 		Subject:   subject,
 		Policies:  policies,
-		ExpiresAt: time.Now().UTC().Add(s.ttl),
+		ExpiresAt: time.Now().UTC().Add(ttl),
+		Renewable: renewable,
 	}
 
 	s.mu.Lock()
@@ -64,6 +75,47 @@ func (s *TokenStore) Issue(subject string, policies []string) (string, *TokenRec
 	return token, &record, nil
 }
 
+// Renew extends a renewable token's TTL.
+func (s *TokenStore) Renew(token string, increment time.Duration) (*TokenRecord, error) {
+	if increment <= 0 {
+		increment = s.ttl
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	record, ok := s.tokens[hashToken(token)]
+	if !ok {
+		return nil, common.New(common.ErrCodeUnauthorized, "invalid token")
+	}
+	if record.Revoked {
+		return nil, common.New(common.ErrCodeUnauthorized, "token revoked")
+	}
+	if !record.Renewable {
+		return nil, common.New(common.ErrCodeValidation, "token is not renewable")
+	}
+	if time.Now().UTC().After(record.ExpiresAt) {
+		return nil, common.New(common.ErrCodeUnauthorized, "token expired")
+	}
+	record.ExpiresAt = time.Now().UTC().Add(increment)
+	s.tokens[record.ID] = record
+	copy := record
+	return &copy, nil
+}
+
+// Revoke invalidates a token immediately.
+func (s *TokenStore) Revoke(token string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	id := hashToken(token)
+	record, ok := s.tokens[id]
+	if !ok {
+		return common.New(common.ErrCodeUnauthorized, "invalid token")
+	}
+	record.Revoked = true
+	record.ExpiresAt = time.Now().UTC()
+	s.tokens[id] = record
+	return nil
+}
+
 // Authenticate validates an opaque client token.
 func (s *TokenStore) Authenticate(token string) (*TokenRecord, error) {
 	s.mu.RLock()
@@ -71,6 +123,9 @@ func (s *TokenStore) Authenticate(token string) (*TokenRecord, error) {
 	s.mu.RUnlock()
 	if !ok {
 		return nil, common.New(common.ErrCodeUnauthorized, "invalid token")
+	}
+	if record.Revoked {
+		return nil, common.New(common.ErrCodeUnauthorized, "token revoked")
 	}
 	if time.Now().UTC().After(record.ExpiresAt) {
 		return nil, common.New(common.ErrCodeUnauthorized, "token expired")
@@ -258,4 +313,25 @@ func (s *Service) RBAC() *RBAC {
 // Capabilities returns allowed capabilities for a principal.
 func (s *Service) Capabilities(principal Principal) []string {
 	return s.rbac.Capabilities(principal.Policies)
+}
+
+// CreateToken issues a scoped client token (admin).
+func (s *Service) CreateToken(_ context.Context, subject string, policies []string, ttl time.Duration, renewable bool) (string, *TokenRecord, error) {
+	if subject == "" {
+		subject = "token"
+	}
+	if len(policies) == 0 {
+		return "", nil, common.New(common.ErrCodeValidation, "policies are required")
+	}
+	return s.tokens.Create(subject, policies, ttl, renewable)
+}
+
+// RenewToken extends the caller token TTL.
+func (s *Service) RenewToken(_ context.Context, token string, increment time.Duration) (*TokenRecord, error) {
+	return s.tokens.Renew(token, increment)
+}
+
+// RevokeToken invalidates the caller token.
+func (s *Service) RevokeToken(_ context.Context, token string) error {
+	return s.tokens.Revoke(token)
 }

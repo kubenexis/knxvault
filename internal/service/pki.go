@@ -78,6 +78,27 @@ func (s *PKIService) RenewCertificate(ctx context.Context, req pkiengine.RenewRe
 	return result, err
 }
 
+// ImportCA imports PEM CA material.
+func (s *PKIService) ImportCA(ctx context.Context, req pkiengine.ImportCARequest) (*pkiengine.CAResult, error) {
+	result, err := s.engine.ImportCA(ctx, req)
+	s.record(ctx, "pki.ca.import", "pki/"+req.Name, err, nil)
+	return result, err
+}
+
+// ExportCA exports public CA chain.
+func (s *PKIService) ExportCA(ctx context.Context, id uuid.UUID) (*pkiengine.ExportCAResult, error) {
+	result, err := s.engine.ExportCA(ctx, id)
+	s.record(ctx, "pki.ca.export", "pki/"+id.String(), err, nil)
+	return result, err
+}
+
+// RotateCA creates a successor CA.
+func (s *PKIService) RotateCA(ctx context.Context, id uuid.UUID) (*pkiengine.CAResult, error) {
+	result, err := s.engine.RotateCA(ctx, id)
+	s.record(ctx, "pki.ca.rotate", "pki/"+id.String(), err, nil)
+	return result, err
+}
+
 // HandleOCSP processes an OCSP request and returns a DER response.
 func (s *PKIService) HandleOCSP(ctx context.Context, caID uuid.UUID, requestDER []byte) ([]byte, error) {
 	result, err := s.engine.HandleOCSP(ctx, caID, requestDER)

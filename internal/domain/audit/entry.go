@@ -15,6 +15,7 @@ type Entry struct {
 	Status    string
 	Details   map[string]any
 	Hash      string
+	Signature string
 }
 
 // Validate checks required audit fields.

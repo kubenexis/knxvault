@@ -28,10 +28,15 @@ const (
 	OpCAGetByName        = "ca.get_by_name"
 	OpCAList             = "ca.list"
 	OpSecretSaveVersion  = "secret.save_version"
+	OpSecretPut          = "secret.put"
 	OpSecretGetLatest    = "secret.get_latest"
 	OpSecretGetVersion   = "secret.get_version"
 	OpSecretListByPath   = "secret.list_by_path"
 	OpSecretNextVersion  = "secret.next_version"
+	OpSecretDestroyVer   = "secret.destroy_version"
+	OpPKIRoleSave        = "pki_role.save"
+	OpPKIRoleGet         = "pki_role.get"
+	OpPKIRoleList        = "pki_role.list"
 	OpAuditAppend        = "audit.append"
 	OpAuditList          = "audit.list"
 	OpAuditLatestHash    = "audit.latest_hash"
@@ -71,6 +76,8 @@ var readOnlyOps = map[string]struct{}{
 	OpSecretGetVersion:   {},
 	OpSecretListByPath:   {},
 	OpSecretNextVersion:  {},
+	OpPKIRoleGet:         {},
+	OpPKIRoleList:        {},
 	OpAuditList:          {},
 	OpAuditLatestHash:    {},
 	OpRevokeIs:           {},

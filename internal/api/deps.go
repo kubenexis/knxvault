@@ -6,13 +6,17 @@ import (
 	"github.com/kubenexis/knxvault/internal/api/handlers"
 	"github.com/kubenexis/knxvault/internal/api/middleware"
 	"github.com/kubenexis/knxvault/internal/auth"
+	"github.com/kubenexis/knxvault/internal/crypto/openssl"
 	"github.com/kubenexis/knxvault/internal/service"
 )
 
 // RouterDeps groups handlers wired into the HTTP router.
 type RouterDeps struct {
 	Ready              ReadinessChecker
+	MasterKey          []byte
+	CORSAllowedOrigins []string
 	AuthService        *auth.Service
+	OpenSSL            *openssl.Wrapper
 	PKIService         *service.PKIService
 	SecretsService     *service.SecretsService
 	DatabaseService    *service.DatabaseService

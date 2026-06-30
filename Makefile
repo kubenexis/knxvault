@@ -90,7 +90,7 @@ all: ## Run fmt, vet, lint, gosec, licenses, scan, test, test-integration, build
 # Go quality
 # =============================================================================
 
-.PHONY: fmt vet lint gosec licenses test test-integration build build-cli build-csi build-webhook generate-clients sbom scan tidy install-tools docker-build
+.PHONY: fmt vet lint gosec semgrep licenses test test-integration build build-cli build-csi build-webhook generate-clients sbom scan tidy install-tools docker-build
 
 fmt: ## Check Go formatting (gofmt)
 	$(call log,Checking gofmt)
@@ -116,6 +116,11 @@ gosec: ## Run gosec security scanner (W11-02)
 	$(call log,Running gosec)
 	$(call require_cmd,gosec)
 	$(GOSEC) -quiet -conf .gosec.json -exclude-generated -severity high ./...
+
+semgrep: ## Run semgrep static analysis (W38-16)
+	$(call log,Running semgrep)
+	$(call require_cmd,semgrep)
+	semgrep scan --config .semgrep/knxvault.yml --error .
 
 licenses: ## Enforce permissive dependency licenses (LLD §1.5)
 	$(call log,Checking dependency licenses)

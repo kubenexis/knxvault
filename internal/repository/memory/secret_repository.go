@@ -105,11 +105,94 @@ func (r *SecretRepository) NextVersion(_ context.Context, path string) (int, err
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
+	return r.nextVersionLocked(path), nil
+}
+
+// PutAtomic allocates the next version, optionally checks CAS, saves, and trims retention.
+func (r *SecretRepository) PutAtomic(_ context.Context, sv *secrets.SecretVersion, casVersion *int, maxVersions int) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if casVersion != nil {
+		latest := r.latestNonDestroyedLocked(sv.Path)
+		if latest == nil || latest.Version != *casVersion {
+			return 0, common.New(common.ErrCodeValidation, "cas version mismatch")
+		}
+	}
+
+	version := r.nextVersionLocked(sv.Path)
+	sv.Version = version
+	if err := sv.Validate(); err != nil {
+		return 0, common.Wrap(common.ErrCodeValidation, "invalid secret version", err)
+	}
+
+	key := secretKey{path: sv.Path, version: version}
+	if _, exists := r.versions[key]; exists {
+		return 0, common.New(common.ErrCodeValidation, "secret version already exists")
+	}
+	stored := *sv
+	r.versions[key] = &stored
+
+	if maxVersions > 0 {
+		r.trimVersionsLocked(sv.Path, maxVersions)
+	}
+	return version, nil
+}
+
+// DestroyVersion marks a specific version as destroyed.
+func (r *SecretRepository) DestroyVersion(_ context.Context, path string, version int) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	key := secretKey{path: path, version: version}
+	sv, ok := r.versions[key]
+	if !ok {
+		return common.New(common.ErrCodeNotFound, "secret version not found")
+	}
+	if sv.Destroyed {
+		return common.New(common.ErrCodeValidation, "secret version already destroyed")
+	}
+	sv.Destroyed = true
+	return nil
+}
+
+func (r *SecretRepository) nextVersionLocked(path string) int {
 	max := 0
 	for key := range r.versions {
 		if key.path == path && key.version > max {
 			max = key.version
 		}
 	}
-	return max + 1, nil
+	return max + 1
+}
+
+func (r *SecretRepository) latestNonDestroyedLocked(path string) *secrets.SecretVersion {
+	var latest *secrets.SecretVersion
+	for key, sv := range r.versions {
+		if key.path != path || sv.Destroyed {
+			continue
+		}
+		if latest == nil || sv.Version > latest.Version {
+			stored := *sv
+			latest = &stored
+		}
+	}
+	return latest
+}
+
+func (r *SecretRepository) trimVersionsLocked(path string, maxVersions int) {
+	var versions []int
+	for key, sv := range r.versions {
+		if key.path == path && !sv.Destroyed {
+			versions = append(versions, key.version)
+		}
+	}
+	if len(versions) <= maxVersions {
+		return
+	}
+	sort.Ints(versions)
+	toRemove := len(versions) - maxVersions
+	for i := 0; i < toRemove; i++ {
+		delete(r.versions, secretKey{path: path, version: versions[i]})
+	}
 }

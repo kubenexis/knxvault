@@ -188,6 +188,64 @@ func (h *PKIHandler) Renew(c *gin.Context) {
 	})
 }
 
+// ImportCA handles POST /pki/ca/import.
+func (h *PKIHandler) ImportCA(c *gin.Context) {
+	var req dto.ImportCARequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	result, err := h.svc.ImportCA(c.Request.Context(), pkiengine.ImportCARequest{
+		Name:       req.Name,
+		CommonName: req.CommonName,
+		CertPEM:    req.CertPEM,
+		KeyPEM:     req.KeyPEM,
+		ParentName: req.ParentName,
+	})
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusCreated, toCAResponse(result))
+}
+
+// ExportCA handles GET /pki/ca/:id/export.
+func (h *PKIHandler) ExportCA(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	result, err := h.svc.ExportCA(c.Request.Context(), id)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, dto.ExportCAResponse{
+		ID:        result.ID.String(),
+		Name:      result.Name,
+		CertPEM:   result.CertPEM,
+		ChainPEM:  result.ChainPEM,
+		Serial:    result.Serial,
+		ExpiresAt: result.ExpiresAt.Format(time.RFC3339),
+	})
+}
+
+// RotateCA handles POST /pki/ca/:id/rotate.
+func (h *PKIHandler) RotateCA(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	result, err := h.svc.RotateCA(c.Request.Context(), id)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusCreated, toCAResponse(result))
+}
+
 // OCSP handles POST /pki/ocsp/:id (application/ocsp-request).
 func (h *PKIHandler) OCSP(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))

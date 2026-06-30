@@ -34,10 +34,13 @@ func (e *KVV2Engine) Name() string {
 	return engineName
 }
 
+const defaultMaxVersions = 10
+
 // PutOptions controls secret writes.
 type PutOptions struct {
-	TTL        string
-	CasVersion *int
+	TTL         string
+	CasVersion  *int
+	MaxVersions int
 }
 
 // PutResult contains write metadata.
@@ -57,16 +60,6 @@ func (e *KVV2Engine) Put(ctx context.Context, path string, data map[string]any, 
 		return nil, common.New(common.ErrCodeValidation, "secret data is required")
 	}
 
-	if opts.CasVersion != nil {
-		latest, err := e.repo.GetLatest(ctx, path)
-		if err != nil {
-			return nil, err
-		}
-		if latest.Version != *opts.CasVersion {
-			return nil, common.New(common.ErrCodeValidation, "cas version mismatch")
-		}
-	}
-
 	payload, err := json.Marshal(data)
 	if err != nil {
 		return nil, common.Wrap(common.ErrCodeInternal, "marshal secret data", err)
@@ -77,16 +70,10 @@ func (e *KVV2Engine) Put(ctx context.Context, path string, data map[string]any, 
 		return nil, common.Wrap(common.ErrCodeInternal, "encrypt secret data", err)
 	}
 
-	version, err := e.repo.NextVersion(ctx, path)
-	if err != nil {
-		return nil, err
-	}
-
 	now := time.Now().UTC()
 	sv := &domainsecrets.SecretVersion{
 		ID:        uuid.New(),
 		Path:      path,
-		Version:   version,
 		DataEnc:   dataEnc,
 		DEKEnc:    dekEnc,
 		CreatedAt: now,
@@ -103,7 +90,13 @@ func (e *KVV2Engine) Put(ctx context.Context, path string, data map[string]any, 
 		sv.ExpiresAt = &expires
 	}
 
-	if err := e.repo.SaveVersion(ctx, sv); err != nil {
+	maxVersions := opts.MaxVersions
+	if maxVersions <= 0 {
+		maxVersions = defaultMaxVersions
+	}
+
+	version, err := e.repo.PutAtomic(ctx, sv, opts.CasVersion, maxVersions)
+	if err != nil {
 		return nil, err
 	}
 
@@ -167,6 +160,118 @@ func (e *KVV2Engine) GetVersion(ctx context.Context, path string, version int) (
 		result.TTL = fmt.Sprintf("%ds", *sv.TTLSeconds)
 	}
 	return result, nil
+}
+
+// VersionMetadata describes a secret version without decrypted data.
+type VersionMetadata struct {
+	Version   int
+	CreatedAt time.Time
+	Destroyed bool
+	TTL       string
+}
+
+// PathMetadata summarizes versions for a secret path.
+type PathMetadata struct {
+	Path           string
+	CurrentVersion int
+	Versions       []VersionMetadata
+	MaxVersions    int
+}
+
+// DestroyVersion marks a specific version as destroyed.
+func (e *KVV2Engine) DestroyVersion(ctx context.Context, path string, version int) error {
+	if e.repo == nil {
+		return common.New(common.ErrCodeInternal, "kv engine not fully configured")
+	}
+	if path == "" || version < 1 {
+		return common.New(common.ErrCodeValidation, "path and version are required")
+	}
+	return e.repo.DestroyVersion(ctx, path, version)
+}
+
+// ListPaths returns unique secret paths under a prefix.
+func (e *KVV2Engine) ListPaths(ctx context.Context, prefix string) ([]string, error) {
+	if e.repo == nil {
+		return nil, common.New(common.ErrCodeInternal, "kv engine not fully configured")
+	}
+	versions, err := e.repo.ListByPath(ctx, prefix)
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[string]struct{})
+	var paths []string
+	for _, sv := range versions {
+		if _, ok := seen[sv.Path]; ok {
+			continue
+		}
+		seen[sv.Path] = struct{}{}
+		paths = append(paths, sv.Path)
+	}
+	return paths, nil
+}
+
+// ListVersions returns metadata for all versions at a path.
+func (e *KVV2Engine) ListVersions(ctx context.Context, path string) ([]VersionMetadata, error) {
+	if e.repo == nil {
+		return nil, common.New(common.ErrCodeInternal, "kv engine not fully configured")
+	}
+	versions, err := e.repo.ListByPath(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+	var out []VersionMetadata
+	for _, sv := range versions {
+		if sv.Path != path {
+			continue
+		}
+		meta := VersionMetadata{
+			Version:   sv.Version,
+			CreatedAt: sv.CreatedAt,
+			Destroyed: sv.Destroyed,
+		}
+		if sv.TTLSeconds != nil {
+			meta.TTL = fmt.Sprintf("%ds", *sv.TTLSeconds)
+		}
+		out = append(out, meta)
+	}
+	if len(out) == 0 {
+		return nil, common.New(common.ErrCodeNotFound, "secret path not found")
+	}
+	return out, nil
+}
+
+// GetMetadata returns metadata for the latest or specific version.
+func (e *KVV2Engine) GetMetadata(ctx context.Context, path string, version int) (*PathMetadata, error) {
+	if e.repo == nil {
+		return nil, common.New(common.ErrCodeInternal, "kv engine not fully configured")
+	}
+	versions, err := e.ListVersions(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+	meta := &PathMetadata{
+		Path:        path,
+		MaxVersions: defaultMaxVersions,
+		Versions:    versions,
+	}
+	for _, v := range versions {
+		if v.Version > meta.CurrentVersion && !v.Destroyed {
+			meta.CurrentVersion = v.Version
+		}
+	}
+	if version > 0 {
+		found := false
+		for _, v := range versions {
+			if v.Version == version {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, common.New(common.ErrCodeNotFound, "secret version not found")
+		}
+	}
+	return meta, nil
 }
 
 // Delete soft-deletes the latest secret version.

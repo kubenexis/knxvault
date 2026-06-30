@@ -36,6 +36,9 @@ func New(ctx context.Context, cfg config.Config, log *zap.Logger) (*App, error) 
 
 	router := api.NewRouter(log, cfg.Version, cfg.TracingEnabled, api.RouterDeps{
 		Ready:              deps,
+		MasterKey:          deps.MasterKey,
+		CORSAllowedOrigins: cfg.CORSAllowedOrigins,
+		OpenSSL:            deps.OpenSSL,
 		AuthService:        deps.AuthService,
 		PKIService:         deps.PKIService,
 		SecretsService:     deps.SecretsService,

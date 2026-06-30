@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/crypto/ocsp"
 
+	"github.com/kubenexis/knxvault/internal/crypto/memzero"
 	"github.com/kubenexis/knxvault/internal/domain/common"
 )
 
@@ -47,7 +48,7 @@ func (e *Engine) HandleOCSP(ctx context.Context, caID uuid.UUID, requestDER []by
 	if err != nil {
 		return nil, err
 	}
-	defer zeroBytes(caKey)
+	defer memzero.Bytes(caKey)
 
 	signer, err := parseSigner(caKey)
 	if err != nil {

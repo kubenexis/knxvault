@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 
 	kvncrypto "github.com/kubenexis/knxvault/internal/crypto"
+	"github.com/kubenexis/knxvault/internal/crypto/memzero"
 	"github.com/kubenexis/knxvault/internal/crypto/openssl"
 	"github.com/kubenexis/knxvault/internal/domain/common"
 	domainpki "github.com/kubenexis/knxvault/internal/domain/pki"
@@ -69,11 +70,12 @@ type IssueResult struct {
 
 // Engine performs PKI operations via OpenSSL.
 type Engine struct {
-	openssl *openssl.Wrapper
-	crypto  *kvncrypto.Service
-	caRepo  repository.CARepository
-	revoked repository.RevocationRepository
-	issued  repository.IssuedCertRepository
+	openssl  *openssl.Wrapper
+	crypto   *kvncrypto.Service
+	caRepo   repository.CARepository
+	roleRepo repository.PKIRoleRepository
+	revoked  repository.RevocationRepository
+	issued   repository.IssuedCertRepository
 }
 
 // NewEngine constructs a PKI engine.
@@ -94,6 +96,11 @@ func NewEngine(
 // SetIssuedCertRepository configures issued certificate tracking for renewal.
 func (e *Engine) SetIssuedCertRepository(repo repository.IssuedCertRepository) {
 	e.issued = repo
+}
+
+// SetPKIRoleRepository configures persisted PKI issuance roles.
+func (e *Engine) SetPKIRoleRepository(repo repository.PKIRoleRepository) {
+	e.roleRepo = repo
 }
 
 // CreateRoot creates and stores a self-signed root CA.
@@ -216,7 +223,7 @@ func (e *Engine) CreateIntermediate(ctx context.Context, req CreateIntermediateR
 	if err != nil {
 		return nil, err
 	}
-	defer zeroBytes(parentKey)
+	defer memzero.Bytes(parentKey)
 
 	if err := ws.write("parent.crt", []byte(parent.CertPEM)); err != nil {
 		return nil, err
@@ -313,9 +320,25 @@ func (e *Engine) IssueCertificate(ctx context.Context, req IssueRequest) (*Issue
 		return nil, common.New(common.ErrCodeInternal, "pki engine not fully configured")
 	}
 
-	ca, err := e.caRepo.GetByName(ctx, req.Role)
+	caName := req.Role
+	var pkiRole *domainpki.Role
+	if e.roleRepo != nil {
+		role, err := e.roleRepo.Get(ctx, req.Role)
+		if err == nil {
+			pkiRole = role
+			caName = role.CAName
+		}
+	}
+
+	ca, err := e.caRepo.GetByName(ctx, caName)
 	if err != nil {
 		return nil, err
+	}
+
+	if pkiRole != nil {
+		if err := validateIssueAgainstRole(pkiRole, req); err != nil {
+			return nil, err
+		}
 	}
 
 	ttl := 720 * time.Hour
@@ -340,7 +363,7 @@ func (e *Engine) IssueCertificate(ctx context.Context, req IssueRequest) (*Issue
 	if err != nil {
 		return nil, err
 	}
-	defer zeroBytes(caKey)
+	defer memzero.Bytes(caKey)
 
 	if err := ws.write("ca.crt", []byte(ca.CertPEM)); err != nil {
 		return nil, err
@@ -499,7 +522,7 @@ func (e *Engine) GenerateCRL(ctx context.Context, caID uuid.UUID) (string, error
 	if err != nil {
 		return "", err
 	}
-	defer zeroBytes(caKey)
+	defer memzero.Bytes(caKey)
 
 	signer, err := parseSigner(caKey)
 	if err != nil {
@@ -579,8 +602,154 @@ func parseSigner(pemBytes []byte) (crypto.Signer, error) {
 	return rsaKey, nil
 }
 
-func zeroBytes(b []byte) {
-	for i := range b {
-		b[i] = 0
+// ImportCARequest imports a CA from PEM material.
+type ImportCARequest struct {
+	Name       string
+	CommonName string
+	CertPEM    string
+	KeyPEM     string
+	ParentName string
+}
+
+// ExportCAResult returns public CA material.
+type ExportCAResult struct {
+	ID        uuid.UUID
+	Name      string
+	CertPEM   string
+	ChainPEM  string
+	Serial    string
+	ExpiresAt time.Time
+}
+
+// ImportCA stores an imported CA with encrypted private key.
+func (e *Engine) ImportCA(ctx context.Context, req ImportCARequest) (*CAResult, error) {
+	if e.crypto == nil || e.caRepo == nil {
+		return nil, common.New(common.ErrCodeInternal, "pki engine not fully configured")
 	}
+	if req.Name == "" || req.CertPEM == "" || req.KeyPEM == "" {
+		return nil, common.New(common.ErrCodeValidation, "name, cert_pem, and key_pem are required")
+	}
+	serial, expiresAt, err := parseCertMetadata([]byte(req.CertPEM))
+	if err != nil {
+		return nil, common.Wrap(common.ErrCodeValidation, "invalid certificate", err)
+	}
+	keyEnc, dekEnc, err := e.crypto.Seal([]byte(req.KeyPEM))
+	if err != nil {
+		return nil, common.Wrap(common.ErrCodeInternal, "encrypt private key", err)
+	}
+	caType := domainpki.CATypeRoot
+	var parentID *uuid.UUID
+	if req.ParentName != "" {
+		parent, err := e.caRepo.GetByName(ctx, req.ParentName)
+		if err != nil {
+			return nil, err
+		}
+		caType = domainpki.CATypeIntermediate
+		pid := parent.ID
+		parentID = &pid
+	}
+	cn := req.CommonName
+	if cn == "" {
+		cn = req.Name
+	}
+	ca := &domainpki.CA{
+		ID:            uuid.New(),
+		ParentID:      parentID,
+		Name:          req.Name,
+		Type:          caType,
+		Subject:       domainpki.DistinguishedName{CommonName: cn},
+		Serial:        serial,
+		CertPEM:       req.CertPEM,
+		PrivateKeyEnc: keyEnc,
+		DEKEnc:        dekEnc,
+		Status:        domainpki.CAStatusActive,
+		CreatedAt:     time.Now().UTC(),
+		ExpiresAt:     expiresAt,
+	}
+	if err := e.caRepo.Save(ctx, ca); err != nil {
+		return nil, err
+	}
+	return &CAResult{
+		ID:        ca.ID,
+		Name:      ca.Name,
+		CertPEM:   ca.CertPEM,
+		Serial:    ca.Serial,
+		ExpiresAt: ca.ExpiresAt,
+	}, nil
+}
+
+// ExportCA returns certificate chain without private key.
+func (e *Engine) ExportCA(ctx context.Context, id uuid.UUID) (*ExportCAResult, error) {
+	if e.caRepo == nil {
+		return nil, common.New(common.ErrCodeInternal, "pki engine not fully configured")
+	}
+	ca, err := e.caRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	chain := ca.CertPEM
+	if ca.ParentID != nil {
+		parent, err := e.caRepo.GetByID(ctx, *ca.ParentID)
+		if err == nil {
+			chain = ca.CertPEM + "\n" + parent.CertPEM
+		}
+	}
+	return &ExportCAResult{
+		ID:        ca.ID,
+		Name:      ca.Name,
+		CertPEM:   ca.CertPEM,
+		ChainPEM:  chain,
+		Serial:    ca.Serial,
+		ExpiresAt: ca.ExpiresAt,
+	}, nil
+}
+
+// RotateCA creates a successor CA (stub workflow).
+func (e *Engine) RotateCA(ctx context.Context, id uuid.UUID) (*CAResult, error) {
+	if e.caRepo == nil {
+		return nil, common.New(common.ErrCodeInternal, "pki engine not fully configured")
+	}
+	old, err := e.caRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	name := fmt.Sprintf("%s-successor-%d", old.Name, time.Now().Unix())
+	if old.Type == domainpki.CATypeRoot {
+		return e.CreateRoot(ctx, CreateRootRequest{
+			Name:       name,
+			CommonName: old.Subject.CommonName + " Successor",
+			TTL:        "8760h",
+		})
+	}
+	parentName := old.Name
+	if old.ParentID != nil {
+		parent, err := e.caRepo.GetByID(ctx, *old.ParentID)
+		if err == nil {
+			parentName = parent.Name
+		}
+	}
+	return e.CreateIntermediate(ctx, CreateIntermediateRequest{
+		ParentName: parentName,
+		Name:       name,
+		CommonName: old.Subject.CommonName + " Successor",
+		TTL:        "4380h",
+	})
+}
+
+func validateIssueAgainstRole(role *domainpki.Role, req IssueRequest) error {
+	for _, dns := range req.DNSNames {
+		if !role.AllowedDomain(dns) {
+			return common.New(common.ErrCodeValidation, fmt.Sprintf("dns name %q not allowed by role", dns))
+		}
+	}
+	if req.TTL != "" && role.MaxTTLSeconds > 0 {
+		ttl, err := utils.ParseTTL(req.TTL)
+		if err != nil {
+			return common.Wrap(common.ErrCodeValidation, "invalid ttl", err)
+		}
+		if int(ttl.Seconds()) > role.MaxTTLSeconds {
+			return common.New(common.ErrCodeValidation, "ttl exceeds role maximum")
+		}
+	}
+	return nil
 }

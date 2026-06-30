@@ -47,6 +47,7 @@ type Repos struct {
 	Role       *RoleRepository
 	DBRole     *DatabaseRoleRepository
 	IssuedCert *IssuedCertRepository
+	PKIRole    *PKIRoleRepository
 }
 
 // NewRepos constructs Raft repository adapters.
@@ -61,6 +62,7 @@ func NewRepos(client *raft.Client) Repos {
 		Role:       NewRoleRepository(client),
 		DBRole:     NewDatabaseRoleRepository(client),
 		IssuedCert: NewIssuedCertRepository(client),
+		PKIRole:    NewPKIRoleRepository(client),
 	}
 }
 
@@ -142,6 +144,59 @@ func (r *SecretRepository) NextVersion(ctx context.Context, path string) (int, e
 	var out int
 	err := read(ctx, r.c, raft.OpSecretNextVersion, struct{ Path string }{Path: path}, &out)
 	return out, err
+}
+
+func (r *SecretRepository) PutAtomic(ctx context.Context, sv *secrets.SecretVersion, casVersion *int, maxVersions int) (int, error) {
+	var out int
+	data, err := r.c.Propose(ctx, raft.OpSecretPut, struct {
+		SecretVersion secrets.SecretVersion
+		CasVersion    *int
+		MaxVersions   int
+	}{
+		SecretVersion: *sv,
+		CasVersion:    casVersion,
+		MaxVersions:   maxVersions,
+	})
+	if err != nil {
+		return 0, err
+	}
+	if err := raft.DecodeResult(data, &out); err != nil {
+		return 0, err
+	}
+	return out, nil
+}
+
+func (r *SecretRepository) DestroyVersion(ctx context.Context, path string, version int) error {
+	return write(ctx, r.c, raft.OpSecretDestroyVer, struct {
+		Path    string
+		Version int
+	}{Path: path, Version: version})
+}
+
+// PKIRoleRepository persists PKI roles via Raft.
+type PKIRoleRepository struct{ c raftClient }
+
+func NewPKIRoleRepository(c *raft.Client) *PKIRoleRepository { return &PKIRoleRepository{c: c} }
+
+func (r *PKIRoleRepository) Save(ctx context.Context, role *pki.Role) error {
+	return write(ctx, r.c, raft.OpPKIRoleSave, role)
+}
+
+func (r *PKIRoleRepository) Get(ctx context.Context, name string) (*pki.Role, error) {
+	var out pki.Role
+	err := read(ctx, r.c, raft.OpPKIRoleGet, struct{ Name string }{Name: name}, &out)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (r *PKIRoleRepository) List(ctx context.Context) ([]*pki.Role, error) {
+	var out []*pki.Role
+	if err := read(ctx, r.c, raft.OpPKIRoleList, nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // AuditRepository appends audit records via Raft.

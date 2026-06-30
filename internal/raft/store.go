@@ -28,6 +28,7 @@ type Store struct {
 	Role       *memory.RoleRepository
 	DBRole     *memory.DatabaseRoleRepository
 	IssuedCert *memory.IssuedCertRepository
+	PKIRole    *memory.PKIRoleRepository
 }
 
 // NewStore constructs an empty vault store.
@@ -42,6 +43,7 @@ func NewStore() *Store {
 		Role:       memory.NewRoleRepository(),
 		DBRole:     memory.NewDatabaseRoleRepository(),
 		IssuedCert: memory.NewIssuedCertRepository(),
+		PKIRole:    memory.NewPKIRoleRepository(),
 	}
 }
 
@@ -136,6 +138,42 @@ func (s *Store) Handle(cmd Command) ([]byte, error) {
 		if err == nil {
 			data, err = s.Secret.NextVersion(ctx, req.Path)
 		}
+	case OpSecretPut:
+		var req struct {
+			SecretVersion secrets.SecretVersion
+			CasVersion    *int
+			MaxVersions   int
+		}
+		err = json.Unmarshal(cmd.Payload, &req)
+		if err == nil {
+			data, err = s.Secret.PutAtomic(ctx, &req.SecretVersion, req.CasVersion, req.MaxVersions)
+		}
+	case OpSecretDestroyVer:
+		var req struct {
+			Path    string
+			Version int
+		}
+		err = json.Unmarshal(cmd.Payload, &req)
+		if err == nil {
+			err = s.Secret.DestroyVersion(ctx, req.Path, req.Version)
+		}
+	case OpPKIRoleSave:
+		var role pki.Role
+		err = json.Unmarshal(cmd.Payload, &role)
+		if err == nil {
+			err = s.PKIRole.Save(ctx, &role)
+			if err == nil {
+				data = role
+			}
+		}
+	case OpPKIRoleGet:
+		var req struct{ Name string }
+		err = json.Unmarshal(cmd.Payload, &req)
+		if err == nil {
+			data, err = s.PKIRole.Get(ctx, req.Name)
+		}
+	case OpPKIRoleList:
+		data, err = s.PKIRole.List(ctx)
 	case OpAuditAppend:
 		var entry audit.Entry
 		err = json.Unmarshal(cmd.Payload, &entry)

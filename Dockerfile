@@ -1,4 +1,8 @@
 # syntax=docker/dockerfile:1
+# Multi-stage hardened image. Runtime stage uses debian:bookworm-slim for OpenSSL.
+# For distroless (no shell), swap the runtime stage with:
+#   FROM gcr.io/distroless/static-debian12:nonroot
+# and copy only the static knxvault binary (PKI/OpenSSL exec requires a shell stage today).
 
 FROM golang:1.25-bookworm AS builder
 
@@ -11,7 +15,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/knxvaul
     && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/knxvault-csi ./cmd/knxvault-csi \
     && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/knxvault-webhook ./cmd/knxvault-webhook
 
-FROM debian:bookworm-slim
+FROM debian:bookworm-slim AS runtime
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates openssl \

@@ -24,10 +24,19 @@ type CARepository interface {
 // SecretRepository persists versioned secrets.
 type SecretRepository interface {
 	SaveVersion(ctx context.Context, sv *secrets.SecretVersion) error
+	PutAtomic(ctx context.Context, sv *secrets.SecretVersion, casVersion *int, maxVersions int) (int, error)
 	GetLatest(ctx context.Context, path string) (*secrets.SecretVersion, error)
 	GetVersion(ctx context.Context, path string, version int) (*secrets.SecretVersion, error)
 	ListByPath(ctx context.Context, pathPrefix string) ([]*secrets.SecretVersion, error)
 	NextVersion(ctx context.Context, path string) (int, error)
+	DestroyVersion(ctx context.Context, path string, version int) error
+}
+
+// PKIRoleRepository persists PKI issuance role policies.
+type PKIRoleRepository interface {
+	Save(ctx context.Context, role *pki.Role) error
+	Get(ctx context.Context, name string) (*pki.Role, error)
+	List(ctx context.Context) ([]*pki.Role, error)
 }
 
 // AuditListOptions filters audit log queries.

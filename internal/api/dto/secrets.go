@@ -6,8 +6,9 @@ import "time"
 type KVWriteRequest struct {
 	Data    map[string]any `json:"data" binding:"required"`
 	Options struct {
-		TTL        string `json:"ttl,omitempty"`
-		CasVersion *int   `json:"cas_version,omitempty"`
+		TTL         string `json:"ttl,omitempty"`
+		CasVersion  *int   `json:"cas_version,omitempty"`
+		MaxVersions int    `json:"max_versions,omitempty"`
 	} `json:"options,omitempty"`
 }
 
@@ -24,4 +25,30 @@ type KVReadResponse struct {
 		CreatedAt time.Time `json:"created_at"`
 		TTL       string    `json:"ttl,omitempty"`
 	} `json:"metadata"`
+}
+
+// KVListResponse lists secret paths under a prefix.
+type KVListResponse struct {
+	Paths []string `json:"paths"`
+}
+
+// KVVersionInfo describes a secret version.
+type KVVersionInfo struct {
+	Version   int       `json:"version"`
+	CreatedAt time.Time `json:"created_at"`
+	Destroyed bool      `json:"destroyed"`
+	TTL       string    `json:"ttl,omitempty"`
+}
+
+// KVVersionsResponse lists versions for a path.
+type KVVersionsResponse struct {
+	Versions []KVVersionInfo `json:"versions"`
+}
+
+// KVMetadataResponse returns path metadata.
+type KVMetadataResponse struct {
+	Path           string          `json:"path"`
+	CurrentVersion int             `json:"current_version"`
+	MaxVersions    int             `json:"max_versions"`
+	Versions       []KVVersionInfo `json:"versions"`
 }

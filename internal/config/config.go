@@ -45,6 +45,8 @@ type Config struct {
 	JobLeaseCleanupInterval time.Duration
 	JobCRLRefreshInterval   time.Duration
 	AuditSigningKey         string
+	AuditForwardURL         string
+	CORSAllowedOrigins      []string
 
 	JobCertRenewInterval   time.Duration
 	RenewGrace             time.Duration
@@ -78,6 +80,8 @@ func Load() (Config, error) {
 		JobLeaseCleanupInterval: defaultJobLeaseCleanupInterval,
 		JobCRLRefreshInterval:   defaultJobCRLRefreshInterval,
 		AuditSigningKey:         strings.TrimSpace(os.Getenv("KNXVAULT_AUDIT_SIGNING_KEY")),
+		AuditForwardURL:         strings.TrimSpace(os.Getenv("KNXVAULT_AUDIT_FORWARD_URL")),
+		CORSAllowedOrigins:      splitCSV(os.Getenv("KNXVAULT_CORS_ALLOWED_ORIGINS")),
 		JobCertRenewInterval:    defaultJobCertRenewInterval,
 		RenewGrace:              defaultRenewGrace,
 		RateLimitRPM:            defaultRateLimitRPM,
@@ -214,4 +218,20 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func splitCSV(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }

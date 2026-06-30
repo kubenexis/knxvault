@@ -28,6 +28,14 @@ func (r *recordingSecretRepo) NextVersion(context.Context, string) (int, error) 
 	return 1, nil
 }
 
+func (r *recordingSecretRepo) PutAtomic(_ context.Context, sv *domainsecrets.SecretVersion, _ *int, _ int) (int, error) {
+	sv.Version = 1
+	if err := r.SaveVersion(context.Background(), sv); err != nil {
+		return 0, err
+	}
+	return sv.Version, nil
+}
+
 func TestKVV2PutEncryptsBeforePersist(t *testing.T) {
 	key := make([]byte, 32)
 	cryptoSvc, err := crypto.NewService(key)

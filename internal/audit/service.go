@@ -16,8 +16,9 @@ import (
 
 // Service appends immutable audit entries with hash chaining.
 type Service struct {
-	repo       repository.AuditRepository
-	signingKey []byte
+	repo        repository.AuditRepository
+	signingKey  []byte
+	forwardURL  string
 }
 
 // NewService constructs an audit service.
@@ -25,9 +26,15 @@ func NewService(repo repository.AuditRepository) *Service {
 	return &Service{repo: repo}
 }
 
-// SetSigningKey enables HMAC signing of exported audit chain heads.
+// SetSigningKey enables HMAC signing of exported audit chain heads and per-entry hashes.
 func (s *Service) SetSigningKey(key []byte) {
 	s.signingKey = key
+}
+
+// SetForwardURL configures an async HTTP sink for audit entries.
+func (s *Service) SetForwardURL(url string) {
+	s.forwardURL = url
+	initForwardSink(url)
 }
 
 // Record appends an audit entry.
@@ -52,7 +59,14 @@ func (s *Service) Record(ctx context.Context, actor, action, resource, status st
 		Details:   safeDetails,
 		Hash:      computeHash(prevHash, actor, action, resource, status, safeDetails, now),
 	}
-	return s.repo.Append(ctx, entry)
+	if len(s.signingKey) > 0 {
+		entry.Signature = signEntry(s.signingKey, entry.Hash)
+	}
+	if err := s.repo.Append(ctx, entry); err != nil {
+		return err
+	}
+	forwardEntry(entry)
+	return nil
 }
 
 // ExportResult contains audit entries and integrity metadata.
@@ -117,6 +131,23 @@ func (s *Service) Verify(ctx context.Context, signature string, signedAt time.Ti
 				Message:  fmt.Sprintf("hash mismatch at entry id %d", entry.ID),
 			}, nil
 		}
+		if len(s.signingKey) > 0 {
+			if entry.Signature == "" {
+				return &VerifyResult{
+					Valid:    false,
+					HeadHash: entry.Hash,
+					Message:  fmt.Sprintf("missing signature at entry id %d", entry.ID),
+				}, nil
+			}
+			expectedSig := signEntry(s.signingKey, entry.Hash)
+			if !hmac.Equal([]byte(entry.Signature), []byte(expectedSig)) {
+				return &VerifyResult{
+					Valid:    false,
+					HeadHash: entry.Hash,
+					Message:  fmt.Sprintf("signature mismatch at entry id %d", entry.ID),
+				}, nil
+			}
+		}
 		prevHash = entry.Hash
 	}
 
@@ -165,6 +196,12 @@ func computeHash(prevHash, actor, action, resource, status string, details map[s
 	)
 	sum := sha256.Sum256([]byte(payload))
 	return hex.EncodeToString(sum[:])
+}
+
+func signEntry(key []byte, entryHash string) string {
+	mac := hmac.New(sha256.New, key)
+	_, _ = mac.Write([]byte(entryHash))
+	return hex.EncodeToString(mac.Sum(nil))
 }
 
 func signHead(key []byte, headHash string, signedAt time.Time) string {

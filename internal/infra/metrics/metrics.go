@@ -52,6 +52,12 @@ var (
 			Help: "Total requests rejected by rate limiting",
 		},
 	)
+	opensslBreakerOpen = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "knxvault_openssl_breaker_open",
+			Help: "1 when the OpenSSL circuit breaker is open",
+		},
+	)
 )
 
 // SetBuildInfo records the running application version.
@@ -76,6 +82,15 @@ func SetActiveLeasesGauge(count int) {
 // IncRateLimited increments the rate-limited request counter.
 func IncRateLimited() {
 	rateLimitedTotal.Inc()
+}
+
+// SetOpenSSLBreakerOpen records OpenSSL circuit breaker state.
+func SetOpenSSLBreakerOpen(open bool) {
+	if open {
+		opensslBreakerOpen.Set(1)
+	} else {
+		opensslBreakerOpen.Set(0)
+	}
 }
 
 // Handler returns the Prometheus scrape handler.

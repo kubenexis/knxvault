@@ -11,7 +11,7 @@ Threat assumptions, cryptographic controls, and operational security guidance fo
 | Token theft | Unauthorized API access | Short TTL, RBAC least privilege, rate limiting, optional request signing |
 | OpenSSL sandbox escape | Host compromise | Argument validation, `0700` temp dirs, timeouts, non-root container |
 | Audit tampering | Compliance failure | Hash-chained log, HMAC export signatures, Raft replication |
-| Network eavesdropping | Credential exposure | TLS at ingress (operator responsibility); mTLS planned Phase 4 |
+| Network eavesdropping | Credential exposure | TLS at ingress (operator responsibility); server TLS (**W37-01**) and Raft mTLS (**W38-14**) planned |
 
 ## Cryptography
 
@@ -59,11 +59,23 @@ All X.509 operations execute via the OpenSSL CLI in an isolated temporary direct
 
 ## Authentication
 
-| Method | Use case | Configuration |
-|--------|----------|---------------|
-| Bootstrap root token | Initial admin | `KNXVAULT_ROOT_TOKEN` |
-| Opaque client tokens | Automation, CLI | Issued after `/auth/token` validation |
-| Kubernetes JWT | In-cluster workloads | `KNXVAULT_JWT_SECRET` (HS256 validation) |
+| Method | Use case | Configuration | Status |
+|--------|----------|---------------|--------|
+| Bootstrap root token | Initial admin | `KNXVAULT_ROOT_TOKEN` | Production |
+| Opaque client tokens | Automation, CLI | `POST /auth/token/create`, renew, revoke | Production |
+| Kubernetes ServiceAccount | In-cluster workloads | TokenReview (in-cluster) | **Production** |
+| Kubernetes JWT (HS256) | Local dev only | `KNXVAULT_JWT_SECRET` | Dev-only |
+| K8s login bypass | Local dev only | `KNXVAULT_K8S_AUTH_INSECURE=true` | Dev-only (never with Raft) |
+
+### Kubernetes authentication (production)
+
+When KNXVault runs in a Kubernetes cluster, `POST /auth/kubernetes` validates the caller's ServiceAccount JWT via the **`authentication.k8s.io/v1` TokenReview** API (`internal/infra/k8s/tokenreview.go`). The API server confirms token authenticity; KNXVault maps the reviewed SA to a vault role.
+
+**Fail-closed behavior:** If Raft is enabled (production mode) and neither TokenReview nor an explicit dev bypass is configured, login is rejected with `401`. Arbitrary JWT strings cannot mint client tokens.
+
+**Role bindings:** Roles may restrict login to specific service accounts via `bound_service_account_names` and `bound_service_account_namespaces`. A successful TokenReview with a non-matching SA returns `403`.
+
+**Dev-only paths:** `KNXVAULT_JWT_SECRET` enables HS256 validation for local testing. `KNXVAULT_K8S_AUTH_INSECURE=true` skips validation when Raft is disabled — never enable in production.
 
 Tokens carry a TTL (`KNXVAULT_TOKEN_TTL`, default 24h). The root token should be rotated or disabled after bootstrap policies are established.
 
@@ -90,7 +102,9 @@ Every sensitive operation appends to the hash-chained audit log:
 hash(n) = SHA-256(prev_hash || entry_payload)
 ```
 
-Export via `GET /audit/export` includes the chain head and optional HMAC signature (`KNXVAULT_AUDIT_SIGNING_KEY`). Verify with `POST /audit/verify`.
+Export via `GET /audit/export` includes the chain head and optional HMAC signature (`KNXVAULT_AUDIT_SIGNING_KEY`). Each entry may carry a per-entry signature when a signing key is configured. Verify with `POST /audit/verify`.
+
+Optional SIEM forwarding: set `KNXVAULT_AUDIT_FORWARD_URL` to POST each entry asynchronously to an HTTP sink. See [audit forwarding](../observability/audit-forwarding.md).
 
 ## Network hardening
 

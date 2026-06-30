@@ -25,6 +25,7 @@ type ExecResult struct {
 type Wrapper struct {
 	binary  string
 	timeout time.Duration
+	breaker *Breaker
 }
 
 // New creates a Wrapper. binary defaults to "openssl" when empty.
@@ -35,7 +36,24 @@ func New(binary string, timeout time.Duration) *Wrapper {
 	if timeout <= 0 {
 		timeout = 60 * time.Second
 	}
-	return &Wrapper{binary: binary, timeout: timeout}
+	return &Wrapper{
+		binary:  binary,
+		timeout: timeout,
+		breaker: NewBreaker(3, 30*time.Second),
+	}
+}
+
+// SetBreaker configures the circuit breaker used by SafeExec.
+func (w *Wrapper) SetBreaker(b *Breaker) {
+	w.breaker = b
+}
+
+// BreakerOpen reports whether the OpenSSL circuit breaker is open.
+func (w *Wrapper) BreakerOpen() bool {
+	if w.breaker == nil {
+		return false
+	}
+	return w.breaker.Open()
 }
 
 // forbiddenArgs blocks dangerous OpenSSL flags.
@@ -48,6 +66,11 @@ var forbiddenArgs = map[string]bool{
 
 // SafeExec runs openssl with strict controls.
 func (w *Wrapper) SafeExec(ctx context.Context, args []string, stdin io.Reader) (*ExecResult, error) {
+	if w.breaker != nil {
+		if err := w.breaker.Allow(); err != nil {
+			return nil, err
+		}
+	}
 	if err := validateArgs(args); err != nil {
 		return nil, err
 	}
@@ -84,8 +107,19 @@ func (w *Wrapper) SafeExec(ctx context.Context, args []string, stdin io.Reader) 
 		if errors.As(err, &exitErr) {
 			exitCode = exitErr.ExitCode()
 		} else {
+			if w.breaker != nil {
+				w.breaker.RecordFailure()
+			}
 			return nil, fmt.Errorf("openssl exec: %w", err)
 		}
+	}
+
+	if exitCode != 0 {
+		if w.breaker != nil {
+			w.breaker.RecordFailure()
+		}
+	} else if w.breaker != nil {
+		w.breaker.RecordSuccess()
 	}
 
 	return &ExecResult{

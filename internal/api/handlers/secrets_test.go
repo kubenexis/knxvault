@@ -64,3 +64,64 @@ func TestSecretsHandlerWriteRead(t *testing.T) {
 		t.Fatalf("read status = %d body = %s", rec.Code, rec.Body.String())
 	}
 }
+
+func TestSecretsHandlerListMetadataDestroy(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	key := make([]byte, 32)
+	cryptoSvc, err := crypto.NewService(key)
+	if err != nil {
+		t.Fatalf("NewService() = %v", err)
+	}
+
+	tokenStore := auth.NewTokenStore(time.Hour)
+	tokenStore.RegisterRootToken("root-token", []string{"secrets-admin"})
+	authSvc := auth.NewService(tokenStore, auth.NewRBAC(), "")
+
+	auditRepo := memory.NewAuditRepository()
+	secretsSvc := service.NewSecretsService(
+		secretsengine.NewKVV2Engine(memory.NewSecretRepository(), cryptoSvc),
+		auditsvc.NewService(auditRepo),
+	)
+	handler := handlers.NewSecretsHandler(secretsSvc)
+
+	r := gin.New()
+	r.Use(middleware.Auth(authSvc))
+	r.POST("/secrets/kv/*path", middleware.RequirePermission(authSvc, "secrets/kv", "write"), handler.Write)
+	r.GET("/secrets/kv/*path", middleware.RequirePermission(authSvc, "secrets/kv", "read"), handler.Read)
+	r.DELETE("/secrets/kv/*path", middleware.RequirePermission(authSvc, "secrets/kv", "write"), handler.Delete)
+
+	body, _ := json.Marshal(dto.KVWriteRequest{Data: map[string]any{"v": "1"}})
+	req := httptest.NewRequest(http.MethodPost, "/secrets/kv/app/a", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer root-token")
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("write status = %d", rec.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/secrets/kv/?list=true&prefix=app/", nil)
+	req.Header.Set("Authorization", "Bearer root-token")
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list status = %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/secrets/kv/app/a/metadata", nil)
+	req.Header.Set("Authorization", "Bearer root-token")
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("metadata status = %d", rec.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodDelete, "/secrets/kv/app/a?version=1", nil)
+	req.Header.Set("Authorization", "Bearer root-token")
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("destroy status = %d", rec.Code)
+	}
+}

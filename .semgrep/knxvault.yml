@@ -1,0 +1,12 @@
+rules:
+  - id: knxvault-log-secret-leak
+    languages: [go]
+    message: Potential secret value logged — redact before logging
+    severity: ERROR
+    patterns:
+      - pattern: zap.String("token", $TOKEN)
+  - id: knxvault-hardcoded-token
+    languages: [go]
+    message: Hardcoded token-like string detected
+    severity: WARNING
+    pattern-regex: knxv_[A-Za-z0-9_-]{20,}

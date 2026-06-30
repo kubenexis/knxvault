@@ -105,6 +105,31 @@ func TestLoginKubernetesTokenReviewBindingDenied(t *testing.T) {
 	}
 }
 
+func TestCreateRenewRevokeToken(t *testing.T) {
+	store := auth.NewTokenStore(time.Hour)
+	svc := auth.NewService(store, auth.NewRBAC(), "")
+	token, record, err := svc.CreateToken(context.Background(), "ci-bot", []string{"secrets-admin"}, 30*time.Minute, true)
+	if err != nil {
+		t.Fatalf("CreateToken() = %v", err)
+	}
+	if token == "" || !record.Renewable {
+		t.Fatal("expected renewable token")
+	}
+	renewed, err := svc.RenewToken(context.Background(), token, time.Hour)
+	if err != nil {
+		t.Fatalf("RenewToken() = %v", err)
+	}
+	if renewed.ExpiresAt.Before(record.ExpiresAt) {
+		t.Fatal("expected extended expiry")
+	}
+	if err := svc.RevokeToken(context.Background(), token); err != nil {
+		t.Fatalf("RevokeToken() = %v", err)
+	}
+	if _, err := svc.LoginWithToken(context.Background(), token); err == nil {
+		t.Fatal("expected revoked token to fail authentication")
+	}
+}
+
 func TestLoginKubernetesHS256Dev(t *testing.T) {
 	secret := []byte("dev-secret")
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{"sub": "system:serviceaccount:default:app"})

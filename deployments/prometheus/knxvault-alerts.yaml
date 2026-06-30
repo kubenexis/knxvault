@@ -1,0 +1,39 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: knxvault-alerts
+  labels:
+    app.kubernetes.io/name: knxvault
+spec:
+  groups:
+    - name: knxvault.rules
+      rules:
+        - alert: KNXVaultRaftLeaderLost
+          expr: knxvault_raft_leader == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: KNXVault Raft leader lost
+            description: No Raft leader elected for 2 minutes.
+        - alert: KNXVaultPKIErrorRateHigh
+          expr: rate(knxvault_http_requests_total{route=~"/pki/.*",status=~"5.."}[5m]) > 0.1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: Elevated PKI error rate
+        - alert: KNXVaultActiveLeasesHigh
+          expr: knxvault_active_leases > 1000
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: Lease accumulation detected
+        - alert: KNXVaultOpenSSLBreakerOpen
+          expr: knxvault_openssl_breaker_open == 1
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: OpenSSL circuit breaker open

@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: knxvault
+  namespace: knxvault
+  labels:
+    app.kubernetes.io/name: knxvault
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: knxvault
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8200
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: knxvault
+      ports:
+        - protocol: TCP
+          port: 63001

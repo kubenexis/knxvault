@@ -20,6 +20,7 @@ import (
 	databaseengine "github.com/kubenexis/knxvault/internal/engine/secrets/database"
 	"github.com/kubenexis/knxvault/internal/infra/k8s"
 	"github.com/kubenexis/knxvault/internal/infra/leader"
+	"github.com/kubenexis/knxvault/internal/infra/metrics"
 	"github.com/kubenexis/knxvault/internal/inject"
 	"github.com/kubenexis/knxvault/internal/raft"
 	"github.com/kubenexis/knxvault/internal/repository"
@@ -31,9 +32,11 @@ import (
 // Dependencies groups runtime subsystems wired at startup.
 type Dependencies struct {
 	Crypto         *crypto.Service
+	MasterKey      []byte
 	OpenSSL        *openssl.Wrapper
 	Raft           *raft.NodeHostBundle
 	CARepo         repository.CARepository
+	PKIRoleRepo    repository.PKIRoleRepository
 	SecretRepo     repository.SecretRepository
 	AuditRepo      repository.AuditRepository
 	RevokeRepo     repository.RevocationRepository
@@ -67,8 +70,12 @@ type Dependencies struct {
 
 // NewDependencies initializes crypto, storage, engines, and services from config.
 func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*Dependencies, error) {
+	breaker := openssl.NewBreaker(3, 30*time.Second)
+	breaker.SetOnStateChange(metrics.SetOpenSSLBreakerOpen)
+	ossl := openssl.New(cfg.OpenSSLBinary, cfg.OpenSSLTimeout)
+	ossl.SetBreaker(breaker)
 	deps := &Dependencies{
-		OpenSSL:  openssl.New(cfg.OpenSSLBinary, cfg.OpenSSLTimeout),
+		OpenSSL:  ossl,
 		TokenTTL: cfg.TokenTTL,
 		cfg:      cfg,
 	}
@@ -79,6 +86,7 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 			return nil, fmt.Errorf("crypto service: %w", err)
 		}
 		deps.Crypto = svc
+		deps.MasterKey = append([]byte(nil), key...)
 		log.Info("master key loaded")
 	} else if cfg.Raft.Enabled {
 		return nil, fmt.Errorf("master key required when raft is enabled: %w", err)
@@ -109,6 +117,7 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 		deps.RoleRepo = repos.Role
 		deps.DBRoleRepo = repos.DBRole
 		deps.IssuedCertRepo = repos.IssuedCert
+		deps.PKIRoleRepo = repos.PKIRole
 		deps.Leader = raft.NewLeaderElector(bundle.Client)
 		log.Info("dragonboat raft repositories initialized",
 			zap.Uint64("node_id", raftCfg.NodeID),
@@ -125,11 +134,13 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 		deps.RoleRepo = memory.NewRoleRepository()
 		deps.DBRoleRepo = memory.NewDatabaseRoleRepository()
 		deps.IssuedCertRepo = memory.NewIssuedCertRepository()
+		deps.PKIRoleRepo = memory.NewPKIRoleRepository()
 	}
 
 	if deps.Crypto != nil {
 		deps.PKIEngine = pkiengine.NewEngine(deps.OpenSSL, deps.Crypto, deps.CARepo, deps.RevokeRepo)
 		deps.PKIEngine.SetIssuedCertRepository(deps.IssuedCertRepo)
+		deps.PKIEngine.SetPKIRoleRepository(deps.PKIRoleRepo)
 		deps.SecretsEngine = secretsengine.NewKVV2Engine(deps.SecretRepo, deps.Crypto)
 		deps.DatabaseEngine = databaseengine.NewEngine(deps.DBRoleRepo, deps.LeaseRepo, deps.SecretRepo, deps.Crypto)
 	}
@@ -139,6 +150,10 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 		if cfg.AuditSigningKey != "" {
 			deps.AuditService.SetSigningKey([]byte(cfg.AuditSigningKey))
 			log.Info("audit signing key configured")
+		}
+		if cfg.AuditForwardURL != "" {
+			deps.AuditService.SetForwardURL(cfg.AuditForwardURL)
+			log.Info("audit forward URL configured", zap.String("url", cfg.AuditForwardURL))
 		}
 	}
 

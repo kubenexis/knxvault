@@ -73,3 +73,22 @@ type RevokeCertRequest struct {
 type CRLResponse struct {
 	CRLPEM string `json:"crl_pem"`
 }
+
+// ImportCARequest is POST /pki/ca/import.
+type ImportCARequest struct {
+	Name       string `json:"name" binding:"required"`
+	CommonName string `json:"common_name,omitempty"`
+	CertPEM    string `json:"cert_pem" binding:"required"`
+	KeyPEM     string `json:"key_pem" binding:"required"`
+	ParentName string `json:"parent_name,omitempty"`
+}
+
+// ExportCAResponse is GET /pki/ca/:id/export.
+type ExportCAResponse struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	CertPEM   string `json:"cert_pem"`
+	ChainPEM  string `json:"chain_pem"`
+	Serial    string `json:"serial"`
+	ExpiresAt string `json:"expires_at"`
+}

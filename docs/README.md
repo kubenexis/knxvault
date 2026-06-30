@@ -50,6 +50,7 @@ Version-controlled documentation for architects, operators, developers, and inte
 |----------|----------|-------------|
 | [Prometheus metrics](metrics.md) | SRE | Metric catalog and scrape config |
 | [Distributed tracing](observability/tracing.md) | SRE | OpenTelemetry setup |
+| [Audit forwarding](observability/audit-forwarding.md) | SRE | SIEM HTTP sink configuration |
 
 ## User & API reference
 
@@ -69,6 +70,7 @@ Version-controlled documentation for architects, operators, developers, and inte
 | [Contributing](engineering/contributing.md) | Contributors | PR workflow, licenses, code standards |
 | [Licensing policy](licensing.md) | Contributors | SPDX allow-list and exceptions |
 | [Backlog](backlog.md) | Maintainers | Phased work items (W1–W29 complete) |
+| [LLD alignment matrix](product/lld-alignment.md) | Maintainers | LLD § → code traceability |
 
 ## Quick links
 

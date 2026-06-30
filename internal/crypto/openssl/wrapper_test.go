@@ -33,6 +33,26 @@ func TestVersion(t *testing.T) {
 	}
 }
 
+func FuzzSafeExec(f *testing.F) {
+	f.Add("version")
+	f.Fuzz(func(t *testing.T, arg string) {
+		w := openssl.New("", time.Second)
+		args := []string{"version"}
+		if arg != "" {
+			args = append(args, arg)
+		}
+		_, err := w.SafeExec(context.Background(), args, nil)
+		if err != nil {
+			if strings.Contains(err.Error(), "forbidden") {
+				return
+			}
+			if strings.Contains(err.Error(), "circuit breaker") {
+				return
+			}
+		}
+	})
+}
+
 func TestSafeExecUsesIsolatedWorkDir(t *testing.T) {
 	if _, err := exec.LookPath("openssl"); err != nil {
 		t.Skip("openssl not installed")

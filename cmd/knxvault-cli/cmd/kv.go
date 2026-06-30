@@ -8,6 +8,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var showSecrets bool
+
 var kvCmd = &cobra.Command{
 	Use:   "kv",
 	Short: "KV secret commands",
@@ -21,6 +23,13 @@ var kvGetCmd = &cobra.Command{
 		resp, err := apiClient().KVGet(cmd.Context(), args[0])
 		if err != nil {
 			return err
+		}
+		if !showSecrets && resp.Data != nil {
+			redacted := make(map[string]any, len(resp.Data))
+			for key := range resp.Data {
+				redacted[key] = "[REDACTED]"
+			}
+			resp.Data = redacted
 		}
 		return encodeJSON(os.Stdout, resp)
 	},
@@ -44,5 +53,6 @@ var kvPutCmd = &cobra.Command{
 }
 
 func init() {
+	kvGetCmd.Flags().BoolVar(&showSecrets, "show-secrets", false, "Print secret values (default: redacted)")
 	kvCmd.AddCommand(kvGetCmd, kvPutCmd)
 }
