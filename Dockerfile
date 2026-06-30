@@ -4,13 +4,13 @@
 #   FROM gcr.io/distroless/static-debian12:nonroot
 # and copy only the static knxvault binary (PKI/OpenSSL exec requires a shell stage today).
 
-FROM golang:1.25-bookworm AS builder
+FROM golang:1.26-bookworm AS builder
 
 ARG VERSION=0.4.5
 ARG COMMIT=unknown
 ARG BUILD_ID=0
 
-ENV GOTOOLCHAIN=go1.25.11
+ENV GOTOOLCHAIN=go1.26.4
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download

@@ -6,7 +6,7 @@ Install KNXVault as a local binary, container, or 3-node Kubernetes Raft cluster
 
 | Requirement | Version | Notes |
 |-------------|---------|-------|
-| Go | 1.25+ | For building from source (`GOTOOLCHAIN=go1.25.11`) |
+| Go | 1.26+ | For building from source (`GOTOOLCHAIN=go1.26.4`) |
 | OpenSSL | 3.x | Required for PKI operations |
 | Kubernetes | 1.28+ | For production HA deployment |
 | Docker | optional | For `make docker-build` |

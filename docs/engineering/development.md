@@ -5,7 +5,7 @@ Local setup and workflow for contributing to KNXVault.
 ## Prerequisites
 
 ```bash
-# Go 1.25+ (auto-downloaded via Makefile)
+# Go 1.26+ (auto-downloaded via Makefile)
 go version
 
 # Optional CI tools

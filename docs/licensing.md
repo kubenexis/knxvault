@@ -25,7 +25,7 @@ The canonical machine-readable list lives in [`config/licenses.allow`](../config
 
 ## Enforcement
 
-1. **Local / CI**: `make licenses` runs `scripts/check-licenses.sh` (Go 1.25-compatible module license scanner; SPDX allow-list in `config/licenses.allow`).
+1. **Local / CI**: `make licenses` runs `scripts/check-licenses.sh` (Go 1.26-compatible module license scanner; SPDX allow-list in `config/licenses.allow`).
 2. **PR gate**: `make all` includes the license check.
 3. **Containers**: scan images with Trivy license scanner (`make scan`).
 4. **Exceptions**: record in this file under [Exceptions](#exceptions) with rationale and ADR link.

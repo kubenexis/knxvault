@@ -4,7 +4,7 @@ Lightweight, production-grade secrets management and PKI built in Go.
 
 ## Requirements
 
-- Go 1.25+ (auto-downloaded via `GOTOOLCHAIN=go1.25.11` in the Makefile)
+- Go 1.26+ (auto-downloaded via `GOTOOLCHAIN=go1.26.4` in the Makefile)
 - `golangci-lint` v2, `gosec`, `trivy` (install: `make install-tools`)
 - Dragonboat Raft storage (`KNXVAULT_RAFT_ENABLED=true`) for production; in-memory repos used when unset
 - OpenSSL 3.x (required for PKI operations)

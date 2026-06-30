@@ -90,7 +90,7 @@ KNXVault is released under **Apache-2.0**. Every component that ships in product
 - Avoid transitive deps under **MPL-2.0**, **GPL**, or **AGPL** (e.g. replace path-based helpers with stdlib or Apache-licensed alternatives).
 - Reject dependencies that bundle precompiled binaries without a clear permissive license.
 
-**Versioning & Compatibility**: Go 1.25+, Dragonboat v3 (Raft), OpenSSL 3.x. Backward compatibility for issued certificates and stored secrets will be maintained across minor versions.
+**Versioning & Compatibility**: Go 1.26+, Dragonboat v3 (Raft), OpenSSL 3.x. Backward compatibility for issued certificates and stored secrets will be maintained across minor versions.
 
 ---
 

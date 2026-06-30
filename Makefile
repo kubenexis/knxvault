@@ -16,7 +16,7 @@ LOCAL_BIN       ?= $(HOME)/.local/bin
 GOPATH_BIN      ?= $(HOME)/go/bin
 export PATH     := $(GOPATH_BIN):$(LOCAL_BIN):$(PATH)
 GO              := $(firstword $(shell command -v go 2>/dev/null))
-GO_TOOLCHAIN    ?= go1.25.11
+GO_TOOLCHAIN    ?= go1.26.4
 GOLANGCI_LINT   := $(firstword $(shell command -v golangci-lint 2>/dev/null) $(GOPATH_BIN)/golangci-lint)
 GOSEC           := $(firstword $(shell command -v gosec 2>/dev/null) $(GOPATH_BIN)/gosec)
 TRIVY           := $(firstword $(shell command -v trivy 2>/dev/null) $(LOCAL_BIN)/trivy)
@@ -220,7 +220,7 @@ clean: ## Remove built binaries and generated artifacts
 	@rm -f $(SBOM_FILE) sbom-binary.json coverage.out trivy-report.json trivy-results.sarif
 	@printf "$(COLOR_GREEN)Clean complete.$(COLOR_RESET)\n"
 
-install-tools: ## Install golangci-lint v2 and gosec (Go 1.25 toolchain)
+install-tools: ## Install golangci-lint v2 and gosec (Go 1.26 toolchain)
 	$(call log,Installing golangci-lint v2 and gosec)
 	$(call require_cmd,go)
 	GOTOOLCHAIN=$(GO_TOOLCHAIN) $(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6
