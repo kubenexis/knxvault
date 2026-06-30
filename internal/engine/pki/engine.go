@@ -47,6 +47,7 @@ type IssueRequest struct {
 	IPAddresses []string
 	TTL         string
 	KeyBits     int
+	AutoRenew   bool
 }
 
 // CAResult is returned when creating a CA.
@@ -72,6 +73,7 @@ type Engine struct {
 	crypto  *kvncrypto.Service
 	caRepo  repository.CARepository
 	revoked repository.RevocationRepository
+	issued  repository.IssuedCertRepository
 }
 
 // NewEngine constructs a PKI engine.
@@ -87,6 +89,11 @@ func NewEngine(
 		caRepo:  caRepo,
 		revoked: revoked,
 	}
+}
+
+// SetIssuedCertRepository configures issued certificate tracking for renewal.
+func (e *Engine) SetIssuedCertRepository(repo repository.IssuedCertRepository) {
+	e.issued = repo
 }
 
 // CreateRoot creates and stores a self-signed root CA.
@@ -411,12 +418,34 @@ func (e *Engine) IssueCertificate(ctx context.Context, req IssueRequest) (*Issue
 		}
 	}
 
-	return &IssueResult{
+	result := &IssueResult{
 		CertPEM:       string(certPEM),
 		PrivateKeyPEM: string(keyPEM),
 		Serial:        serial,
 		ExpiresAt:     expiresAt,
-	}, nil
+	}
+	if e.issued != nil {
+		ttlSeconds := int(ttl.Seconds())
+		if ttlSeconds <= 0 {
+			ttlSeconds = int(expiresAt.Sub(time.Now().UTC()).Seconds())
+		}
+		record := &domainpki.IssuedCertificate{
+			ID:         uuid.New(),
+			CAID:       ca.ID,
+			Role:       req.Role,
+			Serial:     serial,
+			CommonName: req.CommonName,
+			DNSNames:   append([]string(nil), req.DNSNames...),
+			TTLSeconds: ttlSeconds,
+			IssuedAt:   time.Now().UTC(),
+			ExpiresAt:  expiresAt,
+			AutoRenew:  req.AutoRenew,
+		}
+		if err := e.issued.Save(ctx, record); err != nil {
+			return nil, err
+		}
+	}
+	return result, nil
 }
 
 // GetCA returns a CA by ID.

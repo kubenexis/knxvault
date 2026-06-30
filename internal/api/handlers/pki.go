@@ -82,6 +82,7 @@ func (h *PKIHandler) Issue(c *gin.Context) {
 		IPAddresses: req.IPAddresses,
 		TTL:         req.TTL,
 		KeyBits:     req.KeyBits,
+		AutoRenew:   req.AutoRenew,
 	})
 	if err != nil {
 		_ = c.Error(err)
@@ -155,6 +156,56 @@ func (h *PKIHandler) CRL(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, dto.CRLResponse{CRLPEM: crl})
+}
+
+// Renew handles POST /pki/renew.
+func (h *PKIHandler) Renew(c *gin.Context) {
+	var req dto.RenewCertRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	caID, err := uuid.Parse(req.CAID)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	result, err := h.svc.RenewCertificate(c.Request.Context(), pkiengine.RenewRequest{
+		CAID:   caID,
+		Serial: req.Serial,
+		TTL:    req.TTL,
+	})
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, dto.RenewCertResponse{
+		PreviousSerial: result.PreviousSerial,
+		CertPEM:        result.CertPEM,
+		PrivateKeyPEM:  result.PrivateKeyPEM,
+		Serial:         result.Serial,
+		ExpiresAt:      result.ExpiresAt.Format(time.RFC3339),
+	})
+}
+
+// OCSP handles POST /pki/ocsp/:id (application/ocsp-request).
+func (h *PKIHandler) OCSP(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	body, err := c.GetRawData()
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	resp, err := h.svc.HandleOCSP(c.Request.Context(), id, body)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.Data(http.StatusOK, "application/ocsp-response", resp)
 }
 
 func toCAResponse(result *pkiengine.CAResult) dto.CAResponse {

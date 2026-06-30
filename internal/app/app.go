@@ -35,9 +35,12 @@ func New(ctx context.Context, cfg config.Config, log *zap.Logger) (*App, error) 
 		DatabaseService:    deps.DatabaseService,
 		PolicyService:      deps.PolicyService,
 		AuditExportService: deps.AuditExportService,
+		InjectService:      deps.InjectService,
 		TokenTTL:           deps.TokenTTL,
 		HAEnabled:          deps.HAEnabled(),
 		IsLeader:           deps.IsLeader,
+		RateLimiter:        deps.RateLimiter,
+		RequestSigning:     deps.RequestSigning,
 	})
 
 	app := &App{

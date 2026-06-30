@@ -27,6 +27,8 @@ prometheus.io/port: "8200"
 | `knxvault_http_requests_total` | Counter | `method`, `route`, `status` | Total HTTP requests |
 | `knxvault_http_request_duration_seconds` | Histogram | `method`, `route` | Request latency |
 | `knxvault_build_info` | Gauge | `version` | Build version (always 1) |
+| `knxvault_leader` | Gauge | — | `1` when this instance is the HA leader |
+| `knxvault_rate_limited_total` | Counter | `client` | Requests rejected by rate limiter |
 
 Go runtime metrics are also exposed via the default Prometheus registry.
 

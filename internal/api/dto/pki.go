@@ -26,6 +26,23 @@ type IssueCertRequest struct {
 	IPAddresses []string `json:"ip_addresses"`
 	TTL         string   `json:"ttl"`
 	KeyBits     int      `json:"key_bits"`
+	AutoRenew   bool     `json:"auto_renew"`
+}
+
+// RenewCertRequest is POST /pki/renew.
+type RenewCertRequest struct {
+	CAID   string `json:"ca_id" binding:"required"`
+	Serial string `json:"serial" binding:"required"`
+	TTL    string `json:"ttl"`
+}
+
+// RenewCertResponse is returned for certificate renewal.
+type RenewCertResponse struct {
+	PreviousSerial string `json:"previous_serial"`
+	CertPEM        string `json:"cert_pem"`
+	PrivateKeyPEM  string `json:"private_key_pem"`
+	Serial         string `json:"serial"`
+	ExpiresAt      string `json:"expires_at"`
 }
 
 // CAResponse is returned for CA operations.

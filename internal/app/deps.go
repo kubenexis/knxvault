@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 
+	"github.com/kubenexis/knxvault/internal/api/middleware"
 	auditsvc "github.com/kubenexis/knxvault/internal/audit"
 	"github.com/kubenexis/knxvault/internal/auth"
 	"github.com/kubenexis/knxvault/internal/config"
@@ -19,6 +20,7 @@ import (
 	databaseengine "github.com/kubenexis/knxvault/internal/engine/secrets/database"
 	"github.com/kubenexis/knxvault/internal/infra/k8s"
 	"github.com/kubenexis/knxvault/internal/infra/leader"
+	"github.com/kubenexis/knxvault/internal/inject"
 	"github.com/kubenexis/knxvault/internal/repository"
 	"github.com/kubenexis/knxvault/internal/repository/memory"
 	"github.com/kubenexis/knxvault/internal/repository/postgres"
@@ -27,17 +29,18 @@ import (
 
 // Dependencies groups runtime subsystems wired at startup.
 type Dependencies struct {
-	Crypto     *crypto.Service
-	OpenSSL    *openssl.Wrapper
-	Pool       *pgxpool.Pool
-	CARepo     repository.CARepository
-	SecretRepo repository.SecretRepository
-	AuditRepo  repository.AuditRepository
-	RevokeRepo repository.RevocationRepository
-	LeaseRepo  repository.LeaseRepository
-	PolicyRepo repository.PolicyRepository
-	RoleRepo   repository.RoleRepository
-	DBRoleRepo repository.DatabaseRoleRepository
+	Crypto         *crypto.Service
+	OpenSSL        *openssl.Wrapper
+	Pool           *pgxpool.Pool
+	CARepo         repository.CARepository
+	SecretRepo     repository.SecretRepository
+	AuditRepo      repository.AuditRepository
+	RevokeRepo     repository.RevocationRepository
+	LeaseRepo      repository.LeaseRepository
+	PolicyRepo     repository.PolicyRepository
+	RoleRepo       repository.RoleRepository
+	DBRoleRepo     repository.DatabaseRoleRepository
+	IssuedCertRepo repository.IssuedCertRepository
 
 	AuthService        *auth.Service
 	AuditService       *auditsvc.Service
@@ -49,7 +52,11 @@ type Dependencies struct {
 	DatabaseService    *service.DatabaseService
 	PolicyService      *service.PolicyService
 	AuditExportService *service.AuditExportService
+	InjectService      *service.InjectService
 	TokenTTL           time.Duration
+
+	RateLimiter    *middleware.RateLimiter
+	RequestSigning *middleware.RequestSigning
 
 	Leader    leader.Elector
 	JobRunner *JobRunner
@@ -98,6 +105,7 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 		deps.PolicyRepo = postgres.NewPolicyRepository(pool)
 		deps.RoleRepo = postgres.NewRoleRepository(pool)
 		deps.DBRoleRepo = postgres.NewDatabaseRoleRepository(pool)
+		deps.IssuedCertRepo = postgres.NewIssuedCertRepository(pool)
 		log.Info("postgresql repositories initialized")
 	} else {
 		log.Warn("database not configured; using in-memory repositories")
@@ -109,10 +117,12 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 		deps.PolicyRepo = memory.NewPolicyRepository()
 		deps.RoleRepo = memory.NewRoleRepository()
 		deps.DBRoleRepo = memory.NewDatabaseRoleRepository()
+		deps.IssuedCertRepo = memory.NewIssuedCertRepository()
 	}
 
 	if deps.Crypto != nil {
 		deps.PKIEngine = pkiengine.NewEngine(deps.OpenSSL, deps.Crypto, deps.CARepo, deps.RevokeRepo)
+		deps.PKIEngine.SetIssuedCertRepository(deps.IssuedCertRepo)
 		deps.SecretsEngine = secretsengine.NewKVV2Engine(deps.SecretRepo, deps.Crypto)
 		deps.DatabaseEngine = databaseengine.NewEngine(deps.DBRoleRepo, deps.LeaseRepo, deps.SecretRepo, deps.Crypto)
 	}
@@ -130,6 +140,8 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 	}
 	if deps.SecretsEngine != nil {
 		deps.SecretsService = service.NewSecretsService(deps.SecretsEngine, deps.AuditService)
+		renderer := inject.NewRenderer(service.NewKVSecretReader(deps.SecretsService))
+		deps.InjectService = service.NewInjectService(renderer, deps.AuditService)
 	}
 	if deps.DatabaseEngine != nil {
 		deps.DatabaseService = service.NewDatabaseService(deps.DatabaseEngine, deps.AuditService)
@@ -170,6 +182,9 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 			)
 		}
 	}
+
+	deps.RateLimiter = middleware.NewRateLimiter(cfg.RateLimitRPM, cfg.RateLimitEnabled)
+	deps.RequestSigning = middleware.NewRequestSigning(cfg.RequestSigningKey, cfg.RequestSigningRequired)
 
 	deps.JobRunner = NewJobRunner(deps.Leader, deps.DatabaseService, deps.PKIService, deps.CARepo, cfg, log)
 

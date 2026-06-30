@@ -61,11 +61,14 @@ func (j *JobRunner) runOnLeader(ctx context.Context) {
 
 	leaseTicker := time.NewTicker(j.cfg.JobLeaseCleanupInterval)
 	crlTicker := time.NewTicker(j.cfg.JobCRLRefreshInterval)
+	renewTicker := time.NewTicker(j.cfg.JobCertRenewInterval)
 	defer leaseTicker.Stop()
 	defer crlTicker.Stop()
+	defer renewTicker.Stop()
 
 	j.runLeaseCleanup(ctx)
 	j.runCRLRefresh(ctx)
+	j.runCertRenewal(ctx)
 
 	for {
 		select {
@@ -76,7 +79,23 @@ func (j *JobRunner) runOnLeader(ctx context.Context) {
 			j.runLeaseCleanup(ctx)
 		case <-crlTicker.C:
 			j.runCRLRefresh(ctx)
+		case <-renewTicker.C:
+			j.runCertRenewal(ctx)
 		}
+	}
+}
+
+func (j *JobRunner) runCertRenewal(ctx context.Context) {
+	if j.pki == nil {
+		return
+	}
+	count, err := j.pki.RenewExpiring(ctx, j.cfg.RenewGrace, 50)
+	if err != nil {
+		j.log.Warn("certificate renewal failed", zap.Error(err))
+		return
+	}
+	if count > 0 {
+		j.log.Info("certificates renewed", zap.Int("count", count))
 	}
 }
 

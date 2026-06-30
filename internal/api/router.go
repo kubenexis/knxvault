@@ -39,7 +39,13 @@ func NewRouter(log *zap.Logger, version string, deps RouterDeps) *gin.Engine {
 
 	secured := r.Group("/")
 	if deps.AuthService != nil {
+		if deps.RequestSigning != nil {
+			secured.Use(deps.RequestSigning.Middleware())
+		}
 		secured.Use(middleware.Auth(deps.AuthService))
+		if deps.RateLimiter != nil {
+			secured.Use(deps.RateLimiter.Middleware())
+		}
 	}
 
 	if deps.AuthService != nil {
@@ -47,18 +53,22 @@ func NewRouter(log *zap.Logger, version string, deps RouterDeps) *gin.Engine {
 		secured.GET("/sys/capabilities", sys.Capabilities)
 	}
 
-	if deps.PKIService != nil && deps.AuthService != nil {
+	if deps.PKIService != nil {
 		pkiHandler := handlers.NewPKIHandler(deps.PKIService)
-		pkiGroup := secured.Group("/pki")
-		pkiGroup.Use(middleware.RequirePermission(deps.AuthService, "pki", "write"))
-		{
-			pkiGroup.POST("/root", pkiHandler.CreateRoot)
-			pkiGroup.POST("/intermediate", pkiHandler.CreateIntermediate)
-			pkiGroup.POST("/issue", pkiHandler.Issue)
-			pkiGroup.POST("/revoke", pkiHandler.Revoke)
+		r.POST("/pki/ocsp/:id", pkiHandler.OCSP)
+		if deps.AuthService != nil {
+			pkiGroup := secured.Group("/pki")
+			pkiGroup.Use(middleware.RequirePermission(deps.AuthService, "pki", "write"))
+			{
+				pkiGroup.POST("/root", pkiHandler.CreateRoot)
+				pkiGroup.POST("/intermediate", pkiHandler.CreateIntermediate)
+				pkiGroup.POST("/issue", pkiHandler.Issue)
+				pkiGroup.POST("/renew", pkiHandler.Renew)
+				pkiGroup.POST("/revoke", pkiHandler.Revoke)
+			}
+			secured.GET("/pki/ca/:id", middleware.RequirePermission(deps.AuthService, "pki", "read"), pkiHandler.GetCA)
+			secured.GET("/pki/crl/:id", middleware.RequirePermission(deps.AuthService, "pki", "read"), pkiHandler.CRL)
 		}
-		secured.GET("/pki/ca/:id", middleware.RequirePermission(deps.AuthService, "pki", "read"), pkiHandler.GetCA)
-		secured.GET("/pki/crl/:id", middleware.RequirePermission(deps.AuthService, "pki", "read"), pkiHandler.CRL)
 	}
 
 	if deps.SecretsService != nil && deps.AuthService != nil {
@@ -113,6 +123,14 @@ func NewRouter(log *zap.Logger, version string, deps RouterDeps) *gin.Engine {
 		secured.GET("/sys/roles/:name",
 			middleware.RequirePermission(deps.AuthService, "sys/roles", "read"),
 			policyHandler.GetRole,
+		)
+	}
+
+	if deps.InjectService != nil && deps.AuthService != nil {
+		injectHandler := handlers.NewInjectHandler(deps.InjectService)
+		secured.POST("/inject/render",
+			middleware.RequirePermission(deps.AuthService, "inject/render", "read"),
+			injectHandler.Render,
 		)
 	}
 

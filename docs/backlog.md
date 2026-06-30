@@ -78,13 +78,18 @@ Actionable backlog derived from [`docs/lld.md`](lld.md) (Phase 1 / MVP). Items a
 | ~~**W15-01**~~ | ~~Kubernetes Lease leader election~~ | k8s | M | W9-02 | HA mode with coordination.k8s.io Lease (lightweight HTTP client). | Done — `internal/infra/k8s/leader.go`, `KNXVAULT_HA_ENABLED`, leader status in `/ready`. |
 | ~~**W15-02**~~ | ~~Background jobs (lease cleanup, CRL refresh)~~ | k8s | M | W15-01, W12-01, W5-04 | Leader-only periodic jobs for lease cleanup and CRL refresh. | Done — `internal/app/jobs.go`, ConfigMap intervals, 3-replica Deployment + Lease RBAC. |
 
+| ~~**W16-01**~~ | ~~Certificate renewal automation~~ | crypto | M | W5-03, W15-02 | TTL-based renewal API and background job with grace window. | Done — `issued_certificates` table, `POST /pki/renew`, `auto_renew` on issue, leader job. |
+| ~~**W17-01**~~ | ~~OCSP responder (basic)~~ | crypto | M | W5-04 | DER OCSP endpoint with good/revoked status. | Done — `POST /pki/ocsp/:id`, `internal/engine/pki/ocsp.go` + tests. |
+| ~~**W18-01**~~ | ~~Secrets injection render API~~ | k8s | M | W6-01 | Sidecar/init-container render endpoint. | Done — `POST /inject/render`, `internal/inject/`, sidecar example manifest. |
+| ~~**W18-02**~~ | ~~CSI provider scaffolding~~ | k8s | S | W18-01 | CSI provider interface and K8s DaemonSet template. | Done — `internal/inject/csi/`, `deployments/csi/`, `docs/deploy/secrets-injection.md`. |
+| ~~**W19-01**~~ | ~~Rate limiting~~ | security | M | W8-04 | Per-token/IP token-bucket rate limiting on secured routes. | Done — `internal/api/middleware/ratelimit.go`, `knxvault_rate_limited_total` metric. |
+| ~~**W19-02**~~ | ~~Request signing~~ | security | M | W7-05 | Optional HMAC request signatures with timestamp skew check. | Done — `internal/api/middleware/signing.go`, `KNXVAULT_REQUEST_SIGNING_*` config. |
+
 ### Phase 2 — remaining (outline)
 
-- OCSP responder, cert renewal automation
-- Secrets injection / CSI readiness
 - CLI tool (`knxvault`)
 - Backup & restore procedures
-- Rate limiting, request signing
+- Improved observability (tracing, Grafana dashboards)
 
 ---
 

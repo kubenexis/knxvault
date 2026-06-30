@@ -59,7 +59,8 @@ docker run --rm -p 8200:8200 \
 
 ## Kubernetes
 
-Raw manifests (no Helm): [`deployments/k8s/`](deployments/k8s/) — see [`docs/deploy/kubernetes.md`](docs/deploy/kubernetes.md).
+Raw manifests (no Helm): [`deployments/k8s/`](deployments/k8s/) — see [`docs/deploy/kubernetes.md`](docs/deploy/kubernetes.md).  
+Secrets injection: [`docs/deploy/secrets-injection.md`](docs/deploy/secrets-injection.md) and [`deployments/k8s/sidecar-example.yaml`](deployments/k8s/sidecar-example.yaml).
 
 ## API endpoints
 
@@ -75,10 +76,13 @@ Raw manifests (no Helm): [`deployments/k8s/`](deployments/k8s/) — see [`docs/d
 | GET | `/sys/capabilities` | Token capabilities |
 | POST | `/pki/root` | Create root CA |
 | POST | `/pki/intermediate` | Create intermediate CA |
-| POST | `/pki/issue` | Issue leaf certificate |
+| POST | `/pki/issue` | Issue leaf certificate (`auto_renew` optional) |
+| POST | `/pki/renew` | Renew a tracked leaf certificate |
+| POST | `/pki/ocsp/:id` | OCSP responder (DER; no auth) |
 | GET | `/pki/ca/:id` | Get CA by ID |
 | POST | `/pki/revoke` | Revoke certificate serial |
 | GET | `/pki/crl/:id` | Generate CRL |
+| POST | `/inject/render` | Render KV secrets for sidecar/init injection |
 | POST | `/secrets/kv/*path` | Write secret version |
 | GET | `/secrets/kv/*path` | Read latest secret |
 | DELETE | `/secrets/kv/*path` | Delete secret path |
@@ -119,7 +123,13 @@ Raw manifests (no Helm): [`deployments/k8s/`](deployments/k8s/) — see [`docs/d
 | `KNXVAULT_HA_IDENTITY` | pod hostname | Leader election identity |
 | `KNXVAULT_JOB_LEASE_CLEANUP_INTERVAL` | `1m` | Expired lease cleanup interval |
 | `KNXVAULT_JOB_CRL_REFRESH_INTERVAL` | `15m` | CRL pre-generation interval |
+| `KNXVAULT_JOB_CERT_RENEW_INTERVAL` | `1h` | Auto-renewal background job interval |
+| `KNXVAULT_RENEW_GRACE` | `72h` | Renew certs expiring within this window |
 | `KNXVAULT_AUDIT_SIGNING_KEY` | _(empty)_ | HMAC key for audit export signatures |
+| `KNXVAULT_RATE_LIMIT_ENABLED` | `false` | Enable per-token/IP rate limiting |
+| `KNXVAULT_RATE_LIMIT_RPM` | `300` | Requests per minute per client |
+| `KNXVAULT_REQUEST_SIGNING_KEY` | _(empty)_ | HMAC key for optional request signing |
+| `KNXVAULT_REQUEST_SIGNING_REQUIRED` | `false` | Reject unsigned requests when enabled |
 
 ## Development
 

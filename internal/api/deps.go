@@ -3,6 +3,7 @@ package api
 import (
 	"time"
 
+	"github.com/kubenexis/knxvault/internal/api/middleware"
 	"github.com/kubenexis/knxvault/internal/auth"
 	"github.com/kubenexis/knxvault/internal/service"
 )
@@ -16,7 +17,10 @@ type RouterDeps struct {
 	DatabaseService    *service.DatabaseService
 	PolicyService      *service.PolicyService
 	AuditExportService *service.AuditExportService
+	InjectService      *service.InjectService
 	TokenTTL           time.Duration
+	RateLimiter        *middleware.RateLimiter
+	RequestSigning     *middleware.RequestSigning
 	HAEnabled          bool
 	IsLeader           func() bool
 }

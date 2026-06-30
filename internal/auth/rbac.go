@@ -22,6 +22,7 @@ func NewRBAC() *RBAC {
 		{Name: "secrets-reader", Effect: domainauth.EffectAllow, Resources: []string{"secrets/*"}, Actions: []string{"read"}},
 		{Name: "audit-reader", Effect: domainauth.EffectAllow, Resources: []string{"audit/*"}, Actions: []string{"read"}},
 		{Name: "policy-admin", Effect: domainauth.EffectAllow, Resources: []string{"sys/policies", "sys/roles"}, Actions: []string{"*"}},
+		{Name: "inject-reader", Effect: domainauth.EffectAllow, Resources: []string{"inject/*"}, Actions: []string{"read"}},
 	}
 	policies := make(map[string]domainauth.Policy, len(defaults))
 	for _, policy := range defaults {
@@ -111,6 +112,7 @@ var RolePolicies = map[string][]string{
 	"secrets-reader": {"secrets-reader"},
 	"audit-reader":   {"audit-reader"},
 	"policy-admin":   {"policy-admin"},
+	"inject-reader":  {"inject-reader"},
 	"default":        {"secrets-reader"},
 }
 

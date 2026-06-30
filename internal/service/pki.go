@@ -3,6 +3,7 @@ package service
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -68,6 +69,29 @@ func (s *PKIService) GenerateCRL(ctx context.Context, caID uuid.UUID) (string, e
 	result, err := s.engine.GenerateCRL(ctx, caID)
 	s.record(ctx, "pki.crl.generate", "pki/"+caID.String(), err, nil)
 	return result, err
+}
+
+// RenewCertificate re-issues a certificate from stored metadata.
+func (s *PKIService) RenewCertificate(ctx context.Context, req pkiengine.RenewRequest) (*pkiengine.RenewResult, error) {
+	result, err := s.engine.RenewCertificate(ctx, req)
+	s.record(ctx, "pki.renew", "pki/"+req.Serial, err, map[string]any{"ca_id": req.CAID.String()})
+	return result, err
+}
+
+// HandleOCSP processes an OCSP request and returns a DER response.
+func (s *PKIService) HandleOCSP(ctx context.Context, caID uuid.UUID, requestDER []byte) ([]byte, error) {
+	result, err := s.engine.HandleOCSP(ctx, caID, requestDER)
+	s.record(ctx, "pki.ocsp", "pki/ocsp/"+caID.String(), err, nil)
+	return result, err
+}
+
+// RenewExpiring renews certificates within the configured grace window.
+func (s *PKIService) RenewExpiring(ctx context.Context, grace time.Duration, limit int) (int, error) {
+	count, err := s.engine.RenewExpiring(ctx, grace, limit)
+	if err == nil && count > 0 {
+		s.record(ctx, "pki.renew.batch", "pki/renew", nil, map[string]any{"count": count})
+	}
+	return count, err
 }
 
 func (s *PKIService) record(ctx context.Context, action, resource string, err error, details map[string]any) {

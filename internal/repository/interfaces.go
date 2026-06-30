@@ -91,3 +91,10 @@ type DatabaseRoleRepository interface {
 	List(ctx context.Context) ([]*secrets.DatabaseRole, error)
 	Delete(ctx context.Context, name string) error
 }
+
+// IssuedCertRepository tracks issued leaf certificates for renewal.
+type IssuedCertRepository interface {
+	Save(ctx context.Context, cert *pki.IssuedCertificate) error
+	GetBySerial(ctx context.Context, caID uuid.UUID, serial string) (*pki.IssuedCertificate, error)
+	ListExpiring(ctx context.Context, before time.Time, limit int) ([]*pki.IssuedCertificate, error)
+}

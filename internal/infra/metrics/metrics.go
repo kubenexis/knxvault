@@ -46,6 +46,12 @@ var (
 			Help: "Number of leases processed in the most recent cleanup cycle",
 		},
 	)
+	rateLimitedTotal = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "knxvault_rate_limited_total",
+			Help: "Total requests rejected by rate limiting",
+		},
+	)
 )
 
 // SetBuildInfo records the running application version.
@@ -65,6 +71,11 @@ func SetLeader(isLeader bool) {
 // SetActiveLeasesGauge records the latest lease cleanup batch size.
 func SetActiveLeasesGauge(count int) {
 	activeLeasesGauge.Set(float64(count))
+}
+
+// IncRateLimited increments the rate-limited request counter.
+func IncRateLimited() {
+	rateLimitedTotal.Inc()
 }
 
 // Handler returns the Prometheus scrape handler.

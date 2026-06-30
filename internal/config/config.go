@@ -20,6 +20,9 @@ const (
 	defaultHALeaseName             = "knxvault-leader"
 	defaultJobLeaseCleanupInterval = 1 * time.Minute
 	defaultJobCRLRefreshInterval   = 15 * time.Minute
+	defaultJobCertRenewInterval    = 1 * time.Hour
+	defaultRenewGrace              = 72 * time.Hour
+	defaultRateLimitRPM            = 300
 )
 
 // Config holds process-wide settings loaded from environment variables.
@@ -43,6 +46,13 @@ type Config struct {
 	JobLeaseCleanupInterval time.Duration
 	JobCRLRefreshInterval   time.Duration
 	AuditSigningKey         string
+
+	JobCertRenewInterval   time.Duration
+	RenewGrace             time.Duration
+	RateLimitEnabled       bool
+	RateLimitRPM           int
+	RequestSigningKey      string
+	RequestSigningRequired bool
 }
 
 // Load reads configuration from the environment with sensible defaults.
@@ -65,6 +75,10 @@ func Load() (Config, error) {
 		JobLeaseCleanupInterval: defaultJobLeaseCleanupInterval,
 		JobCRLRefreshInterval:   defaultJobCRLRefreshInterval,
 		AuditSigningKey:         strings.TrimSpace(os.Getenv("KNXVAULT_AUDIT_SIGNING_KEY")),
+		JobCertRenewInterval:    defaultJobCertRenewInterval,
+		RenewGrace:              defaultRenewGrace,
+		RateLimitRPM:            defaultRateLimitRPM,
+		RequestSigningKey:       strings.TrimSpace(os.Getenv("KNXVAULT_REQUEST_SIGNING_KEY")),
 	}
 
 	if v := os.Getenv("KNXVAULT_SHUTDOWN_GRACE"); v != "" {
@@ -121,6 +135,46 @@ func Load() (Config, error) {
 			return Config{}, fmt.Errorf("KNXVAULT_JOB_CRL_REFRESH_INTERVAL: %w", err)
 		}
 		cfg.JobCRLRefreshInterval = d
+	}
+
+	if v := os.Getenv("KNXVAULT_JOB_CERT_RENEW_INTERVAL"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_JOB_CERT_RENEW_INTERVAL: %w", err)
+		}
+		cfg.JobCertRenewInterval = d
+	}
+
+	if v := os.Getenv("KNXVAULT_RENEW_GRACE"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_RENEW_GRACE: %w", err)
+		}
+		cfg.RenewGrace = d
+	}
+
+	if v := os.Getenv("KNXVAULT_RATE_LIMIT_ENABLED"); v != "" {
+		enabled, err := strconv.ParseBool(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_RATE_LIMIT_ENABLED: %w", err)
+		}
+		cfg.RateLimitEnabled = enabled
+	}
+
+	if v := os.Getenv("KNXVAULT_RATE_LIMIT_RPM"); v != "" {
+		rpm, err := strconv.Atoi(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_RATE_LIMIT_RPM: %w", err)
+		}
+		cfg.RateLimitRPM = rpm
+	}
+
+	if v := os.Getenv("KNXVAULT_REQUEST_SIGNING_REQUIRED"); v != "" {
+		required, err := strconv.ParseBool(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_REQUEST_SIGNING_REQUIRED: %w", err)
+		}
+		cfg.RequestSigningRequired = required
 	}
 
 	return cfg, nil

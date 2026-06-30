@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: KNXVault API
   version: 0.1.0-dev
-  description: Secrets management and PKI REST API (Phase 1 MVP + Phase 2 W12–W15).
+  description: Secrets management and PKI REST API (Phase 1 MVP + Phase 2 W12–W19).
 servers:
   - url: http://localhost:8200
     description: Local development
@@ -17,6 +17,8 @@ tags:
     description: KV and dynamic secrets engines
   - name: audit
     description: Audit export and verification
+  - name: inject
+    description: Secrets injection for sidecars and init containers
 paths:
   /health:
     get:
@@ -240,6 +242,73 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CRLResponse"
+  /pki/renew:
+    post:
+      tags: [pki]
+      summary: Renew a leaf certificate
+      operationId: renewCertificate
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RenewCertRequest"
+      responses:
+        "200":
+          description: Certificate renewed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RenewCertResponse"
+  /pki/ocsp/{id}:
+    post:
+      tags: [pki]
+      summary: OCSP responder (DER request/response)
+      operationId: handleOCSP
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/ocsp-request:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: OCSP response
+          content:
+            application/ocsp-response:
+              schema:
+                type: string
+                format: binary
+  /inject/render:
+    post:
+      tags: [inject]
+      summary: Render secrets for sidecar or init-container injection
+      operationId: injectRender
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InjectRenderRequest"
+      responses:
+        "200":
+          description: Materialized secret payloads
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InjectRenderResponse"
   /secrets/kv/{path}:
     post:
       tags: [secrets]
@@ -643,6 +712,34 @@ components:
           type: string
         key_bits:
           type: integer
+        auto_renew:
+          type: boolean
+          description: Track and auto-renew this certificate before expiry
+    RenewCertRequest:
+      type: object
+      required: [ca_id, serial]
+      properties:
+        ca_id:
+          type: string
+          format: uuid
+        serial:
+          type: string
+        ttl:
+          type: string
+    RenewCertResponse:
+      type: object
+      properties:
+        previous_serial:
+          type: string
+        cert_pem:
+          type: string
+        private_key_pem:
+          type: string
+        serial:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
     CAResponse:
       type: object
       properties:
@@ -681,6 +778,54 @@ components:
       type: object
       properties:
         crl_pem:
+          type: string
+    InjectRenderRequest:
+      type: object
+      required: [secrets]
+      properties:
+        secrets:
+          type: array
+          items:
+            $ref: "#/components/schemas/InjectSecretRef"
+        format:
+          type: string
+          enum: [files, env, both]
+    InjectSecretRef:
+      type: object
+      required: [path]
+      properties:
+        path:
+          type: string
+        file_name:
+          type: string
+        env_name:
+          type: string
+    InjectRenderResponse:
+      type: object
+      properties:
+        files:
+          type: array
+          items:
+            $ref: "#/components/schemas/InjectFileEntry"
+        env:
+          type: array
+          items:
+            $ref: "#/components/schemas/InjectEnvEntry"
+    InjectFileEntry:
+      type: object
+      properties:
+        path:
+          type: string
+        content:
+          type: string
+        mode:
+          type: string
+    InjectEnvEntry:
+      type: object
+      properties:
+        name:
+          type: string
+        value:
           type: string
     KVWriteRequest:
       type: object
