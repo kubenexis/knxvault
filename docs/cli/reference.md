@@ -30,6 +30,7 @@ token: dev-root-token
 
 | Command | Description |
 |---------|-------------|
+| `doctor [--json]` | Diagnose deployment health and CLI configuration |
 | `health` | `GET /health` |
 | `status` | `GET /ready` |
 | `auth login [--token]` | `POST /auth/token` |
@@ -47,6 +48,8 @@ token: dev-root-token
 ## Examples
 
 ```bash
+knxvault-cli doctor
+knxvault-cli doctor --json
 knxvault-cli auth login --token dev-root-token
 knxvault-cli kv put app/db password=s3cret
 knxvault-cli kv get app/db

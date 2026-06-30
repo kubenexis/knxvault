@@ -32,18 +32,26 @@ func New(baseURL, token string) *Client {
 	}
 }
 
-// HealthResponse is returned by GET /health.
-type HealthResponse struct {
-	Status  string `json:"status"`
-	Version string `json:"version"`
+// ServiceStatus is returned by GET /health and GET /ready.
+type ServiceStatus struct {
+	Status      string `json:"status"`
+	Version     string `json:"version"`
+	Leader      *bool  `json:"leader,omitempty"`
+	HAEnabled   bool   `json:"ha_enabled,omitempty"`
+	RaftEnabled bool   `json:"raft_enabled,omitempty"`
+	RaftReady   *bool  `json:"raft_ready,omitempty"`
+	Sealed      *bool  `json:"sealed,omitempty"`
 }
 
+// HealthResponse is returned by GET /health.
+type HealthResponse = ServiceStatus
+
 // ReadyResponse is returned by GET /ready.
-type ReadyResponse struct {
-	Status    string `json:"status"`
-	Version   string `json:"version"`
-	HAEnabled bool   `json:"ha_enabled,omitempty"`
-	Leader    bool   `json:"leader,omitempty"`
+type ReadyResponse = ServiceStatus
+
+// CapabilitiesResponse is returned by GET /sys/capabilities.
+type CapabilitiesResponse struct {
+	Capabilities []string `json:"capabilities"`
 }
 
 // LoginResponse is returned by POST /auth/token.
@@ -135,11 +143,43 @@ func (c *Client) Health(ctx context.Context) (*HealthResponse, error) {
 
 // Ready calls GET /ready.
 func (c *Client) Ready(ctx context.Context) (*ReadyResponse, error) {
-	var out ReadyResponse
-	if err := c.getJSON(ctx, "/ready", false, &out); err != nil {
+	out, status, err := c.ProbeReady(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if status != http.StatusOK {
+		return out, &APIError{Status: status, Message: out.Status}
+	}
+	return out, nil
+}
+
+// ProbeReady calls GET /ready and returns the parsed body even when the service is not ready (503).
+func (c *Client) ProbeReady(ctx context.Context) (*ReadyResponse, int, error) {
+	return c.probeJSON(ctx, "/ready", false)
+}
+
+// Capabilities calls GET /sys/capabilities.
+func (c *Client) Capabilities(ctx context.Context) (*CapabilitiesResponse, error) {
+	var out CapabilitiesResponse
+	if err := c.getJSON(ctx, "/sys/capabilities", true, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
+}
+
+// ProbeMetrics checks whether GET /metrics is reachable.
+func (c *Client) ProbeMetrics(ctx context.Context) (int, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/metrics", nil)
+	if err != nil {
+		return 0, err
+	}
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	return resp.StatusCode, nil
 }
 
 // K8sLoginRequest is POST /auth/kubernetes.
@@ -273,6 +313,34 @@ func (c *Client) getJSON(ctx context.Context, path string, auth bool, out any) e
 		return err
 	}
 	return c.do(req, auth, out)
+}
+
+func (c *Client) probeJSON(ctx context.Context, path string, auth bool) (*ReadyResponse, int, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+path, nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	if auth && c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, resp.StatusCode, err
+	}
+
+	var out ReadyResponse
+	if len(body) > 0 {
+		if err := json.Unmarshal(body, &out); err != nil {
+			return nil, resp.StatusCode, fmt.Errorf("decode response: %w", err)
+		}
+	}
+	return &out, resp.StatusCode, nil
 }
 
 func (c *Client) postJSON(ctx context.Context, path string, auth bool, body any, out any) error {

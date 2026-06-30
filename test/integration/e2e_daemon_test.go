@@ -26,6 +26,15 @@ func TestE2EDaemonCLIWorkflow(t *testing.T) {
 		t.Fatalf("ready status = %q, want ready", ready.Status)
 	}
 
+	var doctorReport struct {
+		Healthy bool `json:"healthy"`
+		Fail    int  `json:"fail"`
+	}
+	parseCLIJSON(t, env.runCLI("doctor", "--json"), &doctorReport)
+	if !doctorReport.Healthy || doctorReport.Fail != 0 {
+		t.Fatalf("doctor report = %+v, want healthy with no failures", doctorReport)
+	}
+
 	// Create self-signed root CA.
 	const caName = "e2e-root"
 	var rootCA struct {

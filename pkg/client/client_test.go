@@ -74,7 +74,7 @@ func TestReadyAndLogin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Ready() = %v", err)
 	}
-	if !ready.HAEnabled || !ready.Leader {
+	if !ready.HAEnabled || ready.Leader == nil || !*ready.Leader {
 		t.Fatalf("ready = %+v", ready)
 	}
 
