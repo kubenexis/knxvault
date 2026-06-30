@@ -144,7 +144,6 @@ Replace PostgreSQL and K8s Lease–based HA with an embedded [Dragonboat](https:
 
 High-level scope from LLD §9.4; items not yet broken down. **Blocked on Phase 3** (Dragonboat backend) for production HA semantics.
 
-- Terraform provider
 - Kubernetes Operator (CRD-based CA/role management)
 - HSM support via OpenSSL engine
 - Multi-tenancy, Redis cache, full mTLS, DR automation
@@ -157,6 +156,7 @@ Deferred packaging and ecosystem work — not scheduled for Phase 1 MVP.
 
 | Item | Area | Rationale |
 |------|------|-----------|
+| **Terraform provider** | docs | Infrastructure-as-code integration deferred; not a near-term focus. Revisit after Phase 4 ecosystem items stabilize. |
 | **Helm chart** | k8s | Install UX and values templating deferred until core API, auth, and raw K8s deploy path are stable. Target: post–Phase 1 (Phase 2+). See LLD §6.1 for intended chart structure. |
 | Helm hooks (pre-upgrade backup) | k8s | Depends on Helm chart. |
 | Grafana dashboards bundled in chart | docs | Depends on Helm chart + W10 metrics. |
