@@ -1,7 +1,9 @@
 {
   "global": {
-    "nosec": "false",
     "audit": "false"
   },
-  "exclude": ["G104"]
+  "exclude": ["G104"],
+  "G101": {
+    "entropy_threshold": "80.0"
+  }
 }

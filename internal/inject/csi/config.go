@@ -12,7 +12,7 @@ const (
 	attrPodName      = "csi.storage.k8s.io/pod.name"
 	attrPodNamespace = "csi.storage.k8s.io/pod.namespace"
 	attrPodSA        = "csi.storage.k8s.io/serviceAccount.name"
-	attrSAToken      = "csi.storage.k8s.io/serviceAccount.tokens"
+	attrSAToken      = "csi.storage.k8s.io/serviceAccount.tokens" // #nosec G101 -- CSI attribute name
 )
 
 // ObjectSpec describes one secret object to mount.

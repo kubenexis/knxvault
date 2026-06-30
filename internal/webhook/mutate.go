@@ -13,7 +13,7 @@ import (
 
 const (
 	annotationInject         = "knxvault.io/inject"
-	annotationSecretProvider = "knxvault.io/secret-provider-class"
+	annotationSecretProvider = "knxvault.io/secret-provider-class" // #nosec G101 -- K8s annotation key
 	annotationMountPath      = "knxvault.io/inject-mount-path"
 	defaultMountPath         = "/mnt/knxvault-secrets"
 	csiDriverName            = "secrets-store.csi.k8s.io"

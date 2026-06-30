@@ -114,7 +114,11 @@ lint: ## Run golangci-lint
 
 gosec: ## Run gosec security scanner (W11-02)
 	$(call log,Running gosec)
-	$(call require_cmd,gosec)
+	@test -x "$(GOSEC)" || { \
+		printf "$(COLOR_RED)error: gosec not found (expected at $(GOSEC))$(COLOR_RESET)\n" >&2; \
+		printf "Run: make install-tools\n" >&2; \
+		exit 1; \
+	}
 	$(GOSEC) -quiet -conf .gosec.json -exclude-generated -severity high ./...
 
 semgrep: ## Run semgrep static analysis (W38-16)
