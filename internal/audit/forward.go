@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -51,6 +52,11 @@ func forwardEntry(entry *audit.Entry) {
 			return
 		}
 		req.Header.Set("Content-Type", "application/json")
-		_, _ = forward.client.Do(req)
+		resp, err := forward.client.Do(req)
+		if err != nil {
+			return
+		}
+		defer func() { _ = resp.Body.Close() }()
+		_, _ = io.Copy(io.Discard, resp.Body)
 	}()
 }

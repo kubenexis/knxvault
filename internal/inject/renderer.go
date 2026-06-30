@@ -135,7 +135,7 @@ func flattenSecret(data map[string]any) string {
 		first = false
 		b.WriteString(k)
 		b.WriteString("=")
-		b.WriteString(fmt.Sprint(v))
+		_, _ = fmt.Fprint(&b, v)
 	}
 	return b.String()
 }

@@ -15,19 +15,6 @@ import (
 	"github.com/kubenexis/knxvault/internal/repository/memory"
 )
 
-type staticRoleResolver struct {
-	role *domainauth.Role
-}
-
-func (s staticRoleResolver) PoliciesForRole(context.Context, string) []string {
-	return s.role.Policies
-}
-
-func (s staticRoleResolver) GetRole(context.Context, string) (*domainauth.Role, error) {
-	copy := *s.role
-	return &copy, nil
-}
-
 func TestLoginKubernetesFailsClosedProduction(t *testing.T) {
 	svc := auth.NewService(auth.NewTokenStore(time.Hour), auth.NewRBAC(), "")
 	svc.SetK8sLoginOptions(auth.K8sLoginOptions{RaftEnabled: true})

@@ -31,9 +31,6 @@ func SecurityHeaders(cfg SecurityHeadersConfig) gin.HandlerFunc {
 
 		origin := c.GetHeader("Origin")
 		if origin != "" {
-			if _, ok := allowed[origin]; ok || len(allowed) == 0 && origin == "" {
-				// no-op
-			}
 			if _, ok := allowed[origin]; ok {
 				c.Header("Access-Control-Allow-Origin", origin)
 				c.Header("Vary", "Origin")
