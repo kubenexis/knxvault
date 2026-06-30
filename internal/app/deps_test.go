@@ -10,8 +10,8 @@ import (
 	"github.com/kubenexis/knxvault/internal/config"
 )
 
-func TestNewDependenciesWithoutDatabase(t *testing.T) {
-	t.Setenv("KNXVAULT_DATABASE_URL", "")
+func TestNewDependenciesInMemory(t *testing.T) {
+	t.Setenv("KNXVAULT_RAFT_ENABLED", "false")
 	t.Setenv("KNXVAULT_MASTER_KEY", "")
 	t.Setenv("KNXVAULT_MASTER_KEY_FILE", "")
 
@@ -26,9 +26,6 @@ func TestNewDependenciesWithoutDatabase(t *testing.T) {
 	}
 	if deps.OpenSSL == nil {
 		t.Fatal("expected OpenSSL wrapper")
-	}
-	if deps.Pool != nil {
-		t.Fatal("expected no database pool")
 	}
 	if deps.AuthService == nil {
 		t.Fatal("expected auth service")

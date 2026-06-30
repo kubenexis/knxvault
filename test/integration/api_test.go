@@ -29,7 +29,7 @@ func testMasterKey() string {
 func newTestRouter(t *testing.T) (*gin.Engine, string) {
 	t.Helper()
 
-	t.Setenv("KNXVAULT_DATABASE_URL", "")
+	t.Setenv("KNXVAULT_RAFT_ENABLED", "false")
 	t.Setenv("KNXVAULT_MASTER_KEY", testMasterKey())
 	t.Setenv("KNXVAULT_ROOT_TOKEN", "integration-root")
 	t.Setenv("KNXVAULT_JWT_SECRET", "jwt-test-secret")

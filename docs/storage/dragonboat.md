@@ -78,20 +78,6 @@ Commands are JSON envelopes `{ "op": "<name>", "payload": { ... } }`.
 
 Dragonboat `SaveSnapshot` / `RecoverFromSnapshot` use the same JSON format as `internal/backup.Snapshot`. `POST /sys/backup` exports via repositories and triggers an on-disk Raft snapshot; restore proposes `snapshot.import`.
 
-## Migration from PostgreSQL
-
-```bash
-export KNXVAULT_MASTER_KEY=...
-export KNXVAULT_TOKEN=admin-token
-knxvault-cli migrate postgres --from-dsn 'postgres://user:pass@host/knxvault?sslmode=disable'
-```
-
-Or restore an existing encrypted archive:
-
-```bash
-knxvault-cli migrate postgres --archive ./backup.knx
-```
-
 ## Kubernetes
 
 Use [`deployments/k8s/statefulset.yaml`](../../deployments/k8s/statefulset.yaml) with headless Service [`service-raft.yaml`](../../deployments/k8s/service-raft.yaml). Set `KNXVAULT_RAFT_INITIAL_MEMBERS` in the ConfigMap to the stable DNS names of all replicas.

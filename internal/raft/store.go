@@ -68,7 +68,7 @@ func (s *Store) ExportSnapshot(includeAudit bool) (*backup.Snapshot, error) {
 // ImportSnapshot replaces store state from a snapshot.
 func (s *Store) ImportSnapshot(snapshot *backup.Snapshot) error {
 	fresh := NewStore()
-	if err := backup.Restore(context.Background(), fresh.Repos(), nil, snapshot); err != nil {
+	if err := backup.Restore(context.Background(), fresh.Repos(), snapshot); err != nil {
 		return err
 	}
 	*s = *fresh

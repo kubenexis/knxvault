@@ -7,7 +7,6 @@ require (
 	github.com/go-playground/validator/v10 v10.27.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
-	github.com/jackc/pgx/v5 v5.10.0
 	github.com/lni/dragonboat/v3 v3.3.8
 	github.com/prometheus/client_golang v1.23.2
 	github.com/spf13/cobra v1.9.1
@@ -53,9 +52,6 @@ require (
 	github.com/hashicorp/golang-lru v0.5.0 // indirect
 	github.com/hashicorp/memberlist v0.2.2 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/jackc/pgpassfile v1.0.0 // indirect
-	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
-	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/juju/ratelimit v1.0.2-0.20191002062651-f60b32039441 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
@@ -90,7 +86,6 @@ require (
 	golang.org/x/arch v0.20.0 // indirect
 	golang.org/x/exp v0.0.0-20200513190911-00229845015e // indirect
 	golang.org/x/net v0.55.0 // indirect
-	golang.org/x/sync v0.21.0 // indirect
 	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/text v0.38.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260401024825-9d38bb4040a9 // indirect

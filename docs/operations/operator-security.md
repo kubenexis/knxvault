@@ -8,8 +8,8 @@ Database roles store **SQL templates and tuning only**. Credential material belo
 
 | Do | Don't |
 |----|-------|
-| Store admin DB creds in KV: `POST /secrets/kv/database/admin/postgres` | Put `connection_url`, `password`, or `database_url` in role `config` |
-| Set `admin_credentials_path: "database/admin/postgres"` as a runbook reference | Embed `postgres://user:pass@host` anywhere in the role |
+| Store admin DB creds in KV: `POST /secrets/kv/database/admin/prod-db` | Put `connection_url`, `password`, or `database_url` in role `config` |
+| Set `admin_credentials_path: "database/admin/prod-db"` as a runbook reference | Embed `mysql://user:pass@host` anywhere in the role |
 | Use `config` for `db_type`, `ssl_mode`, `database_name`, `host` (no password) | Copy bootstrap tokens into role config |
 
 The API **rejects** credential-like keys and embedded URLs in `config`. See [Database credentials](../deploy/database-credentials.md).
@@ -18,9 +18,9 @@ The API **rejects** credential-like keys and embedded URLs in `config`. See [Dat
 
 | Pattern | Example |
 |---------|---------|
-| **KV path (recommended)** | `secrets/kv/database/admin/postgres` — encrypted before Raft |
+| **KV path (recommended)** | `secrets/kv/database/admin/prod-db` — encrypted before Raft |
 | **Kubernetes Secret** | Mounted in the job that runs `creation_statements` |
-| **Passwordless admin** | RDS IAM auth, Cloud SQL IAM, cert-based Postgres auth |
+| **Passwordless admin** | RDS IAM auth, Cloud SQL IAM, cert-based MySQL auth |
 | **External vault** | CI variable; executor never stores in KNXVault role config |
 
 Full workflow: [Database credentials](../deploy/database-credentials.md).

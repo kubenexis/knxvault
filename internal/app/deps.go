@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 
 	"github.com/kubenexis/knxvault/internal/api/middleware"
@@ -26,7 +25,6 @@ import (
 	"github.com/kubenexis/knxvault/internal/repository"
 	"github.com/kubenexis/knxvault/internal/repository/dragonboat"
 	"github.com/kubenexis/knxvault/internal/repository/memory"
-	postgres "github.com/kubenexis/knxvault/internal/repository/postgres" //nolint:staticcheck // legacy backend
 	"github.com/kubenexis/knxvault/internal/service"
 )
 
@@ -34,7 +32,6 @@ import (
 type Dependencies struct {
 	Crypto         *crypto.Service
 	OpenSSL        *openssl.Wrapper
-	Pool           *pgxpool.Pool
 	Raft           *raft.NodeHostBundle
 	CARepo         repository.CARepository
 	SecretRepo     repository.SecretRepository
@@ -115,33 +112,8 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 			zap.Uint64("node_id", raftCfg.NodeID),
 			zap.String("raft_address", raftCfg.RaftAddress),
 		)
-	} else if cfg.DatabaseURL != "" {
-		pool, err := postgres.NewPool(ctx, cfg.DatabaseURL)
-		if err != nil {
-			return nil, err
-		}
-		deps.Pool = pool
-
-		if cfg.AutoMigrate {
-			if err := postgres.Migrate(ctx, pool); err != nil {
-				pool.Close()
-				return nil, fmt.Errorf("migrate database: %w", err)
-			}
-			log.Info("database migrations applied")
-		}
-
-		deps.CARepo = postgres.NewCARepository(pool)
-		deps.SecretRepo = postgres.NewSecretRepository(pool)
-		deps.AuditRepo = postgres.NewAuditRepository(pool)
-		deps.RevokeRepo = postgres.NewRevocationRepository(pool)
-		deps.LeaseRepo = postgres.NewLeaseRepository(pool)
-		deps.PolicyRepo = postgres.NewPolicyRepository(pool)
-		deps.RoleRepo = postgres.NewRoleRepository(pool)
-		deps.DBRoleRepo = postgres.NewDatabaseRoleRepository(pool)
-		deps.IssuedCertRepo = postgres.NewIssuedCertRepository(pool)
-		log.Warn("postgresql repositories initialized (legacy backend; prefer KNXVAULT_RAFT_ENABLED)")
 	} else {
-		log.Warn("storage not configured; using in-memory repositories")
+		log.Warn("raft disabled; using in-memory repositories")
 		deps.CARepo = memory.NewCARepository()
 		deps.SecretRepo = memory.NewSecretRepository()
 		deps.AuditRepo = memory.NewAuditRepository()
@@ -209,7 +181,7 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 			Role:       deps.RoleRepo,
 			DBRole:     deps.DBRoleRepo,
 			IssuedCert: deps.IssuedCertRepo,
-		}, deps.Pool, deps.Crypto, deps.AuditService)
+		}, deps.Crypto, deps.AuditService)
 		if deps.Raft != nil {
 			importer := raft.NewSnapshotImporter(deps.Raft.Client)
 			deps.BackupService.SetSnapshotImporter(importer)
@@ -253,9 +225,6 @@ func (d *Dependencies) Close() {
 	if d.Raft != nil {
 		d.Raft.Stop()
 	}
-	if d.Pool != nil {
-		d.Pool.Close()
-	}
 }
 
 // Ready reports whether configured dependencies are reachable.
@@ -268,11 +237,6 @@ func (d *Dependencies) Ready(ctx context.Context) error {
 			return fmt.Errorf("raft cluster has no leader")
 		}
 		return nil
-	}
-	if d.Pool != nil {
-		if err := postgres.Ping(ctx, d.Pool); err != nil {
-			return fmt.Errorf("database not ready: %w", err)
-		}
 	}
 	return nil
 }

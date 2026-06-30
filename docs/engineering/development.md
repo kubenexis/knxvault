@@ -60,7 +60,7 @@ internal/
   engine/               PKI, KVv2, database engines
   inject/               Secrets injection + CSI scaffolding
   raft/                 Dragonboat NodeHost + state machine
-  repository/           Dragonboat, memory, postgres (legacy)
+  repository/           Dragonboat, memory
   service/              Orchestration layer
 pkg/client/             Public Go HTTP client
 api/openapi.yaml        OpenAPI 3.1 specification

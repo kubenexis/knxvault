@@ -3,8 +3,6 @@ package service
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	auditsvc "github.com/kubenexis/knxvault/internal/audit"
 	"github.com/kubenexis/knxvault/internal/auth"
 	"github.com/kubenexis/knxvault/internal/backup"
@@ -25,7 +23,6 @@ type SnapshotRequester interface {
 // BackupService creates and restores encrypted vault snapshots.
 type BackupService struct {
 	repos     backup.Repos
-	pool      *pgxpool.Pool
 	crypto    *kvncrypto.Service
 	audit     *auditsvc.Service
 	importer  SnapshotImporter
@@ -35,13 +32,11 @@ type BackupService struct {
 // NewBackupService constructs a backup service.
 func NewBackupService(
 	repos backup.Repos,
-	pool *pgxpool.Pool,
 	cryptoSvc *kvncrypto.Service,
 	audit *auditsvc.Service,
 ) *BackupService {
 	return &BackupService{
 		repos:  repos,
-		pool:   pool,
 		crypto: cryptoSvc,
 		audit:  audit,
 	}
@@ -102,7 +97,7 @@ func (s *BackupService) Restore(ctx context.Context, data []byte) error {
 	if s.importer != nil {
 		err = s.importer.ImportSnapshot(ctx, snapshot)
 	} else {
-		err = backup.Restore(ctx, s.repos, s.pool, snapshot)
+		err = backup.Restore(ctx, s.repos, snapshot)
 	}
 	s.record(ctx, "backup.restore", "sys/restore", err, map[string]any{
 		"cas":     len(snapshot.CAs),

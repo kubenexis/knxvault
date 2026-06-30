@@ -38,7 +38,6 @@ export KNXVAULT_TOKEN=dev-root-token
 - `KNXVAULT_MASTER_KEY` must match the key used when the backup was created.
 - Raft restores propose `snapshot.import` — run against a maintenance window or a fresh cluster.
 - In-memory mode supports export; restore targets a fresh process or empty repositories.
-- Legacy PostgreSQL restores truncate vault tables; migrate to Raft with `knxvault-cli migrate postgres`.
 
 ## Raft-specific notes
 

@@ -79,7 +79,7 @@ func TestEngineSaveRoleRejectsSecretConfig(t *testing.T) {
 		TTLSeconds:     60,
 		UsernamePrefix: "v-",
 		Config: map[string]any{
-			"connection_url": "postgres://admin:pass@db:5432/app",
+			"connection_url": "mysql://admin:pass@db:3306/app",
 		},
 	})
 	if err == nil {
@@ -99,9 +99,9 @@ func TestEngineSaveRoleAdminCredentialsPath(t *testing.T) {
 		Name:                 "readonly",
 		TTLSeconds:           60,
 		UsernamePrefix:       "v-",
-		AdminCredentialsPath: "database/admin/postgres",
+		AdminCredentialsPath: "database/admin/prod-db",
 		Config: map[string]any{
-			"db_type": "postgresql",
+			"db_type": "mysql",
 		},
 	}); err != nil {
 		t.Fatalf("SaveRole() = %v", err)
@@ -110,7 +110,7 @@ func TestEngineSaveRoleAdminCredentialsPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get() = %v", err)
 	}
-	if role.AdminCredentialsPath != "database/admin/postgres" {
+	if role.AdminCredentialsPath != "database/admin/prod-db" {
 		t.Fatalf("AdminCredentialsPath = %q", role.AdminCredentialsPath)
 	}
 }

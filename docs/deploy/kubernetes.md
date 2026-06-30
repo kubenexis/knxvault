@@ -26,8 +26,6 @@ Edit [`deployments/k8s/secret.yaml`](../../deployments/k8s/secret.yaml):
 2. `KNXVAULT_ROOT_TOKEN` — strong bootstrap token
 3. `KNXVAULT_AUDIT_SIGNING_KEY` — optional HMAC key for audit export integrity
 
-PostgreSQL is **deprecated**; migrate existing data with [`knxvault-cli migrate postgres`](../cli/reference.md).
-
 ## Deploy (3-node Raft)
 
 ```bash
@@ -97,4 +95,4 @@ curl -s http://localhost:8200/metrics | head
 
 ## Legacy Deployment manifest
 
-[`deployments/k8s/deployment.yaml`](../../deployments/k8s/deployment.yaml) remains for reference (PostgreSQL + Kubernetes Lease HA). New clusters should use the StatefulSet + Raft manifests above.
+[`deployments/k8s/deployment.yaml`](../../deployments/k8s/deployment.yaml) remains for reference (single-replica Deployment without Raft). New clusters should use the StatefulSet + Raft manifests above.

@@ -14,7 +14,7 @@ func TestSanitizeDetailsRedactsSensitiveKeys(t *testing.T) {
 		"role":     "readonly",
 		"password": "s3cret",
 		"nested": map[string]any{
-			"connection_url": "postgres://admin:pass@db:5432/app",
+			"connection_url": "mysql://admin:pass@db:3306/app",
 		},
 	}
 	out := audit.SanitizeDetails(in)
@@ -35,7 +35,7 @@ func TestRejectSensitiveDetails(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected rejection for sensitive key")
 	}
-	err = audit.RejectSensitiveDetails(map[string]any{"note": "postgres://admin:pass@db:5432/app"})
+	err = audit.RejectSensitiveDetails(map[string]any{"note": "mysql://admin:pass@db:3306/app"})
 	if err == nil {
 		t.Fatal("expected rejection for credential-like string")
 	}

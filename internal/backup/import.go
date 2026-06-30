@@ -6,15 +6,14 @@ import (
 	"sort"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	domainauth "github.com/kubenexis/knxvault/internal/domain/auth"
 	domainpki "github.com/kubenexis/knxvault/internal/domain/pki"
 	"github.com/kubenexis/knxvault/internal/repository"
 )
 
-// Restore imports a snapshot into repositories, replacing existing state when a pool is provided.
-func Restore(ctx context.Context, repos Repos, pool *pgxpool.Pool, snapshot *Snapshot) error {
+// Restore imports a snapshot into repositories.
+func Restore(ctx context.Context, repos Repos, snapshot *Snapshot) error {
 	if snapshot == nil {
 		return fmt.Errorf("snapshot is required")
 	}
@@ -23,12 +22,6 @@ func Restore(ctx context.Context, repos Repos, pool *pgxpool.Pool, snapshot *Sna
 	}
 	if repos.CA == nil || repos.Secret == nil {
 		return fmt.Errorf("backup repositories not configured")
-	}
-
-	if pool != nil {
-		if err := truncateState(ctx, pool); err != nil {
-			return err
-		}
 	}
 
 	for _, rec := range sortCAs(snapshot.CAs) {
@@ -141,27 +134,6 @@ func sortCAs(records []CARecord) []CARecord {
 		return sorted[i].Name < sorted[j].Name
 	})
 	return sorted
-}
-
-func truncateState(ctx context.Context, pool *pgxpool.Pool) error {
-	const q = `
-TRUNCATE TABLE
-    issued_certificates,
-    leases,
-    database_roles,
-    revoked_certificates,
-    secret_versions,
-    audit_logs,
-    policies,
-    roles,
-    cas
-RESTART IDENTITY CASCADE
-`
-	_, err := pool.Exec(ctx, q)
-	if err != nil {
-		return fmt.Errorf("truncate state: %w", err)
-	}
-	return nil
 }
 
 // ValidateSnapshot performs basic structural validation before restore.

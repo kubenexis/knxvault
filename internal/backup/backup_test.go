@@ -109,7 +109,7 @@ func TestExportSealOpenRestore(t *testing.T) {
 		Role:       memory.NewRoleRepository(),
 		IssuedCert: memory.NewIssuedCertRepository(),
 	}
-	if err := backup.Restore(ctx, target, nil, opened); err != nil {
+	if err := backup.Restore(ctx, target, opened); err != nil {
 		t.Fatalf("Restore() = %v", err)
 	}
 
@@ -157,7 +157,7 @@ func TestRestoreAuditEntries(t *testing.T) {
 		Secret: memory.NewSecretRepository(),
 		Audit:  targetAudit,
 	}
-	if err := backup.Restore(ctx, target, nil, snapshot); err != nil {
+	if err := backup.Restore(ctx, target, snapshot); err != nil {
 		t.Fatalf("Restore() = %v", err)
 	}
 

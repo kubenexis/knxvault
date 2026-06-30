@@ -930,7 +930,7 @@ components:
           default: client
         admin_credentials_path:
           type: string
-          description: Optional KV path where operators store admin DB credentials (e.g. `database/admin/postgres`). Used for runbooks; not read by the engine in client mode.
+          description: Optional KV path where operators store admin DB credentials (e.g. `database/admin/prod-db`). Used for runbooks; not read by the engine in client mode.
         config:
           type: object
           description: Non-secret tuning only (`db_type`, `ssl_mode`, `database_name`). Credentials are rejected.

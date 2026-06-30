@@ -30,10 +30,10 @@ Your job / init container / operator tooling:
 
 ```bash
 # 1. Store admin credentials in KV (encrypted in Raft)
-curl -s -X POST $KNXVAULT_ADDR/secrets/kv/database/admin/postgres \
+curl -s -X POST $KNXVAULT_ADDR/secrets/kv/database/admin/prod-db \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
-  -d '{"data":{"username":"vault_admin","password":"admin-pass","host":"db.internal","port":"5432","database":"app"}}'
+  -d '{"data":{"username":"vault_admin","password":"admin-pass","host":"db.internal","port":"3306","database":"app"}}'
 
 # 2. Configure the database role (no credentials in config)
 curl -s -X PUT $KNXVAULT_ADDR/secrets/database/roles/readonly \
@@ -43,12 +43,12 @@ curl -s -X PUT $KNXVAULT_ADDR/secrets/database/roles/readonly \
     "ttl_seconds": 3600,
     "username_prefix": "v-",
     "execution_mode": "client",
-    "admin_credentials_path": "database/admin/postgres",
+    "admin_credentials_path": "database/admin/prod-db",
     "creation_statements": [
-      "CREATE ROLE \"{{username}}\" LOGIN PASSWORD '\''{{password}}'\'' VALID UNTIL '\''{{expiration}}'\'';"
+      "CREATE USER '\''{{username}}'\''@'\''%'\'' IDENTIFIED BY '\''{{password}}'\'';"
     ],
     "config": {
-      "db_type": "postgresql",
+      "db_type": "mysql",
       "database_name": "app",
       "ssl_mode": "require"
     }
@@ -70,8 +70,8 @@ Response includes `creation_statements` with `{{username}}` and `{{password}}` s
 
 | Source | When to use |
 |--------|-------------|
-| **KV path** (`database/admin/postgres`) | Recommended — encrypted before Raft replication |
-| **Kubernetes Secret** | Job pod mounts `postgres-admin` Secret |
+| **KV path** (`database/admin/prod-db`) | Recommended — encrypted before Raft replication |
+| **Kubernetes Secret** | Job pod mounts `prod-db-admin` Secret |
 | **Cloud IAM** | RDS IAM auth, Cloud SQL connector — no static password |
 | **CI variable** | Pipeline holds `DATABASE_ADMIN_URL` outside KNXVault |
 

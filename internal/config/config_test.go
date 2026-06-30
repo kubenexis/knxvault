@@ -28,23 +28,15 @@ func TestLoadDefaults(t *testing.T) {
 	}
 }
 
-func TestLoadDatabaseAndOpenSSL(t *testing.T) {
-	t.Setenv("KNXVAULT_DATABASE_URL", "postgres://localhost/knxvault")
+func TestLoadOpenSSL(t *testing.T) {
 	t.Setenv("KNXVAULT_OPENSSL_BINARY", "/usr/bin/openssl")
-	t.Setenv("KNXVAULT_AUTO_MIGRATE", "false")
 
 	cfg, err := config.Load()
 	if err != nil {
 		t.Fatalf("Load() = %v", err)
 	}
-	if cfg.DatabaseURL != "postgres://localhost/knxvault" {
-		t.Errorf("DatabaseURL = %q", cfg.DatabaseURL)
-	}
 	if cfg.OpenSSLBinary != "/usr/bin/openssl" {
 		t.Errorf("OpenSSLBinary = %q", cfg.OpenSSLBinary)
-	}
-	if cfg.AutoMigrate {
-		t.Error("AutoMigrate = true, want false")
 	}
 }
 

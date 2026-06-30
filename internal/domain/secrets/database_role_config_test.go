@@ -9,7 +9,7 @@ import (
 func TestValidateDatabaseRoleConfigRejectsSecrets(t *testing.T) {
 	cases := []map[string]any{
 		{"password": "s3cret"},
-		{"connection_url": "postgres://admin:pass@db:5432/app"},
+		{"connection_url": "mysql://admin:pass@db:3306/app"},
 		{"nested": map[string]any{"token": "abc"}},
 	}
 	for _, cfg := range cases {
@@ -21,7 +21,7 @@ func TestValidateDatabaseRoleConfigRejectsSecrets(t *testing.T) {
 
 func TestValidateDatabaseRoleConfigAllowsTuning(t *testing.T) {
 	cfg := map[string]any{
-		"db_type":       "postgresql",
+		"db_type":       "mysql",
 		"database_name": "app",
 		"ssl_mode":      "require",
 		"host":          "db.internal",
@@ -41,7 +41,7 @@ func TestValidateExecutionMode(t *testing.T) {
 }
 
 func TestValidateAdminCredentialsPath(t *testing.T) {
-	if err := domainsecrets.ValidateAdminCredentialsPath("database/admin/postgres"); err != nil {
+	if err := domainsecrets.ValidateAdminCredentialsPath("database/admin/prod-db"); err != nil {
 		t.Fatalf("valid path: %v", err)
 	}
 	if err := domainsecrets.ValidateAdminCredentialsPath("../escape"); err == nil {

@@ -119,7 +119,7 @@ KNXVault generates credentials and SQL statements; **your tooling runs the SQL**
 
 ```bash
 # Store admin DB credentials in KV (encrypted before Raft)
-curl -s -X POST $KNXVAULT_ADDR/secrets/kv/database/admin/postgres \
+curl -s -X POST $KNXVAULT_ADDR/secrets/kv/database/admin/prod-db \
   -H "Authorization: Bearer $KNXVAULT_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"data":{"username":"vault_admin","password":"admin-pass","host":"db.internal"}}'
@@ -131,9 +131,9 @@ curl -s -X PUT $KNXVAULT_ADDR/secrets/database/roles/readonly \
   -d '{
     "ttl_seconds": 3600,
     "username_prefix": "v-",
-    "admin_credentials_path": "database/admin/postgres",
-    "creation_statements": ["CREATE ROLE \"{{username}}\" LOGIN PASSWORD '\''{{password}}'\'';"],
-    "config": {"db_type": "postgresql"}
+    "admin_credentials_path": "database/admin/prod-db",
+    "creation_statements": ["CREATE USER '\''{{username}}'\''@'\''%'\'' IDENTIFIED BY '\''{{password}}'\'';"],
+    "config": {"db_type": "mysql"}
   }'
 
 # Generate ephemeral credentials + SQL statements

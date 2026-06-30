@@ -1,12 +1,11 @@
 # ADR-0001: Dragonboat Raft Storage Backend
 
 **Status:** Accepted  
-**Date:** 2026  
-**Supersedes:** Interim PostgreSQL backend
+**Date:** 2026
 
 ## Context
 
-KNXVault initially used PostgreSQL for persistence with Kubernetes Lease-based leader election for background jobs. This introduced an external operational dependency (Postgres HA operator) and split consistency concerns between the database and the application.
+KNXVault was designed with embedded consensus from the start. Early development used in-memory repositories for fast iteration; production deployments always target Dragonboat Raft with no external database.
 
 Production secrets vaults require:
 
@@ -17,14 +16,14 @@ Production secrets vaults require:
 
 ## Decision
 
-Adopt [Dragonboat v3](https://github.com/lni/dragonboat) as the primary storage backend:
+Adopt [Dragonboat v3](https://github.com/lni/dragonboat) as the storage backend:
 
 - Single Raft cluster (ID `1`) with a custom state machine in `internal/raft/`
 - Repository interfaces unchanged; Dragonboat adapters in `internal/repository/dragonboat/`
 - Pebble WAL as the default Dragonboat log store
 - 3-node StatefulSet topology for production HA
 - Raft leader gates background jobs (lease cleanup, CRL refresh, cert renewal)
-- PostgreSQL deprecated; migration via `knxvault-cli migrate postgres`
+- Development and CI use in-memory repositories when `KNXVAULT_RAFT_ENABLED` is unset
 
 ## Consequences
 
@@ -39,10 +38,10 @@ Adopt [Dragonboat v3](https://github.com/lni/dragonboat) as the primary storage 
 
 - Fixed 3-node topology in v0.1.x; dynamic membership not yet automated
 - Dragonboat transitive dependencies include MPL-2.0 (documented license exception)
+
 ### Follow-up
 
 - Phase 4: evaluate 5-node clusters, read replicas, DR automation
-- Remove PostgreSQL code path after migration window closes
 
 ## References
 

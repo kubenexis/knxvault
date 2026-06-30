@@ -90,7 +90,7 @@ KNXVault is released under **Apache-2.0**. Every component that ships in product
 - Avoid transitive deps under **MPL-2.0**, **GPL**, or **AGPL** (e.g. replace path-based helpers with stdlib or Apache-licensed alternatives).
 - Reject dependencies that bundle precompiled binaries without a clear permissive license.
 
-**Versioning & Compatibility**: Go 1.25+, Dragonboat v3 (Raft), OpenSSL 3.x. Legacy PostgreSQL 15+ supported only for one-shot migration (`knxvault-cli migrate postgres`). Backward compatibility for issued certificates and stored secrets will be maintained across minor versions.
+**Versioning & Compatibility**: Go 1.25+, Dragonboat v3 (Raft), OpenSSL 3.x. Backward compatibility for issued certificates and stored secrets will be maintained across minor versions.
 
 ---
 
@@ -196,7 +196,6 @@ KNXVault follows a clean, hexagonal-inspired layered architecture to maximize te
 5. **Repository Layer** (`internal/repository/`)
    - Dragonboat adapters (`internal/repository/dragonboat/`) propose commands to the Raft state machine.
    - In-memory repositories back the state machine and power dev/tests (`internal/repository/memory/`).
-   - Legacy PostgreSQL adapters (`internal/repository/postgres/`) deprecated — migration only.
 
 6. **Domain Models** (`internal/domain/`)
    - Pure business entities (CA, Certificate, Secret, Policy, etc.) with validation.
@@ -292,7 +291,6 @@ knxvault/
 │   ├── repository/               # Data access layer
 │   │   ├── dragonboat/
 │   │   ├── memory/
-│   │   ├── postgres/             # deprecated — migration only
 │   │   └── interfaces.go
 │   ├── crypto/                   # Cryptography & OpenSSL wrappers
 │   │   ├── envelope.go
@@ -308,8 +306,7 @@ knxvault/
 ├── api/                          # OpenAPI specification (openapi.yaml)
 ├── deployments/
 │   └── helm/                     # Helm chart (detailed in later section)
-├── scripts/                      # Build, migration, dev scripts
-├── migrations/                   # Legacy PostgreSQL SQL (deprecated)
+├── scripts/                      # Build and dev scripts
 ├── test/                         # Integration/e2e tests
 │   ├── integration/
 │   └── e2e/
@@ -337,13 +334,11 @@ knxvault/
 - **`internal/crypto/openssl/`**: Critical security component. Contains safe wrappers for `os/exec.Command` with context timeout, input validation, and secure temp dir management.
 
 - **`internal/raft/`**: Dragonboat `NodeHost`, `VaultStateMachine`, command catalog, leader election for background jobs.
-- **`internal/repository/`**: Repository interfaces with Dragonboat adapters for production, in-memory for tests. PostgreSQL adapters retained for legacy migration only.
+- **`internal/repository/`**: Repository interfaces with Dragonboat adapters for production, in-memory for tests.
 
 - **`internal/config/`**: Strongly-typed config with validation (using `validator.v10`). Supports env vars, ConfigMaps, and secrets.
 
 - **`internal/infra/`**: Kubernetes client (`client-go`), OpenTelemetry setup, Redis (optional).
-
-- **`migrations/`**: Legacy PostgreSQL schema (deprecated). Vault state evolves via Raft snapshots and `snapshot.import`.
 
 - **`deployments/helm/`**: Complete Helm chart for Kubernetes deployment.
 
@@ -589,7 +584,6 @@ Cleartext metadata (paths, RBAC policies, audit resource paths, CA cert PEM) is 
 
 - **Dragonboat snapshots**: `SaveSnapshot` / `RecoverFromSnapshot` serialize `internal/backup.Snapshot` JSON.
 - **Portable backup**: `POST /sys/backup` exports encrypted archive; restore proposes `snapshot.import` through Raft.
-- **Legacy migration**: `knxvault-cli migrate postgres` reads deprecated PostgreSQL DSN and seeds a Raft cluster.
 
 #### 4.D.5 Repository Pattern
 
@@ -604,8 +598,6 @@ type SecretRepository interface {
 **Production implementation**: `internal/repository/dragonboat/` — each method maps to a Raft command via `internal/raft/client.go`.
 
 **Dev / test**: `internal/repository/memory/` when `KNXVAULT_RAFT_ENABLED` is unset.
-
-**Legacy (deprecated)**: `internal/repository/postgres/` — one-shot migration source only; not used when Raft is enabled.
 
 ---
 
@@ -857,7 +849,7 @@ spec:
 - Headless Service (`service-raft.yaml`) provides stable DNS for `KNXVAULT_RAFT_INITIAL_MEMBERS`.
 - **Raft leader** handles background jobs (CRL generation, lease cleanup, cert renewal).
 - One PVC per replica for Pebble WAL and Dragonboat snapshots (`KNXVAULT_RAFT_DATA_DIR`).
-- Legacy Kubernetes `Lease` leader election applies only when Raft is disabled (deprecated Postgres path).
+- When Raft is disabled, the server uses in-memory repositories (development only); no external database.
 
 ### 6.3 ConfigMap & Secret Resources
 
@@ -1052,7 +1044,6 @@ type HealthResponse struct {
 
 - `POST /sys/restore` proposes `snapshot.import` through Raft (replaces full state machine).
 - Requires matching `KNXVAULT_MASTER_KEY`.
-- Legacy: `knxvault-cli migrate postgres` to seed Raft from deprecated PostgreSQL.
 
 **Pre-upgrade**: Run backup before rolling StatefulSet upgrades (see [`docs/operations/runbooks/raft-failover.md`](operations/runbooks/raft-failover.md)).
 
@@ -1206,7 +1197,7 @@ KNXVault follows a phased approach aligned with the HLD, prioritizing core value
 
 - **Dragonboat Raft vs. External Database**:  
   **Trade-off**: Embedded consensus adds per-replica disk and fixed topology vs. operational simplicity of a single external DB.  
-  **Decision**: Dragonboat Raft with Pebble WAL for production (see [ADR-0001](adr/0001-dragonboat-storage-backend.md)); PostgreSQL deprecated to one-shot migration only.
+  **Decision**: Dragonboat Raft with Pebble WAL for production (see [ADR-0001](adr/0001-dragonboat-storage-backend.md)); in-memory repositories for development when Raft is disabled.
 
 - **Gin Framework**: Lightweight and fast, but less "batteries-included" than heavier frameworks.  
   **Mitigation**: Comprehensive custom middleware layer.

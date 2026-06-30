@@ -132,6 +132,3 @@ Raft snapshots and `POST /sys/backup` share the JSON format in `internal/backup.
 - Encrypted payload (`ciphertext`, `dek_enc`) sealed with the master key
 - Full state replacement via `snapshot.import` on restore
 
-## Legacy PostgreSQL schema
-
-The interim PostgreSQL schema in `migrations/` is **deprecated**. Use `knxvault-cli migrate postgres` to export data into a Raft cluster. See [Backup & restore](../deploy/backup-restore.md).

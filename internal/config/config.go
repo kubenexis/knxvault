@@ -33,8 +33,6 @@ type Config struct {
 	Version        string
 	OpenSSLTimeout time.Duration
 	OpenSSLBinary  string
-	DatabaseURL    string
-	AutoMigrate    bool
 	JWTSecret      string
 	RootToken      string
 	TokenTTL       time.Duration
@@ -70,8 +68,6 @@ func Load() (Config, error) {
 		Version:                 envOr("KNXVAULT_VERSION", "0.1.0-dev"),
 		OpenSSLTimeout:          defaultOpenSSLTimeout,
 		OpenSSLBinary:           envOr("KNXVAULT_OPENSSL_BINARY", defaultOpenSSLBinary),
-		DatabaseURL:             strings.TrimSpace(os.Getenv("KNXVAULT_DATABASE_URL")),
-		AutoMigrate:             true,
 		JWTSecret:               strings.TrimSpace(os.Getenv("KNXVAULT_JWT_SECRET")),
 		RootToken:               strings.TrimSpace(os.Getenv("KNXVAULT_ROOT_TOKEN")),
 		TokenTTL:                defaultTokenTTL,
@@ -102,14 +98,6 @@ func Load() (Config, error) {
 			return Config{}, fmt.Errorf("KNXVAULT_OPENSSL_TIMEOUT: %w", err)
 		}
 		cfg.OpenSSLTimeout = d
-	}
-
-	if v := os.Getenv("KNXVAULT_AUTO_MIGRATE"); v != "" {
-		enabled, err := strconv.ParseBool(v)
-		if err != nil {
-			return Config{}, fmt.Errorf("KNXVAULT_AUTO_MIGRATE: %w", err)
-		}
-		cfg.AutoMigrate = enabled
 	}
 
 	if v := os.Getenv("KNXVAULT_TOKEN_TTL"); v != "" {

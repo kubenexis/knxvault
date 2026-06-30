@@ -10,7 +10,7 @@ make test
 go test ./...
 ```
 
-Tests live next to source files (`*_test.go`). Repository fakes in `internal/repository/memory/` support engine and service tests without Raft or PostgreSQL.
+Tests live next to source files (`*_test.go`). Repository fakes in `internal/repository/memory/` support engine and service tests without Raft.
 
 ### Coverage focus areas
 
@@ -75,10 +75,6 @@ export KNXVAULT_RAFT_DATA_DIR=/tmp/knxvault-raft-test
 export KNXVAULT_RAFT_INITIAL_MEMBERS=1=127.0.0.1:63001
 ./bin/knxvault
 ```
-
-## PostgreSQL integration tests (legacy)
-
-`internal/repository/postgres/integration_test.go` runs when `KNXVAULT_DATABASE_URL` is set. These tests cover the deprecated backend; primary storage tests are in the Raft integration suite.
 
 ## Writing new tests
 

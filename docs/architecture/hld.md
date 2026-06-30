@@ -75,9 +75,9 @@ graph TB
 | **Repositories** (`internal/repository`) | Dragonboat adapters; memory for tests |
 | **Background jobs** | Lease cleanup, CRL refresh, cert renewal (Raft leader only) |
 
-## Storage evolution
+## Storage
 
-KNXVault originally used PostgreSQL as an interim backend. **Phase 3** replaced it with an embedded Dragonboat Raft cluster. PostgreSQL remains as a legacy path for migration only (`knxvault-cli migrate postgres`).
+KNXVault persists vault state in an embedded Dragonboat Raft cluster. Development and CI use in-memory repositories when Raft is disabled.
 
 See [Dragonboat storage](../storage/dragonboat.md) and [ADR-0001](../adr/0001-dragonboat-storage-backend.md).
 
@@ -87,7 +87,6 @@ See [Dragonboat storage](../storage/dragonboat.md) and [ADR-0001](../adr/0001-dr
 |----------|-------|---------|----------|
 | Dev / CI | 1 | In-memory or single-node Raft | Local development, unit tests |
 | Production HA | 3 | 3-node Raft StatefulSet | Quorum-backed consistency |
-| Legacy | 1+ | PostgreSQL + K8s Lease | Deprecated; migrate to Raft |
 
 ## Related documents
 

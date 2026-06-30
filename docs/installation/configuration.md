@@ -46,29 +46,9 @@ KNXVault is configured entirely via environment variables. No config file is req
 
 See [Dragonboat storage](../storage/dragonboat.md) for topology examples.
 
-## Legacy PostgreSQL (deprecated)
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `KNXVAULT_DATABASE_URL` | — | PostgreSQL DSN (legacy only) |
-| `KNXVAULT_AUTO_MIGRATE` | `true` | Apply SQL migrations when Postgres enabled |
-
-Migrate to Raft with `knxvault-cli migrate postgres`.
-
-## High availability (legacy K8s Lease)
-
-Used only when Raft is **disabled** and PostgreSQL is configured. Superseded by Raft leader election.
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `KNXVAULT_HA_ENABLED` | `false` | Enable Kubernetes Lease leader election |
-| `KNXVAULT_HA_NAMESPACE` | `knxvault` | Lease namespace |
-| `KNXVAULT_HA_LEASE_NAME` | `knxvault-leader` | Lease resource name |
-| `KNXVAULT_HA_IDENTITY` | pod hostname | Leader election identity |
-
 ## Background jobs
 
-Jobs run on the **Raft leader** when Raft is enabled, or the K8s Lease holder otherwise.
+Jobs run on the **Raft leader** when Raft is enabled.
 
 | Variable | Default | Description |
 |----------|---------|-------------|

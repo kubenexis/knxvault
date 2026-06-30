@@ -11,8 +11,6 @@ Install KNXVault as a local binary, container, or 3-node Kubernetes Raft cluster
 | Kubernetes | 1.28+ | For production HA deployment |
 | Docker | optional | For `make docker-build` |
 
-PostgreSQL is **deprecated** as a primary backend. Existing deployments should migrate with `knxvault-cli migrate postgres`.
-
 ## Option 1: Local binary (development)
 
 ```bash
