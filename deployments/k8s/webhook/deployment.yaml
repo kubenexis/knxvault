@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: webhook
-          image: knxvault:0.1.0-dev
+          image: knxvault:0.4.3
           command: ["/usr/local/bin/knxvault-webhook"]
           ports:
             - name: webhook

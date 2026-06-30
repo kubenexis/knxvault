@@ -19,7 +19,7 @@ spec:
       serviceAccountName: knxvault-csi-provider
       containers:
         - name: provider
-          image: knxvault:0.1.0-dev
+          image: knxvault:0.4.3
           imagePullPolicy: IfNotPresent
           command: ["/usr/local/bin/knxvault-csi"]
           env:

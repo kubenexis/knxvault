@@ -50,11 +50,11 @@ curl -s http://localhost:8200/secrets/kv/app/db \
 ## Container image
 
 ```bash
-make docker-build          # builds knxvault:0.1.0-dev
+make docker-build          # builds knxvault:0.4.3
 docker run --rm -p 8200:8200 \
   -e KNXVAULT_MASTER_KEY="$(openssl rand -base64 32)" \
   -e KNXVAULT_ROOT_TOKEN=dev-root-token \
-  knxvault:0.1.0-dev
+  knxvault:0.4.3
 ```
 
 ## Kubernetes
@@ -108,7 +108,7 @@ Secrets injection: [`docs/deploy/secrets-injection.md`](docs/deploy/secrets-inje
 |----------|---------|-------------|
 | `KNXVAULT_HTTP_ADDR` | `:8200` | HTTP listen address |
 | `KNXVAULT_LOG_LEVEL` | `info` | Log level |
-| `KNXVAULT_VERSION` | `0.1.0-dev` | Version string |
+| `KNXVAULT_VERSION` | `0.4.3` | Version string |
 | `KNXVAULT_SHUTDOWN_GRACE` | `10s` | Graceful shutdown timeout |
 | `KNXVAULT_RAFT_ENABLED` | `false` | Enable Dragonboat Raft storage |
 | `KNXVAULT_RAFT_NODE_ID` | _(K8s: from pod ordinal)_ | Stable Raft member ID (> 0); see [docs/storage/dragonboat.md](docs/storage/dragonboat.md#raft-node-ids--how-to-choose-and-assign) |

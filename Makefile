@@ -21,7 +21,8 @@ GOLANGCI_LINT   := $(firstword $(shell command -v golangci-lint 2>/dev/null) $(G
 GOSEC           := $(firstword $(shell command -v gosec 2>/dev/null) $(GOPATH_BIN)/gosec)
 TRIVY           := $(firstword $(shell command -v trivy 2>/dev/null) $(LOCAL_BIN)/trivy)
 DOCKER          := $(firstword $(shell command -v docker 2>/dev/null))
-IMAGE           ?= knxvault:0.1.0-dev
+VERSION         ?= 0.4.3
+IMAGE           ?= knxvault:$(VERSION)
 export GOTOOLCHAIN := $(GO_TOOLCHAIN)
 
 # -----------------------------------------------------------------------------
@@ -38,7 +39,7 @@ CSI_PKG         ?= ./cmd/knxvault-csi
 WEBHOOK_PKG     ?= ./cmd/knxvault-webhook
 SBOM_FILE       ?= sbom.json
 TRIVY_CACHE_DIR ?= $(HOME)/.cache/trivy
-LDFLAGS         ?= -s -w
+LDFLAGS         ?= -s -w -X github.com/kubenexis/knxvault/internal/version.Version=$(VERSION)
 TRIVY_SEVERITY  ?= HIGH,CRITICAL
 
 # -----------------------------------------------------------------------------

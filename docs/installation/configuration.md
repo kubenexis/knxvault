@@ -8,7 +8,7 @@ KNXVault is configured entirely via environment variables. No config file is req
 |----------|---------|----------|-------------|
 | `KNXVAULT_HTTP_ADDR` | `:8200` | No | HTTP listen address |
 | `KNXVAULT_LOG_LEVEL` | `info` | No | `debug`, `info`, `warn`, `error` |
-| `KNXVAULT_VERSION` | `0.1.0-dev` | No | Version string in metrics and health |
+| `KNXVAULT_VERSION` | `0.4.3` | No | Version string in metrics and health |
 | `KNXVAULT_SHUTDOWN_GRACE` | `10s` | No | Graceful shutdown timeout |
 
 ## Cryptography

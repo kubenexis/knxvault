@@ -53,7 +53,7 @@ make docker-build
 docker run --rm -p 8200:8200 \
   -e KNXVAULT_MASTER_KEY="$(openssl rand -base64 32)" \
   -e KNXVAULT_ROOT_TOKEN=dev-root-token \
-  knxvault:0.1.0-dev
+  knxvault:0.4.3
 ```
 
 For persistent Raft data, mount a volume at `/var/lib/knxvault/raft` and set the `KNXVAULT_RAFT_*` variables.

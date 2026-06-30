@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/kubenexis/knxvault/internal/version"
 )
 
 const (
@@ -68,7 +70,7 @@ func Load() (Config, error) {
 		HTTPAddr:                envOr("KNXVAULT_HTTP_ADDR", defaultHTTPAddr),
 		LogLevel:                envOr("KNXVAULT_LOG_LEVEL", defaultLogLevel),
 		ShutdownGrace:           defaultShutdownGrace,
-		Version:                 envOr("KNXVAULT_VERSION", "0.1.0-dev"),
+		Version:                 envOr("KNXVAULT_VERSION", version.Version),
 		OpenSSLTimeout:          defaultOpenSSLTimeout,
 		OpenSSLBinary:           envOr("KNXVAULT_OPENSSL_BINARY", defaultOpenSSLBinary),
 		JWTSecret:               strings.TrimSpace(os.Getenv("KNXVAULT_JWT_SECRET")),

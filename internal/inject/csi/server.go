@@ -10,14 +10,14 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"github.com/kubenexis/knxvault/internal/version"
 	"google.golang.org/grpc"
 	provider "sigs.k8s.io/secrets-store-csi-driver/provider/v1alpha1"
 )
 
 const (
-	providerName    = "knxvault"
-	providerVersion = "0.1.0"
-	defaultSocket   = "/var/run/secrets-store-csi-providers/knxvault.sock"
+	providerName  = "knxvault"
+	defaultSocket = "/var/run/secrets-store-csi-providers/knxvault.sock"
 )
 
 // Server implements the Secrets Store CSI provider gRPC API.
@@ -73,7 +73,7 @@ func (s *Server) Version(_ context.Context, _ *provider.VersionRequest) (*provid
 	return &provider.VersionResponse{
 		Version:        "v1alpha1",
 		RuntimeName:    providerName,
-		RuntimeVersion: providerVersion,
+		RuntimeVersion: version.Version,
 	}, nil
 }
 
