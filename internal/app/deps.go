@@ -80,6 +80,8 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 		}
 		deps.Crypto = svc
 		log.Info("master key loaded")
+	} else if cfg.Raft.Enabled {
+		return nil, fmt.Errorf("master key required when raft is enabled: %w", err)
 	} else {
 		log.Warn("master key not configured; envelope encryption disabled", zap.Error(err))
 	}
@@ -165,6 +167,18 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 	}
 	deps.AuthService = auth.NewService(tokenStore, rbac, cfg.JWTSecret)
 	deps.AuthService.SetRoleResolver(auth.NewRepositoryRoleResolver(deps.RoleRepo))
+	var tokenReviewer k8s.TokenReviewer
+	if reviewer, err := k8s.NewInClusterTokenReviewer(); err == nil {
+		tokenReviewer = reviewer
+		log.Info("kubernetes TokenReview authentication enabled")
+	} else {
+		log.Warn("kubernetes TokenReview unavailable", zap.Error(err))
+	}
+	deps.AuthService.SetK8sLoginOptions(auth.K8sLoginOptions{
+		RaftEnabled:   cfg.Raft.Enabled,
+		InsecureDev:   cfg.K8sAuthInsecure,
+		TokenReviewer: tokenReviewer,
+	})
 
 	if deps.AuditService != nil {
 		deps.AuditExportService = service.NewAuditExportService(deps.AuditService)

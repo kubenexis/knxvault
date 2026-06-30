@@ -25,7 +25,8 @@ KNXVault is configured entirely via environment variables. No config file is req
 | Variable | Default | Required | Description |
 |----------|---------|----------|-------------|
 | `KNXVAULT_ROOT_TOKEN` | — | Bootstrap | Initial admin token |
-| `KNXVAULT_JWT_SECRET` | — | K8s auth | HS256 secret for ServiceAccount JWT login |
+| `KNXVAULT_JWT_SECRET` | — | Dev K8s auth | HS256 secret for local ServiceAccount JWT login (dev only; not used when TokenReview is available) |
+| `KNXVAULT_K8S_AUTH_INSECURE` | `false` | Dev only | When `KNXVAULT_RAFT_ENABLED=false`, allow unvalidated K8s login (never enable in production) |
 | `KNXVAULT_TOKEN_TTL` | `24h` | No | Issued client token lifetime |
 
 ## Dragonboat Raft (production storage)
@@ -110,7 +111,8 @@ KNXVAULT_AUDIT_SIGNING_KEY: "<audit-hmac>"
 |----------|----------|
 | `KNXVAULT_MASTER_KEY` | Never commit to git; use K8s Secret or KMS |
 | `KNXVAULT_ROOT_TOKEN` | Rotate after bootstrap; replace with scoped tokens |
-| `KNXVAULT_JWT_SECRET` | Required for K8s SA auth; treat as secret |
+| `KNXVAULT_JWT_SECRET` | Dev-only HS256 K8s auth; production uses in-cluster TokenReview |
+| `KNXVAULT_K8S_AUTH_INSECURE` | Never enable when Raft/production is on |
 | `KNXVAULT_AUDIT_SIGNING_KEY` | Enable in production for tamper-evident audit export |
 
 Do not store database admin passwords in database role `config` — use KV paths. See [Operator security](../operations/operator-security.md).

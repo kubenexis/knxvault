@@ -858,10 +858,10 @@ spec:
 
 ### 6.4 Secrets Injection Patterns
 
-1. **Sidecar Agent** (recommended for MVP): KNXVault sidecar that injects secrets as files/env into application pods.
-2. **Init Container**: One-time secret fetch at pod startup.
-3. **CSI Driver** (Phase 2+): Native volume mount using Secrets Store CSI Driver.
-4. **Mutating Webhook** (future): Automatic annotation-based injection.
+1. **Secrets Store CSI Driver** (**primary, first-class**): KNXVault ships a [CSI provider](https://secrets-store-csi-driver.sigs.k8s.io/) (`knxvault-csi`) so workloads mount KV secrets as volumes via `SecretProviderClass`. Pod `ServiceAccount` identity is exchanged at mount time (TokenReview) — no cluster-wide static vault tokens in the provider. Supports optional sync to native Kubernetes `Secret` and [auto-rotation](https://secrets-store-csi-driver.sigs.k8s.io/topics/secret-auto-rotation.html) when KV versions change. Manifests: `deployments/csi/`; backlog **W39-01–W39-08**.
+2. **Sidecar Agent** (fallback): curl/init sidecar calling `POST /inject/render` into a shared `emptyDir` — for clusters without CSI or quick prototypes.
+3. **Init Container**: One-time render at pod startup (same API as sidecar).
+4. **Mutating Webhook** (optional): Auto-inject CSI volume + `SecretProviderClass` from pod annotations — convenience layer after CSI baseline ships (**W38-07**).
 
 ### 6.5 Resource Limits, Probes & Best Practices
 

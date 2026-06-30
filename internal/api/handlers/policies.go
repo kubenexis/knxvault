@@ -94,8 +94,10 @@ func (h *PolicyHandler) PutRole(c *gin.Context) {
 		return
 	}
 	role := &domainauth.Role{
-		Name:     c.Param("name"),
-		Policies: req.Policies,
+		Name:                          c.Param("name"),
+		Policies:                      req.Policies,
+		BoundServiceAccountNames:      req.BoundServiceAccountNames,
+		BoundServiceAccountNamespaces: req.BoundServiceAccountNamespaces,
 	}
 	if err := h.svc.SaveRole(c.Request.Context(), role); err != nil {
 		_ = c.Error(err)
@@ -112,7 +114,9 @@ func (h *PolicyHandler) GetRole(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, dto.RoleResponse{
-		Name:     role.Name,
-		Policies: role.Policies,
+		Name:                          role.Name,
+		Policies:                      role.Policies,
+		BoundServiceAccountNames:      role.BoundServiceAccountNames,
+		BoundServiceAccountNamespaces: role.BoundServiceAccountNamespaces,
 	})
 }

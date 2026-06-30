@@ -60,7 +60,7 @@ OCSP is exposed at `POST /pki/ocsp/:ca_id` (no authentication). Send `applicatio
 
 ## Secrets injection
 
-Sidecar and init-container patterns use `POST /inject/render` (requires `inject-reader` policy). See [`secrets-injection.md`](secrets-injection.md) and [`deployments/k8s/sidecar-example.yaml`](../../deployments/k8s/sidecar-example.yaml). CSI scaffolding lives in [`deployments/csi/`](../../deployments/csi/).
+**Secrets delivery:** use the [Secrets Store CSI Driver](csi-install.md) integration first (`deployments/csi/`). Optional [mutating webhook](../../deployments/k8s/webhook/) injects CSI volumes from pod annotations. Sidecar/init fallbacks use `POST /inject/render` — see [`secrets-injection.md`](secrets-injection.md) and [`deployments/k8s/sidecar-example.yaml`](../../deployments/k8s/sidecar-example.yaml).
 
 ## Rate limiting & request signing
 

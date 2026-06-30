@@ -39,10 +39,12 @@ func (p *Policy) Validate() error {
 	return nil
 }
 
-// Role binds policy names to a role identifier.
+// Role binds policy names to a role identifier and optional Kubernetes ServiceAccount constraints.
 type Role struct {
-	Name     string
-	Policies []string
+	Name                          string
+	Policies                      []string
+	BoundServiceAccountNames      []string
+	BoundServiceAccountNamespaces []string
 }
 
 // Validate checks role fields.

@@ -12,7 +12,9 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
+	domainauth "github.com/kubenexis/knxvault/internal/domain/auth"
 	"github.com/kubenexis/knxvault/internal/domain/common"
+	"github.com/kubenexis/knxvault/internal/infra/k8s"
 )
 
 // TokenRecord is a stored client token.
@@ -95,17 +97,30 @@ func hashToken(token string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// K8sLoginOptions configures Kubernetes authentication behavior.
+type K8sLoginOptions struct {
+	RaftEnabled     bool
+	InsecureDev     bool
+	TokenReviewer   k8s.TokenReviewer
+}
+
 // Service coordinates authentication flows.
 type Service struct {
 	tokens    *TokenStore
 	rbac      *RBAC
 	roles     RoleResolver
 	jwtSecret []byte
+	k8s       K8sLoginOptions
 }
 
 // RoleResolver resolves role names to policy names.
 type RoleResolver interface {
 	PoliciesForRole(ctx context.Context, role string) []string
+}
+
+// RoleBindingResolver resolves full role records for SA binding checks.
+type RoleBindingResolver interface {
+	GetRole(ctx context.Context, name string) (*domainauth.Role, error)
 }
 
 // NewService constructs an auth service.
@@ -122,6 +137,11 @@ func (s *Service) SetRoleResolver(resolver RoleResolver) {
 	s.roles = resolver
 }
 
+// SetK8sLoginOptions configures Kubernetes login validation.
+func (s *Service) SetK8sLoginOptions(opts K8sLoginOptions) {
+	s.k8s = opts
+}
+
 // LoginWithToken authenticates an opaque token.
 func (s *Service) LoginWithToken(_ context.Context, token string) (*TokenRecord, error) {
 	return s.tokens.Authenticate(token)
@@ -132,24 +152,22 @@ func (s *Service) LoginKubernetes(ctx context.Context, role, jwtToken string) (s
 	if jwtToken == "" {
 		return "", nil, common.New(common.ErrCodeValidation, "jwt is required")
 	}
+	if role == "" {
+		return "", nil, common.New(common.ErrCodeValidation, "role is required")
+	}
 
-	subject := role
-	if len(s.jwtSecret) > 0 {
-		parsed, err := jwt.Parse(jwtToken, func(token *jwt.Token) (any, error) {
-			if token.Method != jwt.SigningMethodHS256 {
-				return nil, fmt.Errorf("unexpected signing method")
-			}
-			return s.jwtSecret, nil
-		})
+	identity, subject, err := s.validateKubernetesJWT(ctx, role, jwtToken)
+	if err != nil {
+		return "", nil, err
+	}
+
+	if bindingResolver, ok := s.roles.(RoleBindingResolver); ok {
+		storedRole, err := bindingResolver.GetRole(ctx, role)
 		if err != nil {
-			return "", nil, common.Wrap(common.ErrCodeUnauthorized, "invalid kubernetes jwt", err)
+			return "", nil, common.Wrap(common.ErrCodeForbidden, "role not found", err)
 		}
-		claims, ok := parsed.Claims.(jwt.MapClaims)
-		if !ok || !parsed.Valid {
-			return "", nil, common.New(common.ErrCodeUnauthorized, "invalid kubernetes jwt claims")
-		}
-		if sub, ok := claims["sub"].(string); ok && sub != "" {
-			subject = sub
+		if err := MatchServiceAccountBinding(storedRole, identity); err != nil {
+			return "", nil, err
 		}
 	}
 
@@ -158,6 +176,64 @@ func (s *Service) LoginKubernetes(ctx context.Context, role, jwtToken string) (s
 		policies = s.roles.PoliciesForRole(ctx, role)
 	}
 	return s.tokens.Issue(subject, policies)
+}
+
+func (s *Service) validateKubernetesJWT(ctx context.Context, role, jwtToken string) (ServiceAccountIdentity, string, error) {
+	if s.k8s.TokenReviewer != nil {
+		review, err := s.k8s.TokenReviewer.Review(ctx, jwtToken)
+		if err != nil {
+			return ServiceAccountIdentity{}, "", common.Wrap(common.ErrCodeUnauthorized, "token review failed", err)
+		}
+		if review == nil || !review.Authenticated {
+			return ServiceAccountIdentity{}, "", common.New(common.ErrCodeUnauthorized, "kubernetes token not authenticated")
+		}
+		id := ServiceAccountIdentity{
+			Namespace: review.Namespace,
+			Name:      review.ServiceAccountName,
+			Username:  review.Username,
+		}
+		if id.Namespace == "" || id.Name == "" {
+			if parsed, ok := ParseServiceAccountUsername(review.Username); ok {
+				id = parsed
+			}
+		}
+		subject := review.Username
+		if subject == "" {
+			subject = fmt.Sprintf("system:serviceaccount:%s:%s", id.Namespace, id.Name)
+		}
+		return id, subject, nil
+	}
+
+	if s.k8s.RaftEnabled {
+		return ServiceAccountIdentity{}, "", common.New(common.ErrCodeUnauthorized, "kubernetes token review required in production")
+	}
+
+	if s.k8s.InsecureDev {
+		return ServiceAccountIdentity{}, role, nil
+	}
+
+	if len(s.jwtSecret) > 0 {
+		parsed, err := jwt.Parse(jwtToken, func(token *jwt.Token) (any, error) {
+			if token.Method != jwt.SigningMethodHS256 {
+				return nil, fmt.Errorf("unexpected signing method")
+			}
+			return s.jwtSecret, nil
+		})
+		if err != nil {
+			return ServiceAccountIdentity{}, "", common.Wrap(common.ErrCodeUnauthorized, "invalid kubernetes jwt", err)
+		}
+		claims, ok := parsed.Claims.(jwt.MapClaims)
+		if !ok || !parsed.Valid {
+			return ServiceAccountIdentity{}, "", common.New(common.ErrCodeUnauthorized, "invalid kubernetes jwt claims")
+		}
+		subject := role
+		if sub, ok := claims["sub"].(string); ok && sub != "" {
+			subject = sub
+		}
+		return ServiceAccountIdentity{}, subject, nil
+	}
+
+	return ServiceAccountIdentity{}, "", common.New(common.ErrCodeUnauthorized, "kubernetes authentication not configured")
 }
 
 // Authorize checks RBAC for a principal.

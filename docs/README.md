@@ -28,7 +28,9 @@ Version-controlled documentation for architects, operators, developers, and inte
 |----------|----------|-------------|
 | [Kubernetes deployment](deploy/kubernetes.md) | Operators | 3-node Raft StatefulSet manifests |
 | [Backup & restore](deploy/backup-restore.md) | Operators | Encrypted snapshots and migration |
-| [Secrets injection](deploy/secrets-injection.md) | Integrators | Sidecar, init container, CSI scaffolding |
+| [Secrets injection](deploy/secrets-injection.md) | Integrators | **CSI Driver (primary)**, sidecar/init fallbacks |
+| [CSI install runbook](deploy/csi-install.md) | Operators | Production CSI driver + provider setup |
+| [Kubernetes-native integrations](integration/kubernetes-native.md) | Architects | CSI, ESO, cert-manager, webhook, SDKs matrix |
 | [Database credentials](deploy/database-credentials.md) | Operators | Generator-only mode, admin cred patterns |
 | [Integration overview](integration/overview.md) | Integrators | K8s auth, CI/CD, client SDK patterns |
 

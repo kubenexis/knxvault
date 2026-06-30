@@ -7,7 +7,9 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/knxvault ./cmd/knxvault
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/knxvault ./cmd/knxvault \
+    && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/knxvault-csi ./cmd/knxvault-csi \
+    && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/knxvault-webhook ./cmd/knxvault-webhook
 
 FROM debian:bookworm-slim
 
@@ -17,6 +19,8 @@ RUN apt-get update \
     && useradd -r -u 65532 -g nogroup knxvault
 
 COPY --from=builder /out/knxvault /usr/local/bin/knxvault
+COPY --from=builder /out/knxvault-csi /usr/local/bin/knxvault-csi
+COPY --from=builder /out/knxvault-webhook /usr/local/bin/knxvault-webhook
 
 USER 65532:65532
 EXPOSE 8200

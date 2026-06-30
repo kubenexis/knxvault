@@ -1,0 +1,23 @@
+# Example pod mounting KNXVault secrets via Secrets Store CSI Driver (W39-03).
+apiVersion: v1
+kind: Pod
+metadata:
+  name: knxvault-csi-demo
+  namespace: default
+spec:
+  serviceAccountName: my-app
+  containers:
+    - name: app
+      image: busybox:1.36
+      command: ["sh", "-c", "cat /mnt/secrets/db.env && sleep 3600"]
+      volumeMounts:
+        - name: secrets
+          mountPath: /mnt/secrets
+          readOnly: true
+  volumes:
+    - name: secrets
+      csi:
+        driver: secrets-store.csi.k8s.io
+        readOnly: true
+        volumeAttributes:
+          secretProviderClass: knxvault-app-db

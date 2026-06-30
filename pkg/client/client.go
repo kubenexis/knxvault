@@ -125,6 +125,23 @@ func (c *Client) Ready(ctx context.Context) (*ReadyResponse, error) {
 	return &out, nil
 }
 
+// K8sLoginRequest is POST /auth/kubernetes.
+type K8sLoginRequest struct {
+	Role string `json:"role"`
+	JWT  string `json:"jwt"`
+}
+
+// LoginKubernetes exchanges a ServiceAccount JWT for a client token.
+func (c *Client) LoginKubernetes(ctx context.Context, role, jwt string) (*LoginResponse, error) {
+	var out LoginResponse
+	err := c.postJSON(ctx, "/auth/kubernetes", false, K8sLoginRequest{Role: role, JWT: jwt}, &out)
+	if err != nil {
+		return nil, err
+	}
+	c.Token = out.ClientToken
+	return &out, nil
+}
+
 // LoginToken validates a token via POST /auth/token.
 func (c *Client) LoginToken(ctx context.Context, token string) (*LoginResponse, error) {
 	var out LoginResponse

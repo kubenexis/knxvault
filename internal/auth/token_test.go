@@ -2,50 +2,123 @@ package auth_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/kubenexis/knxvault/internal/auth"
+	domainauth "github.com/kubenexis/knxvault/internal/domain/auth"
+	"github.com/kubenexis/knxvault/internal/domain/common"
+	"github.com/kubenexis/knxvault/internal/infra/k8s"
+	"github.com/kubenexis/knxvault/internal/repository/memory"
 )
 
-func TestTokenIssueAuthenticate(t *testing.T) {
-	store := auth.NewTokenStore(time.Hour)
-	token, record, err := store.Issue("alice", []string{"secrets-reader"})
-	if err != nil {
-		t.Fatalf("Issue() = %v", err)
-	}
-	if record.Subject != "alice" {
-		t.Fatalf("subject = %q", record.Subject)
-	}
+type staticRoleResolver struct {
+	role *domainauth.Role
+}
 
-	got, err := store.Authenticate(token)
-	if err != nil {
-		t.Fatalf("Authenticate() = %v", err)
-	}
-	if got.Subject != "alice" {
-		t.Fatalf("authenticated subject = %q", got.Subject)
+func (s staticRoleResolver) PoliciesForRole(context.Context, string) []string {
+	return s.role.Policies
+}
+
+func (s staticRoleResolver) GetRole(context.Context, string) (*domainauth.Role, error) {
+	copy := *s.role
+	return &copy, nil
+}
+
+func TestLoginKubernetesFailsClosedProduction(t *testing.T) {
+	svc := auth.NewService(auth.NewTokenStore(time.Hour), auth.NewRBAC(), "")
+	svc.SetK8sLoginOptions(auth.K8sLoginOptions{RaftEnabled: true})
+	_, _, err := svc.LoginKubernetes(context.Background(), "admin", "token")
+	var kv *common.KNXVaultError
+	if !errors.As(err, &kv) || kv.Code != common.ErrCodeUnauthorized {
+		t.Fatalf("expected unauthorized, got %v", err)
 	}
 }
 
-func TestLoginKubernetes(t *testing.T) {
-	store := auth.NewTokenStore(time.Hour)
-	svc := auth.NewService(store, auth.NewRBAC(), "test-secret")
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub": "system:serviceaccount:default:demo",
-	})
-	signed, err := token.SignedString([]byte("test-secret"))
-	if err != nil {
-		t.Fatalf("SignedString() = %v", err)
-	}
-
-	clientToken, record, err := svc.LoginKubernetes(context.Background(), "secrets-reader", signed)
+func TestLoginKubernetesInsecureDev(t *testing.T) {
+	svc := auth.NewService(auth.NewTokenStore(time.Hour), auth.NewRBAC(), "")
+	svc.SetK8sLoginOptions(auth.K8sLoginOptions{InsecureDev: true})
+	token, rec, err := svc.LoginKubernetes(context.Background(), "admin", "anything")
 	if err != nil {
 		t.Fatalf("LoginKubernetes() = %v", err)
 	}
-	if clientToken == "" || record == nil {
-		t.Fatal("expected client token")
+	if token == "" || rec == nil {
+		t.Fatal("expected issued token")
+	}
+}
+
+func TestLoginKubernetesTokenReview(t *testing.T) {
+	reviewer := &k8s.FakeTokenReviewer{
+		Result: &k8s.TokenReviewResult{
+			Authenticated:      true,
+			Username:           "system:serviceaccount:prod:my-app",
+			Namespace:          "prod",
+			ServiceAccountName: "my-app",
+		},
+	}
+	roleRepo := memory.NewRoleRepository()
+	_ = roleRepo.Save(context.Background(), &domainauth.Role{
+		Name:                          "app-sa",
+		Policies:                      []string{"app"},
+		BoundServiceAccountNames:      []string{"my-app"},
+		BoundServiceAccountNamespaces: []string{"prod"},
+	})
+	resolver := auth.NewRepositoryRoleResolver(roleRepo)
+	svc := auth.NewService(auth.NewTokenStore(time.Hour), auth.NewRBAC(), "")
+	svc.SetRoleResolver(resolver)
+	svc.SetK8sLoginOptions(auth.K8sLoginOptions{TokenReviewer: reviewer})
+	token, _, err := svc.LoginKubernetes(context.Background(), "app-sa", "sa-jwt")
+	if err != nil {
+		t.Fatalf("LoginKubernetes() = %v", err)
+	}
+	if token == "" || reviewer.Last != "sa-jwt" {
+		t.Fatalf("unexpected token result")
+	}
+}
+
+func TestLoginKubernetesTokenReviewBindingDenied(t *testing.T) {
+	reviewer := &k8s.FakeTokenReviewer{
+		Result: &k8s.TokenReviewResult{
+			Authenticated:      true,
+			Username:           "system:serviceaccount:prod:other",
+			Namespace:          "prod",
+			ServiceAccountName: "other",
+		},
+	}
+	roleRepo := memory.NewRoleRepository()
+	_ = roleRepo.Save(context.Background(), &domainauth.Role{
+		Name:                          "app-sa",
+		Policies:                      []string{"app"},
+		BoundServiceAccountNames:      []string{"my-app"},
+		BoundServiceAccountNamespaces: []string{"prod"},
+	})
+	svc := auth.NewService(auth.NewTokenStore(time.Hour), auth.NewRBAC(), "")
+	svc.SetRoleResolver(auth.NewRepositoryRoleResolver(roleRepo))
+	svc.SetK8sLoginOptions(auth.K8sLoginOptions{TokenReviewer: reviewer})
+	_, _, err := svc.LoginKubernetes(context.Background(), "app-sa", "sa-jwt")
+	var kv *common.KNXVaultError
+	if !errors.As(err, &kv) || kv.Code != common.ErrCodeForbidden {
+		t.Fatalf("expected forbidden, got %v", err)
+	}
+}
+
+func TestLoginKubernetesHS256Dev(t *testing.T) {
+	secret := []byte("dev-secret")
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{"sub": "system:serviceaccount:default:app"})
+	signed, err := token.SignedString(secret)
+	if err != nil {
+		t.Fatalf("sign jwt: %v", err)
+	}
+	svc := auth.NewService(auth.NewTokenStore(time.Hour), auth.NewRBAC(), string(secret))
+	svc.SetK8sLoginOptions(auth.K8sLoginOptions{})
+	clientToken, rec, err := svc.LoginKubernetes(context.Background(), "admin", signed)
+	if err != nil {
+		t.Fatalf("LoginKubernetes() = %v", err)
+	}
+	if clientToken == "" || rec.Subject == "" {
+		t.Fatal("expected token")
 	}
 }

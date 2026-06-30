@@ -1,4 +1,5 @@
-// Package csi defines the Secrets Store CSI provider contract (W18 scaffolding).
+// Package csi defines the Secrets Store CSI provider contract.
+// First-class K8s integration — gRPC server in cmd/knxvault-csi (backlog W39-01).
 package csi
 
 import "context"

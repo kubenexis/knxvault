@@ -83,8 +83,10 @@ func Export(ctx context.Context, repos Repos, opts ExportOptions) (*Snapshot, er
 		}
 		for _, role := range roles {
 			snapshot.Roles = append(snapshot.Roles, RoleRecord{
-				Name:     role.Name,
-				Policies: append([]string(nil), role.Policies...),
+				Name:                          role.Name,
+				Policies:                      append([]string(nil), role.Policies...),
+				BoundServiceAccountNames:      append([]string(nil), role.BoundServiceAccountNames...),
+				BoundServiceAccountNamespaces: append([]string(nil), role.BoundServiceAccountNamespaces...),
 			})
 		}
 	}

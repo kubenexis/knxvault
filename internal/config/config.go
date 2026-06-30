@@ -33,9 +33,10 @@ type Config struct {
 	Version        string
 	OpenSSLTimeout time.Duration
 	OpenSSLBinary  string
-	JWTSecret      string
-	RootToken      string
-	TokenTTL       time.Duration
+	JWTSecret       string
+	K8sAuthInsecure bool
+	RootToken       string
+	TokenTTL        time.Duration
 
 	HAEnabled               bool
 	HANamespace             string
@@ -186,6 +187,14 @@ func Load() (Config, error) {
 			return Config{}, fmt.Errorf("KNXVAULT_TRACING_SAMPLE_RATIO: %w", err)
 		}
 		cfg.TracingSampleRatio = ratio
+	}
+
+	if v := os.Getenv("KNXVAULT_K8S_AUTH_INSECURE"); v != "" {
+		insecure, err := strconv.ParseBool(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_K8S_AUTH_INSECURE: %w", err)
+		}
+		cfg.K8sAuthInsecure = insecure
 	}
 
 	raftCfg, err := loadRaftConfig()

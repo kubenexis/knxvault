@@ -22,7 +22,9 @@ cd knxvault
 
 make all          # fmt, vet, lint, gosec, licenses, scan, test, integration, build
 make build        # binary only
-make build-cli    # knxvault-cli
+make build-cli      # knxvault-cli
+make build-csi      # knxvault-csi (Secrets Store provider)
+make build-webhook  # knxvault-webhook (CSI volume injection)
 ```
 
 Artifacts:

@@ -80,8 +80,10 @@ type PolicyRecord struct {
 
 // RoleRecord serializes an RBAC role binding.
 type RoleRecord struct {
-	Name     string   `json:"name"`
-	Policies []string `json:"policies"`
+	Name                          string   `json:"name"`
+	Policies                      []string `json:"policies"`
+	BoundServiceAccountNames      []string `json:"bound_service_account_names,omitempty"`
+	BoundServiceAccountNamespaces []string `json:"bound_service_account_namespaces,omitempty"`
 }
 
 // DatabaseRoleRecord serializes a database credential role.

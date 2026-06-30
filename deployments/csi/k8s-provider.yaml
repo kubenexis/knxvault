@@ -1,5 +1,5 @@
-# KNXVault Secrets Store CSI provider scaffolding (W18).
-# Requires the Secrets Store CSI Driver installed in the cluster.
+# KNXVault Secrets Store CSI provider (W39).
+# Requires the Secrets Store CSI Driver: https://secrets-store-csi-driver.sigs.k8s.io/
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -16,20 +16,25 @@ spec:
       labels:
         app.kubernetes.io/name: knxvault-csi-provider
     spec:
-      serviceAccountName: knxvault
+      serviceAccountName: knxvault-csi-provider
       containers:
         - name: provider
           image: knxvault:0.1.0-dev
           imagePullPolicy: IfNotPresent
-          # CSI gRPC server entrypoint is planned; use /inject/render via sidecar until then.
-          command: ["sleep", "infinity"]
-          envFrom:
-            - configMapRef:
-                name: knxvault
-            - secretRef:
-                name: knxvault
+          command: ["/usr/local/bin/knxvault-csi"]
+          env:
+            - name: KNXVAULT_CSI_SOCKET
+              value: /var/run/secrets-store-csi-providers/knxvault.sock
+          volumeMounts:
+            - name: providervol
+              mountPath: /var/run/secrets-store-csi-providers
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
+      volumes:
+        - name: providervol
+          hostPath:
+            path: /var/run/secrets-store-csi-providers
+            type: DirectoryOrCreate

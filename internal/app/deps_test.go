@@ -34,3 +34,19 @@ func TestNewDependenciesInMemory(t *testing.T) {
 		t.Fatal("expected in-memory repositories")
 	}
 }
+
+func TestNewDependenciesRequiresMasterKeyWithRaft(t *testing.T) {
+	t.Setenv("KNXVAULT_RAFT_ENABLED", "true")
+	t.Setenv("KNXVAULT_RAFT_INITIAL_MEMBERS", "1=127.0.0.1:63001")
+	t.Setenv("KNXVAULT_MASTER_KEY", "")
+	t.Setenv("KNXVAULT_MASTER_KEY_FILE", "")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() = %v", err)
+	}
+	_, err = app.NewDependencies(context.Background(), cfg, zap.NewNop())
+	if err == nil {
+		t.Fatal("expected error without master key when raft enabled")
+	}
+}

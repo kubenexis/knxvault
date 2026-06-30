@@ -66,8 +66,10 @@ func Restore(ctx context.Context, repos Repos, snapshot *Snapshot) error {
 	if repos.Role != nil {
 		for _, rec := range snapshot.Roles {
 			if err := repos.Role.Save(ctx, &domainauth.Role{
-				Name:     rec.Name,
-				Policies: rec.Policies,
+				Name:                          rec.Name,
+				Policies:                      rec.Policies,
+				BoundServiceAccountNames:      rec.BoundServiceAccountNames,
+				BoundServiceAccountNamespaces: rec.BoundServiceAccountNamespaces,
 			}); err != nil {
 				return fmt.Errorf("restore role %s: %w", rec.Name, err)
 			}

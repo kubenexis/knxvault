@@ -30,8 +30,12 @@ export GOTOOLCHAIN := $(GO_TOOLCHAIN)
 PROJECT         ?= knxvault
 BINARY          ?= bin/knxvault
 CLI_BINARY      ?= bin/knxvault-cli
+CSI_BINARY      ?= bin/knxvault-csi
+WEBHOOK_BINARY  ?= bin/knxvault-webhook
 MAIN_PKG        ?= ./cmd/knxvault
 CLI_PKG         ?= ./cmd/knxvault-cli
+CSI_PKG         ?= ./cmd/knxvault-csi
+WEBHOOK_PKG     ?= ./cmd/knxvault-webhook
 SBOM_FILE       ?= sbom.json
 TRIVY_CACHE_DIR ?= $(HOME)/.cache/trivy
 LDFLAGS         ?= -s -w
@@ -86,7 +90,7 @@ all: ## Run fmt, vet, lint, gosec, licenses, scan, test, test-integration, build
 # Go quality
 # =============================================================================
 
-.PHONY: fmt vet lint gosec licenses test test-integration build build-cli sbom scan tidy install-tools docker-build
+.PHONY: fmt vet lint gosec licenses test test-integration build build-cli build-csi build-webhook generate-clients sbom scan tidy install-tools docker-build
 
 fmt: ## Check Go formatting (gofmt)
 	$(call log,Checking gofmt)
@@ -146,6 +150,23 @@ build-cli: ## Build statically linked CLI binary to bin/knxvault-cli
 	$(call require_cmd,go)
 	@mkdir -p bin
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags="$(LDFLAGS)" -o $(CLI_BINARY) $(CLI_PKG)
+
+build-csi: ## Build Secrets Store CSI provider binary
+	$(call log,Building CSI provider $(CSI_BINARY))
+	$(call require_cmd,go)
+	@mkdir -p bin
+	CGO_ENABLED=0 $(GO) build -trimpath -ldflags="$(LDFLAGS)" -o $(CSI_BINARY) $(CSI_PKG)
+
+build-webhook: ## Build mutating admission webhook binary
+	$(call log,Building webhook $(WEBHOOK_BINARY))
+	$(call require_cmd,go)
+	@mkdir -p bin
+	CGO_ENABLED=0 $(GO) build -trimpath -ldflags="$(LDFLAGS)" -o $(WEBHOOK_BINARY) $(WEBHOOK_PKG)
+
+generate-clients: ## Generate Python, TypeScript, Java, Rust SDKs from OpenAPI
+	$(call log,Generating client SDKs)
+	$(call require_cmd,bash)
+	@bash scripts/generate-clients.sh
 
 sbom: ## Generate CycloneDX SBOM (modules + release binary)
 	@test -f $(BINARY) || $(MAKE) --no-print-directory build
