@@ -23,7 +23,7 @@ KNXVault emphasizes **simplicity without sacrificing security**, making it ideal
 - PKI: Self-signed Root CA, Intermediate CA chaining, leaf certificate issuance (server/client/code-signing), revocation (CRL), renewal, and import/export.
 - Authentication: JWT, Kubernetes Service Account, and Universal Auth (token-based).
 - Authorization: Fine-grained RBAC with policies.
-- Storage: PostgreSQL backend with AES-256-GCM envelope encryption.
+- Storage: Dragonboat Raft cluster with AES-256-GCM envelope encryption (secrets encrypted before replication).
 - Deployment: Kubernetes-first (Helm chart, single-replica and HA modes).
 - Cryptographic operations: Strictly via secure OpenSSL CLI wrappers (ephemeral filesystem usage only).
 - Audit logging, health checks, and basic observability.
@@ -34,8 +34,8 @@ KNXVault emphasizes **simplicity without sacrificing security**, making it ideal
 
 ### 1.3 Non-Goals
 
-- Full feature parity with HashiCorp Vault (e.g., complex plugins, Raft consensus in core, Terraform Enterprise features).
-- Built-in distributed consensus/storage (rely on PostgreSQL HA or external solutions).
+- Full feature parity with HashiCorp Vault (e.g., complex plugins, Terraform Enterprise features).
+- Dynamic Raft cluster membership changes beyond fixed 3-node topologies (manual ops in v0.1.x).
 - Native support for non-Kubernetes environments (though possible via standard Go binaries).
 - Heavy client SDKs initially (REST + OpenAPI first; client libraries later).
 - Advanced HSM integration in MVP (prepared via OpenSSL engine abstraction).
@@ -50,8 +50,8 @@ KNXVault emphasizes **simplicity without sacrificing security**, making it ideal
 | **Simplicity**                | Minimize moving parts, prefer explicit over implicit, readable code. | Thin service layers, clear domain models, OpenSSL CLI wrappers with strict validation. |
 | **Observability**             | Built-in from day one.                                       | OpenTelemetry tracing, structured logging (Zap), Prometheus metrics, health endpoints. |
 | **Extensibility**             | Easy to add new secret engines or auth methods.              | Interface-driven design (CryptoProvider, SecretEngine, AuthMethod). |
-| **Kubernetes-Native**         | Leverage K8s primitives deeply.                              | ServiceAccount tokens, Lease-based leader election, Helm charts, CSI/secrets injection readiness. |
-| **Performance & Lightweight** | Low resource usage, fast startup.                            | Gin router, connection pooling, minimal dependencies, ephemeral OpenSSL workspaces. |
+| **Kubernetes-Native**         | Leverage K8s primitives deeply.                              | ServiceAccount tokens, Dragonboat Raft leader election, Helm charts, CSI/secrets injection readiness. |
+| **Performance & Lightweight** | Low resource usage, fast startup.                            | Gin router, Pebble WAL, minimal dependencies, ephemeral OpenSSL workspaces. |
 | **Auditability & Compliance** | All sensitive operations logged immutably.                   | Append-only audit table with cryptographic signing of entries (future). |
 | **Permissive Licensing**      | No copyleft or proprietary deps in production artifacts.       | Apache-2.0 preferred; allow-list enforced in CI (`deny.toml` / license scan). |
 
@@ -90,7 +90,7 @@ KNXVault is released under **Apache-2.0**. Every component that ships in product
 - Avoid transitive deps under **MPL-2.0**, **GPL**, or **AGPL** (e.g. replace path-based helpers with stdlib or Apache-licensed alternatives).
 - Reject dependencies that bundle precompiled binaries without a clear permissive license.
 
-**Versioning & Compatibility**: Go 1.23+, PostgreSQL 15+, OpenSSL 3.x. Backward compatibility for issued certificates and stored secrets will be maintained across minor versions.
+**Versioning & Compatibility**: Go 1.25+, Dragonboat v3 (Raft), OpenSSL 3.x. Legacy PostgreSQL 15+ supported only for one-shot migration (`knxvault-cli migrate postgres`). Backward compatibility for issued certificates and stored secrets will be maintained across minor versions.
 
 ---
 
@@ -124,13 +124,14 @@ graph TD
         Audit[Audit Logging Service]
         
         Crypto[Crypto Service - AES-256-GCM + Master Key]
-        Repo[Repository Layer - PostgreSQL]
+        Repo[Repository Adapters]
+        Raft[Dragonboat Raft\nState Machine]
         
         OpenSSL[OpenSSL CLI Wrapper\n(ephemeral secure workspace)]
     end
 
     subgraph Data["Persistent Storage"]
-        DB[(PostgreSQL\n- Secrets + Metadata\n- CA State\n- Audit Log)]
+        PVC[(Pebble WAL + Snapshots\nper Raft replica)]
         K8sSecrets[Kubernetes Secrets\n(Master Key / Config)]
     end
 
@@ -152,14 +153,17 @@ graph TD
     
     Secrets --> Crypto
     PKI --> Crypto
+    Secrets --> Crypto
+    PKI --> Crypto
     Secrets --> Repo
     PKI --> Repo
     Audit --> Repo
+    Repo --> Raft
     
     Secrets --> OpenSSL
     PKI --> OpenSSL
     
-    Repo --> DB
+    Raft --> PVC
     Crypto --> K8sSecrets
     
     API -.-> OTEL
@@ -190,8 +194,9 @@ KNXVault follows a clean, hexagonal-inspired layered architecture to maximize te
    - OpenSSL command wrapper with sandboxing.
 
 5. **Repository Layer** (`internal/repository/`)
-   - PostgreSQL access via `pgx` or GORM (with raw SQL for performance-critical paths).
-   - Repository pattern with interfaces for easy mocking/testing.
+   - Dragonboat adapters (`internal/repository/dragonboat/`) propose commands to the Raft state machine.
+   - In-memory repositories back the state machine and power dev/tests (`internal/repository/memory/`).
+   - Legacy PostgreSQL adapters (`internal/repository/postgres/`) deprecated — migration only.
 
 6. **Domain Models** (`internal/domain/`)
    - Pure business entities (CA, Certificate, Secret, Policy, etc.) with validation.
@@ -218,9 +223,7 @@ KNXVault follows a clean, hexagonal-inspired layered architecture to maximize te
    - Creates secure temporary directory.
    - Executes `openssl req -x509 -newkey rsa:4096 ...` to generate Root CA.
 6. Private key is encrypted with per-CA DEK (AES-256-GCM) using master key.
-7. Repository persists:
-   - CA metadata + public cert (plaintext).
-   - Encrypted private key + DEK (in separate column/table).
+7. Repository proposes `ca.save` to Raft with CA metadata, public cert PEM, and envelope-encrypted private key.
 8. Audit Service logs immutable entry.
 9. Response returns CA details (ID, cert PEM, serial).
 
@@ -243,14 +246,14 @@ KNXVault follows a clean, hexagonal-inspired layered architecture to maximize te
 3. Store versioned record: path, version, encrypted data, metadata.
 4. On read: load encrypted record → decrypt with DEK (derived from master key) → return.
 5. Versioning: new writes create incremented version; old versions retained based on policy.
-6. TTL/Lease: background job (or DB trigger + cron) handles expiration.
+6. TTL/Lease: Raft leader background job handles expiration.
 
 **Security Notes on Flows**:
 
 - Private keys never persisted unencrypted.
 - OpenSSL operations run in isolated temporary directories with strict permissions.
 - Memory wiping (`runtime.KeepAlive`, manual zeroing) for sensitive buffers.
-- All database writes go through transaction boundaries where appropriate.
+- All state mutations go through linearizable Raft propose (writes) or SyncRead (reads).
 
 ---
 
@@ -285,8 +288,11 @@ knxvault/
 │   │   ├── secrets/
 │   │   └── interfaces.go
 │   ├── service/                  # Orchestration services
+│   ├── raft/                     # Dragonboat NodeHost + state machine
 │   ├── repository/               # Data access layer
-│   │   ├── postgres/
+│   │   ├── dragonboat/
+│   │   ├── memory/
+│   │   ├── postgres/             # deprecated — migration only
 │   │   └── interfaces.go
 │   ├── crypto/                   # Cryptography & OpenSSL wrappers
 │   │   ├── envelope.go
@@ -303,7 +309,7 @@ knxvault/
 ├── deployments/
 │   └── helm/                     # Helm chart (detailed in later section)
 ├── scripts/                      # Build, migration, dev scripts
-├── migrations/                   # Database migrations (golang-migrate or goose)
+├── migrations/                   # Legacy PostgreSQL SQL (deprecated)
 ├── test/                         # Integration/e2e tests
 │   ├── integration/
 │   └── e2e/
@@ -330,13 +336,14 @@ knxvault/
 
 - **`internal/crypto/openssl/`**: Critical security component. Contains safe wrappers for `os/exec.Command` with context timeout, input validation, and secure temp dir management.
 
-- **`internal/repository/`**: Abstracts persistence. Uses PostgreSQL with prepared statements or ORM where appropriate. Interfaces allow swapping to BadgerDB for lightweight mode.
+- **`internal/raft/`**: Dragonboat `NodeHost`, `VaultStateMachine`, command catalog, leader election for background jobs.
+- **`internal/repository/`**: Repository interfaces with Dragonboat adapters for production, in-memory for tests. PostgreSQL adapters retained for legacy migration only.
 
 - **`internal/config/`**: Strongly-typed config with validation (using `validator.v10`). Supports env vars, ConfigMaps, and secrets.
 
 - **`internal/infra/`**: Kubernetes client (`client-go`), OpenTelemetry setup, Redis (optional).
 
-- **`migrations/`**: Versioned SQL files for schema evolution.
+- **`migrations/`**: Legacy PostgreSQL schema (deprecated). Vault state evolves via Raft snapshots and `snapshot.import`.
 
 - **`deployments/helm/`**: Complete Helm chart for Kubernetes deployment.
 
@@ -361,7 +368,7 @@ This structure supports:
 - **Error Handling**: Custom typed errors with context and codes.
 - **Concurrency Safety**: Context propagation everywhere; mutexes only where necessary.
 - **Module Boundaries**: Strict `internal/` to prevent leakage.
-- **Testing**: Unit (table-driven), integration (testcontainers for Postgres + OpenSSL), e2e.
+- **Testing**: Unit (table-driven), integration (3-node Raft cluster + HTTP API + OpenSSL), e2e.
 
 ---
 
@@ -546,50 +553,45 @@ Authorization uses a simple but powerful policy engine evaluated per request.
 
 ### 4.D Storage Layer
 
-#### 4.D.1 PostgreSQL Schema Design (Key Tables)
+KNXVault persists all vault state in a **single Dragonboat Raft cluster** (cluster ID `1`). Detailed operational reference: [`docs/storage/dragonboat.md`](storage/dragonboat.md).
 
-```sql
-CREATE TABLE cas (
-    id UUID PRIMARY KEY,
-    parent_id UUID REFERENCES cas(id),
-    name TEXT UNIQUE NOT NULL,
-    type TEXT NOT NULL,
-    cert_pem TEXT NOT NULL,
-    privkey_enc BYTEA NOT NULL,
-    dek_enc BYTEA NOT NULL,
-    expires_at TIMESTAMPTZ
-);
+#### 4.D.1 Dragonboat Topology
 
-CREATE TABLE secret_versions (
-    id UUID PRIMARY KEY,
-    path TEXT NOT NULL,
-    version INT NOT NULL,
-    data_enc BYTEA NOT NULL,
-    dek_enc BYTEA NOT NULL,
-    expires_at TIMESTAMPTZ,
-    UNIQUE(path, version)
-);
+| Mode | Nodes | Use case |
+|------|-------|----------|
+| In-memory | 0 (Raft off) | Unit tests, local dev without persistence |
+| Single-node Raft | `KNXVAULT_RAFT_NODE_ID=1` | Dev / CI with durable local state |
+| 3-node StatefulSet | Pod indices `0,1,2` + headless Service | Production HA |
 
-CREATE TABLE audit_logs (
-    id BIGSERIAL PRIMARY KEY,
-    timestamp TIMESTAMPTZ DEFAULT NOW(),
-    actor TEXT,
-    action TEXT,
-    resource TEXT,
-    status TEXT,
-    details JSONB,
-    hash TEXT -- For integrity
-);
+- **Raft port**: `:63001` (configurable via `KNXVAULT_RAFT_ADDRESS`)
+- **HTTP API**: `:8200`
+- **Log store**: Pebble WAL under `KNXVAULT_RAFT_DATA_DIR` (default `/var/lib/knxvault/raft`)
+- **Leader**: Derived from Raft role; gates background jobs (lease cleanup, CRL refresh, cert renewal)
+- **Readiness**: `GET /ready` requires a known Raft leader when `KNXVAULT_RAFT_ENABLED=true`
 
-CREATE INDEX idx_secret_path ON secret_versions(path);
-```
+#### 4.D.2 State Machine & Command Catalog
 
-#### 4.D.2 Encryption at Rest Strategy
+The `VaultStateMachine` (`internal/raft/statemachine.go`) implements `statemachine.IStateMachine`. Commands are JSON envelopes `{ "op": "<name>", "payload": { ... } }` applied to an in-memory store (`internal/raft/store.go`) backed by memory repository implementations.
 
-- Column-level encryption for sensitive fields.
-- Application-level (not pgcrypto) to support future DB swaps.
+**Write commands** (via `SyncPropose`): `ca.save`, `secret.save_version`, `audit.append`, `revoke.save`, `lease.save`, `policy.save`, `role.save`, `db_role.save`, `issued.save`, `snapshot.import`, and corresponding deletes.
 
-#### 4.D.3 Repository Pattern
+**Read commands** (via `SyncRead`): `ca.get_by_id`, `secret.get_latest`, `audit.list`, `policy.list`, and other `*.get` / `*.list` ops. Write ops are rejected on the read path.
+
+**Entities replicated**: CAs, secret versions, audit log, revocations, leases, policies, roles, database roles, issued certificate metadata.
+
+#### 4.D.3 Encryption Before Replication
+
+Secret values and private keys are **encrypted by engines before Raft propose** (AES-256-GCM envelope). Raft logs, Pebble WAL entries, and snapshots contain ciphertext for sensitive fields — not plaintext secrets. See [`docs/adr/0004-encrypt-before-replication.md`](adr/0004-encrypt-before-replication.md).
+
+Cleartext metadata (paths, RBAC policies, audit resource paths, CA cert PEM) is intentional — see [`docs/adr/0005-cleartext-metadata-in-raft.md`](adr/0005-cleartext-metadata-in-raft.md).
+
+#### 4.D.4 Snapshots & Backup
+
+- **Dragonboat snapshots**: `SaveSnapshot` / `RecoverFromSnapshot` serialize `internal/backup.Snapshot` JSON.
+- **Portable backup**: `POST /sys/backup` exports encrypted archive; restore proposes `snapshot.import` through Raft.
+- **Legacy migration**: `knxvault-cli migrate postgres` reads deprecated PostgreSQL DSN and seeds a Raft cluster.
+
+#### 4.D.5 Repository Pattern
 
 ```go
 type SecretRepository interface {
@@ -599,7 +601,11 @@ type SecretRepository interface {
 }
 ```
 
-**Implementation**: Uses `pgxpool` with prepared statements and transaction support.
+**Production implementation**: `internal/repository/dragonboat/` — each method maps to a Raft command via `internal/raft/client.go`.
+
+**Dev / test**: `internal/repository/memory/` when `KNXVAULT_RAFT_ENABLED` is unset.
+
+**Legacy (deprecated)**: `internal/repository/postgres/` — one-shot migration source only; not used when Raft is enabled.
 
 ---
 
@@ -758,7 +764,7 @@ func ErrorHandler() gin.HandlerFunc {
 
 - Helmet-like headers (via middleware).
 - Body size limits.
-- SQL injection prevention (via parameterized queries in repo layer).
+- Command validation in Raft state machine (unknown ops rejected; read path blocks writes).
 
 ---
 
@@ -779,9 +785,9 @@ Chart.yaml
 values.yaml
 values-ha.yaml
 templates/
-├── deployment.yaml
-├── statefulset-db.yaml          # Optional embedded DB
+├── statefulset.yaml             # 3-node Raft HA (production)
 ├── service.yaml
+├── service-raft.yaml            # Headless Service for Raft peers
 ├── ingress.yaml
 ├── configmap.yaml
 ├── secret.yaml                  # Master key, TLS certs
@@ -800,11 +806,12 @@ templates/
 
 ```yaml
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: knxvault
 spec:
-  replicas: 1 # or 3+ in HA
+  serviceName: knxvault-raft
+  replicas: 3
   selector:
     matchLabels:
       app: knxvault
@@ -817,12 +824,14 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8200
+        - containerPort: 63001   # Raft peer transport
         env:
-        - name: KNXVAULT_DB_HOST
-          valueFrom:
-            configMapKeyRef:
-              name: knxvault-config
-              key: db_host
+        - name: KNXVAULT_RAFT_ENABLED
+          value: "true"
+        - name: KNXVAULT_RAFT_DATA_DIR
+          value: /var/lib/knxvault/raft
+        - name: KNXVAULT_RAFT_ADDRESS
+          value: "$(KNXVAULT_POD_NAME).knxvault-raft.knxvault.svc.cluster.local:63001"
         resources:
           requests:
             cpu: "500m"
@@ -832,7 +841,7 @@ spec:
             memory: "2Gi"
         readinessProbe:
           httpGet:
-            path: /health
+            path: /ready
             port: 8200
           initialDelaySeconds: 10
         livenessProbe:
@@ -844,10 +853,11 @@ spec:
 
 #### High Availability Strategy
 
-- **Multiple replicas** with leader election using Kubernetes `Lease` resource (via `coordination.k8s.io`).
-- Leader handles background jobs (CRL generation, lease cleanup, etc.).
-- PostgreSQL: External HA (CrunchyData/Zalando operator) or managed service recommended.
-- Shared storage for ephemeral OpenSSL workspaces via emptyDir (per-pod) or ReadWriteMany PVC.
+- **3-replica StatefulSet** with Dragonboat Raft (`deployments/k8s/statefulset.yaml`).
+- Headless Service (`service-raft.yaml`) provides stable DNS for `KNXVAULT_RAFT_INITIAL_MEMBERS`.
+- **Raft leader** handles background jobs (CRL generation, lease cleanup, cert renewal).
+- One PVC per replica for Pebble WAL and Dragonboat snapshots (`KNXVAULT_RAFT_DATA_DIR`).
+- Legacy Kubernetes `Lease` leader election applies only when Raft is disabled (deprecated Postgres path).
 
 ### 6.3 ConfigMap & Secret Resources
 
@@ -864,7 +874,7 @@ spec:
 ### 6.5 Resource Limits, Probes & Best Practices
 
 - **Resource Requests/Limits**: Conservative for lightweight nature; tunable via Helm values.
-- **Probes**: Readiness (API health), Liveness (deeper check), Startup (for slow DB init).
+- **Probes**: Liveness (`/health`), Readiness (`/ready` — includes Raft leader when enabled).
 - **Pod Security**: Run as non-root, read-only filesystem where possible, seccomp/AppArmor profiles.
 - **NetworkPolicy**: Egress/ingress restrictions.
 - **Pod Disruption Budgets**: For HA deployments.
@@ -909,7 +919,7 @@ helm install knxvault ./deployments/helm/knxvault \
 **Attack Surfaces**:
 
 - OpenSSL CLI execution (mitigated by sandboxing).
-- Database access (network policies + TLS).
+- Raft peer communication (restrict port 63001 to cluster nodes via NetworkPolicy).
 - API endpoints (auth middleware chain).
 
 ### 7.2 Key Rotation & Management
@@ -931,12 +941,12 @@ type AuditEvent struct {
     Status    string
     RemoteIP  string
     RequestID string
-    Details   JSONB
+    Details   map[string]any
     Signature string // HMAC or future digital signature
 }
 ```
 
-- **Immutability**: Append-only table with row-level security.
+- **Immutability**: Append-only via Raft `audit.append` command; no in-place updates or deletes.
 - **Export**: Support for streaming to SIEM (future Loki integration).
 - **Sensitive Data Redaction**: Automatic masking of secrets in logs.
 
@@ -995,12 +1005,12 @@ type AuditEvent struct {
 
 - Counter: `knxvault_secrets_read_total`, `knxvault_cert_issued_total`, `knxvault_errors_total`.
 - Histogram: Request latency, OpenSSL operation duration.
-- Gauge: Active leases, CA count, DB connection pool stats.
+- Gauge: Active leases, CA count, `knxvault_raft_leader`, `knxvault_raft_commit_index`.
 - Exposed at `/metrics`.
 
 **Distributed Tracing** (OpenTelemetry):
 
-- Automatic instrumentation for HTTP, database calls, and OpenSSL wrapper.
+- Automatic instrumentation for HTTP, Raft propose latency, and OpenSSL wrapper.
 - Trace context propagation.
 - Key spans: `pki.issue_certificate`, `secrets.kv.read`, `openssl.exec`.
 
@@ -1015,41 +1025,42 @@ type AuditEvent struct {
 ```go
 // GET /health
 type HealthResponse struct {
-    Status    string            `json:"status"` // healthy | degraded | unhealthy
-    Version   string            `json:"version"`
-    Components map[string]Status `json:"components"` // db, pki, crypto, etc.
+    Status      string `json:"status"`
+    Version     string `json:"version"`
+    RaftEnabled bool   `json:"raft_enabled"`
+    RaftReady   bool   `json:"raft_ready"`
+    Leader      bool   `json:"leader"`
 }
 
 // GET /ready
-// Checks: DB connectivity, master key availability, leader status (in HA)
+// Checks: Raft leader elected (when enabled), or noop for in-memory dev mode
 ```
 
-- **Liveness**: Basic process health.
-- **Readiness**: Full system readiness (DB, crypto backend).
-- **Startup Probe**: For slow initialization (DB migration, master key load).
+- **Liveness**: Basic process health (`/health`).
+- **Readiness**: Raft quorum with leader (`/ready` returns 503 until leader elected).
+- **Startup Probe**: Allow time for Raft election on cold start.
 
 ### 8.3 Backup & Restore
 
 **Backup Strategy**:
 
-1. **Database**: Use PostgreSQL native tools (`pg_dump`) or operator CRs. Encrypted with master key.
-2. **CA Material**: Export Root/Intermediate public certs + encrypted private keys.
-3. **Configuration**: Helm values + ConfigMaps.
+1. **Encrypted snapshot**: `POST /sys/backup` or `knxvault-cli backup create` — master-key-sealed JSON archive of all vault state.
+2. **Dragonboat on-disk snapshot**: Triggered after export via `RequestSnapshot` on the Raft leader.
+3. **Configuration**: K8s ConfigMap/Secret manifests + `KNXVAULT_RAFT_INITIAL_MEMBERS`.
 
 **Restore Process**:
 
-- Restore PostgreSQL.
-- Load master key.
-- Re-validate CA chain integrity.
-- Optional: Rekey operation.
+- `POST /sys/restore` proposes `snapshot.import` through Raft (replaces full state machine).
+- Requires matching `KNXVAULT_MASTER_KEY`.
+- Legacy: `knxvault-cli migrate postgres` to seed Raft from deprecated PostgreSQL.
 
-**Helm Hooks**: Pre-upgrade/backup hooks available.
+**Pre-upgrade**: Run backup before rolling StatefulSet upgrades (see [`docs/operations/runbooks/raft-failover.md`](operations/runbooks/raft-failover.md)).
 
 ### 8.4 Operational Runbooks (Key Scenarios)
 
 - **Master Key Loss**: Recovery via sealed backup (recommended external KMS integration).
 - **CA Compromise**: Revoke and re-issue hierarchy.
-- **High Load**: Scale replicas + DB resources.
+- **High Load**: Vertical scaling per replica; fixed 3-node Raft quorum in v0.1.x.
 - **OpenSSL Failures**: Circuit breaker + fallback logging.
 
 **Monitoring Alerts** (Prometheus rules):
@@ -1057,7 +1068,7 @@ type HealthResponse struct {
 - High error rate on PKI operations.
 - Certificate expiry < 30 days.
 - Lease accumulation.
-- DB connection exhaustion.
+- Raft leader loss / prolonged election.
 
 **Log Retention & Rotation**: Configurable via Helm values.
 
@@ -1084,10 +1095,10 @@ KNXVault follows a phased approach aligned with the HLD, prioritizing core value
 - KVv2 Secrets engine with versioning and basic TTL.
 - Authentication: JWT + Kubernetes Service Account.
 - Authorization: Basic RBAC with policies.
-- Storage: PostgreSQL with envelope encryption (AES-256-GCM).
+- Storage: Dragonboat Raft cluster with envelope encryption (AES-256-GCM, encrypt-before-replicate).
 - API Layer with OpenAPI spec and core endpoints.
 - OpenSSL secure wrapper.
-- Container image + raw Kubernetes manifests (single replica). **Helm chart deferred** to long-term / Phase 2+ (see §9.4).
+- Container image + raw Kubernetes manifests (3-node Raft StatefulSet). **Helm chart deferred** to long-term / Phase 2+ (see §9.4).
 - Basic observability (logs, health checks, metrics).
 - Audit logging (append-only).
 
@@ -1115,7 +1126,7 @@ KNXVault follows a phased approach aligned with the HLD, prioritizing core value
 - Dynamic Secrets (e.g., database credentials engine).
 - Advanced RBAC with conditions and policy evaluation engine.
 - Full audit log export and integrity protection.
-- HA mode with leader election (Lease).
+- 3-node Dragonboat Raft HA with unified leader election.
 - Certificate renewal automation and OCSP basic support.
 - Secrets injection sidecar / CSI readiness.
 - Rate limiting, request signing.
@@ -1182,8 +1193,8 @@ KNXVault follows a phased approach aligned with the HLD, prioritizing core value
 | ------------------------------------------- | ---------- | -------- | ------------------------------------------------------------ |
 | **OpenSSL CLI dependency & sandbox escape** | Medium     | High     | Strict argument validation, isolated temp dirs (0700), non-root execution, regular fuzz testing of wrapper. |
 | **Master Key compromise**                   | Low        | Critical | Envelope encryption, short master key exposure window, rotation procedure, K8s Secret + sealing recommended. |
-| **Performance overhead of OpenSSL exec**    | Medium     | Medium   | Connection pooling for DB, in-memory caching of public CA material, future native `crypto` fallback for high-volume paths. |
-| **Database as single point of failure**     | High       | High     | External HA Postgres (operator), regular encrypted backups, future BadgerDB lightweight mode. |
+| **Performance overhead of OpenSSL exec**    | Medium     | Medium   | In-memory caching of public CA material, Raft propose batching, future native `crypto` fallback for high-volume paths. |
+| **Raft quorum loss**                        | Medium     | High     | 3-node StatefulSet with PDB, encrypted snapshots, runbook-driven recovery ([`raft-failover.md`](operations/runbooks/raft-failover.md)). |
 | **Certificate chain validation complexity** | Medium     | Medium   | Rigorous domain model + automated test suite for hierarchy operations. |
 | **Compliance gaps vs. enterprise Vault**    | Low        | Medium   | Clear documentation of supported features; focus on transparency and auditability. |
 
@@ -1193,14 +1204,14 @@ KNXVault follows a phased approach aligned with the HLD, prioritizing core value
   **Trade-off**: Higher operational simplicity and auditability vs. slight performance overhead.  
   **Rationale**: Meets the HLD constraint and reduces cryptographic implementation risk.
 
-- **PostgreSQL vs. Embedded Storage**:  
-  **Trade-off**: Operational complexity of external DB vs. simplicity of embedded (BadgerDB).  
-  **Decision**: PostgreSQL for production (JSONB flexibility + ACID), with embedded option as future lightweight mode.
+- **Dragonboat Raft vs. External Database**:  
+  **Trade-off**: Embedded consensus adds per-replica disk and fixed topology vs. operational simplicity of a single external DB.  
+  **Decision**: Dragonboat Raft with Pebble WAL for production (see [ADR-0001](adr/0001-dragonboat-storage-backend.md)); PostgreSQL deprecated to one-shot migration only.
 
 - **Gin Framework**: Lightweight and fast, but less "batteries-included" than heavier frameworks.  
   **Mitigation**: Comprehensive custom middleware layer.
 
-- **No Built-in Raft Consensus**: Relies on Kubernetes + Postgres HA. Acceptable for most self-hosted use cases.
+- **Built-in Raft Consensus**: Dragonboat provides linearizable writes and unified leader election; background jobs run only on the Raft leader.
 
 ### 10.3 Future Considerations & Extensibility
 
@@ -1215,12 +1226,17 @@ KNXVault follows a phased approach aligned with the HLD, prioritizing core value
 
 ### 10.4 Architectural Decision Records (ADRs)
 
-Future ADRs should cover:
+Accepted ADRs live in `docs/adr/`:
 
-- Choice of OpenSSL wrapper approach.
-- Envelope encryption design.
-- Leader election mechanism.
-- Secret versioning strategy.
+| ADR | Title |
+| --- | ----- |
+| [0001](adr/0001-dragonboat-storage-backend.md) | Dragonboat Raft storage backend |
+| [0002](adr/0002-openssl-cli-crypto-backend.md) | OpenSSL CLI as cryptographic backend |
+| [0003](adr/0003-envelope-encryption.md) | Envelope encryption with master key |
+| [0004](adr/0004-encrypt-before-replication.md) | Encrypt before Raft replication |
+| [0005](adr/0005-cleartext-metadata-in-raft.md) | Cleartext metadata in Raft (paths, RBAC, audit, CA PEM) |
+
+New ADRs are required for storage/auth architecture changes, license exceptions, breaking snapshot formats, and major deprecations.
 
 ---
 
@@ -1403,7 +1419,7 @@ graph TD
 ```
 
 **4. Data Models** – `docs/architecture/data-models.md`  
-Detailed entity relationships, PostgreSQL schema, and domain structs.
+Detailed entity relationships, Raft-replicated entities, and domain structs.
 
 **5. Security Model** – `docs/architecture/security-model.md`
 
@@ -1414,7 +1430,7 @@ Detailed entity relationships, PostgreSQL schema, and domain structs.
 **Prerequisites**:
 
 - Kubernetes 1.25+
-- PostgreSQL 15+ (or use embedded mode)
+- PersistentVolume support (one PVC per Raft replica)
 - OpenSSL 3.x
 
 **Quick Start (Helm)**:
@@ -1429,13 +1445,17 @@ helm install knxvault knxvault/knxvault --namespace knxvault --create-namespace
 Key Helm values:
 
 ```yaml
-replicaCount: 2
+replicaCount: 3
 image:
   repository: knxvault/knxvault
   tag: "v1.0.0"
-database:
-  host: postgres.knxvault.svc.cluster.local
-  port: 5432
+raft:
+  enabled: true
+  dataDir: /var/lib/knxvault/raft
+  initialMembers: "1=knxvault-0.knxvault-raft.knxvault.svc.cluster.local:63001,..."
+persistence:
+  enabled: true
+  size: 10Gi
 crypto:
   masterKeySecret: knxvault-master-key
 pki:
@@ -1516,7 +1536,7 @@ spec:
 **Runbooks**:
 
 - CA Compromise Recovery
-- Database Failover
+- Raft Failover ([`raft-failover.md`](operations/runbooks/raft-failover.md))
 - Scaling KNXVault
 
 #### 12.2.6 Full Detailed CLI Reference

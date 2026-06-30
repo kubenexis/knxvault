@@ -39,12 +39,9 @@ Adopt [Dragonboat v3](https://github.com/lni/dragonboat) as the primary storage 
 
 - Fixed 3-node topology in v0.1.x; dynamic membership not yet automated
 - Dragonboat transitive dependencies include MPL-2.0 (documented license exception)
-- LLD §4.D still references PostgreSQL — requires revision
-
 ### Follow-up
 
 - Phase 4: evaluate 5-node clusters, read replicas, DR automation
-- Full LLD update for storage section
 - Remove PostgreSQL code path after migration window closes
 
 ## References
