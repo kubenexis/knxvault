@@ -185,6 +185,52 @@ func (c *Client) BackupCreate(ctx context.Context, req BackupCreateRequest) (*Ba
 	return &out, nil
 }
 
+// RotateMasterKeyResponse is returned by POST /sys/rotate-master-key.
+type RotateMasterKeyResponse struct {
+	KeyVersion int `json:"key_version"`
+}
+
+// SealResponse is returned by POST /sys/seal.
+type SealResponse struct {
+	Sealed bool `json:"sealed"`
+}
+
+// UnsealResponse is returned by POST /sys/unseal.
+type UnsealResponse struct {
+	Sealed bool `json:"sealed"`
+}
+
+// RotateMasterKey activates a new envelope master key.
+func (c *Client) RotateMasterKey(newKeyBase64 string) (*RotateMasterKeyResponse, error) {
+	var out RotateMasterKeyResponse
+	if err := c.postJSON(context.Background(), "/sys/rotate-master-key", true, map[string]string{
+		"new_key": newKeyBase64,
+	}, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// Seal blocks mutating API operations.
+func (c *Client) Seal() (*SealResponse, error) {
+	var out SealResponse
+	if err := c.postJSON(context.Background(), "/sys/seal", true, map[string]any{}, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// Unseal restores service after seal.
+func (c *Client) Unseal(keyBase64 string) (*UnsealResponse, error) {
+	var out UnsealResponse
+	if err := c.postJSON(context.Background(), "/sys/unseal", true, map[string]string{
+		"key": keyBase64,
+	}, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // BackupRestore imports an encrypted backup archive.
 func (c *Client) BackupRestore(ctx context.Context, archive []byte) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/sys/restore", bytes.NewReader(archive))

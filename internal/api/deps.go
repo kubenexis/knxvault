@@ -14,7 +14,10 @@ import (
 // RouterDeps groups handlers wired into the HTTP router.
 type RouterDeps struct {
 	Ready              ReadinessChecker
+	Seal               handlers.SealController
 	MasterKey          []byte
+	MasterKeyService   *service.MasterKeyService
+	RaftMembership     handlers.RaftMembership
 	CORSAllowedOrigins []string
 	AuthService        *auth.Service
 	OpenSSL            *openssl.Wrapper

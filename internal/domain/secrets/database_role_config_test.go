@@ -35,8 +35,8 @@ func TestValidateExecutionMode(t *testing.T) {
 	if err := domainsecrets.ValidateExecutionMode(domainsecrets.ExecutionModeClient); err != nil {
 		t.Fatalf("client mode: %v", err)
 	}
-	if err := domainsecrets.ValidateExecutionMode(domainsecrets.ExecutionModeManaged); err == nil {
-		t.Fatal("expected managed mode to be rejected until implemented")
+	if err := domainsecrets.ValidateExecutionMode(domainsecrets.ExecutionModeManaged); err != nil {
+		t.Fatalf("managed mode: %v", err)
 	}
 }
 

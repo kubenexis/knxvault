@@ -67,6 +67,9 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 			secured.Use(deps.RequestSigning.Middleware())
 		}
 		secured.Use(middleware.Auth(deps.AuthService))
+		if deps.Seal != nil {
+			secured.Use(middleware.SealGuard(deps.Seal))
+		}
 		if deps.RateLimiter != nil {
 			secured.Use(deps.RateLimiter.Middleware())
 		}
@@ -78,6 +81,9 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 			deps.PKIService,
 			deps.DatabaseService,
 			deps.RotationService,
+			deps.MasterKeyService,
+			deps.Seal,
+			deps.RaftMembership,
 			deps.MasterKey,
 			deps.ExposureAutoRevoke,
 			deps.ExposureWebhook,
@@ -91,6 +97,25 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 			middleware.RequirePermission(deps.AuthService, "sys/tls", "write"),
 			sys.IssueListenerTLS,
 		)
+		secured.POST("/sys/rotate-master-key",
+			middleware.RequirePermission(deps.AuthService, "sys/rotate", "write"),
+			sys.RotateMasterKey,
+		)
+		secured.POST("/sys/seal",
+			middleware.RequirePermission(deps.AuthService, "sys/seal", "write"),
+			sys.Seal,
+		)
+		secured.POST("/sys/unseal", sys.Unseal)
+		if deps.RaftMembership != nil {
+			secured.POST("/sys/raft/add-node",
+				middleware.RequirePermission(deps.AuthService, "sys/raft", "write"),
+				sys.RaftAddNode,
+			)
+			secured.POST("/sys/raft/remove-node",
+				middleware.RequirePermission(deps.AuthService, "sys/raft", "write"),
+				sys.RaftRemoveNode,
+			)
+		}
 	}
 
 	if deps.PKIService != nil {
@@ -227,7 +252,8 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 			}
 			sysHandler := handlers.NewSysHandler(
 				deps.AuthService, deps.PKIService, deps.DatabaseService, deps.RotationService,
-				deps.MasterKey, deps.ExposureAutoRevoke, deps.ExposureWebhook,
+				deps.MasterKeyService, deps.Seal, deps.RaftMembership, deps.MasterKey,
+				deps.ExposureAutoRevoke, deps.ExposureWebhook,
 			)
 			sysHandler.ReportExposure(c)
 		})

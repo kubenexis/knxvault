@@ -91,7 +91,7 @@ Prometheus gauge `knxvault_raft_leader` is `1` only on the elected leader replic
 | Raft enabled without node ID on a generic host | `KNXVAULT_RAFT_NODE_ID must be > 0 when raft is enabled` |
 | Node ID `2` but `INITIAL_MEMBERS` only lists ID `1` | Peer cannot join quorum / readiness stuck |
 | Two pods both derive ID `1` (duplicate ordinals) | Split-brain / Raft startup failure |
-| Changing a pod's ID after data was written | Treat as a **new** member — requires operational migration (see backlog W36-23) |
+| Changing a pod's ID after data was written | Treat as a **new** member — use [`docs/operations/runbooks/scaling.md`](../operations/runbooks/scaling.md) |
 
 ## Configuration
 
@@ -153,10 +153,13 @@ Commands are JSON envelopes `{ "op": "<name>", "payload": { ... } }`.
 | `issued.list` | read | List issued certs |
 | `issued.list_expiring` | read | Expiring issued certs |
 | `snapshot.import` | write | Replace state from backup snapshot |
+| `snapshot.export` | read | Atomic full-state export for consistent backup |
 
 ## Snapshots
 
-Dragonboat `SaveSnapshot` / `RecoverFromSnapshot` use the same JSON format as `internal/backup.Snapshot`. `POST /sys/backup` exports via repositories and triggers an on-disk Raft snapshot; restore proposes `snapshot.import`.
+Dragonboat `SaveSnapshot` / `RecoverFromSnapshot` use the same JSON format as `internal/backup.Snapshot`. **Audit entries are included** in on-disk snapshots (`ExportSnapshot(true)`). `POST /sys/backup` uses the atomic `snapshot.export` read when Raft is enabled, then triggers an on-disk Raft snapshot; restore proposes `snapshot.import`.
+
+Dynamic membership: `POST /sys/raft/add-node` and `POST /sys/raft/remove-node` (leader only). See [`docs/operations/runbooks/scaling.md`](../operations/runbooks/scaling.md).
 
 ## Kubernetes
 

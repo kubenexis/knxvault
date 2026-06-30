@@ -10,16 +10,64 @@ const dekSize = 32
 
 // Service provides envelope encryption for data and DEKs (LLD §4.A.4, §4.B.3).
 type Service struct {
-	master *Envelope
+	ring *KeyRing
 }
 
 // NewService constructs a crypto service from a 32-byte master key.
 func NewService(masterKey []byte) (*Service, error) {
-	env, err := NewEnvelope(masterKey)
+	ring, err := NewKeyRing(masterKey)
 	if err != nil {
 		return nil, err
 	}
-	return &Service{master: env}, nil
+	return &Service{ring: ring}, nil
+}
+
+// ActiveKeyVersion returns the master key version used for new DEK encryptions.
+func (s *Service) ActiveKeyVersion() byte {
+	if s == nil || s.ring == nil {
+		return 0
+	}
+	return s.ring.ActiveVersion()
+}
+
+// KeyVersions returns sorted master key versions.
+func (s *Service) KeyVersions() []byte {
+	if s == nil || s.ring == nil {
+		return nil
+	}
+	return s.ring.Versions()
+}
+
+// RotateMasterKey adds a new master key version and makes it active.
+func (s *Service) RotateMasterKey(newMasterKey []byte) (byte, error) {
+	if s == nil || s.ring == nil {
+		return 0, fmt.Errorf("crypto service not configured")
+	}
+	versions := s.ring.Versions()
+	next := byte(1)
+	if len(versions) > 0 {
+		next = versions[len(versions)-1] + 1
+	}
+	if err := s.ring.AddKey(next, newMasterKey); err != nil {
+		return 0, err
+	}
+	return next, nil
+}
+
+// DEKNeedsReencrypt reports whether a wrapped DEK should be re-encrypted.
+func (s *Service) DEKNeedsReencrypt(enc []byte) bool {
+	if s == nil || s.ring == nil {
+		return false
+	}
+	return s.ring.DEKNeedsReencrypt(enc)
+}
+
+// ReencryptDEK re-wraps a DEK with the active master key.
+func (s *Service) ReencryptDEK(enc []byte) ([]byte, error) {
+	if s == nil || s.ring == nil {
+		return nil, fmt.Errorf("crypto service not configured")
+	}
+	return s.ring.ReencryptDEK(enc)
 }
 
 // GenerateDEK returns a random 32-byte data encryption key.
@@ -33,15 +81,18 @@ func (s *Service) GenerateDEK() ([]byte, error) {
 
 // EncryptDEK seals a DEK with the master key envelope.
 func (s *Service) EncryptDEK(dek []byte) ([]byte, error) {
-	if len(dek) != dekSize {
-		return nil, fmt.Errorf("dek must be %d bytes, got %d", dekSize, len(dek))
+	if s == nil || s.ring == nil {
+		return nil, fmt.Errorf("crypto service not configured")
 	}
-	return s.master.Encrypt(dek)
+	return s.ring.EncryptDEK(dek)
 }
 
 // DecryptDEK opens a master-key-encrypted DEK.
 func (s *Service) DecryptDEK(enc []byte) ([]byte, error) {
-	dek, err := s.master.Decrypt(enc)
+	if s == nil || s.ring == nil {
+		return nil, fmt.Errorf("crypto service not configured")
+	}
+	dek, err := s.ring.DecryptDEK(enc)
 	if err != nil {
 		return nil, err
 	}

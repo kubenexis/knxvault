@@ -7,21 +7,22 @@ import (
 )
 
 const (
-	defaultHTTPAddr                = ":8200"
-	defaultLogLevel                = "info"
-	defaultShutdownGrace           = 10 * time.Second
-	defaultOpenSSLTimeout          = 60 * time.Second
-	defaultOpenSSLBinary           = "openssl"
-	defaultTokenTTL                = 24 * time.Hour
-	defaultHANamespace             = "knxvault"
-	defaultHALeaseName             = "knxvault-leader"
-	defaultJobLeaseCleanupInterval = 1 * time.Minute
-	defaultJobCRLRefreshInterval   = 15 * time.Minute
-	defaultJobCertRenewInterval    = 1 * time.Hour
-	defaultJobKVRotationInterval   = 5 * time.Minute
-	defaultRenewGrace              = 72 * time.Hour
-	defaultRateLimitRPM            = 300
-	defaultOIDCTokenTTL            = 1 * time.Hour
+	defaultHTTPAddr                      = ":8200"
+	defaultLogLevel                      = "info"
+	defaultShutdownGrace                 = 10 * time.Second
+	defaultOpenSSLTimeout                = 60 * time.Second
+	defaultOpenSSLBinary                 = "openssl"
+	defaultTokenTTL                      = 24 * time.Hour
+	defaultHANamespace                   = "knxvault"
+	defaultHALeaseName                   = "knxvault-leader"
+	defaultJobLeaseCleanupInterval       = 1 * time.Minute
+	defaultJobCRLRefreshInterval         = 15 * time.Minute
+	defaultJobCertRenewInterval          = 1 * time.Hour
+	defaultJobKVRotationInterval         = 5 * time.Minute
+	defaultJobMasterKeyReencryptInterval = 1 * time.Minute
+	defaultRenewGrace                    = 72 * time.Hour
+	defaultRateLimitRPM                  = 300
+	defaultOIDCTokenTTL                  = 1 * time.Hour
 )
 
 // Config holds process-wide settings loaded from environment variables.
@@ -47,9 +48,11 @@ type Config struct {
 	AuditForwardURL         string
 	CORSAllowedOrigins      []string
 
-	JobCertRenewInterval  time.Duration
-	JobKVRotationInterval time.Duration
-	RenewGrace            time.Duration
+	JobCertRenewInterval          time.Duration
+	JobKVRotationInterval         time.Duration
+	JobMasterKeyReencryptInterval time.Duration
+	UnsealKey                     string
+	RenewGrace                    time.Duration
 
 	TLSCertFile  string
 	TLSKeyFile   string

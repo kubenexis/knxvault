@@ -16,14 +16,15 @@ import (
 
 // JobRunner executes background maintenance tasks on the elected leader.
 type JobRunner struct {
-	leader   leader.Elector
-	database *service.DatabaseService
-	pki      *service.PKIService
-	rotation *service.RotationService
-	cas      repository.CARepository
-	leases   repository.LeaseRepository
-	cfg      config.Config
-	log      *zap.Logger
+	leader    leader.Elector
+	database  *service.DatabaseService
+	pki       *service.PKIService
+	rotation  *service.RotationService
+	masterKey *service.MasterKeyService
+	cas       repository.CARepository
+	leases    repository.LeaseRepository
+	cfg       config.Config
+	log       *zap.Logger
 }
 
 // NewJobRunner constructs a background job runner.
@@ -32,20 +33,22 @@ func NewJobRunner(
 	database *service.DatabaseService,
 	pki *service.PKIService,
 	rotation *service.RotationService,
+	masterKey *service.MasterKeyService,
 	cas repository.CARepository,
 	leases repository.LeaseRepository,
 	cfg config.Config,
 	log *zap.Logger,
 ) *JobRunner {
 	return &JobRunner{
-		leader:   elector,
-		database: database,
-		pki:      pki,
-		rotation: rotation,
-		cas:      cas,
-		leases:   leases,
-		cfg:      cfg,
-		log:      log,
+		leader:    elector,
+		database:  database,
+		pki:       pki,
+		rotation:  rotation,
+		masterKey: masterKey,
+		cas:       cas,
+		leases:    leases,
+		cfg:       cfg,
+		log:       log,
 	}
 }
 
@@ -69,16 +72,19 @@ func (j *JobRunner) runOnLeader(ctx context.Context) {
 	crlTicker := time.NewTicker(j.cfg.JobCRLRefreshInterval)
 	renewTicker := time.NewTicker(j.cfg.JobCertRenewInterval)
 	kvRotTicker := time.NewTicker(j.cfg.JobKVRotationInterval)
+	reencTicker := time.NewTicker(j.cfg.JobMasterKeyReencryptInterval)
 	defer leaseTicker.Stop()
 	defer crlTicker.Stop()
 	defer renewTicker.Stop()
 	defer kvRotTicker.Stop()
+	defer reencTicker.Stop()
 
 	j.runLeaseCleanup(ctx)
 	j.updateActiveLeasesMetric(ctx)
 	j.runCRLRefresh(ctx)
 	j.runCertRenewal(ctx)
 	j.runKVRotation(ctx)
+	j.runMasterKeyReencrypt(ctx)
 
 	for {
 		select {
@@ -94,7 +100,26 @@ func (j *JobRunner) runOnLeader(ctx context.Context) {
 			j.runCertRenewal(ctx)
 		case <-kvRotTicker.C:
 			j.runKVRotation(ctx)
+		case <-reencTicker.C:
+			j.runMasterKeyReencrypt(ctx)
 		}
+	}
+}
+
+func (j *JobRunner) runMasterKeyReencrypt(ctx context.Context) {
+	if j.masterKey == nil {
+		return
+	}
+	result, err := j.masterKey.ReencryptDEKs(ctx, 50)
+	if err != nil {
+		j.log.Warn("master key reencrypt failed", zap.Error(err))
+		return
+	}
+	if result.CAs > 0 || result.Secrets > 0 {
+		j.log.Info("master key reencrypt progress",
+			zap.Int("cas", result.CAs),
+			zap.Int("secrets", result.Secrets),
+		)
 	}
 }
 

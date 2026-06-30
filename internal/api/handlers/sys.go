@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"net/http"
 	"time"
@@ -17,13 +19,29 @@ import (
 	"github.com/kubenexis/knxvault/internal/sys"
 )
 
+// SealController controls operational seal state.
+type SealController interface {
+	Sealed() bool
+	Seal()
+	Unseal(key []byte) bool
+}
+
+// RaftMembership controls cluster membership changes.
+type RaftMembership interface {
+	AddNode(ctx context.Context, nodeID uint64, address string) error
+	RemoveNode(ctx context.Context, nodeID uint64) error
+}
+
 // SysHandler serves system endpoints.
 type SysHandler struct {
 	auth            *auth.Service
 	pki             *service.PKIService
 	database        *service.DatabaseService
 	rotation        *service.RotationService
-	masterKey       []byte
+	masterKey       *service.MasterKeyService
+	seal            SealController
+	raft            RaftMembership
+	masterKeyBytes  []byte
 	exposureAuto    bool
 	exposureWebhook *notify.Webhook
 }
@@ -34,7 +52,10 @@ func NewSysHandler(
 	pki *service.PKIService,
 	database *service.DatabaseService,
 	rotation *service.RotationService,
-	masterKey []byte,
+	masterKey *service.MasterKeyService,
+	seal SealController,
+	raft RaftMembership,
+	masterKeyBytes []byte,
 	exposureAuto bool,
 	exposureWebhook *notify.Webhook,
 ) *SysHandler {
@@ -44,6 +65,9 @@ func NewSysHandler(
 		database:        database,
 		rotation:        rotation,
 		masterKey:       masterKey,
+		seal:            seal,
+		raft:            raft,
+		masterKeyBytes:  masterKeyBytes,
 		exposureAuto:    exposureAuto,
 		exposureWebhook: exposureWebhook,
 	}
@@ -70,8 +94,8 @@ func (h *SysHandler) Init(c *gin.Context) {
 		return
 	}
 	fp := ""
-	if len(h.masterKey) > 0 {
-		sum := sha256.Sum256(h.masterKey)
+	if len(h.masterKeyBytes) > 0 {
+		sum := sha256.Sum256(h.masterKeyBytes)
 		fp = hex.EncodeToString(sum[:8])
 	}
 	if err := sys.MarkInitialized(fp); err != nil {
@@ -152,6 +176,94 @@ func (h *SysHandler) ReportExposure(c *gin.Context) {
 		"reported": true,
 		"actions":  actions,
 	})
+}
+
+// RotateMasterKey handles POST /sys/rotate-master-key.
+func (h *SysHandler) RotateMasterKey(c *gin.Context) {
+	if h.masterKey == nil {
+		_ = c.Error(common.New(common.ErrCodeInternal, "master key rotation not configured"))
+		return
+	}
+	var req dto.RotateMasterKeyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	result, err := h.masterKey.Rotate(c.Request.Context(), service.RotateRequest{NewKeyBase64: req.NewKey})
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, dto.RotateMasterKeyResponse{KeyVersion: int(result.KeyVersion)})
+}
+
+// Seal handles POST /sys/seal.
+func (h *SysHandler) Seal(c *gin.Context) {
+	if h.seal == nil {
+		_ = c.Error(common.New(common.ErrCodeInternal, "seal not configured"))
+		return
+	}
+	h.seal.Seal()
+	c.JSON(http.StatusOK, gin.H{"sealed": true})
+}
+
+// Unseal handles POST /sys/unseal.
+func (h *SysHandler) Unseal(c *gin.Context) {
+	if h.seal == nil {
+		_ = c.Error(common.New(common.ErrCodeInternal, "seal not configured"))
+		return
+	}
+	var req dto.UnsealRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	raw, err := base64.StdEncoding.DecodeString(req.Key)
+	if err != nil {
+		_ = c.Error(common.Wrap(common.ErrCodeValidation, "invalid base64 unseal key", err))
+		return
+	}
+	if !h.seal.Unseal(raw) {
+		_ = c.Error(common.New(common.ErrCodeValidation, "invalid unseal key"))
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"sealed": false})
+}
+
+// RaftAddNode handles POST /sys/raft/add-node.
+func (h *SysHandler) RaftAddNode(c *gin.Context) {
+	if h.raft == nil {
+		_ = c.Error(common.New(common.ErrCodeInternal, "raft membership not configured"))
+		return
+	}
+	var req dto.RaftAddNodeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	if err := h.raft.AddNode(c.Request.Context(), req.NodeID, req.Address); err != nil {
+		_ = c.Error(common.Wrap(common.ErrCodeInternal, "add raft node", err))
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"added": true, "node_id": req.NodeID})
+}
+
+// RaftRemoveNode handles POST /sys/raft/remove-node.
+func (h *SysHandler) RaftRemoveNode(c *gin.Context) {
+	if h.raft == nil {
+		_ = c.Error(common.New(common.ErrCodeInternal, "raft membership not configured"))
+		return
+	}
+	var req dto.RaftRemoveNodeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	if err := h.raft.RemoveNode(c.Request.Context(), req.NodeID); err != nil {
+		_ = c.Error(common.Wrap(common.ErrCodeInternal, "remove raft node", err))
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"removed": true, "node_id": req.NodeID})
 }
 
 // IssueListenerTLS is a placeholder for automatic listener certificate issuance.

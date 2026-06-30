@@ -12,6 +12,7 @@ const (
 	ErrCodeUnauthorized ErrorCode = "unauthorized"
 	ErrCodeForbidden    ErrorCode = "forbidden"
 	ErrCodeNotFound     ErrorCode = "not_found"
+	ErrCodeUnavailable  ErrorCode = "unavailable"
 )
 
 // KNXVaultError is a typed application error with an API-safe code.

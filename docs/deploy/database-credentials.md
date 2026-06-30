@@ -20,11 +20,11 @@ Your job / init container / operator tooling:
 
 | Field | Purpose |
 |-------|---------|
-| `execution_mode` | `client` (default) — generator only |
+| `execution_mode` | `client` (default) — generator only; `managed` — KNXVault executes SQL |
 | `admin_credentials_path` | Optional KV path documenting where **you** store admin DB creds |
 | `config` | Non-secret tuning only (`db_type`, `ssl_mode`, `host`) |
 
-`managed` execution mode (KNXVault connects and runs SQL using KV admin creds) is reserved for a future release.
+**Managed mode** (`execution_mode: managed`) reads admin credentials from `admin_credentials_path` and executes `creation_statements` / `revocation_statements` via `database/sql`. The admin KV secret must include `connection_url`. SQLite is supported for development; use **client** mode for MySQL/Postgres unless you bundle drivers.
 
 ## Configure a role
 
@@ -75,7 +75,7 @@ Response includes `creation_statements` with `{{username}}` and `{{password}}` s
 | **Cloud IAM** | RDS IAM auth, Cloud SQL connector — no static password |
 | **CI variable** | Pipeline holds `DATABASE_ADMIN_URL` outside KNXVault |
 
-`admin_credentials_path` is a **runbook reference** in client mode. KNXVault does not read it automatically today; your executor should fetch that KV secret (or use external creds) before running SQL.
+In **client** mode, `admin_credentials_path` is a **runbook reference** — your executor fetches that KV secret before running SQL. In **managed** mode, KNXVault reads the path automatically.
 
 ## Ephemeral credential storage
 

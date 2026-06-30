@@ -26,6 +26,7 @@ type Engine struct {
 	leases   repository.LeaseRepository
 	secrets  repository.SecretRepository
 	crypto   *crypto.Service
+	sql      SQLRunner
 	now      func() time.Time
 	leaseGen func() (string, error)
 }
@@ -42,8 +43,16 @@ func NewEngine(
 		leases:   leases,
 		secrets:  secrets,
 		crypto:   cryptoSvc,
+		sql:      DefaultSQLRunner{},
 		now:      time.Now,
 		leaseGen: newLeaseID,
+	}
+}
+
+// SetSQLRunner overrides the SQL executor (tests).
+func (e *Engine) SetSQLRunner(runner SQLRunner) {
+	if e != nil {
+		e.sql = runner
 	}
 }
 
@@ -134,9 +143,6 @@ func (e *Engine) GenerateCredentials(ctx context.Context, req CredsRequest) (*Cr
 		return nil, err
 	}
 	domainsecrets.NormalizeDatabaseRole(role)
-	if role.ExecutionMode != domainsecrets.ExecutionModeClient {
-		return nil, common.New(common.ErrCodeValidation, "only client execution mode is supported; KNXVault returns SQL for external execution")
-	}
 
 	ttlSeconds := role.TTLSeconds
 	if req.TTLSecond > 0 {
@@ -192,6 +198,20 @@ func (e *Engine) GenerateCredentials(ctx context.Context, req CredsRequest) (*Cr
 	}
 
 	statements := renderStatements(role.CreationStatements, username, password)
+	if role.ExecutionMode == domainsecrets.ExecutionModeManaged {
+		connURL, err := e.adminConnectionURL(ctx, role)
+		if err != nil {
+			return nil, err
+		}
+		if e.sql == nil {
+			return nil, common.New(common.ErrCodeInternal, "sql runner not configured")
+		}
+		if err := e.sql.ExecStatements(ctx, connURL, statements); err != nil {
+			_ = e.destroySecret(ctx, path)
+			_ = e.leases.Revoke(ctx, leaseID, now)
+			return nil, common.Wrap(common.ErrCodeInternal, "execute creation statements", err)
+		}
+	}
 	return &CredsResult{
 		LeaseID:    leaseID,
 		Username:   username,
@@ -283,12 +303,49 @@ func (e *Engine) RevokeLease(ctx context.Context, leaseID string) error {
 	if err := e.leases.Revoke(ctx, leaseID, now); err != nil {
 		return err
 	}
+	if role, roleErr := e.roles.Get(ctx, lease.RoleName); roleErr == nil && role.ExecutionMode == domainsecrets.ExecutionModeManaged {
+		if latest, err := e.secrets.GetLatest(ctx, lease.Path); err == nil {
+			if plain, err := e.crypto.Open(latest.DataEnc, latest.DEKEnc); err == nil {
+				var data map[string]any
+				if json.Unmarshal(plain, &data) == nil {
+					username, _ := data["username"].(string)
+					password, _ := data["password"].(string)
+					statements := renderStatements(role.RevocationStatements, username, password)
+					if connURL, err := e.adminConnectionURL(ctx, role); err == nil && e.sql != nil && len(statements) > 0 {
+						_ = e.sql.ExecStatements(ctx, connURL, statements)
+					}
+				}
+			}
+		}
+	}
 	if e.secrets != nil && e.crypto != nil {
 		if err := e.destroySecret(ctx, lease.Path); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (e *Engine) adminConnectionURL(ctx context.Context, role *domainsecrets.DatabaseRole) (string, error) {
+	if role.AdminCredentialsPath == "" {
+		return "", common.New(common.ErrCodeValidation, "admin_credentials_path is required for managed mode")
+	}
+	latest, err := e.secrets.GetLatest(ctx, role.AdminCredentialsPath)
+	if err != nil {
+		return "", common.Wrap(common.ErrCodeValidation, "read admin credentials from kv", err)
+	}
+	plain, err := e.crypto.Open(latest.DataEnc, latest.DEKEnc)
+	if err != nil {
+		return "", common.Wrap(common.ErrCodeInternal, "decrypt admin credentials", err)
+	}
+	var data map[string]any
+	if err := json.Unmarshal(plain, &data); err != nil {
+		return "", common.Wrap(common.ErrCodeInternal, "unmarshal admin credentials", err)
+	}
+	if raw, ok := data["connection_url"].(string); ok && strings.TrimSpace(raw) != "" {
+		return strings.TrimSpace(raw), nil
+	}
+	return "", common.New(common.ErrCodeValidation, "admin credentials must include connection_url")
 }
 
 // CleanupExpired revokes leases that have passed their expiration time.

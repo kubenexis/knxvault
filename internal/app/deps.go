@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"time"
 
@@ -72,9 +73,11 @@ type Dependencies struct {
 	RateLimiter    *middleware.RateLimiter
 	RequestSigning *middleware.RequestSigning
 
-	Leader    leader.Elector
-	JobRunner *JobRunner
-	cfg       config.Config
+	Leader           leader.Elector
+	JobRunner        *JobRunner
+	Seal             *SealState
+	MasterKeyService *service.MasterKeyService
+	cfg              config.Config
 }
 
 // NewDependencies initializes crypto, storage, engines, and services from config.
@@ -153,6 +156,10 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 	}
 
 	if deps.Crypto != nil {
+		deps.MasterKeyService = service.NewMasterKeyService(deps.Crypto, deps.CARepo, deps.SecretRepo)
+		unsealKey := resolveUnsealKey(cfg.UnsealKey, deps.MasterKey)
+		deps.Seal = NewSealState(unsealKey)
+
 		deps.PKIEngine = pkiengine.NewEngine(deps.OpenSSL, deps.Crypto, deps.CARepo, deps.RevokeRepo)
 		deps.PKIEngine.SetIssuedCertRepository(deps.IssuedCertRepo)
 		deps.PKIEngine.SetPKIRoleRepository(deps.PKIRoleRepo)
@@ -298,7 +305,7 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 	deps.RateLimiter = middleware.NewRateLimiter(cfg.RateLimitRPM, cfg.RateLimitEnabled)
 	deps.RequestSigning = middleware.NewRequestSigning(cfg.RequestSigningKey, cfg.RequestSigningRequired)
 
-	deps.JobRunner = NewJobRunner(deps.Leader, deps.DatabaseService, deps.PKIService, deps.RotationService, deps.CARepo, deps.LeaseRepo, cfg, log)
+	deps.JobRunner = NewJobRunner(deps.Leader, deps.DatabaseService, deps.PKIService, deps.RotationService, deps.MasterKeyService, deps.CARepo, deps.LeaseRepo, cfg, log)
 
 	return deps, nil
 }
@@ -345,10 +352,27 @@ func (d *Dependencies) RaftReady() bool {
 	return d != nil && d.Raft != nil && d.Raft.Ready()
 }
 
+// Sealed reports whether the vault is operationally sealed.
+func (d *Dependencies) Sealed() bool {
+	if d == nil || d.Seal == nil {
+		return false
+	}
+	return d.Seal.Sealed()
+}
+
 // IsLeader reports whether this instance is the elected leader.
 func (d *Dependencies) IsLeader() bool {
 	if d == nil || d.Leader == nil {
 		return true
 	}
 	return d.Leader.IsLeader()
+}
+
+func resolveUnsealKey(configured string, masterKey []byte) []byte {
+	if configured != "" {
+		if raw, err := base64.StdEncoding.DecodeString(configured); err == nil && len(raw) > 0 {
+			return raw
+		}
+	}
+	return append([]byte(nil), masterKey...)
 }

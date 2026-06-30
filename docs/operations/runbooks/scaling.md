@@ -1,76 +1,61 @@
-# Runbook: Scaling KNXVault
+# Raft Cluster Scaling Runbook
 
-## Current limits
+This runbook covers adding and removing voting members in a running KNXVault Dragonboat cluster (W36-23).
 
-KNXVault production HA is designed for a **fixed 3-node Raft cluster**. Dragonboat cluster membership changes (add/remove nodes) are not automated in the current release.
+## Prerequisites
 
-| Dimension | Current support | Notes |
-|-----------|-----------------|-------|
-| Raft replicas | 3 (fixed) | StatefulSet in `deployments/k8s/` |
-| HTTP throughput | Vertical | Scale CPU/memory per replica |
-| Read load | Any replica | All nodes serve API; writes go through Raft leader |
-| Storage | Per-replica PVC | Grows with secrets, audit, and Raft log |
+- Quorum healthy (`GET /ready` → `raft_ready: true`)
+- Admin token with `sys/raft:write`
+- New node provisioned with empty Raft data dir and `KNXVAULT_RAFT_JOIN=true`
 
-## Vertical scaling
+## Add a fourth replica
 
-Increase CPU and memory limits in `statefulset.yaml`:
+1. Deploy the new pod/VM with a **new** node ID (e.g. `4`) and reachable Raft address.
+2. Set on the new member only:
 
-```yaml
-resources:
-  requests:
-    cpu: "500m"
-    memory: "512Mi"
-  limits:
-    cpu: "2"
-    memory: "2Gi"
+```bash
+export KNXVAULT_RAFT_NODE_ID=4
+export KNXVAULT_RAFT_ADDRESS=10.0.0.4:63001
+export KNXVAULT_RAFT_JOIN=true
+export KNXVAULT_RAFT_INITIAL_MEMBERS=1=10.0.0.1:63001,2=10.0.0.2:63001,3=10.0.0.3:63001,4=10.0.0.4:63001
 ```
 
-Rolling restart one pod at a time. Monitor `knxvault_http_request_duration_seconds` p99 after changes.
+3. Start the new process and wait for it to listen on the Raft port.
+4. From any **leader** (or via load-balanced API to leader), call:
 
-## Storage scaling
+```bash
+curl -s -X POST "$KNXVAULT_ADDR/sys/raft/add-node" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"node_id":4,"address":"10.0.0.4:63001"}'
+```
 
-1. Monitor PVC usage: `kubectl -n knxvault exec knxvault-0 -- df -h /var/lib/knxvault/raft`
-2. Expand the StorageClass volume (if supported) or migrate to a larger PVC
-3. Dragonboat compacts logs via snapshots — ensure backup schedule is healthy
+5. Verify: `curl -s $KNXVAULT_ADDR/ready | jq` on all replicas; write a KV secret and read from the new follower.
 
-Audit log growth is the primary long-term storage driver. Export and archive audit data periodically via `GET /audit/export`.
+## Remove a replica
 
-## Performance tuning
+1. Drain HTTP traffic from the target replica.
+2. On a leader:
 
-| Knob | Default | Effect |
-|------|---------|--------|
-| `KNXVAULT_RATE_LIMIT_RPM` | 300 | Increase for high-throughput trusted clients |
-| `KNXVAULT_RAFT_ELECTION_RTT` | 10 | Lower = faster failover, more CPU |
-| `KNXVAULT_RAFT_HEARTBEAT_RTT` | 1 | Lower = tighter leader detection |
-| `KNXVAULT_OPENSSL_TIMEOUT` | 60s | Reduce for faster PKI failure detection |
+```bash
+curl -s -X POST "$KNXVAULT_ADDR/sys/raft/remove-node" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"node_id":4}'
+```
 
-PKI operations are CPU-bound (OpenSSL subprocess). For high issuance rates, dedicate larger CPU limits to the Raft leader pod.
+3. Stop the removed process. **Do not** reuse the same node ID for a different host without treating it as a new member.
 
-## HTTP load distribution
+## Rollback
 
-The ClusterIP Service load-balances HTTP across all replicas. Writes are forwarded internally through Raft propose on whichever node receives the request — only the leader commits, but any node can accept the HTTP call.
+If `add-node` fails mid-flight:
 
-For very high read traffic, consider:
+- Stop the new member before it joins production traffic.
+- If the config change committed but the node is unhealthy, call `remove-node` for that ID.
+- Restore `KNXVAULT_RAFT_INITIAL_MEMBERS` in ConfigMap to match the stable member set for future joins.
 
-- Client-side caching of public CA certificates and CRLs
-- Phase 4 Redis read cache (not yet implemented)
+## Kubernetes notes
 
-## Multi-cluster scaling (future)
-
-Phase 4 multi-tenancy may introduce namespace-isolated vault instances. Until then, deploy separate KNXVault clusters per environment (dev/staging/prod) rather than expanding a single Raft group beyond 3 nodes.
-
-## Adding a 4th Raft node
-
-Not supported in v0.1.x. Requires:
-
-- Dragonboat membership change API
-- Updated `KNXVAULT_RAFT_INITIAL_MEMBERS`
-- Operational runbook for joint consensus
-
-Track as Phase 4+ work. See [Phase 4 design](../../design/phase4-ecosystem.md).
-
-## Related documents
-
-- [Kubernetes deployment](../../deploy/kubernetes.md)
-- [Metrics](../../metrics.md)
-- [Raft failover runbook](raft-failover.md)
+- Update the headless Service and StatefulSet replica count **after** successful `add-node`.
+- New pods should use `KNXVAULT_RAFT_JOIN=true` and omit writing to an existing peer data directory.
+- See [`docs/storage/dragonboat.md`](../../storage/dragonboat.md) for node ID assignment.

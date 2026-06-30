@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/kubenexis/knxvault/internal/api"
+	"github.com/kubenexis/knxvault/internal/api/handlers"
 	"github.com/kubenexis/knxvault/internal/config"
 	"github.com/kubenexis/knxvault/internal/crypto/tlsconfig"
 	"github.com/kubenexis/knxvault/internal/infra/tracing"
@@ -47,9 +48,16 @@ func New(ctx context.Context, cfg config.Config, log *zap.Logger) (*App, error) 
 		return nil, fmt.Errorf("tls: %w", err)
 	}
 
+	var raftMembership handlers.RaftMembership
+	if deps.Raft != nil {
+		raftMembership = deps.Raft.Client
+	}
 	router := api.NewRouter(log, cfg.Version, cfg.TracingEnabled, api.RouterDeps{
 		Ready:              deps,
+		Seal:               deps.Seal,
 		MasterKey:          deps.MasterKey,
+		MasterKeyService:   deps.MasterKeyService,
+		RaftMembership:     raftMembership,
 		CORSAllowedOrigins: cfg.CORSAllowedOrigins,
 		MTLSRequired:       cfg.MTLSRequired,
 		OpenSSL:            deps.OpenSSL,

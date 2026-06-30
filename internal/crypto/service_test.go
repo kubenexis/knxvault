@@ -32,6 +32,35 @@ func TestServiceSealOpen(t *testing.T) {
 	}
 }
 
+func TestServiceRotateMasterKey(t *testing.T) {
+	svc, err := crypto.NewService(testMasterKey())
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	plain := []byte(`{"secret":"value"}`)
+	ct, dekEnc, err := svc.Seal(plain)
+	if err != nil {
+		t.Fatalf("Seal: %v", err)
+	}
+
+	newKey := bytes.Repeat([]byte{0x77}, 32)
+	version, err := svc.RotateMasterKey(newKey)
+	if err != nil {
+		t.Fatalf("RotateMasterKey: %v", err)
+	}
+	if version != 2 {
+		t.Fatalf("version = %d, want 2", version)
+	}
+
+	got, err := svc.Open(ct, dekEnc)
+	if err != nil {
+		t.Fatalf("Open after rotate: %v", err)
+	}
+	if !bytes.Equal(plain, got) {
+		t.Fatal("data mismatch after rotate")
+	}
+}
+
 func TestServiceDEKRoundTrip(t *testing.T) {
 	svc, err := crypto.NewService(testMasterKey())
 	if err != nil {

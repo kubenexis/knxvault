@@ -185,6 +185,16 @@ func overlayEnv(cfg Config) (Config, error) {
 	if v := os.Getenv("KNXVAULT_ROTATION_WEBHOOK_URL"); v != "" {
 		cfg.RotationWebhookURL = strings.TrimSpace(v)
 	}
+	if v := os.Getenv("KNXVAULT_UNSEAL_KEY"); v != "" {
+		cfg.UnsealKey = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("KNXVAULT_JOB_MASTER_KEY_REENCRYPT_INTERVAL"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_JOB_MASTER_KEY_REENCRYPT_INTERVAL: %w", err)
+		}
+		cfg.JobMasterKeyReencryptInterval = d
+	}
 	if v := os.Getenv("KNXVAULT_JOB_KV_ROTATION_INTERVAL"); v != "" {
 		d, err := time.ParseDuration(v)
 		if err != nil {

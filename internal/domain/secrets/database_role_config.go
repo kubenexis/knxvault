@@ -117,7 +117,7 @@ func ValidateExecutionMode(mode string) error {
 	case ExecutionModeClient:
 		return nil
 	case ExecutionModeManaged:
-		return fmt.Errorf("execution mode %q is reserved and not yet supported", mode)
+		return nil
 	default:
 		return fmt.Errorf("unsupported execution mode %q (use %q)", mode, ExecutionModeClient)
 	}

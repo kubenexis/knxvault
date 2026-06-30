@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/kubenexis/knxvault/internal/api"
+	"github.com/kubenexis/knxvault/internal/api/handlers"
 	"github.com/kubenexis/knxvault/internal/app"
 	"github.com/kubenexis/knxvault/internal/config"
 )
@@ -46,14 +47,23 @@ func raftHTTPTestRouter(t *testing.T) (*gin.Engine, string, func()) {
 	waitRaftReady(t, deps.Raft)
 
 	cleanup := func() { deps.Close() }
+	var raftMembership handlers.RaftMembership
+	if deps.Raft != nil {
+		raftMembership = deps.Raft.Client
+	}
 	router := api.NewRouter(zap.NewNop(), cfg.Version, false, api.RouterDeps{
-		Ready:          deps,
-		AuthService:    deps.AuthService,
-		SecretsService: deps.SecretsService,
-		BackupService:  deps.BackupService,
-		TokenTTL:       deps.TokenTTL,
-		HAStatus:       deps,
-		IsLeader:       deps.IsLeader,
+		Ready:            deps,
+		Seal:             deps.Seal,
+		AuthService:      deps.AuthService,
+		PKIService:       deps.PKIService,
+		SecretsService:   deps.SecretsService,
+		BackupService:    deps.BackupService,
+		MasterKeyService: deps.MasterKeyService,
+		RaftMembership:   raftMembership,
+		MasterKey:        deps.MasterKey,
+		TokenTTL:         deps.TokenTTL,
+		HAStatus:         deps,
+		IsLeader:         deps.IsLeader,
 	})
 	return router, "raft-root", cleanup
 }
@@ -146,5 +156,54 @@ func TestIntegrationRaftBackupCreate(t *testing.T) {
 	}
 	if _, err := base64.StdEncoding.DecodeString(payload.Data); err != nil {
 		t.Fatalf("backup data not base64: %v", err)
+	}
+}
+
+func TestIntegrationRaftHTTPPKIRoundTrip(t *testing.T) {
+	router, token, cleanup := raftHTTPTestRouter(t)
+	defer cleanup()
+
+	server := httptest.NewServer(router)
+	t.Cleanup(server.Close)
+
+	rootBody, _ := json.Marshal(map[string]any{
+		"name":        "raft-http-root",
+		"common_name": "Raft HTTP Root",
+		"ttl":         "8760h",
+	})
+	rootReq, err := http.NewRequest(http.MethodPost, server.URL+"/pki/root", bytes.NewReader(rootBody))
+	if err != nil {
+		t.Fatalf("NewRequest() = %v", err)
+	}
+	rootReq.Header.Set("Authorization", "Bearer "+token)
+	rootReq.Header.Set("Content-Type", "application/json")
+	rootResp, err := http.DefaultClient.Do(rootReq)
+	if err != nil {
+		t.Fatalf("POST /pki/root = %v", err)
+	}
+	_ = rootResp.Body.Close()
+	if rootResp.StatusCode != http.StatusOK && rootResp.StatusCode != http.StatusCreated {
+		t.Fatalf("POST /pki/root status = %d", rootResp.StatusCode)
+	}
+
+	issueBody, _ := json.Marshal(map[string]any{
+		"role":        "raft-http-root",
+		"common_name": "app.example.com",
+		"dns_names":   []string{"app.example.com"},
+		"ttl":         "24h",
+	})
+	issueReq, err := http.NewRequest(http.MethodPost, server.URL+"/pki/issue", bytes.NewReader(issueBody))
+	if err != nil {
+		t.Fatalf("NewRequest() = %v", err)
+	}
+	issueReq.Header.Set("Authorization", "Bearer "+token)
+	issueReq.Header.Set("Content-Type", "application/json")
+	issueResp, err := http.DefaultClient.Do(issueReq)
+	if err != nil {
+		t.Fatalf("POST /pki/issue = %v", err)
+	}
+	defer func() { _ = issueResp.Body.Close() }()
+	if issueResp.StatusCode != http.StatusOK && issueResp.StatusCode != http.StatusCreated {
+		t.Fatalf("POST /pki/issue status = %d", issueResp.StatusCode)
 	}
 }

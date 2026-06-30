@@ -73,6 +73,7 @@ func TestJobRunnerActiveLeasesMetric(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 		leases,
 		cfg,
 		zap.NewNop(),
@@ -91,7 +92,7 @@ func TestJobRunnerActiveLeasesMetric(t *testing.T) {
 }
 
 func TestJobRunnerStartNilLeader(t *testing.T) {
-	runner := app.NewJobRunner(nil, nil, nil, nil, nil, nil, config.Config{}, zap.NewNop())
+	runner := app.NewJobRunner(nil, nil, nil, nil, nil, nil, nil, config.Config{}, zap.NewNop())
 	runner.Start(context.Background())
 }
 
@@ -133,7 +134,7 @@ func TestJobRunnerLeaseCleanupOnLeadership(t *testing.T) {
 
 	runCtx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
-	runner := app.NewJobRunner(&staticElector{leader: true}, dbSvc, nil, nil, nil, leases, cfg, zap.NewNop())
+	runner := app.NewJobRunner(&staticElector{leader: true}, dbSvc, nil, nil, nil, nil, leases, cfg, zap.NewNop())
 	runner.Start(runCtx)
 	<-runCtx.Done()
 
@@ -156,7 +157,7 @@ func TestJobRunnerNonLeaderSkipsJobs(t *testing.T) {
 
 	runCtx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-	runner := app.NewJobRunner(&staticElector{leader: false}, nil, nil, nil, nil, nil, cfg, zap.NewNop())
+	runner := app.NewJobRunner(&staticElector{leader: false}, nil, nil, nil, nil, nil, nil, cfg, zap.NewNop())
 	runner.Start(runCtx)
 	<-runCtx.Done()
 }

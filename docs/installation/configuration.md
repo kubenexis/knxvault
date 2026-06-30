@@ -21,6 +21,8 @@ See [`config/knxvault.example.yaml`](../../config/knxvault.example.yaml) for the
 |----------|---------|----------|-------------|
 | `KNXVAULT_MASTER_KEY` | — | **Yes** (prod) | Base64-encoded 32-byte master key |
 | `KNXVAULT_MASTER_KEY_FILE` | — | Alt. to above | Path to base64 key file (takes priority) |
+| `KNXVAULT_UNSEAL_KEY` | _(master key)_ | No | Base64 unseal key for `POST /sys/unseal` |
+| `KNXVAULT_JOB_MASTER_KEY_REENCRYPT_INTERVAL` | `1m` | No | Leader job interval for DEK re-encryption after rotation |
 | `KNXVAULT_OPENSSL_BINARY` | `openssl` | No | OpenSSL executable path |
 | `KNXVAULT_OPENSSL_TIMEOUT` | `60s` | No | Max OpenSSL command duration |
 
