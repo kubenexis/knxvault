@@ -42,6 +42,7 @@ The canonical machine-readable list lives in [`config/licenses.allow`](../config
 | ------ | ------- | --------- | --- |
 | `github.com/lni/dragonboat/v3` (+ transitive Hashicorp/MPL, juju/LGPL) | MPL-2.0, LGPL-3.0 | Embedded Raft storage backend (Phase 3); static Go linking only. | W23-01 |
 | `github.com/pkg/errors` | BSD-2-Clause | Dragonboat transitive; no LICENSE file in module root (Dave Cheney, 2015). | W23-01 |
+| `github.com/magiconair/properties` | BSD-2-Clause | Viper transitive; license in `LICENSE.md` (Frank Schroeder). | W38-13 |
 
 ## OpenSSL
 

@@ -39,6 +39,7 @@ var licensePatterns = []struct {
 	{spdx: "BSD-2-Clause", matches: []*regexp.Regexp{
 		regexp.MustCompile(`(?i)BSD 2-Clause`),
 		regexp.MustCompile(`(?i)SPDX-License-Identifier:\s*BSD-2-Clause`),
+		regexp.MustCompile(`(?is)Redistribution and use in source and binary forms.+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"`),
 	}},
 	{spdx: "BSD-3-Clause", matches: []*regexp.Regexp{
 		regexp.MustCompile(`(?i)BSD 3-Clause`),
@@ -74,6 +75,7 @@ var licensePatterns = []struct {
 var moduleLicenseOverrides = map[string]string{
 	"github.com/pkg/errors":            "BSD-2-Clause",
 	"github.com/cockroachdb/sentry-go": "BSD-3-Clause",
+	"github.com/magiconair/properties": "BSD-2-Clause",
 }
 
 func main() {
