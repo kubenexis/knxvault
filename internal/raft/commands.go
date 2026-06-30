@@ -67,11 +67,11 @@ const (
 	OpIssuedListExpiring = "issued.list_expiring"
 	OpImportSnapshot     = "snapshot.import"
 	OpExportSnapshot     = "snapshot.export"
-	OpTokenSave          = "token.save"
-	OpTokenGet           = "token.get"
-	OpTokenRevoke        = "token.revoke"
-	OpTokenList          = "token.list"
-	OpTokenListExpired   = "token.list_expired"
+	OpTokenSave          = "token.save"         // #nosec G101 -- Raft command name
+	OpTokenGet           = "token.get"          // #nosec G101 -- Raft command name
+	OpTokenRevoke        = "token.revoke"       // #nosec G101 -- Raft command name
+	OpTokenList          = "token.list"         // #nosec G101 -- Raft command name
+	OpTokenListExpired   = "token.list_expired" // #nosec G101 -- Raft command name
 )
 
 // readOnlyOps are safe for SyncRead / Lookup; write ops must use Propose.
