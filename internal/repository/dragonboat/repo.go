@@ -116,6 +116,14 @@ func (r *SecretRepository) SaveVersion(ctx context.Context, sv *secrets.SecretVe
 	return write(ctx, r.c, raft.OpSecretSaveVersion, sv)
 }
 
+func (r *SecretRepository) UpdateDEKEnc(ctx context.Context, path string, version int, dekEnc []byte) error {
+	return write(ctx, r.c, raft.OpSecretUpdateDEKEnc, struct {
+		Path    string
+		Version int
+		DEKEnc  []byte
+	}{Path: path, Version: version, DEKEnc: dekEnc})
+}
+
 func (r *SecretRepository) GetLatest(ctx context.Context, path string) (*secrets.SecretVersion, error) {
 	var out secrets.SecretVersion
 	err := read(ctx, r.c, raft.OpSecretGetLatest, struct{ Path string }{Path: path}, &out)

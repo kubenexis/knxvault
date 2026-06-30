@@ -107,8 +107,7 @@ func (s *MasterKeyService) ReencryptDEKs(ctx context.Context, limit int) (*Reenc
 			if err != nil {
 				return nil, common.Wrap(common.ErrCodeInternal, "reencrypt secret dek", err)
 			}
-			sv.DEKEnc = newEnc
-			if err := s.secrets.SaveVersion(ctx, sv); err != nil {
+			if err := s.secrets.UpdateDEKEnc(ctx, sv.Path, sv.Version, newEnc); err != nil {
 				return nil, err
 			}
 			result.Secrets++

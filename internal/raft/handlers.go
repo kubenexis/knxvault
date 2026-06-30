@@ -30,6 +30,7 @@ var storeHandlers = map[string]storeHandler{
 	OpSecretNextVersion:     handleSecretNextVersion,
 	OpSecretPut:             handleSecretPut,
 	OpSecretDestroyVer:      handleSecretDestroyVer,
+	OpSecretUpdateDEKEnc:    handleSecretUpdateDEKEnc,
 	OpPKIRoleSave:           handlePKIRoleSave,
 	OpPKIRoleGet:            handlePKIRoleGet,
 	OpPKIRoleList:           handlePKIRoleList,
@@ -112,6 +113,18 @@ func handleSecretSaveVersion(s *Store, ctx context.Context, payload json.RawMess
 		return nil, err
 	}
 	return nil, s.Secret.SaveVersion(ctx, &sv)
+}
+
+func handleSecretUpdateDEKEnc(s *Store, ctx context.Context, payload json.RawMessage) (any, error) {
+	var req struct {
+		Path    string
+		Version int
+		DEKEnc  []byte
+	}
+	if err := json.Unmarshal(payload, &req); err != nil {
+		return nil, err
+	}
+	return nil, s.Secret.UpdateDEKEnc(ctx, req.Path, req.Version, req.DEKEnc)
 }
 
 func handleSecretGetLatest(s *Store, ctx context.Context, payload json.RawMessage) (any, error) {

@@ -30,6 +30,7 @@ type SecretRepository interface {
 	ListByPath(ctx context.Context, pathPrefix string) ([]*secrets.SecretVersion, error)
 	NextVersion(ctx context.Context, path string) (int, error)
 	DestroyVersion(ctx context.Context, path string, version int) error
+	UpdateDEKEnc(ctx context.Context, path string, version int, dekEnc []byte) error
 }
 
 // PKIRoleRepository persists PKI issuance role policies.

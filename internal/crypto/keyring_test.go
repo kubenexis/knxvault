@@ -49,3 +49,25 @@ func TestKeyRingRotateAndDecrypt(t *testing.T) {
 		t.Fatalf("reencrypted version = %d, want 2", reenc[0])
 	}
 }
+
+func TestKeyRingDecryptLegacyWithoutVersionCollision(t *testing.T) {
+	ring, err := crypto.NewKeyRing(testMasterKey())
+	if err != nil {
+		t.Fatalf("NewKeyRing() = %v", err)
+	}
+	dek := bytes.Repeat([]byte{0x22}, 32)
+	enc, err := ring.EncryptDEK(dek)
+	if err != nil {
+		t.Fatalf("EncryptDEK() = %v", err)
+	}
+	if err := ring.AddKey(2, bytes.Repeat([]byte{0x99}, 32)); err != nil {
+		t.Fatalf("AddKey() = %v", err)
+	}
+	got, err := ring.DecryptDEK(enc)
+	if err != nil {
+		t.Fatalf("DecryptDEK(legacy) = %v", err)
+	}
+	if !bytes.Equal(got, dek) {
+		t.Fatal("legacy dek mismatch after adding version 2")
+	}
+}

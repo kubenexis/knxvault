@@ -32,6 +32,9 @@ func (c *Client) RemoveNode(ctx context.Context, nodeID uint64) error {
 	if nodeID == 0 {
 		return fmt.Errorf("node id must be > 0")
 	}
+	if nodeID == c.nodeID {
+		return fmt.Errorf("cannot remove local raft node; shut down the process instead")
+	}
 	timeout, cancel := context.WithTimeout(ctx, membershipTimeout)
 	defer cancel()
 	return c.nh.SyncRequestDeleteNode(timeout, c.clusterID, nodeID, 0)

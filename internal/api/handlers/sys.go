@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -30,6 +31,7 @@ type SealController interface {
 type RaftMembership interface {
 	AddNode(ctx context.Context, nodeID uint64, address string) error
 	RemoveNode(ctx context.Context, nodeID uint64) error
+	IsLeader() bool
 }
 
 // SysHandler serves system endpoints.
@@ -189,6 +191,10 @@ func (h *SysHandler) RotateMasterKey(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
+	if strings.TrimSpace(req.NewKey) == "" {
+		_ = c.Error(common.New(common.ErrCodeValidation, "new_key is required"))
+		return
+	}
 	result, err := h.masterKey.Rotate(c.Request.Context(), service.RotateRequest{NewKeyBase64: req.NewKey})
 	if err != nil {
 		_ = c.Error(err)
@@ -230,10 +236,21 @@ func (h *SysHandler) Unseal(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"sealed": false})
 }
 
-// RaftAddNode handles POST /sys/raft/add-node.
-func (h *SysHandler) RaftAddNode(c *gin.Context) {
+func (h *SysHandler) requireRaftLeader(c *gin.Context) bool {
 	if h.raft == nil {
 		_ = c.Error(common.New(common.ErrCodeInternal, "raft membership not configured"))
+		return false
+	}
+	if !h.raft.IsLeader() {
+		_ = c.Error(common.New(common.ErrCodeValidation, "raft membership changes must be proposed on the leader"))
+		return false
+	}
+	return true
+}
+
+// RaftAddNode handles POST /sys/raft/add-node.
+func (h *SysHandler) RaftAddNode(c *gin.Context) {
+	if !h.requireRaftLeader(c) {
 		return
 	}
 	var req dto.RaftAddNodeRequest
@@ -250,8 +267,7 @@ func (h *SysHandler) RaftAddNode(c *gin.Context) {
 
 // RaftRemoveNode handles POST /sys/raft/remove-node.
 func (h *SysHandler) RaftRemoveNode(c *gin.Context) {
-	if h.raft == nil {
-		_ = c.Error(common.New(common.ErrCodeInternal, "raft membership not configured"))
+	if !h.requireRaftLeader(c) {
 		return
 	}
 	var req dto.RaftRemoveNodeRequest

@@ -51,6 +51,9 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 		}
 		securedAuth := authGroup.Group("/")
 		securedAuth.Use(middleware.Auth(deps.AuthService))
+		if deps.Seal != nil {
+			securedAuth.Use(middleware.SealGuard(deps.Seal))
+		}
 		{
 			securedAuth.POST("/token/create",
 				middleware.RequirePermission(deps.AuthService, "sys/auth", "write"),
@@ -105,7 +108,7 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 			middleware.RequirePermission(deps.AuthService, "sys/seal", "write"),
 			sys.Seal,
 		)
-		secured.POST("/sys/unseal", sys.Unseal)
+
 		if deps.RaftMembership != nil {
 			secured.POST("/sys/raft/add-node",
 				middleware.RequirePermission(deps.AuthService, "sys/raft", "write"),
@@ -241,6 +244,15 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 			middleware.RequirePermission(deps.AuthService, "sys/policies", "write"),
 			nhi.Revoke,
 		)
+	}
+
+	if deps.Seal != nil {
+		sysUnseal := handlers.NewSysHandler(
+			deps.AuthService, deps.PKIService, deps.DatabaseService, deps.RotationService,
+			deps.MasterKeyService, deps.Seal, deps.RaftMembership, deps.MasterKey,
+			deps.ExposureAutoRevoke, deps.ExposureWebhook,
+		)
+		r.POST("/sys/unseal", sysUnseal.Unseal)
 	}
 
 	if deps.ExposureSigningKey != "" {

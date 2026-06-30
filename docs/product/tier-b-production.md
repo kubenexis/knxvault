@@ -35,7 +35,7 @@ Operational seal blocks mutating secured routes with `503 unavailable`. Reads an
 | API | Description |
 |-----|-------------|
 | `POST /sys/seal` | Seal vault (`sys/seal:write`) |
-| `POST /sys/unseal` | Body `{"key":"<base64>"}` |
+| `POST /sys/unseal` | Body `{"key":"<base64>"}` — **public** (no Bearer token required) |
 
 | Variable | Description |
 |----------|-------------|

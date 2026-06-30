@@ -15,7 +15,7 @@ func TestIsReadOnlyOp(t *testing.T) {
 	}
 
 	writeOps := []string{
-		OpCASave, OpAuditAppend, OpImportSnapshot, OpSecretSaveVersion,
+		OpCASave, OpAuditAppend, OpImportSnapshot, OpSecretSaveVersion, OpSecretUpdateDEKEnc,
 	}
 	for _, op := range writeOps {
 		if IsReadOnlyOp(op) {

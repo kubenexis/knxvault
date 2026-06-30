@@ -139,6 +139,23 @@ func (r *SecretRepository) PutAtomic(_ context.Context, sv *secrets.SecretVersio
 	return version, nil
 }
 
+// UpdateDEKEnc replaces the master-key-wrapped DEK for an existing version.
+func (r *SecretRepository) UpdateDEKEnc(_ context.Context, path string, version int, dekEnc []byte) error {
+	if path == "" || version < 1 || len(dekEnc) == 0 {
+		return common.New(common.ErrCodeValidation, "invalid dek update request")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	key := secretKey{path: path, version: version}
+	sv, ok := r.versions[key]
+	if !ok {
+		return common.New(common.ErrCodeNotFound, "secret version not found")
+	}
+	sv.DEKEnc = append([]byte(nil), dekEnc...)
+	return nil
+}
+
 // DestroyVersion marks a specific version as destroyed.
 func (r *SecretRepository) DestroyVersion(_ context.Context, path string, version int) error {
 	r.mu.Lock()

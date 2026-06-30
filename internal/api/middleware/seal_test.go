@@ -24,8 +24,6 @@ func TestSealGuardBlocksWrites(t *testing.T) {
 	r.Use(middleware.SealGuard(seal))
 	r.POST("/secrets/kv/app", func(c *gin.Context) { c.Status(http.StatusOK) })
 	r.GET("/health", func(c *gin.Context) { c.Status(http.StatusOK) })
-	r.POST("/sys/unseal", func(c *gin.Context) { c.Status(http.StatusOK) })
-
 	postReq := httptest.NewRequest(http.MethodPost, "/secrets/kv/app", nil)
 	postRec := httptest.NewRecorder()
 	r.ServeHTTP(postRec, postReq)
@@ -40,10 +38,10 @@ func TestSealGuardBlocksWrites(t *testing.T) {
 		t.Fatalf("GET status = %d, want 200", getRec.Code)
 	}
 
-	unsealReq := httptest.NewRequest(http.MethodPost, "/sys/unseal", nil)
-	unsealRec := httptest.NewRecorder()
-	r.ServeHTTP(unsealRec, unsealReq)
-	if unsealRec.Code != http.StatusOK {
-		t.Fatalf("unseal status = %d, want 200", unsealRec.Code)
+	mutateReq := httptest.NewRequest(http.MethodDelete, "/secrets/kv/app", nil)
+	mutateRec := httptest.NewRecorder()
+	r.ServeHTTP(mutateRec, mutateReq)
+	if mutateRec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("DELETE status = %d, want 503", mutateRec.Code)
 	}
 }

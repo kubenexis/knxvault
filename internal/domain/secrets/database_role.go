@@ -41,8 +41,13 @@ func (r *DatabaseRole) Validate() error {
 	if err := ValidateDatabaseRoleConfig(r.Config); err != nil {
 		return err
 	}
-	if r.ExecutionMode == ExecutionModeManaged && r.AdminCredentialsPath == "" {
-		return fmt.Errorf("admin_credentials_path is required for managed execution mode")
+	if r.ExecutionMode == ExecutionModeManaged {
+		if r.AdminCredentialsPath == "" {
+			return fmt.Errorf("admin_credentials_path is required for managed execution mode")
+		}
+		if len(r.CreationStatements) == 0 {
+			return fmt.Errorf("creation_statements are required for managed execution mode")
+		}
 	}
 	return nil
 }

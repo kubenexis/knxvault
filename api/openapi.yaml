@@ -88,6 +88,82 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CapabilitiesResponse"
+  /sys/rotate-master-key:
+    post:
+      tags: [sys]
+      summary: Rotate envelope master key
+      operationId: rotateMasterKey
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RotateMasterKeyRequest"
+      responses:
+        "200":
+          description: Master key rotated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RotateMasterKeyResponse"
+  /sys/seal:
+    post:
+      tags: [sys]
+      summary: Seal vault (block mutating operations)
+      operationId: sealVault
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Vault sealed
+  /sys/unseal:
+    post:
+      tags: [sys]
+      summary: Unseal vault
+      operationId: unsealVault
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UnsealRequest"
+      responses:
+        "200":
+          description: Vault unsealed
+  /sys/raft/add-node:
+    post:
+      tags: [sys]
+      summary: Add Raft cluster member
+      operationId: raftAddNode
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RaftAddNodeRequest"
+      responses:
+        "200":
+          description: Node added
+  /sys/raft/remove-node:
+    post:
+      tags: [sys]
+      summary: Remove Raft cluster member
+      operationId: raftRemoveNode
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RaftRemoveNodeRequest"
+      responses:
+        "200":
+          description: Node removed
   /auth/kubernetes:
     post:
       tags: [auth]
@@ -649,6 +725,8 @@ components:
           type: boolean
         leader:
           type: boolean
+        sealed:
+          type: boolean
     ErrorResponse:
       type: object
       required: [error_code, message, request_id, timestamp]
@@ -671,6 +749,41 @@ components:
           type: array
           items:
             type: string
+    RotateMasterKeyRequest:
+      type: object
+      required: [new_key]
+      properties:
+        new_key:
+          type: string
+          description: Base64-encoded 32-byte master key
+    RotateMasterKeyResponse:
+      type: object
+      properties:
+        key_version:
+          type: integer
+    UnsealRequest:
+      type: object
+      required: [key]
+      properties:
+        key:
+          type: string
+          description: Base64-encoded unseal key
+    RaftAddNodeRequest:
+      type: object
+      required: [node_id, address]
+      properties:
+        node_id:
+          type: integer
+          format: int64
+        address:
+          type: string
+    RaftRemoveNodeRequest:
+      type: object
+      required: [node_id]
+      properties:
+        node_id:
+          type: integer
+          format: int64
     K8sLoginRequest:
       type: object
       required: [role, jwt]

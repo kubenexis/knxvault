@@ -311,8 +311,17 @@ func (e *Engine) RevokeLease(ctx context.Context, leaseID string) error {
 					username, _ := data["username"].(string)
 					password, _ := data["password"].(string)
 					statements := renderStatements(role.RevocationStatements, username, password)
-					if connURL, err := e.adminConnectionURL(ctx, role); err == nil && e.sql != nil && len(statements) > 0 {
-						_ = e.sql.ExecStatements(ctx, connURL, statements)
+					if len(statements) > 0 {
+						connURL, err := e.adminConnectionURL(ctx, role)
+						if err != nil {
+							return common.Wrap(common.ErrCodeInternal, "managed revoke: admin credentials", err)
+						}
+						if e.sql == nil {
+							return common.New(common.ErrCodeInternal, "sql runner not configured")
+						}
+						if err := e.sql.ExecStatements(ctx, connURL, statements); err != nil {
+							return common.Wrap(common.ErrCodeInternal, "managed revoke: execute revocation statements", err)
+						}
 					}
 				}
 			}

@@ -24,14 +24,7 @@ func SealGuard(checker SealChecker) gin.HandlerFunc {
 		case http.MethodGet, http.MethodHead, http.MethodOptions:
 			c.Next()
 			return
-		}
-		path := c.FullPath()
-		if path == "" {
-			path = c.Request.URL.Path
-		}
-		if c.Request.Method == http.MethodPost && (path == "/sys/unseal" || c.Request.URL.Path == "/sys/unseal") {
-			c.Next()
-			return
+		default:
 		}
 		c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{
 			"error_code": string(common.ErrCodeUnavailable),

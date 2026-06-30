@@ -118,8 +118,10 @@ func (k *KeyRing) DecryptDEK(enc []byte) ([]byte, error) {
 	sort.Slice(versions, func(i, j int) bool { return versions[i] < versions[j] })
 	k.mu.RUnlock()
 
-	if len(enc) > dekVersionPrefixSize {
-		if version := enc[0]; version > 0 {
+	// Versioned DEKs prefix a 1-byte key version before the GCM blob (nonce + ciphertext + tag).
+	const minVersionedLen = dekVersionPrefixSize + 13 + dekSize
+	if len(enc) >= minVersionedLen {
+		if version := enc[0]; version > 0 && versionKnown(versions, version) {
 			if env, err := k.envelope(version); err == nil {
 				if dek, err := env.Decrypt(enc[1:]); err == nil && len(dek) == dekSize {
 					return dek, nil
@@ -171,4 +173,13 @@ func (k *KeyRing) ReencryptDEK(enc []byte) ([]byte, error) {
 		return nil, err
 	}
 	return k.EncryptDEK(dek)
+}
+
+func versionKnown(versions []byte, version byte) bool {
+	for _, v := range versions {
+		if v == version {
+			return true
+		}
+	}
+	return false
 }

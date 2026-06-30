@@ -20,6 +20,7 @@ type HAStatusProvider interface {
 	IsLeader() bool
 	RaftEnabled() bool
 	RaftReady() bool
+	Sealed() bool
 }
 
 // HealthHandler serves liveness and readiness probes.
@@ -77,6 +78,10 @@ func (h *HealthHandler) applyHA(resp *dto.HealthResponse) {
 		resp.RaftEnabled = true
 		ready := h.ha.RaftReady()
 		resp.RaftReady = &ready
+	}
+	if h.ha != nil {
+		sealed := h.ha.Sealed()
+		resp.Sealed = &sealed
 	}
 	if h.ha == nil || !h.ha.HAEnabled() {
 		return

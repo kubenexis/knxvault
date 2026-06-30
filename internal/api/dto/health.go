@@ -9,4 +9,5 @@ type HealthResponse struct {
 	HAEnabled   bool   `json:"ha_enabled,omitempty"`
 	RaftEnabled bool   `json:"raft_enabled,omitempty"`
 	RaftReady   *bool  `json:"raft_ready,omitempty"`
+	Sealed      *bool  `json:"sealed,omitempty"`
 }

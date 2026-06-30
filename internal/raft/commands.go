@@ -34,6 +34,7 @@ const (
 	OpSecretListByPath      = "secret.list_by_path"
 	OpSecretNextVersion     = "secret.next_version"
 	OpSecretDestroyVer      = "secret.destroy_version"
+	OpSecretUpdateDEKEnc    = "secret.update_dek_enc"
 	OpPKIRoleSave           = "pki_role.save"
 	OpPKIRoleGet            = "pki_role.get"
 	OpPKIRoleList           = "pki_role.list"
