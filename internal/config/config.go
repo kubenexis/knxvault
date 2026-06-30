@@ -27,12 +27,12 @@ const (
 
 // Config holds process-wide settings loaded from environment variables.
 type Config struct {
-	HTTPAddr       string
-	LogLevel       string
-	ShutdownGrace  time.Duration
-	Version        string
-	OpenSSLTimeout time.Duration
-	OpenSSLBinary  string
+	HTTPAddr        string
+	LogLevel        string
+	ShutdownGrace   time.Duration
+	Version         string
+	OpenSSLTimeout  time.Duration
+	OpenSSLBinary   string
 	JWTSecret       string
 	K8sAuthInsecure bool
 	RootToken       string

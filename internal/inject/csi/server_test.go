@@ -20,7 +20,7 @@ func TestServerMount(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]any{"client_token": "client-token"})
 		case "/secrets/kv/app/db":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"data": map[string]any{"password": "s3cret"},
+				"data":     map[string]any{"password": "s3cret"},
 				"metadata": map[string]any{"version": 3},
 			})
 		default:
@@ -58,7 +58,7 @@ func TestServerRotationCounter(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]any{"client_token": "client-token"})
 		case "/secrets/kv/app/db":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"data": map[string]any{"password": "new"},
+				"data":     map[string]any{"password": "new"},
 				"metadata": map[string]any{"version": 4},
 			})
 		default:

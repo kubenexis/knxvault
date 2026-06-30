@@ -31,7 +31,7 @@ type loginResponse struct {
 }
 
 type kvReadResponse struct {
-	Data map[string]any `json:"data"`
+	Data     map[string]any `json:"data"`
 	Metadata struct {
 		Version int `json:"version"`
 	} `json:"metadata"`

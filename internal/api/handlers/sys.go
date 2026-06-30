@@ -18,9 +18,9 @@ import (
 
 // SysHandler serves system endpoints.
 type SysHandler struct {
-	auth       *auth.Service
-	pki        *service.PKIService
-	masterKey  []byte
+	auth      *auth.Service
+	pki       *service.PKIService
+	masterKey []byte
 }
 
 // NewSysHandler constructs a SysHandler.

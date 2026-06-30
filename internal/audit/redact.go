@@ -6,21 +6,21 @@ import (
 )
 
 var sensitiveDetailKeys = map[string]struct{}{
-	"password":        {},
-	"passwd":          {},
-	"secret":          {},
-	"token":           {},
-	"api_key":         {},
-	"apikey":          {},
-	"credential":      {},
-	"credentials":     {},
-	"private_key":     {},
-	"access_key":      {},
-	"secret_key":      {},
-	"connection_url":  {},
+	"password":          {},
+	"passwd":            {},
+	"secret":            {},
+	"token":             {},
+	"api_key":           {},
+	"apikey":            {},
+	"credential":        {},
+	"credentials":       {},
+	"private_key":       {},
+	"access_key":        {},
+	"secret_key":        {},
+	"connection_url":    {},
 	"connection_string": {},
-	"database_url":    {},
-	"dsn":             {},
+	"database_url":      {},
+	"dsn":               {},
 }
 
 // SanitizeDetails redacts sensitive keys and credential-like string values before audit persistence.

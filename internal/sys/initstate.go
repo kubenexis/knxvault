@@ -4,9 +4,9 @@ package sys
 import "sync"
 
 var (
-	initMu        sync.Mutex
-	initialized   bool
-	masterKeyFP   string
+	initMu      sync.Mutex
+	initialized bool
+	masterKeyFP string
 )
 
 // MarkInitialized records successful bootstrap.

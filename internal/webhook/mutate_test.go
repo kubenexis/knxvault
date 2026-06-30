@@ -16,9 +16,9 @@ func TestMutatePodAddsCSIVolume(t *testing.T) {
 	pod := corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{
-				"knxvault.io/inject":                   "true",
-				"knxvault.io/secret-provider-class":    "app-db",
-				"knxvault.io/inject-mount-path":        "/mnt/secrets",
+				"knxvault.io/inject":                "true",
+				"knxvault.io/secret-provider-class": "app-db",
+				"knxvault.io/inject-mount-path":     "/mnt/secrets",
 			},
 		},
 		Spec: corev1.PodSpec{
@@ -52,8 +52,8 @@ func TestHandleAdmissionReview(t *testing.T) {
 	}
 	review := admissionv1.AdmissionReview{
 		Request: &admissionv1.AdmissionRequest{
-			UID: "uid-1",
-			Kind: metav1.GroupVersionKind{Kind: "Pod"},
+			UID:    "uid-1",
+			Kind:   metav1.GroupVersionKind{Kind: "Pod"},
 			Object: runtime.RawExtension{Raw: raw},
 		},
 	}

@@ -154,9 +154,9 @@ func hashToken(token string) string {
 
 // K8sLoginOptions configures Kubernetes authentication behavior.
 type K8sLoginOptions struct {
-	RaftEnabled     bool
-	InsecureDev     bool
-	TokenReviewer   k8s.TokenReviewer
+	RaftEnabled   bool
+	InsecureDev   bool
+	TokenReviewer k8s.TokenReviewer
 }
 
 // Service coordinates authentication flows.

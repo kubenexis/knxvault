@@ -11,12 +11,12 @@ var ErrCircuitOpen = errors.New("openssl circuit breaker open")
 
 // Breaker short-circuits OpenSSL calls after consecutive failures.
 type Breaker struct {
-	mu              sync.Mutex
-	failures        int
-	threshold       int
-	cooldown        time.Duration
-	openUntil       time.Time
-	onStateChange   func(open bool)
+	mu            sync.Mutex
+	failures      int
+	threshold     int
+	cooldown      time.Duration
+	openUntil     time.Time
+	onStateChange func(open bool)
 }
 
 // NewBreaker constructs a circuit breaker.

@@ -16,9 +16,9 @@ import (
 
 // Service appends immutable audit entries with hash chaining.
 type Service struct {
-	repo        repository.AuditRepository
-	signingKey  []byte
-	forwardURL  string
+	repo       repository.AuditRepository
+	signingKey []byte
+	forwardURL string
 }
 
 // NewService constructs an audit service.
