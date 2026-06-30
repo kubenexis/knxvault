@@ -1,0 +1,1551 @@
+# KNXVault — Low-Level Design (LLD)
+
+**Section 1: Introduction & Design Goals**
+
+### 1.1 Purpose
+
+KNXVault is a lightweight, production-grade, self-hosted secrets management and Public Key Infrastructure (PKI) system built entirely in Go. It aims to deliver core capabilities comparable to HashiCorp Vault, OpenBao, and Infisical while maintaining a minimal footprint, high performance, and strong Kubernetes-native integration.
+
+The primary purpose is to provide:
+
+- Secure storage and retrieval of secrets (KVv2, dynamic credentials).
+- Full PKI lifecycle management (Root CA, Intermediate CAs, leaf certificates) using **OpenSSL** as the cryptographic backend.
+- A clean REST API-first interface suitable for both human operators and automated clients (CI/CD, service meshes, applications).
+- Native support for Kubernetes environments, including Service Account authentication and secrets injection patterns.
+
+KNXVault emphasizes **simplicity without sacrificing security**, making it ideal for organizations seeking an auditable, transparent, and maintainable alternative to heavier enterprise solutions.
+
+### 1.2 Scope
+
+**In Scope (MVP + Near-term):**
+
+- Secrets engines: KVv2 with versioning, basic dynamic secrets (DB credentials, etc.), and PKI-backed secrets.
+- PKI: Self-signed Root CA, Intermediate CA chaining, leaf certificate issuance (server/client/code-signing), revocation (CRL), renewal, and import/export.
+- Authentication: JWT, Kubernetes Service Account, and Universal Auth (token-based).
+- Authorization: Fine-grained RBAC with policies.
+- Storage: PostgreSQL backend with AES-256-GCM envelope encryption.
+- Deployment: Kubernetes-first (Helm chart, single-replica and HA modes).
+- Cryptographic operations: Strictly via secure OpenSSL CLI wrappers (ephemeral filesystem usage only).
+- Audit logging, health checks, and basic observability.
+- Encryption at rest and in transit (mTLS support).
+
+**Phase 1 Focus**: KV Secrets + Root/Intermediate CA management + Basic Auth + Kubernetes deployment.
+
+### 1.3 Non-Goals
+
+- Full feature parity with HashiCorp Vault (e.g., complex plugins, Raft consensus in core, Terraform Enterprise features).
+- Built-in distributed consensus/storage (rely on PostgreSQL HA or external solutions).
+- Native support for non-Kubernetes environments (though possible via standard Go binaries).
+- Heavy client SDKs initially (REST + OpenAPI first; client libraries later).
+- Advanced HSM integration in MVP (prepared via OpenSSL engine abstraction).
+- GUI (focus on API and CLI; external UIs like Vault UI can be adapted later).
+- Multi-tenancy at the cluster level (namespace/project-level isolation via policies in future phases).
+
+### 1.4 Key Design Principles
+
+| Principle                     | Description                                                  | Implementation Implications                                  |
+| ----------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| **Security-First**            | Zero-trust architecture, least privilege, secret zero where possible. | Envelope encryption, short-lived tokens, immutable audit logs, mTLS everywhere, careful OpenSSL sandboxing. |
+| **Simplicity**                | Minimize moving parts, prefer explicit over implicit, readable code. | Thin service layers, clear domain models, OpenSSL CLI wrappers with strict validation. |
+| **Observability**             | Built-in from day one.                                       | OpenTelemetry tracing, structured logging (Zap), Prometheus metrics, health endpoints. |
+| **Extensibility**             | Easy to add new secret engines or auth methods.              | Interface-driven design (CryptoProvider, SecretEngine, AuthMethod). |
+| **Kubernetes-Native**         | Leverage K8s primitives deeply.                              | ServiceAccount tokens, Lease-based leader election, Helm charts, CSI/secrets injection readiness. |
+| **Performance & Lightweight** | Low resource usage, fast startup.                            | Gin router, connection pooling, minimal dependencies, ephemeral OpenSSL workspaces. |
+| **Auditability & Compliance** | All sensitive operations logged immutably.                   | Append-only audit table with cryptographic signing of entries (future). |
+
+These principles guide every decision in the LLD to ensure KNXVault is secure, maintainable, and suitable for production workloads in regulated environments.
+
+**Versioning & Compatibility**: Go 1.23+, PostgreSQL 15+, OpenSSL 3.x. Backward compatibility for issued certificates and stored secrets will be maintained across minor versions.
+
+---
+
+**End of Section 1: Introduction & Design Goals**
+
+---
+
+**Section 2: System Architecture (Detailed)**
+
+### 2.1 Component Diagram
+
+The following Mermaid diagram expands the HLD conceptual view into a more detailed architectural representation:
+
+```mermaid
+graph TD
+    subgraph External["External Clients & Kubernetes"]
+        Users[Users / CI/CD / Apps]
+        K8s[Kubernetes API Server]
+        Ingress[Ingress + TLS Termination]
+    end
+
+    subgraph KNXVault["KNXVault Application"]
+        direction TB
+        
+        API[REST API Layer - Gin Framework]
+        Middleware[Middleware: AuthN/Z, RateLimit, Logging, Validation]
+        
+        Auth[Auth Service - JWT + K8s SA + mTLS]
+        Secrets[Secrets Engine - KVv2 + Dynamic]
+        PKI[PKI Engine - OpenSSL Wrapper]
+        Audit[Audit Logging Service]
+        
+        Crypto[Crypto Service - AES-256-GCM + Master Key]
+        Repo[Repository Layer - PostgreSQL]
+        
+        OpenSSL[OpenSSL CLI Wrapper\n(ephemeral secure workspace)]
+    end
+
+    subgraph Data["Persistent Storage"]
+        DB[(PostgreSQL\n- Secrets + Metadata\n- CA State\n- Audit Log)]
+        K8sSecrets[Kubernetes Secrets\n(Master Key / Config)]
+    end
+
+    subgraph Observability["Observability"]
+        OTEL[OpenTelemetry Collector]
+        Prometheus[Prometheus Metrics]
+        Loki[Loki Logs]
+    end
+
+    Users --> Ingress
+    Ingress --> API
+    K8s --> Auth
+    
+    API --> Middleware
+    Middleware --> Auth
+    API --> Secrets
+    API --> PKI
+    API --> Audit
+    
+    Secrets --> Crypto
+    PKI --> Crypto
+    Secrets --> Repo
+    PKI --> Repo
+    Audit --> Repo
+    
+    Secrets --> OpenSSL
+    PKI --> OpenSSL
+    
+    Repo --> DB
+    Crypto --> K8sSecrets
+    
+    API -.-> OTEL
+    Secrets -.-> OTEL
+    PKI -.-> OTEL
+```
+
+### 2.2 Layered Architecture
+
+KNXVault follows a clean, hexagonal-inspired layered architecture to maximize testability and extensibility:
+
+1. **API Layer** (`internal/api/`)
+   - Gin HTTP handlers, routing, request/response DTOs.
+   - Middleware for authentication, authorization, rate limiting, request ID, and panic recovery.
+
+2. **Service Layer** (`internal/service/`)
+   - Orchestrates business logic.
+   - PKI Service, Secrets Service, Auth Service, Audit Service.
+   - Coordinates between engines, crypto, and repositories.
+
+3. **Engine Layer** (`internal/engine/`)
+   - Domain-specific engines: `pki.Engine`, `secrets.KVV2Engine`, future dynamic engines.
+   - Implements core use cases (issue cert, read/write secret).
+
+4. **Crypto Layer** (`internal/crypto/`)
+   - Master key management (from K8s Secret or external KMS).
+   - Envelope encryption (DEK per secret/CA key).
+   - OpenSSL command wrapper with sandboxing.
+
+5. **Repository Layer** (`internal/repository/`)
+   - PostgreSQL access via `pgx` or GORM (with raw SQL for performance-critical paths).
+   - Repository pattern with interfaces for easy mocking/testing.
+
+6. **Domain Models** (`internal/domain/`)
+   - Pure business entities (CA, Certificate, Secret, Policy, etc.) with validation.
+
+7. **Infrastructure/Adapters** (`internal/infra/`)
+   - OpenSSL executor, Kubernetes client, observability setup.
+
+**Cross-cutting Concerns**:
+
+- Configuration (Viper + K8s ConfigMap).
+- Logging (Zap).
+- Tracing (OpenTelemetry).
+- Error handling (custom `errors.KNXVaultError` with codes).
+
+### 2.3 Data Flow for Major Operations
+
+#### 2.3.1 Create Root CA
+
+1. Client → `POST /pki/root` (with JSON payload: name, commonName, ttl, etc.).
+2. API Layer validates request + authenticates/authorizes caller.
+3. PKI Service receives request.
+4. Crypto Service generates or loads application master key.
+5. PKI Engine calls OpenSSL Wrapper:
+   - Creates secure temporary directory.
+   - Executes `openssl req -x509 -newkey rsa:4096 ...` to generate Root CA.
+6. Private key is encrypted with per-CA DEK (AES-256-GCM) using master key.
+7. Repository persists:
+   - CA metadata + public cert (plaintext).
+   - Encrypted private key + DEK (in separate column/table).
+8. Audit Service logs immutable entry.
+9. Response returns CA details (ID, cert PEM, serial).
+
+#### 2.3.2 Issue Leaf Certificate
+
+1. Client → `POST /pki/issue` (role, commonName, sans, ttl).
+2. Authorization check against role-based policies.
+3. PKI Service loads parent CA (Root or Intermediate).
+4. PKI Engine:
+   - Generates CSR via OpenSSL.
+   - Signs with parent CA private key (decrypted in-memory only, securely wiped).
+5. Resulting certificate + private key encrypted and stored via Repository.
+6. Audit log created.
+7. Return signed certificate bundle.
+
+#### 2.3.3 Store / Retrieve Secret (KVv2)
+
+1. `POST /secrets/kv/{path}` → Secrets Service.
+2. Generate unique DEK → encrypt secret value (AES-256-GCM).
+3. Store versioned record: path, version, encrypted data, metadata.
+4. On read: load encrypted record → decrypt with DEK (derived from master key) → return.
+5. Versioning: new writes create incremented version; old versions retained based on policy.
+6. TTL/Lease: background job (or DB trigger + cron) handles expiration.
+
+**Security Notes on Flows**:
+
+- Private keys never persisted unencrypted.
+- OpenSSL operations run in isolated temporary directories with strict permissions.
+- Memory wiping (`runtime.KeepAlive`, manual zeroing) for sensitive buffers.
+- All database writes go through transaction boundaries where appropriate.
+
+---
+
+**End of Section 2: System Architecture (Detailed)**
+
+---
+
+**Section 3: Project Structure (Golang)**
+
+### 3.1 Recommended Project Layout
+
+KNXVault follows a **standard, scalable Go project structure** inspired by Domain-Driven Design (DDD) principles, clean architecture, and common practices from large-scale Kubernetes-native Go projects (e.g., similar to Crossplane, Argo, and Operator SDK patterns).
+
+```bash
+knxvault/
+├── cmd/
+│   └── knxvault/                  # Application entrypoints
+│       └── main.go
+├── internal/                     # Private application code (never imported by external packages)
+│   ├── api/                      # HTTP layer
+│   │   ├── handlers/
+│   │   ├── middleware/
+│   │   ├── dto/                  # Request/Response models
+│   │   └── router.go
+│   ├── domain/                   # Core business entities & value objects
+│   │   ├── pki/
+│   │   ├── secrets/
+│   │   ├── auth/
+│   │   └── common/
+│   ├── engine/                   # Business engines (use cases)
+│   │   ├── pki/
+│   │   ├── secrets/
+│   │   └── interfaces.go
+│   ├── service/                  # Orchestration services
+│   ├── repository/               # Data access layer
+│   │   ├── postgres/
+│   │   └── interfaces.go
+│   ├── crypto/                   # Cryptography & OpenSSL wrappers
+│   │   ├── envelope.go
+│   │   ├── openssl/
+│   │   └── masterkey/
+│   ├── auth/                     # Authentication & RBAC
+│   ├── audit/
+│   ├── config/                   # Configuration structs & loading
+│   ├── infra/                    # Infrastructure adapters (K8s, observability, etc.)
+│   └── utils/                    # Shared utilities (validation, retry, etc.)
+├── pkg/                          # Public packages (if needed for clients/libraries)
+│   └── client/                   # Future Go client SDK
+├── api/                          # OpenAPI specification (openapi.yaml)
+├── deployments/
+│   └── helm/                     # Helm chart (detailed in later section)
+├── scripts/                      # Build, migration, dev scripts
+├── migrations/                   # Database migrations (golang-migrate or goose)
+├── test/                         # Integration/e2e tests
+│   ├── integration/
+│   └── e2e/
+├── docs/                         # Architecture decision records (ADRs), LLD
+├── go.mod
+├── go.sum
+├── Dockerfile
+├── Makefile
+└── README.md
+```
+
+### 3.2 Explanation of Major Directories
+
+- **`cmd/knxvault/`**: Contains the `main()` function and command setup (Cobra for CLI if extended). Initializes config, DI (wire or manual), and starts the HTTP server.
+
+- **`internal/api/`**: All HTTP concerns. Handlers are thin (delegate to services). DTOs are separate from domain models for API evolution flexibility.
+
+- **`internal/domain/`**: Pure business logic entities. No dependencies on frameworks or infrastructure. Examples:
+  - `CA`, `Certificate`, `SecretVersion`, `Policy`.
+
+- **`internal/engine/`**: Implements core domain use cases. Follows the "Engine" concept from Vault for extensibility (e.g., new secret engines can be registered via interface).
+
+- **`internal/service/`**: Higher-level orchestration. Handles transactions, audit calls, validation across engines.
+
+- **`internal/crypto/openssl/`**: Critical security component. Contains safe wrappers for `os/exec.Command` with context timeout, input validation, and secure temp dir management.
+
+- **`internal/repository/`**: Abstracts persistence. Uses PostgreSQL with prepared statements or ORM where appropriate. Interfaces allow swapping to BadgerDB for lightweight mode.
+
+- **`internal/config/`**: Strongly-typed config with validation (using `validator.v10`). Supports env vars, ConfigMaps, and secrets.
+
+- **`internal/infra/`**: Kubernetes client (`client-go`), OpenTelemetry setup, Redis (optional).
+
+- **`migrations/`**: Versioned SQL files for schema evolution.
+
+- **`deployments/helm/`**: Complete Helm chart for Kubernetes deployment.
+
+### 3.3 Domain-Driven Design Considerations
+
+- **Bounded Contexts**: Clear separation between `pki`, `secrets`, and `auth`.
+- **Aggregates**: `CA` is an aggregate root containing its chain and issued certificates. `Secret` is versioned.
+- **Repositories**: One per aggregate root.
+- **Value Objects**: `PEMBlock`, `DN`, `TTL`, `SerialNumber`.
+- **Immutability**: Certificate and older secret versions are immutable after creation.
+- **Anti-Corruption Layer**: Between API DTOs and Domain models.
+
+This structure supports:
+
+- High testability (easy mocking of interfaces).
+- Independent evolution of layers.
+- Future addition of gRPC, new engines, or CLI without major refactoring.
+
+### 3.4 Key Go Practices Applied
+
+- **Dependency Injection**: Manual or `google/wire` for production wiring.
+- **Error Handling**: Custom typed errors with context and codes.
+- **Concurrency Safety**: Context propagation everywhere; mutexes only where necessary.
+- **Module Boundaries**: Strict `internal/` to prevent leakage.
+- **Testing**: Unit (table-driven), integration (testcontainers for Postgres + OpenSSL), e2e.
+
+---
+
+**End of Section 3: Project Structure (Golang)**
+
+---
+
+**Section 4: Core Modules - Low Level Design**
+
+### 4.A PKI / Certificate Management Module
+
+#### 4.A.1 OpenSSL Wrapper Design
+
+All cryptographic operations are performed via a secure, audited wrapper around the OpenSSL CLI to avoid heavy dependencies and maintain transparency.
+
+**Key File**: `internal/crypto/openssl/wrapper.go`
+
+```go
+type OpenSSLWrapper struct {
+    execTimeout time.Duration
+    workDirBase string // /tmp/knxvault-openssl-*
+}
+
+type ExecResult struct {
+    Stdout, Stderr string
+    ExitCode       int
+}
+
+// SafeExec runs openssl with strict controls
+func (w *OpenSSLWrapper) SafeExec(ctx context.Context, args []string, stdin io.Reader) (*ExecResult, error) {
+    // 1. Create isolated temp dir with 0700 perms
+    tmpDir, err := w.createSecureTempDir()
+    if err != nil { return nil, err }
+    defer os.RemoveAll(tmpDir)
+
+    cmd := exec.CommandContext(ctx, "openssl", args...)
+    cmd.Dir = tmpDir
+    // ... (env sanitization, no shell, uid/gid drop if possible)
+
+    // 2. Execute with timeout
+    // 3. Parse output, validate PEM, sanitize errors
+    return w.runAndCapture(cmd, stdin)
+}
+```
+
+**Security Controls**:
+
+- Random per-operation temporary directories.
+- Strict argument allow-listing per operation (e.g., no arbitrary `-config` pointing outside).
+- Context cancellation support.
+- Output validation (PEM parsing via `crypto/x509` stdlib as sanity check).
+- Logging of all commands (sanitized).
+
+#### 4.A.2 CA Hierarchy State Management
+
+```go
+type CA struct {
+    ID            uuid.UUID
+    ParentID      *uuid.UUID
+    Name          string
+    Type          CAType // Root | Intermediate
+    Subject       DistinguishedName
+    Serial        string
+    CertPEM       string
+    PrivateKeyEnc []byte // AES-encrypted
+    DEK           []byte // Encrypted Data Encryption Key
+    Status        CAStatus
+    CreatedAt     time.Time
+    ExpiresAt     time.Time
+    CRLNextUpdate time.Time
+}
+
+type DistinguishedName struct {
+    CommonName         string
+    Organization       string
+    OrganizationalUnit string
+    Country            string
+    // ... other fields
+}
+```
+
+**Hierarchy Rules**:
+
+- Root CAs have `ParentID = nil`.
+- Intermediate CAs reference a parent.
+- Chain validation performed on load.
+
+#### 4.A.3 Certificate Lifecycle
+
+- **Issue**: Generate CSR → Sign with parent → Store.
+- **Renew**: Re-issue with same subject (new serial).
+- **Revoke**: Add to CRL, update revocation list in DB.
+- **CRL Generation**: Periodic job via OpenSSL (`openssl ca -gencrl`).
+
+#### 4.A.4 Key Storage & Encryption Strategy
+
+- Private keys stored **only** in encrypted form.
+- Envelope encryption: Master Key (K8s Secret) → DEK (random per CA/key) → AES-256-GCM.
+- In-memory decryption only during signing/issuance, followed by `memset` zeroing.
+
+### 4.B Secrets Management Module
+
+#### 4.B.1 KVv2 Engine Design
+
+```go
+type SecretVersion struct {
+    ID          uuid.UUID
+    Path        string `gorm:"index:idx_path_version"`
+    Version     int
+    Data        []byte // Encrypted JSON
+    DEK         []byte // Encrypted
+    LeaseID     *string
+    TTL         *time.Duration
+    CreatedAt   time.Time
+    ExpiresAt   *time.Time
+    Destroyed   bool
+}
+
+type KVV2Engine struct {
+    repo   repository.SecretRepository
+    crypto *crypto.Service
+}
+```
+
+**Operations**:
+
+- `Put(path, data)`: Creates new version.
+- `Get(path, version)`: Returns latest or specific version.
+- Version retention policy (configurable, default 10 versions).
+
+#### 4.B.2 Versioning, Leasing, TTL
+
+- Leasing: Background worker cleans expired leases.
+- TTL: Soft expiration via `ExpiresAt`; hard enforcement on read.
+
+#### 4.B.3 Encryption
+
+Same envelope strategy as PKI. Data is JSON-marshaled before encryption.
+
+#### 4.B.4 Secret Engines Extensibility
+
+```go
+type SecretEngine interface {
+    Name() string
+    Put(ctx context.Context, path string, data map[string]any) error
+    Get(ctx context.Context, path string) (map[string]any, error)
+    // ...
+}
+
+type EngineRegistry struct {
+    engines map[string]SecretEngine
+}
+```
+
+### 4.C Authentication & Authorization
+
+#### 4.C.1 Supported Auth Methods
+
+- **JWT**: Standard OIDC-compatible.
+- **Kubernetes**: Validate ServiceAccount token via `TokenReview` API.
+- **Universal/Auth Token**: Long-lived tokens with policies.
+
+#### 4.C.2 RBAC Model
+
+```go
+type Policy struct {
+    ID          uuid.UUID
+    Name        string
+    Effect      Effect // Allow | Deny
+    Resources   []string // e.g. "pki/*", "secrets/data/*"
+    Actions     []string // read, write, issue, revoke
+    Conditions  map[string]any
+}
+
+type Role struct {
+    Name     string
+    Policies []Policy
+}
+```
+
+Authorization uses a simple but powerful policy engine evaluated per request.
+
+### 4.D Storage Layer
+
+#### 4.D.1 PostgreSQL Schema Design (Key Tables)
+
+```sql
+CREATE TABLE cas (
+    id UUID PRIMARY KEY,
+    parent_id UUID REFERENCES cas(id),
+    name TEXT UNIQUE NOT NULL,
+    type TEXT NOT NULL,
+    cert_pem TEXT NOT NULL,
+    privkey_enc BYTEA NOT NULL,
+    dek_enc BYTEA NOT NULL,
+    expires_at TIMESTAMPTZ
+);
+
+CREATE TABLE secret_versions (
+    id UUID PRIMARY KEY,
+    path TEXT NOT NULL,
+    version INT NOT NULL,
+    data_enc BYTEA NOT NULL,
+    dek_enc BYTEA NOT NULL,
+    expires_at TIMESTAMPTZ,
+    UNIQUE(path, version)
+);
+
+CREATE TABLE audit_logs (
+    id BIGSERIAL PRIMARY KEY,
+    timestamp TIMESTAMPTZ DEFAULT NOW(),
+    actor TEXT,
+    action TEXT,
+    resource TEXT,
+    status TEXT,
+    details JSONB,
+    hash TEXT -- For integrity
+);
+
+CREATE INDEX idx_secret_path ON secret_versions(path);
+```
+
+#### 4.D.2 Encryption at Rest Strategy
+
+- Column-level encryption for sensitive fields.
+- Application-level (not pgcrypto) to support future DB swaps.
+
+#### 4.D.3 Repository Pattern
+
+```go
+type SecretRepository interface {
+    SaveVersion(ctx context.Context, sv *domain.SecretVersion) error
+    GetLatest(ctx context.Context, path string) (*domain.SecretVersion, error)
+    ListByPath(ctx context.Context, pathPrefix string) ([]*domain.SecretVersion, error)
+}
+```
+
+**Implementation**: Uses `pgxpool` with prepared statements and transaction support.
+
+---
+
+**End of Section 4: Core Modules - Low Level Design**
+
+---
+
+**Section 5: API Layer**
+
+### 5.1 OpenAPI/Swagger Structure Overview
+
+KNXVault uses an **OpenAPI 3.1** specification as the single source of truth for the API contract.
+
+- **Location**: `api/openapi.yaml` (or split into multiple files).
+- **Code Generation**: Optional use of `oapi-codegen` or `openapi-generator` to generate server stubs and client models (Go).
+- **Documentation**: Served at `/swagger/index.html` via `gin-swagger` or `echo-swagger`.
+
+**Key Tags**:
+
+- `auth`
+- `pki`
+- `secrets`
+- `sys` (health, capabilities, config)
+
+### 5.2 Request/Response Models for Critical Endpoints
+
+#### 5.2.1 Authentication
+
+```go
+// POST /auth/kubernetes
+type K8sLoginRequest struct {
+    Role        string `json:"role" binding:"required"`
+    JWT         string `json:"jwt" binding:"required"` // ServiceAccount token
+}
+
+type LoginResponse struct {
+    ClientToken string    `json:"client_token"`
+    TTL         int       `json:"ttl"`
+    Policies    []string  `json:"policies"`
+    Renewable   bool      `json:"renewable"`
+}
+```
+
+#### 5.2.2 PKI Endpoints
+
+**POST /pki/root**
+
+```go
+type CreateRootCARequest struct {
+    Name       string `json:"name" binding:"required"`
+    CommonName string `json:"common_name" binding:"required"`
+    TTL        string `json:"ttl" binding:"required"` // e.g. "8760h"
+    KeyType    string `json:"key_type" binding:"oneof=rsa ecdsa"`
+    KeyBits    int    `json:"key_bits"`
+}
+
+type CAResponse struct {
+    ID         string `json:"id"`
+    CertPEM    string `json:"cert_pem"`
+    Serial     string `json:"serial"`
+    ExpiresAt  string `json:"expires_at"`
+}
+```
+
+**POST /pki/issue**
+
+```go
+type IssueCertRequest struct {
+    Role        string   `json:"role" binding:"required"`
+    CommonName  string   `json:"common_name" binding:"required"`
+    DNSNames    []string `json:"dns_names"`
+    IPAddresses []string `json:"ip_addresses"`
+    TTL         string   `json:"ttl"`
+}
+
+type IssueCertResponse struct {
+    CertPEM       string `json:"cert_pem"`
+    PrivateKeyPEM string `json:"private_key_pem"` // Only if requested
+    Serial        string `json:"serial"`
+    ExpiresAt     string `json:"expires_at"`
+}
+```
+
+#### 5.2.3 Secrets Endpoints (KVv2)
+
+```go
+// POST /secrets/kv/{path}
+type KVWriteRequest struct {
+    Data map[string]any `json:"data" binding:"required"`
+    Options struct {
+        CasVersion *int `json:"cas_version,omitempty"`
+    } `json:"options,omitempty"`
+}
+
+// GET /secrets/kv/{path}
+type KVReadResponse struct {
+    Data     map[string]any `json:"data"`
+    Metadata struct {
+        Version   int       `json:"version"`
+        CreatedAt time.Time `json:"created_at"`
+        TTL       string    `json:"ttl,omitempty"`
+    } `json:"metadata"`
+}
+```
+
+#### 5.2.4 System Endpoints
+
+- `GET /health` → `{ "status": "healthy", "version": "1.0.0" }`
+- `GET /sys/capabilities` → Returns allowed actions for current token.
+
+### 5.3 Error Handling & Validation Strategy
+
+```go
+type ErrorResponse struct {
+    ErrorCode    string `json:"error_code"`
+    Message      string `json:"message"`
+    Details      any    `json:"details,omitempty"`
+    RequestID    string `json:"request_id"`
+    Timestamp    time.Time `json:"timestamp"`
+}
+
+// Custom Gin middleware
+func ErrorHandler() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        c.Next()
+        if len(c.Errors) > 0 {
+            // Map to standardized error
+            c.JSON(http.StatusBadRequest, buildErrorResponse(c.Errors))
+        }
+    }
+}
+```
+
+- **Validation**: `github.com/go-playground/validator/v10` with custom tags.
+- **Error Codes**: `ERR_INVALID_INPUT`, `ERR_UNAUTHORIZED`, `ERR_PKI_ISSUANCE_FAILED`, etc.
+- **Request ID**: Propagated via context and headers (`X-Request-ID`).
+
+### 5.4 Rate Limiting & Security Middleware
+
+- **Rate Limiter**: Token bucket per IP/token using `golang.org/x/time/rate` or Redis-backed for HA.
+- **Security Middlewares** (in order):
+  1. CORS (strict).
+  2. Request ID + Logging.
+  3. Rate Limiting.
+  4. Authentication.
+  5. Authorization (policy evaluation).
+  6. Validation.
+  7. Panic Recovery.
+
+**mTLS Support**:
+
+- Optional client certificate validation middleware.
+- Configurable via `tls.Config` in Gin server setup.
+
+**Additional Protections**:
+
+- Helmet-like headers (via middleware).
+- Body size limits.
+- SQL injection prevention (via parameterized queries in repo layer).
+
+---
+
+**End of Section 5: API Layer**
+
+---
+
+**Section 6: Kubernetes Deployment Design**
+
+### 6.1 Helm Chart Structure
+
+KNXVault ships with a comprehensive Helm chart for easy installation and management.
+
+**Directory Layout** (`deployments/helm/knxvault/`):
+
+```bash
+Chart.yaml
+values.yaml
+values-ha.yaml
+templates/
+├── deployment.yaml
+├── statefulset-db.yaml          # Optional embedded DB
+├── service.yaml
+├── ingress.yaml
+├── configmap.yaml
+├── secret.yaml                  # Master key, TLS certs
+├── serviceaccount.yaml
+├── role.yaml                    # RBAC for K8s auth
+├── rolebinding.yaml
+├── pvc.yaml                     # For ephemeral OpenSSL workspaces if needed
+├── hpa.yaml
+├── tests/                       # Helm test hooks
+└── _helpers.tpl
+```
+
+### 6.2 Core Kubernetes Manifests
+
+#### Deployment / StatefulSet
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: knxvault
+spec:
+  replicas: 1 # or 3+ in HA
+  selector:
+    matchLabels:
+      app: knxvault
+  template:
+    spec:
+      serviceAccountName: knxvault
+      containers:
+      - name: knxvault
+        image: "knxvault:latest"
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8200
+        env:
+        - name: KNXVAULT_DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: knxvault-config
+              key: db_host
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "2"
+            memory: "2Gi"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8200
+          initialDelaySeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8200
+          initialDelaySeconds: 30
+```
+
+#### High Availability Strategy
+
+- **Multiple replicas** with leader election using Kubernetes `Lease` resource (via `coordination.k8s.io`).
+- Leader handles background jobs (CRL generation, lease cleanup, etc.).
+- PostgreSQL: External HA (CrunchyData/Zalando operator) or managed service recommended.
+- Shared storage for ephemeral OpenSSL workspaces via emptyDir (per-pod) or ReadWriteMany PVC.
+
+### 6.3 ConfigMap & Secret Resources
+
+- **ConfigMap**: Non-sensitive configuration (ports, log level, feature flags).
+- **Secret**: Master encryption key (sealed or generated at install), TLS certificates for mTLS.
+
+### 6.4 Secrets Injection Patterns
+
+1. **Sidecar Agent** (recommended for MVP): KNXVault sidecar that injects secrets as files/env into application pods.
+2. **Init Container**: One-time secret fetch at pod startup.
+3. **CSI Driver** (Phase 2+): Native volume mount using Secrets Store CSI Driver.
+4. **Mutating Webhook** (future): Automatic annotation-based injection.
+
+### 6.5 Resource Limits, Probes & Best Practices
+
+- **Resource Requests/Limits**: Conservative for lightweight nature; tunable via Helm values.
+- **Probes**: Readiness (API health), Liveness (deeper check), Startup (for slow DB init).
+- **Pod Security**: Run as non-root, read-only filesystem where possible, seccomp/AppArmor profiles.
+- **NetworkPolicy**: Egress/ingress restrictions.
+- **Pod Disruption Budgets**: For HA deployments.
+- **Horizontal Pod Autoscaler**: Based on CPU + custom metrics (requests/sec).
+
+### 6.6 Installation & Upgrade
+
+```bash
+helm install knxvault ./deployments/helm/knxvault \
+  --set persistence.enabled=true \
+  --set replicaCount=3
+```
+
+**Upgrade Strategy**: RollingUpdate with maxUnavailable=0 for zero-downtime when possible.
+
+---
+
+**End of Section 6: Kubernetes Deployment Design**
+
+---
+
+**Section 7: Security & Compliance**
+
+### 7.1 Threat Model Highlights
+
+**Key Assets**:
+
+- Master encryption key
+- CA private keys
+- Application secrets
+- Authentication tokens
+
+**Threats Considered** (STRIDE-based):
+
+- **Spoofing**: Strong auth (mTLS + JWT + K8s TokenReview).
+- **Tampering**: Immutable audit logs, envelope encryption, integrity checks.
+- **Repudiation**: Comprehensive audit logging with actor, timestamp, and cryptographic hash.
+- **Information Disclosure**: Encryption at rest + transit, memory wiping, minimal logging of secrets.
+- **Denial of Service**: Rate limiting, resource quotas, circuit breakers.
+- **Elevation of Privilege**: Strict RBAC, least-privilege ServiceAccount, input validation.
+
+**Attack Surfaces**:
+
+- OpenSSL CLI execution (mitigated by sandboxing).
+- Database access (network policies + TLS).
+- API endpoints (auth middleware chain).
+
+### 7.2 Key Rotation & Management
+
+- **Master Key Rotation**: Supported via `/sys/rotate` endpoint. Old keys kept for decryption during transition.
+- **CA Key Rotation**: New Root/Intermediate creation + re-issuance workflow.
+- **Certificate Renewal**: Automated via TTL-based jobs with grace periods.
+- **DEK Rotation**: Per-secret rotation on update (optional policy).
+
+### 7.3 Audit Logging
+
+```go
+type AuditEvent struct {
+    ID        uuid.UUID
+    Timestamp time.Time
+    Actor     string
+    Action    string
+    Resource  string
+    Status    string
+    RemoteIP  string
+    RequestID string
+    Details   JSONB
+    Signature string // HMAC or future digital signature
+}
+```
+
+- **Immutability**: Append-only table with row-level security.
+- **Export**: Support for streaming to SIEM (future Loki integration).
+- **Sensitive Data Redaction**: Automatic masking of secrets in logs.
+
+### 7.4 mTLS & Encryption in Transit
+
+- All internal and external communication supports (and can enforce) mTLS.
+- Configurable CA for client cert validation.
+- Automatic TLS certificate issuance via KNXVault's own PKI (bootstrapping).
+
+### 7.5 Secret Zero Approach
+
+- Master key bootstrapped from Kubernetes Secret (sealed with age/sealed-secrets recommended) or external KMS.
+- No hardcoded credentials.
+- Runtime key unwrapping only in memory.
+- Pod identity-based authentication wherever possible.
+
+### 7.6 Compliance Features
+
+- **Data Residency**: Self-hosted, full control.
+- **Audit Readiness**: SOC2, ISO 27001-friendly logging and RBAC.
+- **Revocation**: CRL + basic OCSP responder support.
+- **Backup Encryption**: All backups encrypted with master key.
+
+**OpenSSL Security**:
+
+- Always use latest stable OpenSSL 3.x.
+- FIPS mode support via OpenSSL configuration (future).
+- Regular vulnerability scanning of container image.
+
+### 7.7 Additional Hardening
+
+- Dependency vulnerability scanning (Dependabot + Trivy).
+- Static code analysis (gosec, semgrep).
+- Runtime security (Falco rules for anomalous OpenSSL behavior).
+- Least-privilege container (distroless base image recommended).
+
+---
+
+**End of Section 7: Security & Compliance**
+
+---
+
+**Section 8: Observability & Operations**
+
+### 8.1 Logging, Metrics, and Tracing
+
+**Structured Logging** (`internal/infra/logger.go`):
+
+- Library: `go.uber.org/zap` (production JSON output).
+- Levels: Debug (dev), Info/Warn/Error (prod).
+- Fields: `request_id`, `trace_id`, `user_id`, `operation`, `component` (pki|secrets|api).
+- Sensitive data redaction middleware.
+
+**Metrics** (Prometheus):
+
+- Counter: `knxvault_secrets_read_total`, `knxvault_cert_issued_total`, `knxvault_errors_total`.
+- Histogram: Request latency, OpenSSL operation duration.
+- Gauge: Active leases, CA count, DB connection pool stats.
+- Exposed at `/metrics`.
+
+**Distributed Tracing** (OpenTelemetry):
+
+- Automatic instrumentation for HTTP, database calls, and OpenSSL wrapper.
+- Trace context propagation.
+- Key spans: `pki.issue_certificate`, `secrets.kv.read`, `openssl.exec`.
+
+**Integration**:
+
+- Logs → Loki / ELK.
+- Metrics → Prometheus + Grafana dashboards (included in Helm chart).
+- Traces → Jaeger/Tempo.
+
+### 8.2 Health Checks, Readiness, and Liveness
+
+```go
+// GET /health
+type HealthResponse struct {
+    Status    string            `json:"status"` // healthy | degraded | unhealthy
+    Version   string            `json:"version"`
+    Components map[string]Status `json:"components"` // db, pki, crypto, etc.
+}
+
+// GET /ready
+// Checks: DB connectivity, master key availability, leader status (in HA)
+```
+
+- **Liveness**: Basic process health.
+- **Readiness**: Full system readiness (DB, crypto backend).
+- **Startup Probe**: For slow initialization (DB migration, master key load).
+
+### 8.3 Backup & Restore
+
+**Backup Strategy**:
+
+1. **Database**: Use PostgreSQL native tools (`pg_dump`) or operator CRs. Encrypted with master key.
+2. **CA Material**: Export Root/Intermediate public certs + encrypted private keys.
+3. **Configuration**: Helm values + ConfigMaps.
+
+**Restore Process**:
+
+- Restore PostgreSQL.
+- Load master key.
+- Re-validate CA chain integrity.
+- Optional: Rekey operation.
+
+**Helm Hooks**: Pre-upgrade/backup hooks available.
+
+### 8.4 Operational Runbooks (Key Scenarios)
+
+- **Master Key Loss**: Recovery via sealed backup (recommended external KMS integration).
+- **CA Compromise**: Revoke and re-issue hierarchy.
+- **High Load**: Scale replicas + DB resources.
+- **OpenSSL Failures**: Circuit breaker + fallback logging.
+
+**Monitoring Alerts** (Prometheus rules):
+
+- High error rate on PKI operations.
+- Certificate expiry < 30 days.
+- Lease accumulation.
+- DB connection exhaustion.
+
+**Log Retention & Rotation**: Configurable via Helm values.
+
+---
+
+**End of Section 8: Observability & Operations**
+
+---
+
+**Section 9: Implementation Roadmap & Phasing**
+
+### 9.1 Overall Phasing Strategy
+
+KNXVault follows a phased approach aligned with the HLD, prioritizing core value (secrets + PKI) while maintaining security and stability at each stage.
+
+### 9.2 Phase 1: MVP (Core Foundations)
+
+**Duration**: 6–8 weeks  
+**Goal**: Functional, secure, deployable system for basic use cases.
+
+**Features**:
+
+- Full PKI module: Root CA, Intermediate CA, leaf certificate issuance & revocation (CRL).
+- KVv2 Secrets engine with versioning and basic TTL.
+- Authentication: JWT + Kubernetes Service Account.
+- Authorization: Basic RBAC with policies.
+- Storage: PostgreSQL with envelope encryption (AES-256-GCM).
+- API Layer with OpenAPI spec and core endpoints.
+- OpenSSL secure wrapper.
+- Kubernetes Deployment (single replica) via Helm chart.
+- Basic observability (logs, health checks, metrics).
+- Audit logging (append-only).
+
+**Success Criteria**:
+
+- Can issue and manage a full CA hierarchy.
+- Secrets can be written/read with encryption.
+- Secure deployment in Kubernetes.
+- Passes basic security scan (Trivy, gosec).
+
+**Deliverables**:
+
+- Working binary + Docker image.
+- Helm chart.
+- Complete Section 1–8 of this LLD.
+- Automated tests (unit + integration).
+
+### 9.3 Phase 2: Enterprise Readiness
+
+**Duration**: 6–8 weeks  
+**Goal**: Production hardening and expanded capabilities.
+
+**Features**:
+
+- Dynamic Secrets (e.g., database credentials engine).
+- Advanced RBAC with conditions and policy evaluation engine.
+- Full audit log export and integrity protection.
+- HA mode with leader election (Lease).
+- Certificate renewal automation and OCSP basic support.
+- Secrets injection sidecar / CSI readiness.
+- Rate limiting, request signing.
+- Improved observability (tracing, Grafana dashboards).
+- Backup & restore procedures + Helm hooks.
+- CLI tool (`knxvault` binary).
+
+**Success Criteria**:
+
+- Zero-downtime upgrades in HA.
+- Passes external security review.
+- Dynamic secret rotation demonstrated.
+
+### 9.4 Phase 3: Advanced & Ecosystem
+
+**Duration**: 8–12 weeks  
+**Goal**: Full maturity and ecosystem integration.
+
+**Features**:
+
+- Terraform provider.
+- Kubernetes Operator (for CRD-based management of CAs, roles, etc.).
+- HSM support via OpenSSL engine.
+- Advanced dynamic secret engines (AWS, cloud OAuth, etc.).
+- Multi-tenancy / namespace isolation.
+- Performance optimizations and caching layer (Redis).
+- Full mTLS enforcement + client certificate management.
+- Disaster recovery automation.
+- Compliance certifications support (audit packs).
+
+**Success Criteria**:
+
+- Production adoption readiness.
+- Community/contributor-friendly codebase.
+- Comprehensive documentation and examples.
+
+### 9.5 Cross-Cutting Activities (All Phases)
+
+- Security reviews and threat modeling at phase boundaries.
+- Comprehensive automated testing (including chaos testing in later phases).
+- Documentation updates (API, deployment guides, runbooks).
+- Performance benchmarking.
+- Container image hardening and SBOM generation.
+
+### 9.6 Milestones & Release Criteria
+
+- **Alpha**: End of Phase 1 internal use.
+- **Beta**: End of Phase 2 with external early adopters.
+- **GA**: End of Phase 3 with full documentation and support processes.
+
+---
+
+**End of Section 9: Implementation Roadmap & Phasing**
+
+---
+
+**Section 10: Risks, Trade-offs & Future Considerations**
+
+### 10.1 Key Risks & Mitigations
+
+| Risk                                        | Likelihood | Impact   | Mitigation                                                   |
+| ------------------------------------------- | ---------- | -------- | ------------------------------------------------------------ |
+| **OpenSSL CLI dependency & sandbox escape** | Medium     | High     | Strict argument validation, isolated temp dirs (0700), non-root execution, regular fuzz testing of wrapper. |
+| **Master Key compromise**                   | Low        | Critical | Envelope encryption, short master key exposure window, rotation procedure, K8s Secret + sealing recommended. |
+| **Performance overhead of OpenSSL exec**    | Medium     | Medium   | Connection pooling for DB, in-memory caching of public CA material, future native `crypto` fallback for high-volume paths. |
+| **Database as single point of failure**     | High       | High     | External HA Postgres (operator), regular encrypted backups, future BadgerDB lightweight mode. |
+| **Certificate chain validation complexity** | Medium     | Medium   | Rigorous domain model + automated test suite for hierarchy operations. |
+| **Compliance gaps vs. enterprise Vault**    | Low        | Medium   | Clear documentation of supported features; focus on transparency and auditability. |
+
+### 10.2 Design Trade-offs
+
+- **OpenSSL CLI vs. Native Libraries**:  
+  **Trade-off**: Higher operational simplicity and auditability vs. slight performance overhead.  
+  **Rationale**: Meets the HLD constraint and reduces cryptographic implementation risk.
+
+- **PostgreSQL vs. Embedded Storage**:  
+  **Trade-off**: Operational complexity of external DB vs. simplicity of embedded (BadgerDB).  
+  **Decision**: PostgreSQL for production (JSONB flexibility + ACID), with embedded option as future lightweight mode.
+
+- **Gin Framework**: Lightweight and fast, but less "batteries-included" than heavier frameworks.  
+  **Mitigation**: Comprehensive custom middleware layer.
+
+- **No Built-in Raft Consensus**: Relies on Kubernetes + Postgres HA. Acceptable for most self-hosted use cases.
+
+### 10.3 Future Considerations & Extensibility
+
+- **Plugin System**: Interface-based engines allow community-contributed secret engines (similar to Vault).
+- **HSM / OpenSSL Engine**: Abstract `CryptoProvider` interface to support PKCS#11.
+- **gRPC Support**: Side-by-side with REST for internal service mesh use.
+- **Web UI**: Optional React/Vue admin interface (separate repo).
+- **Policy as Code**: Integration with OPA/Gatekeeper for advanced authorization.
+- **Multi-Region / Federation**: Future CA hierarchy spanning clusters.
+- **Observability Enhancements**: OpenTelemetry auto-instrumentation + SLO monitoring.
+- **WASM / Edge**: Lightweight variant for edge computing.
+
+### 10.4 Architectural Decision Records (ADRs)
+
+Future ADRs should cover:
+
+- Choice of OpenSSL wrapper approach.
+- Envelope encryption design.
+- Leader election mechanism.
+- Secret versioning strategy.
+
+---
+
+**End of Section 10: Risks, Trade-offs & Future Considerations**
+
+---
+
+**Section 11: Administration CLI for Day-2 Operations**
+
+### 11.1 Purpose and Scope
+
+KNXVault includes a native **Command-Line Interface (CLI)** tool named `knxvault` to support Day-2 operations, administrative tasks, and automation. The CLI serves as a first-class citizen alongside the REST API, enabling operators to perform secure, scriptable interactions without relying solely on HTTP calls.
+
+**Key Goals**:
+
+- Simplify common administrative workflows.
+- Provide secure local and remote operations.
+- Support CI/CD pipelines and GitOps-style management.
+- Maintain the same security model (authentication, encryption, audit logging) as the API.
+
+### 11.2 CLI Architecture & Technology
+
+- **Framework**: `github.com/spf13/cobra` (widely used, powerful, supports subcommands, flags, and completion).
+- **Configuration**: Viper for config file (`~/.knxvault/config.yaml`), environment variables, and flag precedence.
+- **Authentication**: Supports token-based (JWT), Kubernetes Service Account (via mounted token), and mTLS client certificates.
+- **Output Formats**: Human-readable (table/JSON/YAML), machine-friendly (JSON by default for scripting).
+- **Security**: All sensitive operations go through the same backend services; no local crypto bypass.
+
+**Project Location**: `cmd/knxvault-cli/` (separate binary from the server).
+
+### 11.3 CLI Command Structure
+
+```bash
+knxvault [global flags] <command> <subcommand> [flags]
+```
+
+#### Global Flags
+
+- `--address` / `-a`: Server address (default: `https://localhost:8200`)
+- `--token`: Authentication token
+- `--kube`: Use Kubernetes Service Account auth
+- `--ca-cert`: mTLS CA certificate
+- `--output` / `-o`: json|yaml|table
+- `--insecure`: Skip TLS verification (dev only)
+
+#### Major Command Groups
+
+**1. PKI Commands**
+
+```bash
+knxvault pki root create --name prod-root --common-name "KNXVault Root" --ttl 10y
+knxvault pki intermediate create --parent prod-root --name intermediate-1
+knxvault pki issue --role web-server --common-name app.example.com --dns app.example.com
+knxvault pki list
+knxvault pki revoke <serial>
+knxvault pki crl generate
+```
+
+**2. Secrets Management**
+
+```bash
+knxvault kv put secret/data/prod/db password=SuperSecret123
+knxvault kv get secret/data/prod/db
+knxvault kv list secret/
+knxvault kv versions secret/data/prod/db
+knxvault kv delete secret/data/prod/db --version 2
+```
+
+**3. Authentication & Access**
+
+```bash
+knxvault auth login kubernetes --role admin
+knxvault auth token create --policy admin --ttl 1h
+knxvault auth policy create --name pki-admin --file policy.hcl
+```
+
+**4. System & Operations**
+
+```bash
+knxvault status
+knxvault health
+knxvault sys rotate-master-key
+knxvault backup create --output knxvault-backup.tar.gz.enc
+knxvault restore --file knxvault-backup.tar.gz.enc
+knxvault audit list
+```
+
+**5. Administrative**
+
+```bash
+knxvault admin init                     # Bootstrap master key + initial root CA
+knxvault admin rekey
+knxvault admin seal / unseal            # Future soft seal capability
+```
+
+### 11.4 Implementation Highlights
+
+**Core CLI Structure** (`cmd/knxvault-cli/root.go`):
+
+```go
+var rootCmd = &cobra.Command{
+    Use:   "knxvault",
+    Short: "KNXVault CLI - Secure secrets and PKI management",
+    PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+        return initializeClient(cmd) // sets up authenticated HTTP client
+    },
+}
+
+func init() {
+    rootCmd.AddCommand(pkiCmd)
+    rootCmd.AddCommand(kvCmd)
+    rootCmd.AddCommand(authCmd)
+    rootCmd.AddCommand(sysCmd)
+    // ... more
+}
+```
+
+**Client SDK**: A lightweight internal client package (`pkg/client`) used by both CLI and future Go SDK. Reuses the same domain models and DTOs where possible.
+
+### 11.5 Security Considerations for CLI
+
+- Token storage: Secure keyring (OS-native) or file with 0600 permissions.
+- No plain-text secret output by default (use `--show-secrets` flag).
+- Audit trail: All CLI operations are logged server-side with client metadata.
+- Rate limiting and token scoping respected.
+
+### 11.6 Shell Completion & Documentation
+
+- Built-in completion: `knxvault completion bash > /etc/bash_completion.d/knxvault`
+- Man pages and detailed help via Cobra.
+- Example scripts included in repository (`examples/cli/`).
+
+### 11.7 Future CLI Enhancements
+
+- Interactive mode (`knxvault shell`).
+- Local-only mode (for sealed operations).
+- Bulk operations and YAML manifests support.
+- Integration with tools like `jq`, `yq`, and Terraform.
+
+---
+
+**End of Additional Section 11: Administration CLI for Day-2 Operations**
+
+---
+
+**Section 12: Documentation**
+
+### 12.1 Documentation Strategy
+
+KNXVault maintains **comprehensive, version-controlled documentation** in Markdown format as the single source of truth. All documentation lives in the `/docs/` directory of the repository and is published via MkDocs or GitHub Pages.
+
+**Documentation Principles**:
+
+- **Single Source of Truth**: Design decisions, API specs, and examples are kept up-to-date.
+- **Audience Segmentation**: Separate sections for architects, operators, developers, and end-users.
+- **Versioning**: Documentation is tagged per release.
+- **Automation**: API reference generated from OpenAPI spec; CLI reference from Cobra.
+
+---
+
+### 12.2 Documentation Structure (`/docs/`)
+
+#### 12.2.1 Architecture & Design Documents
+
+**1. High-Level Design (HLD)** – `docs/architecture/hld.md`  
+(See original HLD provided in the project brief – maintained as reference.)
+
+**2. Low-Level Design (LLD)** – `docs/architecture/lld.md`  
+(This complete document, including all sections 1–11.)
+
+**3. System Architecture** – `docs/architecture/diagrams.md`
+
+```mermaid
+graph TD
+    subgraph "KNXVault"
+        API --> Auth
+        API --> Secrets
+        API --> PKI
+    end
+```
+
+**4. Data Models** – `docs/architecture/data-models.md`  
+Detailed entity relationships, PostgreSQL schema, and domain structs.
+
+**5. Security Model** – `docs/architecture/security-model.md`
+
+#### 12.2.2 Installation & Configuration Documentation
+
+**Installation Guide** – `docs/installation/install.md`
+
+**Prerequisites**:
+
+- Kubernetes 1.25+
+- PostgreSQL 15+ (or use embedded mode)
+- OpenSSL 3.x
+
+**Quick Start (Helm)**:
+
+```bash
+helm repo add knxvault https://charts.knxvault.dev
+helm install knxvault knxvault/knxvault --namespace knxvault --create-namespace
+```
+
+**Configuration Reference** – `docs/installation/configuration.md`
+
+Key Helm values:
+
+```yaml
+replicaCount: 2
+image:
+  repository: knxvault/knxvault
+  tag: "v1.0.0"
+database:
+  host: postgres.knxvault.svc.cluster.local
+  port: 5432
+crypto:
+  masterKeySecret: knxvault-master-key
+pki:
+  defaultTTL: 8760h
+```
+
+#### 12.2.3 User Documentation
+
+**Getting Started** – `docs/user/getting-started.md`
+
+**Core Concepts**:
+
+- Secrets Engines
+- PKI Hierarchy
+- Authentication Methods
+- Policies & RBAC
+
+**Examples**:
+
+```bash
+# Issue a certificate
+knxvault pki issue --role server --common-name api.example.com
+```
+
+#### 12.2.4 Integration Documentation
+
+**Integration Guide** – `docs/integration/overview.md`
+
+**Supported Integrations**:
+
+- **Kubernetes**: ServiceAccount auth + CSI driver / sidecar injector.
+- **CI/CD**: GitHub Actions, GitLab CI examples.
+- **Terraform**: Provider reference (Phase 3).
+- **Application Libraries**: Go client SDK, generic REST examples.
+
+**Secrets Injection Examples**:
+
+```yaml
+# Sidecar example
+spec:
+  containers:
+  - name: app
+  - name: knxvault-injector
+    image: knxvault/sidecar:latest
+```
+
+#### 12.2.5 Day-2 Operations Guide
+
+**Day-2 Operations** – `docs/operations/day2.md`
+
+**Common Tasks**:
+
+1. **Certificate Renewal**
+
+   ```bash
+   knxvault pki renew <serial> --ttl 90d
+   ```
+
+2. **Key Rotation**
+
+   ```bash
+   knxvault sys rotate-master-key
+   ```
+
+3. **Backup & Restore**
+
+   ```bash
+   knxvault backup create --output backup-$(date +%F).enc
+   knxvault restore --file backup-*.enc
+   ```
+
+4. **Monitoring & Troubleshooting**
+
+   - Log locations
+   - Common error codes
+   - Performance tuning
+
+**Runbooks**:
+
+- CA Compromise Recovery
+- Database Failover
+- Scaling KNXVault
+
+#### 12.2.6 Full Detailed CLI Reference
+
+**CLI Reference** – `docs/cli/reference.md`
+
+**Global Options**:
+
+- `--address`, `--token`, `--output`, etc.
+
+**Command Tree** (excerpt):
+
+- `knxvault pki`
+  - `root create`
+  - `intermediate create`
+  - `issue`
+  - `list`
+  - `revoke`
+  - `crl generate`
+- `knxvault kv`
+  - `put <path> <key=value>`
+  - `get <path>`
+  - `list <prefix>`
+  - `delete <path>`
+- `knxvault auth`
+  - `login kubernetes`
+  - `policy create`
+- `knxvault sys`
+  - `status`
+  - `health`
+  - `rotate-master-key`
+
+**Full help output** available via `knxvault --help` and subcommand help.
+
+#### 12.2.7 Detailed API Reference
+
+**API Reference** – `docs/api/reference.md`
+
+**Base URL**: `https://<host>:8200`
+
+**Auth Endpoints**:
+
+- `POST /auth/kubernetes` – Kubernetes auth
+- `POST /auth/login` – Token login
+
+**PKI Endpoints**:
+
+- `POST /pki/root`
+- `POST /pki/intermediate`
+- `POST /pki/issue`
+- `GET /pki/ca/:id`
+- `POST /pki/revoke/:serial`
+
+**Secrets Endpoints**:
+
+- `POST /secrets/kv/:path`
+- `GET /secrets/kv/:path`
+- `DELETE /secrets/kv/:path`
+
+**Full OpenAPI Specification**: `docs/api/openapi.yaml` (auto-generated and served at `/swagger`).
+
+**Error Codes Reference** – Comprehensive table with codes, messages, and resolution steps.
+
+---
+
+**End of Section 12: Documentation**
+
+---
+
+
