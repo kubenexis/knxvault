@@ -1,0 +1,282 @@
+package config
+
+import (
+	"fmt"
+	"os"
+	"strings"
+	"time"
+
+	"gopkg.in/yaml.v3"
+)
+
+// File is the YAML configuration schema (gopkg.in/yaml.v3).
+type File struct {
+	HTTPAddr        string        `yaml:"http_addr,omitempty"`
+	LogLevel        string        `yaml:"log_level,omitempty"`
+	ShutdownGrace   string        `yaml:"shutdown_grace,omitempty"`
+	OpenSSLBinary   string        `yaml:"openssl_binary,omitempty"`
+	OpenSSLTimeout  string        `yaml:"openssl_timeout,omitempty"`
+	JWTSecret       string        `yaml:"jwt_secret,omitempty"`
+	RootToken       string        `yaml:"root_token,omitempty"`
+	TokenTTL        string        `yaml:"token_ttl,omitempty"`
+	K8sAuthInsecure *bool         `yaml:"k8s_auth_insecure,omitempty"`
+	HA              *HAFile       `yaml:"ha,omitempty"`
+	Jobs            *JobsFile     `yaml:"jobs,omitempty"`
+	Audit           *AuditFile    `yaml:"audit,omitempty"`
+	Security        *SecurityFile `yaml:"security,omitempty"`
+	Tracing         *TracingFile  `yaml:"tracing,omitempty"`
+	Raft            *RaftFile     `yaml:"raft,omitempty"`
+}
+
+// HAFile configures Kubernetes leader election.
+type HAFile struct {
+	Enabled   *bool  `yaml:"enabled,omitempty"`
+	Namespace string `yaml:"namespace,omitempty"`
+	LeaseName string `yaml:"lease_name,omitempty"`
+	Identity  string `yaml:"identity,omitempty"`
+}
+
+// JobsFile configures background job intervals.
+type JobsFile struct {
+	LeaseCleanupInterval string `yaml:"lease_cleanup_interval,omitempty"`
+	CRLRefreshInterval   string `yaml:"crl_refresh_interval,omitempty"`
+	CertRenewInterval    string `yaml:"cert_renew_interval,omitempty"`
+	RenewGrace           string `yaml:"renew_grace,omitempty"`
+}
+
+// AuditFile configures audit export and forwarding.
+type AuditFile struct {
+	SigningKey string `yaml:"signing_key,omitempty"`
+	ForwardURL string `yaml:"forward_url,omitempty"`
+}
+
+// SecurityFile configures rate limiting, signing, and CORS.
+type SecurityFile struct {
+	RateLimitEnabled       *bool    `yaml:"rate_limit_enabled,omitempty"`
+	RateLimitRPM           *int     `yaml:"rate_limit_rpm,omitempty"`
+	RequestSigningKey      string   `yaml:"request_signing_key,omitempty"`
+	RequestSigningRequired *bool    `yaml:"request_signing_required,omitempty"`
+	CORSAllowedOrigins     []string `yaml:"cors_allowed_origins,omitempty"`
+}
+
+// TracingFile configures OpenTelemetry export.
+type TracingFile struct {
+	Enabled      *bool    `yaml:"enabled,omitempty"`
+	OTLPEndpoint string   `yaml:"otlp_endpoint,omitempty"`
+	SampleRatio  *float64 `yaml:"sample_ratio,omitempty"`
+}
+
+// RaftFile configures the Dragonboat storage backend.
+type RaftFile struct {
+	Enabled        *bool   `yaml:"enabled,omitempty"`
+	NodeID         *uint64 `yaml:"node_id,omitempty"`
+	Address        string  `yaml:"address,omitempty"`
+	ListenAddress  string  `yaml:"listen_address,omitempty"`
+	DataDir        string  `yaml:"data_dir,omitempty"`
+	InitialMembers string  `yaml:"initial_members,omitempty"`
+	ElectionRTT    *uint64 `yaml:"election_rtt,omitempty"`
+	HeartbeatRTT   *uint64 `yaml:"heartbeat_rtt,omitempty"`
+	RTTMillisecond *uint64 `yaml:"rtt_millisecond,omitempty"`
+	LeaderWait     string  `yaml:"leader_wait,omitempty"`
+	Join           *bool   `yaml:"join,omitempty"`
+	MTLSCert       string  `yaml:"mtls_cert,omitempty"`
+	MTLSKey        string  `yaml:"mtls_key,omitempty"`
+	MTLSCA         string  `yaml:"mtls_ca,omitempty"`
+}
+
+// LoadFile reads a YAML config file as the base settings, then applies environment overrides.
+func LoadFile(path string) (Config, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return Config{}, fmt.Errorf("read config %s: %w", path, err)
+	}
+	var file File
+	if err := yaml.Unmarshal(data, &file); err != nil {
+		return Config{}, fmt.Errorf("parse config %s: %w", path, err)
+	}
+	cfg, err := applyFile(defaults(), file)
+	if err != nil {
+		return Config{}, err
+	}
+	return overlayEnv(cfg)
+}
+
+func applyFile(cfg Config, file File) (Config, error) {
+	if v := strings.TrimSpace(file.HTTPAddr); v != "" {
+		cfg.HTTPAddr = v
+	}
+	if v := strings.TrimSpace(file.LogLevel); v != "" {
+		cfg.LogLevel = v
+	}
+	if v := strings.TrimSpace(file.ShutdownGrace); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("shutdown_grace: %w", err)
+		}
+		cfg.ShutdownGrace = d
+	}
+	if v := strings.TrimSpace(file.OpenSSLBinary); v != "" {
+		cfg.OpenSSLBinary = v
+	}
+	if v := strings.TrimSpace(file.OpenSSLTimeout); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("openssl_timeout: %w", err)
+		}
+		cfg.OpenSSLTimeout = d
+	}
+	if v := strings.TrimSpace(file.JWTSecret); v != "" {
+		cfg.JWTSecret = v
+	}
+	if v := strings.TrimSpace(file.RootToken); v != "" {
+		cfg.RootToken = v
+	}
+	if v := strings.TrimSpace(file.TokenTTL); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("token_ttl: %w", err)
+		}
+		cfg.TokenTTL = d
+	}
+	if file.K8sAuthInsecure != nil {
+		cfg.K8sAuthInsecure = *file.K8sAuthInsecure
+	}
+	if file.HA != nil {
+		if file.HA.Enabled != nil {
+			cfg.HAEnabled = *file.HA.Enabled
+		}
+		if v := strings.TrimSpace(file.HA.Namespace); v != "" {
+			cfg.HANamespace = v
+		}
+		if v := strings.TrimSpace(file.HA.LeaseName); v != "" {
+			cfg.HALeaseName = v
+		}
+		if v := strings.TrimSpace(file.HA.Identity); v != "" {
+			cfg.HAIdentity = v
+		}
+	}
+	if file.Jobs != nil {
+		if v := strings.TrimSpace(file.Jobs.LeaseCleanupInterval); v != "" {
+			d, err := time.ParseDuration(v)
+			if err != nil {
+				return Config{}, fmt.Errorf("jobs.lease_cleanup_interval: %w", err)
+			}
+			cfg.JobLeaseCleanupInterval = d
+		}
+		if v := strings.TrimSpace(file.Jobs.CRLRefreshInterval); v != "" {
+			d, err := time.ParseDuration(v)
+			if err != nil {
+				return Config{}, fmt.Errorf("jobs.crl_refresh_interval: %w", err)
+			}
+			cfg.JobCRLRefreshInterval = d
+		}
+		if v := strings.TrimSpace(file.Jobs.CertRenewInterval); v != "" {
+			d, err := time.ParseDuration(v)
+			if err != nil {
+				return Config{}, fmt.Errorf("jobs.cert_renew_interval: %w", err)
+			}
+			cfg.JobCertRenewInterval = d
+		}
+		if v := strings.TrimSpace(file.Jobs.RenewGrace); v != "" {
+			d, err := time.ParseDuration(v)
+			if err != nil {
+				return Config{}, fmt.Errorf("jobs.renew_grace: %w", err)
+			}
+			cfg.RenewGrace = d
+		}
+	}
+	if file.Audit != nil {
+		if v := strings.TrimSpace(file.Audit.SigningKey); v != "" {
+			cfg.AuditSigningKey = v
+		}
+		if v := strings.TrimSpace(file.Audit.ForwardURL); v != "" {
+			cfg.AuditForwardURL = v
+		}
+	}
+	if file.Security != nil {
+		if file.Security.RateLimitEnabled != nil {
+			cfg.RateLimitEnabled = *file.Security.RateLimitEnabled
+		}
+		if file.Security.RateLimitRPM != nil {
+			cfg.RateLimitRPM = *file.Security.RateLimitRPM
+		}
+		if v := strings.TrimSpace(file.Security.RequestSigningKey); v != "" {
+			cfg.RequestSigningKey = v
+		}
+		if file.Security.RequestSigningRequired != nil {
+			cfg.RequestSigningRequired = *file.Security.RequestSigningRequired
+		}
+		if len(file.Security.CORSAllowedOrigins) > 0 {
+			cfg.CORSAllowedOrigins = append([]string(nil), file.Security.CORSAllowedOrigins...)
+		}
+	}
+	if file.Tracing != nil {
+		if file.Tracing.Enabled != nil {
+			cfg.TracingEnabled = *file.Tracing.Enabled
+		}
+		if v := strings.TrimSpace(file.Tracing.OTLPEndpoint); v != "" {
+			cfg.OTLPEndpoint = v
+		}
+		if file.Tracing.SampleRatio != nil {
+			cfg.TracingSampleRatio = *file.Tracing.SampleRatio
+		}
+	}
+	if file.Raft != nil {
+		raft, err := applyRaftFile(cfg.Raft, *file.Raft)
+		if err != nil {
+			return Config{}, err
+		}
+		cfg.Raft = raft
+	}
+	return cfg, nil
+}
+
+func applyRaftFile(cfg RaftConfig, file RaftFile) (RaftConfig, error) {
+	if file.Enabled != nil {
+		cfg.Enabled = *file.Enabled
+	}
+	if file.NodeID != nil {
+		cfg.NodeID = *file.NodeID
+	}
+	if v := strings.TrimSpace(file.Address); v != "" {
+		cfg.RaftAddress = v
+	}
+	if v := strings.TrimSpace(file.ListenAddress); v != "" {
+		cfg.ListenAddress = v
+	}
+	if v := strings.TrimSpace(file.DataDir); v != "" {
+		cfg.DataDir = v
+	}
+	if v := strings.TrimSpace(file.InitialMembers); v != "" {
+		cfg.InitialMembersRaw = v
+	}
+	if file.ElectionRTT != nil {
+		cfg.ElectionRTT = *file.ElectionRTT
+	}
+	if file.HeartbeatRTT != nil {
+		cfg.HeartbeatRTT = *file.HeartbeatRTT
+	}
+	if file.RTTMillisecond != nil {
+		cfg.RTTMillisecond = *file.RTTMillisecond
+	}
+	if v := strings.TrimSpace(file.LeaderWait); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return RaftConfig{}, fmt.Errorf("raft.leader_wait: %w", err)
+		}
+		cfg.LeaderWait = d
+	}
+	if file.Join != nil {
+		cfg.Join = *file.Join
+	}
+	if v := strings.TrimSpace(file.MTLSCert); v != "" {
+		cfg.MTLSCertFile = v
+	}
+	if v := strings.TrimSpace(file.MTLSKey); v != "" {
+		cfg.MTLSKeyFile = v
+	}
+	if v := strings.TrimSpace(file.MTLSCA); v != "" {
+		cfg.MTLSCAFile = v
+	}
+	return cfg, nil
+}

@@ -2,19 +2,13 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 
-	"go.uber.org/zap"
-
-	"github.com/kubenexis/knxvault/internal/app"
-	"github.com/kubenexis/knxvault/internal/config"
+	"github.com/kubenexis/knxvault/cmd/knxvault/cmd"
 	"github.com/kubenexis/knxvault/internal/version"
 )
 
@@ -27,31 +21,8 @@ func main() {
 		os.Exit(runHealthcheck())
 	}
 
-	cfg, err := config.Load()
-	if err != nil {
-		_, _ = os.Stderr.WriteString("config: " + err.Error() + "\n")
-		os.Exit(1)
-	}
-
-	log, err := newLogger(cfg.LogLevel)
-	if err != nil {
-		_, _ = os.Stderr.WriteString("logger: " + err.Error() + "\n")
-		os.Exit(1)
-	}
-	defer func() { _ = log.Sync() }()
-	version.AnnounceZap(log, "knxvault")
-
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
-	application, err := app.New(ctx, cfg, log)
-	if err != nil {
-		log.Error("bootstrap", zap.Error(err))
-		os.Exit(1)
-	}
-
-	if err := application.Run(ctx); err != nil {
-		log.Error("fatal", zap.Error(err))
+	if err := cmd.Execute(); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
@@ -78,15 +49,4 @@ func runHealthcheck() int {
 		return 1
 	}
 	return 0
-}
-
-func newLogger(level string) (*zap.Logger, error) {
-	var cfg zap.Config
-	switch level {
-	case "debug":
-		cfg = zap.NewDevelopmentConfig()
-	default:
-		cfg = zap.NewProductionConfig()
-	}
-	return cfg.Build()
 }

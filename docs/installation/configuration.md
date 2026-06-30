@@ -1,6 +1,10 @@
 # Configuration Reference
 
-KNXVault is configured entirely via environment variables. No config file is required; Kubernetes ConfigMaps and Secrets map directly to these variables.
+KNXVault accepts a YAML v3 base configuration file for daemon mode (`knxvault serve -c /path/to/config.yaml`). Environment variables override file values — use the file for static settings and env/Secrets for credentials and per-pod overrides.
+
+Running `./knxvault` without arguments prints usage. Start the server with `knxvault serve` (env-only) or `knxvault serve -c config.yaml`.
+
+See [`config/knxvault.example.yaml`](../../config/knxvault.example.yaml) for the file schema.
 
 ## Core
 

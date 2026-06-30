@@ -28,6 +28,7 @@ spec:
       containers:
         - name: knxvault
           image: knxvault:0.4.3
+          command: ["/usr/local/bin/knxvault", "serve"]
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

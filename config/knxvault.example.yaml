@@ -1,0 +1,53 @@
+# KNXVault base configuration (YAML v3).
+# Environment variables override these values at runtime.
+
+http_addr: ":8200"
+log_level: info
+shutdown_grace: 10s
+
+openssl_binary: openssl
+openssl_timeout: 60s
+
+# jwt_secret: dev-only HS256 K8s login
+# root_token: bootstrap admin token
+token_ttl: 24h
+k8s_auth_insecure: false
+
+ha:
+  enabled: false
+  namespace: knxvault
+  lease_name: knxvault-leader
+  # identity: knxvault-0
+
+jobs:
+  lease_cleanup_interval: 1m
+  crl_refresh_interval: 15m
+  cert_renew_interval: 1h
+  renew_grace: 72h
+
+audit:
+  # signing_key: ""
+  # forward_url: ""
+
+security:
+  rate_limit_enabled: false
+  rate_limit_rpm: 300
+  request_signing_required: false
+  cors_allowed_origins: []
+
+tracing:
+  enabled: false
+  # otlp_endpoint: otel-collector:4318
+  sample_ratio: 0
+
+raft:
+  enabled: false
+  # node_id: 1
+  address: "127.0.0.1:63001"
+  data_dir: /var/lib/knxvault/raft
+  # initial_members: "1=127.0.0.1:63001,2=127.0.0.1:63002"
+  election_rtt: 10
+  heartbeat_rtt: 1
+  rtt_millisecond: 1
+  leader_wait: 10s
+  join: false
