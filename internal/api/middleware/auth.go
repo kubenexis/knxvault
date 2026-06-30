@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -77,10 +76,4 @@ func extractToken(c *gin.Context) string {
 		return token
 	}
 	return ""
-}
-
-// AbortUnauthorized writes a 401 without going through error middleware chain.
-func AbortUnauthorized(c *gin.Context, message string) {
-	c.JSON(http.StatusUnauthorized, gin.H{"message": message})
-	c.Abort()
 }

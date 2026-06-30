@@ -6,10 +6,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/kubenexis/knxvault/internal/domain/audit"
 	domainauth "github.com/kubenexis/knxvault/internal/domain/auth"
 	"github.com/kubenexis/knxvault/internal/domain/pki"
-	"github.com/kubenexis/knxvault/internal/domain/secrets"
 	"github.com/kubenexis/knxvault/internal/repository"
 )
 
@@ -24,6 +22,7 @@ type Snapshot struct {
 	Revoked   []RevokedRecord      `json:"revoked"`
 	Policies  []PolicyRecord       `json:"policies"`
 	Roles     []RoleRecord         `json:"roles"`
+	PKIRoles  []PKIRoleRecord      `json:"pki_roles,omitempty"`
 	DBRoles   []DatabaseRoleRecord `json:"database_roles"`
 	Leases    []LeaseRecord        `json:"leases"`
 	Issued    []IssuedCertRecord   `json:"issued_certificates"`
@@ -84,6 +83,16 @@ type RoleRecord struct {
 	Policies                      []string `json:"policies"`
 	BoundServiceAccountNames      []string `json:"bound_service_account_names,omitempty"`
 	BoundServiceAccountNamespaces []string `json:"bound_service_account_namespaces,omitempty"`
+}
+
+// PKIRoleRecord serializes a PKI issuance role policy.
+type PKIRoleRecord struct {
+	Name            string        `json:"name"`
+	CAName          string        `json:"ca_name"`
+	AllowedDomains  []string      `json:"allowed_domains,omitempty"`
+	MaxTTLSeconds   int           `json:"max_ttl_seconds"`
+	KeyUsage        pki.RoleUsage `json:"key_usage"`
+	AllowSubdomains bool          `json:"allow_subdomains"`
 }
 
 // DatabaseRoleRecord serializes a database credential role.
@@ -147,96 +156,7 @@ type Repos struct {
 	Lease      repository.LeaseRepository
 	Policy     repository.PolicyRepository
 	Role       repository.RoleRepository
+	PKIRole    repository.PKIRoleRepository
 	DBRole     repository.DatabaseRoleRepository
 	IssuedCert repository.IssuedCertRepository
-}
-
-func caFromDomain(ca *pki.CA) CARecord {
-	return CARecord{
-		ID:            ca.ID,
-		ParentID:      ca.ParentID,
-		Name:          ca.Name,
-		Type:          ca.Type,
-		CommonName:    ca.Subject.CommonName,
-		Serial:        ca.Serial,
-		CertPEM:       ca.CertPEM,
-		PrivateKeyEnc: ca.PrivateKeyEnc,
-		DEKEnc:        ca.DEKEnc,
-		Status:        ca.Status,
-		CreatedAt:     ca.CreatedAt,
-		ExpiresAt:     ca.ExpiresAt,
-		CRLNextUpdate: ca.CRLNextUpdate,
-	}
-}
-
-func caToDomain(rec CARecord) *pki.CA {
-	return &pki.CA{
-		ID:            rec.ID,
-		ParentID:      rec.ParentID,
-		Name:          rec.Name,
-		Type:          rec.Type,
-		Subject:       pki.DistinguishedName{CommonName: rec.CommonName},
-		Serial:        rec.Serial,
-		CertPEM:       rec.CertPEM,
-		PrivateKeyEnc: rec.PrivateKeyEnc,
-		DEKEnc:        rec.DEKEnc,
-		Status:        rec.Status,
-		CreatedAt:     rec.CreatedAt,
-		ExpiresAt:     rec.ExpiresAt,
-		CRLNextUpdate: rec.CRLNextUpdate,
-	}
-}
-
-func secretFromDomain(sv *secrets.SecretVersion) SecretRecord {
-	return SecretRecord{
-		ID:         sv.ID,
-		Path:       sv.Path,
-		Version:    sv.Version,
-		DataEnc:    sv.DataEnc,
-		DEKEnc:     sv.DEKEnc,
-		LeaseID:    sv.LeaseID,
-		TTLSeconds: sv.TTLSeconds,
-		CreatedAt:  sv.CreatedAt,
-		ExpiresAt:  sv.ExpiresAt,
-		Destroyed:  sv.Destroyed,
-	}
-}
-
-func secretToDomain(rec SecretRecord) *secrets.SecretVersion {
-	return &secrets.SecretVersion{
-		ID:         rec.ID,
-		Path:       rec.Path,
-		Version:    rec.Version,
-		DataEnc:    rec.DataEnc,
-		DEKEnc:     rec.DEKEnc,
-		LeaseID:    rec.LeaseID,
-		TTLSeconds: rec.TTLSeconds,
-		CreatedAt:  rec.CreatedAt,
-		ExpiresAt:  rec.ExpiresAt,
-		Destroyed:  rec.Destroyed,
-	}
-}
-
-func auditFromDomain(entry *audit.Entry) AuditRecord {
-	return AuditRecord{
-		Timestamp: entry.Timestamp,
-		Actor:     entry.Actor,
-		Action:    entry.Action,
-		Resource:  entry.Resource,
-		Status:    entry.Status,
-		Details:   entry.Details,
-		Hash:      entry.Hash,
-	}
-}
-
-func auditToDomain(rec AuditRecord) *audit.Entry {
-	return &audit.Entry{
-		Timestamp: rec.Timestamp,
-		Actor:     rec.Actor,
-		Action:    rec.Action,
-		Resource:  rec.Resource,
-		Status:    rec.Status,
-		Details:   rec.Details,
-		Hash:      rec.Hash,
-	}
 }

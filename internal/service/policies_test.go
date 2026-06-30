@@ -42,3 +42,39 @@ func TestPolicyServiceSaveAndLoad(t *testing.T) {
 		t.Fatal("expected conditioned policy to deny outside CIDR")
 	}
 }
+
+func TestPolicyServiceRolesAndDelete(t *testing.T) {
+	policies := memory.NewPolicyRepository()
+	roles := memory.NewRoleRepository()
+	rbac := auth.NewRBAC()
+	svc := service.NewPolicyService(policies, roles, rbac, nil)
+	ctx := context.Background()
+
+	policy := &domainauth.Policy{
+		Name:      "temp",
+		Effect:    domainauth.EffectAllow,
+		Resources: []string{"secrets/kv/*"},
+		Actions:   []string{"read"},
+	}
+	if err := svc.SavePolicy(ctx, policy); err != nil {
+		t.Fatalf("SavePolicy() = %v", err)
+	}
+	if err := svc.SaveRole(ctx, &domainauth.Role{Name: "app", Policies: []string{"temp"}}); err != nil {
+		t.Fatalf("SaveRole() = %v", err)
+	}
+
+	list, err := svc.ListPolicies(ctx)
+	if err != nil || len(list) != 1 {
+		t.Fatalf("ListPolicies() = %v, len=%d", err, len(list))
+	}
+	roleList, err := svc.ListRoles(ctx)
+	if err != nil || len(roleList) != 1 {
+		t.Fatalf("ListRoles() = %v, len=%d", err, len(roleList))
+	}
+	if err := svc.DeletePolicy(ctx, "temp"); err != nil {
+		t.Fatalf("DeletePolicy() = %v", err)
+	}
+	if err := svc.DeleteRole(ctx, "app"); err != nil {
+		t.Fatalf("DeleteRole() = %v", err)
+	}
+}

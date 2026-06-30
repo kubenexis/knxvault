@@ -6,6 +6,7 @@
 *.dylib
 
 # SBOM & scan output
+coverage.out
 sbom.json
 sbom-binary.json
 trivy-report.json

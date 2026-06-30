@@ -7,18 +7,13 @@ import (
 
 	"github.com/google/uuid"
 
-	domainauth "github.com/kubenexis/knxvault/internal/domain/auth"
-	domainpki "github.com/kubenexis/knxvault/internal/domain/pki"
 	"github.com/kubenexis/knxvault/internal/repository"
 )
 
 // Restore imports a snapshot into repositories.
 func Restore(ctx context.Context, repos Repos, snapshot *Snapshot) error {
-	if snapshot == nil {
-		return fmt.Errorf("snapshot is required")
-	}
-	if snapshot.Version != formatVersion {
-		return fmt.Errorf("unsupported backup version %d", snapshot.Version)
+	if err := ValidateSnapshot(snapshot); err != nil {
+		return err
 	}
 	if repos.CA == nil || repos.Secret == nil {
 		return fmt.Errorf("backup repositories not configured")
@@ -51,13 +46,7 @@ func Restore(ctx context.Context, repos Repos, snapshot *Snapshot) error {
 
 	if repos.Policy != nil {
 		for _, rec := range snapshot.Policies {
-			if err := repos.Policy.Save(ctx, &domainauth.Policy{
-				Name:       rec.Name,
-				Effect:     rec.Effect,
-				Resources:  rec.Resources,
-				Actions:    rec.Actions,
-				Conditions: rec.Conditions,
-			}); err != nil {
+			if err := repos.Policy.Save(ctx, policyToDomain(rec)); err != nil {
 				return fmt.Errorf("restore policy %s: %w", rec.Name, err)
 			}
 		}
@@ -65,13 +54,16 @@ func Restore(ctx context.Context, repos Repos, snapshot *Snapshot) error {
 
 	if repos.Role != nil {
 		for _, rec := range snapshot.Roles {
-			if err := repos.Role.Save(ctx, &domainauth.Role{
-				Name:                          rec.Name,
-				Policies:                      rec.Policies,
-				BoundServiceAccountNames:      rec.BoundServiceAccountNames,
-				BoundServiceAccountNamespaces: rec.BoundServiceAccountNamespaces,
-			}); err != nil {
+			if err := repos.Role.Save(ctx, roleToDomain(rec)); err != nil {
 				return fmt.Errorf("restore role %s: %w", rec.Name, err)
+			}
+		}
+	}
+
+	if repos.PKIRole != nil {
+		for _, rec := range snapshot.PKIRoles {
+			if err := repos.PKIRole.Save(ctx, pkiRoleToDomain(rec)); err != nil {
+				return fmt.Errorf("restore pki role %s: %w", rec.Name, err)
 			}
 		}
 	}
@@ -111,22 +103,6 @@ func Restore(ctx context.Context, repos Repos, snapshot *Snapshot) error {
 	return nil
 }
 
-func issuedToDomain(rec IssuedCertRecord) *domainpki.IssuedCertificate {
-	return &domainpki.IssuedCertificate{
-		ID:                rec.ID,
-		CAID:              rec.CAID,
-		Role:              rec.Role,
-		Serial:            rec.Serial,
-		CommonName:        rec.CommonName,
-		DNSNames:          rec.DNSNames,
-		TTLSeconds:        rec.TTLSeconds,
-		IssuedAt:          rec.IssuedAt,
-		ExpiresAt:         rec.ExpiresAt,
-		AutoRenew:         rec.AutoRenew,
-		RenewedFromSerial: rec.RenewedFromSerial,
-	}
-}
-
 func sortCAs(records []CARecord) []CARecord {
 	sorted := append([]CARecord(nil), records...)
 	sort.SliceStable(sorted, func(i, j int) bool {
@@ -153,11 +129,24 @@ func ValidateSnapshot(snapshot *Snapshot) error {
 		}
 		seen[ca.ID] = struct{}{}
 	}
+	caNames := make(map[string]struct{})
 	for _, ca := range snapshot.CAs {
 		if ca.ParentID != nil {
 			if _, ok := seen[*ca.ParentID]; !ok {
 				return fmt.Errorf("ca %s references unknown parent", ca.Name)
 			}
+		}
+		caNames[ca.Name] = struct{}{}
+	}
+	for _, role := range snapshot.PKIRoles {
+		if role.Name == "" {
+			return fmt.Errorf("pki role name is required")
+		}
+		if role.CAName == "" {
+			return fmt.Errorf("pki role %s ca_name is required", role.Name)
+		}
+		if _, ok := caNames[role.CAName]; !ok {
+			return fmt.Errorf("pki role %s references unknown ca %s", role.Name, role.CAName)
 		}
 	}
 	return nil

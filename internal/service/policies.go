@@ -7,6 +7,7 @@ import (
 	"github.com/kubenexis/knxvault/internal/auth"
 	domainauth "github.com/kubenexis/knxvault/internal/domain/auth"
 	"github.com/kubenexis/knxvault/internal/repository"
+	"github.com/kubenexis/knxvault/internal/service/audithelper"
 )
 
 // PolicyService manages persisted RBAC policies and roles.
@@ -32,20 +33,13 @@ func NewPolicyService(
 	}
 }
 
-func (s *PolicyService) actor(ctx context.Context) string {
-	if principal, ok := auth.PrincipalFromContext(ctx); ok {
-		return principal.Subject
-	}
-	return "anonymous"
-}
-
 // SavePolicy persists and activates a policy.
 func (s *PolicyService) SavePolicy(ctx context.Context, policy *domainauth.Policy) error {
 	err := s.policies.Save(ctx, policy)
 	if err == nil && s.rbac != nil {
 		s.rbac.UpsertPolicy(*policy)
 	}
-	s.record(ctx, "policy.write", "sys/policies/"+policy.Name, err, nil)
+	audithelper.Record(s.audit, ctx, "policy.write", "sys/policies/"+policy.Name, err, nil)
 	return err
 }
 
@@ -65,14 +59,14 @@ func (s *PolicyService) DeletePolicy(ctx context.Context, name string) error {
 	if err == nil && s.rbac != nil {
 		s.rbac.DeletePolicy(name)
 	}
-	s.record(ctx, "policy.delete", "sys/policies/"+name, err, nil)
+	audithelper.Record(s.audit, ctx, "policy.delete", "sys/policies/"+name, err, nil)
 	return err
 }
 
 // SaveRole persists a role binding.
 func (s *PolicyService) SaveRole(ctx context.Context, role *domainauth.Role) error {
 	err := s.roles.Save(ctx, role)
-	s.record(ctx, "role.write", "sys/roles/"+role.Name, err, nil)
+	audithelper.Record(s.audit, ctx, "role.write", "sys/roles/"+role.Name, err, nil)
 	return err
 }
 
@@ -89,7 +83,7 @@ func (s *PolicyService) ListRoles(ctx context.Context) ([]*domainauth.Role, erro
 // DeleteRole removes a role.
 func (s *PolicyService) DeleteRole(ctx context.Context, name string) error {
 	err := s.roles.Delete(ctx, name)
-	s.record(ctx, "role.delete", "sys/roles/"+name, err, nil)
+	audithelper.Record(s.audit, ctx, "role.delete", "sys/roles/"+name, err, nil)
 	return err
 }
 
@@ -106,15 +100,4 @@ func (s *PolicyService) LoadIntoRBAC(ctx context.Context) error {
 		s.rbac.UpsertPolicy(*policy)
 	}
 	return nil
-}
-
-func (s *PolicyService) record(ctx context.Context, action, resource string, err error, details map[string]any) {
-	if s.audit == nil {
-		return
-	}
-	status := "success"
-	if err != nil {
-		status = "failure"
-	}
-	_ = s.audit.Record(ctx, s.actor(ctx), action, resource, status, details)
 }

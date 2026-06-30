@@ -320,15 +320,9 @@ func (e *Engine) storeSecret(
 		return common.Wrap(common.ErrCodeInternal, "encrypt credentials", err)
 	}
 
-	version, err := e.secrets.NextVersion(ctx, path)
-	if err != nil {
-		return err
-	}
-
 	sv := &domainsecrets.SecretVersion{
 		ID:         uuid.New(),
 		Path:       path,
-		Version:    version,
 		DataEnc:    dataEnc,
 		DEKEnc:     dekEnc,
 		LeaseID:    &leaseID,
@@ -336,7 +330,8 @@ func (e *Engine) storeSecret(
 		CreatedAt:  e.now().UTC(),
 		ExpiresAt:  &expiresAt,
 	}
-	return e.secrets.SaveVersion(ctx, sv)
+	_, err = e.secrets.PutAtomic(ctx, sv, nil, 0)
+	return err
 }
 
 func (e *Engine) destroySecret(ctx context.Context, path string) error {

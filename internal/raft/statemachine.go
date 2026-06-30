@@ -61,7 +61,7 @@ func (v *VaultStateMachine) Lookup(query interface{}) (interface{}, error) {
 
 // SaveSnapshot persists state to the writer.
 func (v *VaultStateMachine) SaveSnapshot(w io.Writer, _ sm.ISnapshotFileCollection, _ <-chan struct{}) error {
-	snapshot, err := v.store.ExportSnapshot(false)
+	snapshot, err := v.store.ExportSnapshot(true)
 	if err != nil {
 		return err
 	}

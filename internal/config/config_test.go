@@ -124,3 +124,20 @@ func TestLoadRaft(t *testing.T) {
 		t.Errorf("raft RTT = %d/%d", cfg.Raft.ElectionRTT, cfg.Raft.HeartbeatRTT)
 	}
 }
+
+func TestLoadRaftNodeIDFromPodName(t *testing.T) {
+	t.Setenv("KNXVAULT_RAFT_ENABLED", "true")
+	t.Setenv("KNXVAULT_RAFT_NODE_ID", "")
+	t.Setenv("KNXVAULT_POD_NAME", "knxvault-2")
+	t.Setenv("KNXVAULT_RAFT_ADDRESS", "127.0.0.1:63001")
+	t.Setenv("KNXVAULT_RAFT_DATA_DIR", "/tmp/raft")
+	t.Setenv("KNXVAULT_RAFT_INITIAL_MEMBERS", "1=127.0.0.1:63001,3=127.0.0.1:63003")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() = %v", err)
+	}
+	if cfg.Raft.NodeID != 3 {
+		t.Fatalf("Raft.NodeID = %d, want 3 from knxvault-2", cfg.Raft.NodeID)
+	}
+}

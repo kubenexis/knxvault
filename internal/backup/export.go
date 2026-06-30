@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	domainpki "github.com/kubenexis/knxvault/internal/domain/pki"
-	"github.com/kubenexis/knxvault/internal/domain/secrets"
 	"github.com/kubenexis/knxvault/internal/repository"
 )
 
@@ -66,13 +64,7 @@ func Export(ctx context.Context, repos Repos, opts ExportOptions) (*Snapshot, er
 			return nil, fmt.Errorf("list policies: %w", err)
 		}
 		for _, policy := range policies {
-			snapshot.Policies = append(snapshot.Policies, PolicyRecord{
-				Name:       policy.Name,
-				Effect:     policy.Effect,
-				Resources:  append([]string(nil), policy.Resources...),
-				Actions:    append([]string(nil), policy.Actions...),
-				Conditions: policy.Conditions,
-			})
+			snapshot.Policies = append(snapshot.Policies, policyFromDomain(policy))
 		}
 	}
 
@@ -82,12 +74,17 @@ func Export(ctx context.Context, repos Repos, opts ExportOptions) (*Snapshot, er
 			return nil, fmt.Errorf("list roles: %w", err)
 		}
 		for _, role := range roles {
-			snapshot.Roles = append(snapshot.Roles, RoleRecord{
-				Name:                          role.Name,
-				Policies:                      append([]string(nil), role.Policies...),
-				BoundServiceAccountNames:      append([]string(nil), role.BoundServiceAccountNames...),
-				BoundServiceAccountNamespaces: append([]string(nil), role.BoundServiceAccountNamespaces...),
-			})
+			snapshot.Roles = append(snapshot.Roles, roleFromDomain(role))
+		}
+	}
+
+	if repos.PKIRole != nil {
+		pkiRoles, err := repos.PKIRole.List(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("list pki roles: %w", err)
+		}
+		for _, role := range pkiRoles {
+			snapshot.PKIRoles = append(snapshot.PKIRoles, pkiRoleFromDomain(role))
 		}
 	}
 
@@ -139,79 +136,4 @@ func Export(ctx context.Context, repos Repos, opts ExportOptions) (*Snapshot, er
 	}
 
 	return snapshot, nil
-}
-
-func databaseRoleFromDomain(role *secrets.DatabaseRole) DatabaseRoleRecord {
-	secrets.NormalizeDatabaseRole(role)
-	return DatabaseRoleRecord{
-		Name:                 role.Name,
-		TTLSeconds:           role.TTLSeconds,
-		UsernamePrefix:       role.UsernamePrefix,
-		DefaultUsername:      role.DefaultUsername,
-		CreationStatements:   append([]string(nil), role.CreationStatements...),
-		RevocationStatements: append([]string(nil), role.RevocationStatements...),
-		ExecutionMode:        role.ExecutionMode,
-		AdminCredentialsPath: role.AdminCredentialsPath,
-		Config:               role.Config,
-	}
-}
-
-func databaseRoleToDomain(rec DatabaseRoleRecord) *secrets.DatabaseRole {
-	role := &secrets.DatabaseRole{
-		Name:                 rec.Name,
-		TTLSeconds:           rec.TTLSeconds,
-		UsernamePrefix:       rec.UsernamePrefix,
-		DefaultUsername:      rec.DefaultUsername,
-		CreationStatements:   rec.CreationStatements,
-		RevocationStatements: rec.RevocationStatements,
-		ExecutionMode:        rec.ExecutionMode,
-		AdminCredentialsPath: rec.AdminCredentialsPath,
-		Config:               rec.Config,
-	}
-	secrets.NormalizeDatabaseRole(role)
-	return role
-}
-
-func leaseFromDomain(lease *secrets.Lease) LeaseRecord {
-	return LeaseRecord{
-		ID:         lease.ID,
-		Path:       lease.Path,
-		RoleName:   lease.RoleName,
-		Engine:     lease.Engine,
-		TTLSeconds: lease.TTLSeconds,
-		CreatedAt:  lease.CreatedAt,
-		ExpiresAt:  lease.ExpiresAt,
-		RevokedAt:  lease.RevokedAt,
-		Renewable:  lease.Renewable,
-	}
-}
-
-func leaseToDomain(rec LeaseRecord) *secrets.Lease {
-	return &secrets.Lease{
-		ID:         rec.ID,
-		Path:       rec.Path,
-		RoleName:   rec.RoleName,
-		Engine:     rec.Engine,
-		TTLSeconds: rec.TTLSeconds,
-		CreatedAt:  rec.CreatedAt,
-		ExpiresAt:  rec.ExpiresAt,
-		RevokedAt:  rec.RevokedAt,
-		Renewable:  rec.Renewable,
-	}
-}
-
-func issuedFromDomain(cert *domainpki.IssuedCertificate) IssuedCertRecord {
-	return IssuedCertRecord{
-		ID:                cert.ID,
-		CAID:              cert.CAID,
-		Role:              cert.Role,
-		Serial:            cert.Serial,
-		CommonName:        cert.CommonName,
-		DNSNames:          append([]string(nil), cert.DNSNames...),
-		TTLSeconds:        cert.TTLSeconds,
-		IssuedAt:          cert.IssuedAt,
-		ExpiresAt:         cert.ExpiresAt,
-		AutoRenew:         cert.AutoRenew,
-		RenewedFromSerial: cert.RenewedFromSerial,
-	}
 }

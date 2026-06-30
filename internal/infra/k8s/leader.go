@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/kubenexis/knxvault/internal/infra/hostidentity"
 )
 
 const (
@@ -54,7 +56,10 @@ func NewLeaderElector(cfg LeaderConfig) (*LeaderElector, error) {
 		cfg.LeaseName = "knxvault-leader"
 	}
 	if cfg.Identity == "" {
-		cfg.Identity = hostname()
+		cfg.Identity = hostidentity.Hostname()
+		if cfg.Identity == "" {
+			cfg.Identity = "knxvault"
+		}
 	}
 	if cfg.APIHost == "" {
 		cfg.APIHost = defaultK8sAPIHost
@@ -281,20 +286,6 @@ func (e *LeaderElector) putLease(ctx context.Context, lease leaseObject, update 
 		return fmt.Errorf("put lease: status %d: %s", resp.StatusCode, string(body))
 	}
 	return nil
-}
-
-func hostname() string {
-	if v := os.Getenv("KNXVAULT_POD_NAME"); v != "" {
-		return v
-	}
-	if v := os.Getenv("HOSTNAME"); v != "" {
-		return v
-	}
-	host, err := os.Hostname()
-	if err != nil {
-		return "knxvault"
-	}
-	return host
 }
 
 func formatTime(t time.Time) *string {

@@ -15,6 +15,7 @@ import (
 	"github.com/kubenexis/knxvault/internal/crypto"
 	"github.com/kubenexis/knxvault/internal/crypto/masterkey"
 	"github.com/kubenexis/knxvault/internal/crypto/openssl"
+	"github.com/kubenexis/knxvault/internal/engine"
 	pkiengine "github.com/kubenexis/knxvault/internal/engine/pki"
 	secretsengine "github.com/kubenexis/knxvault/internal/engine/secrets"
 	databaseengine "github.com/kubenexis/knxvault/internal/engine/secrets/database"
@@ -58,6 +59,7 @@ type Dependencies struct {
 	AuditExportService *service.AuditExportService
 	InjectService      *service.InjectService
 	BackupService      *service.BackupService
+	EngineRegistry     *engine.Registry
 	TokenTTL           time.Duration
 
 	RateLimiter    *middleware.RateLimiter
@@ -143,6 +145,10 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 		deps.PKIEngine.SetPKIRoleRepository(deps.PKIRoleRepo)
 		deps.SecretsEngine = secretsengine.NewKVV2Engine(deps.SecretRepo, deps.Crypto)
 		deps.DatabaseEngine = databaseengine.NewEngine(deps.DBRoleRepo, deps.LeaseRepo, deps.SecretRepo, deps.Crypto)
+
+		deps.EngineRegistry = engine.NewRegistry()
+		deps.EngineRegistry.Register(secretsengine.NewRegistryAdapter(deps.SecretsEngine))
+		deps.EngineRegistry.Register(databaseengine.NewRegistryAdapter(deps.DatabaseEngine))
 	}
 
 	if deps.AuditRepo != nil {
@@ -172,6 +178,18 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 	tokenStore := auth.NewTokenStore(cfg.TokenTTL)
 	rbac := auth.NewRBAC()
 	deps.PolicyService = service.NewPolicyService(deps.PolicyRepo, deps.RoleRepo, rbac, deps.AuditService)
+	if deps.Raft != nil {
+		deadline := time.Now().Add(10 * time.Second)
+		for time.Now().Before(deadline) {
+			if deps.Raft.Ready() {
+				break
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+		if !deps.Raft.Ready() {
+			return nil, fmt.Errorf("raft cluster has no leader")
+		}
+	}
 	if err := deps.PolicyService.LoadIntoRBAC(ctx); err != nil {
 		return nil, fmt.Errorf("load policies: %w", err)
 	}
@@ -208,12 +226,14 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 			Lease:      deps.LeaseRepo,
 			Policy:     deps.PolicyRepo,
 			Role:       deps.RoleRepo,
+			PKIRole:    deps.PKIRoleRepo,
 			DBRole:     deps.DBRoleRepo,
 			IssuedCert: deps.IssuedCertRepo,
 		}, deps.Crypto, deps.AuditService)
 		if deps.Raft != nil {
 			importer := raft.NewSnapshotImporter(deps.Raft.Client)
 			deps.BackupService.SetSnapshotImporter(importer)
+			deps.BackupService.SetSnapshotExporter(deps.Raft.Client)
 			deps.BackupService.SetSnapshotRequester(deps.Raft.Client)
 		}
 	}
@@ -241,7 +261,7 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 	deps.RateLimiter = middleware.NewRateLimiter(cfg.RateLimitRPM, cfg.RateLimitEnabled)
 	deps.RequestSigning = middleware.NewRequestSigning(cfg.RequestSigningKey, cfg.RequestSigningRequired)
 
-	deps.JobRunner = NewJobRunner(deps.Leader, deps.DatabaseService, deps.PKIService, deps.CARepo, cfg, log)
+	deps.JobRunner = NewJobRunner(deps.Leader, deps.DatabaseService, deps.PKIService, deps.CARepo, deps.LeaseRepo, cfg, log)
 
 	return deps, nil
 }

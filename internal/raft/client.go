@@ -8,6 +8,8 @@ import (
 
 	"github.com/lni/dragonboat/v3"
 	"github.com/lni/dragonboat/v3/client"
+
+	"github.com/kubenexis/knxvault/internal/backup"
 )
 
 const (
@@ -99,6 +101,19 @@ func (c *Client) IsLeader() bool {
 // LeaderID returns the current leader node ID and whether leadership is known.
 func (c *Client) LeaderID() (uint64, bool, error) {
 	return c.nh.GetLeaderID(c.clusterID)
+}
+
+// ExportSnapshot performs an atomic read-only export from the state machine.
+func (c *Client) ExportSnapshot(ctx context.Context, opts backup.ExportOptions) (*backup.Snapshot, error) {
+	data, err := c.Read(ctx, OpExportSnapshot, opts)
+	if err != nil {
+		return nil, err
+	}
+	var snapshot backup.Snapshot
+	if err := DecodeResult(data, &snapshot); err != nil {
+		return nil, err
+	}
+	return &snapshot, nil
 }
 
 // RequestSnapshot triggers a Dragonboat snapshot.

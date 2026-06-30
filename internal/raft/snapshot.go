@@ -18,6 +18,9 @@ func NewSnapshotImporter(client *Client) *SnapshotImporter {
 
 // ImportSnapshot replaces replicated state from a backup snapshot.
 func (s *SnapshotImporter) ImportSnapshot(ctx context.Context, snapshot *backup.Snapshot) error {
+	if err := backup.ValidateSnapshot(snapshot); err != nil {
+		return err
+	}
 	data, err := s.client.Propose(ctx, OpImportSnapshot, snapshot)
 	if err != nil {
 		return err

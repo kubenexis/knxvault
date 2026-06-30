@@ -85,6 +85,20 @@ func (r *LeaseRepository) ListExpired(_ context.Context, before time.Time, limit
 	return out, nil
 }
 
+// CountActive returns leases that are not revoked and not expired.
+func (r *LeaseRepository) CountActive(_ context.Context) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	now := time.Now().UTC()
+	count := 0
+	for _, lease := range r.leases {
+		if lease.Active(now) {
+			count++
+		}
+	}
+	return count, nil
+}
+
 // Revoke marks a lease revoked.
 func (r *LeaseRepository) Revoke(_ context.Context, id string, revokedAt time.Time) error {
 	r.mu.Lock()

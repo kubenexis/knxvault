@@ -28,6 +28,13 @@ func raftFreePort(t *testing.T) string {
 
 func startRaftNode(t *testing.T, base string, nodeID uint64, addr string, members map[uint64]string) *raft.NodeHostBundle {
 	t.Helper()
+	bundle := startRaftNodeManual(t, base, nodeID, addr, members)
+	t.Cleanup(bundle.Stop)
+	return bundle
+}
+
+func startRaftNodeManual(t *testing.T, base string, nodeID uint64, addr string, members map[uint64]string) *raft.NodeHostBundle {
+	t.Helper()
 	bundle, err := raft.StartNodeHost(config.RaftConfig{
 		Enabled:        true,
 		NodeID:         nodeID,
@@ -41,7 +48,6 @@ func startRaftNode(t *testing.T, base string, nodeID uint64, addr string, member
 	if err != nil {
 		t.Fatalf("StartNodeHost(%d) = %v", nodeID, err)
 	}
-	t.Cleanup(bundle.Stop)
 	return bundle
 }
 

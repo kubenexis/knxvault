@@ -71,6 +71,7 @@ Version-controlled documentation for architects, operators, developers, and inte
 | [Licensing policy](licensing.md) | Contributors | SPDX allow-list and exceptions |
 | [Backlog](backlog.md) | Maintainers | Phased work items (W1–W29 complete) |
 | [LLD alignment matrix](product/lld-alignment.md) | Maintainers | LLD § → code traceability |
+| [Secrets manager checklist](product/secrets-manager-checklist.md) | Architects | Capability matrix vs evaluation criteria |
 
 ## Quick links
 

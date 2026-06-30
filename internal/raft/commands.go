@@ -48,6 +48,7 @@ const (
 	OpLeaseList          = "lease.list"
 	OpLeaseListExpired   = "lease.list_expired"
 	OpLeaseRevoke        = "lease.revoke"
+	OpLeaseCountActive   = "lease.count_active"
 	OpPolicySave         = "policy.save"
 	OpPolicyGet          = "policy.get_by_name"
 	OpPolicyList         = "policy.list"
@@ -65,6 +66,7 @@ const (
 	OpIssuedList         = "issued.list"
 	OpIssuedListExpiring = "issued.list_expiring"
 	OpImportSnapshot     = "snapshot.import"
+	OpExportSnapshot     = "snapshot.export"
 )
 
 // readOnlyOps are safe for SyncRead / Lookup; write ops must use Propose.
@@ -85,6 +87,7 @@ var readOnlyOps = map[string]struct{}{
 	OpLeaseGet:           {},
 	OpLeaseList:          {},
 	OpLeaseListExpired:   {},
+	OpLeaseCountActive:   {},
 	OpPolicyGet:          {},
 	OpPolicyList:         {},
 	OpRoleGet:            {},
@@ -94,6 +97,7 @@ var readOnlyOps = map[string]struct{}{
 	OpIssuedGetBySerial:  {},
 	OpIssuedList:         {},
 	OpIssuedListExpiring: {},
+	OpExportSnapshot:     {},
 }
 
 // IsReadOnlyOp reports whether op is permitted on the read path.

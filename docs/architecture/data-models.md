@@ -49,6 +49,20 @@ Tracks leaf certificates for auto-renewal. Stores metadata only — private keys
 
 **Raft ops:** `issued.save`, `issued.get_by_serial`, `issued.list`, `issued.list_expiring`
 
+### PKI role (`internal/domain/pki/role.go`)
+
+Persisted issuance policy binding a role name to a CA and domain constraints.
+
+| Field | Notes |
+|-------|-------|
+| `Name` | Unique role identifier |
+| `CAName` | Target CA by name |
+| `AllowedDomains` | DNS SAN allow-list |
+| `MaxTTLSeconds` | Upper bound on certificate TTL |
+| `KeyUsage` | `server`, `client`, or `code_signing` |
+
+**Raft ops:** `pki_role.save`, `pki_role.get`, `pki_role.list`
+
 ### Revocation
 
 | Field | Notes |
@@ -72,7 +86,9 @@ Tracks leaf certificates for auto-renewal. Stores metadata only — private keys
 | `TTLSeconds` | int? | Optional expiration |
 | `Destroyed` | bool | Soft-delete marker |
 
-**Raft ops:** `secret.save_version`, `secret.get_latest`, `secret.get_version`, `secret.list_by_path`, `secret.next_version`
+**Raft ops:** `secret.put` (atomic allocate + CAS + save), `secret.save_version`, `secret.get_latest`, `secret.get_version`, `secret.list_by_path`, `secret.next_version`, `secret.destroy_version`
+
+Prefer `secret.put` for concurrent writes; it allocates the next version and saves in a single replicated command.
 
 ### Lease (`internal/domain/secrets/lease.go`)
 
@@ -85,7 +101,7 @@ Dynamic credential leases (database engine).
 | `ExpiresAt` | TTL boundary |
 | `Revoked` | Early termination |
 
-**Raft ops:** `lease.save`, `lease.get`, `lease.list`, `lease.list_expired`, `lease.revoke`
+**Raft ops:** `lease.save`, `lease.get`, `lease.list`, `lease.list_expired`, `lease.count_active`, `lease.revoke`
 
 ### Database role (`internal/domain/secrets/database_role.go`)
 
@@ -129,6 +145,8 @@ Raft snapshots and `POST /sys/backup` share the JSON format in `internal/backup.
 
 - `format`: `knxvault-backup`
 - `version`: `1`
+- Entity arrays: `cas`, `secrets`, `pki_roles`, `policies`, `roles`, `database_roles`, `leases`, `issued_certificates`, optional `audit`
 - Encrypted payload (`ciphertext`, `dek_enc`) sealed with the master key
-- Full state replacement via `snapshot.import` on restore
+- `snapshot.export` (read-only Raft op) provides atomic export when Raft is enabled
+- `snapshot.import` replaces full state on restore; `ValidateSnapshot` runs before import
 

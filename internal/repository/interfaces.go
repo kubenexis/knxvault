@@ -75,6 +75,7 @@ type LeaseRepository interface {
 	Get(ctx context.Context, id string) (*secrets.Lease, error)
 	List(ctx context.Context) ([]*secrets.Lease, error)
 	ListExpired(ctx context.Context, before time.Time, limit int) ([]*secrets.Lease, error)
+	CountActive(ctx context.Context) (int, error)
 	Revoke(ctx context.Context, id string, revokedAt time.Time) error
 }
 

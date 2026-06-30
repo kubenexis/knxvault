@@ -5,6 +5,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/kubenexis/knxvault/internal/infra/hostidentity"
 )
 
 const (
@@ -119,36 +121,10 @@ func loadRaftConfig() (RaftConfig, error) {
 	}
 
 	if cfg.NodeID == 0 {
-		if id := nodeIDFromHostname(raftHostname()); id > 0 {
+		if id := hostidentity.NodeIDFromHostname(hostidentity.Hostname()); id > 0 {
 			cfg.NodeID = id
 		}
 	}
 
 	return cfg, nil
-}
-
-func raftHostname() string {
-	if v := strings.TrimSpace(os.Getenv("KNXVAULT_POD_NAME")); v != "" {
-		return v
-	}
-	if v := strings.TrimSpace(os.Getenv("HOSTNAME")); v != "" {
-		return v
-	}
-	host, err := os.Hostname()
-	if err != nil {
-		return ""
-	}
-	return host
-}
-
-func nodeIDFromHostname(host string) uint64 {
-	parts := strings.Split(host, "-")
-	if len(parts) < 2 {
-		return 0
-	}
-	ord, err := strconv.ParseUint(parts[len(parts)-1], 10, 64)
-	if err != nil {
-		return 0
-	}
-	return ord + 1
 }

@@ -51,7 +51,7 @@ type Repos struct {
 }
 
 // NewRepos constructs Raft repository adapters.
-func NewRepos(client *raft.Client) Repos {
+func NewRepos(client raftClient) Repos {
 	return Repos{
 		CA:         NewCARepository(client),
 		Secret:     NewSecretRepository(client),
@@ -69,7 +69,7 @@ func NewRepos(client *raft.Client) Repos {
 // CARepository persists certificate authorities via Raft.
 type CARepository struct{ c raftClient }
 
-func NewCARepository(c *raft.Client) *CARepository { return &CARepository{c: c} }
+func NewCARepository(c raftClient) *CARepository { return &CARepository{c: c} }
 
 func (r *CARepository) Save(ctx context.Context, ca *pki.CA) error {
 	return write(ctx, r.c, raft.OpCASave, ca)
@@ -104,7 +104,7 @@ func (r *CARepository) List(ctx context.Context) ([]*pki.CA, error) {
 // SecretRepository persists versioned secrets via Raft.
 type SecretRepository struct{ c raftClient }
 
-func NewSecretRepository(c *raft.Client) *SecretRepository { return &SecretRepository{c: c} }
+func NewSecretRepository(c raftClient) *SecretRepository { return &SecretRepository{c: c} }
 
 func (r *SecretRepository) SaveVersion(ctx context.Context, sv *secrets.SecretVersion) error {
 	return write(ctx, r.c, raft.OpSecretSaveVersion, sv)
@@ -176,7 +176,7 @@ func (r *SecretRepository) DestroyVersion(ctx context.Context, path string, vers
 // PKIRoleRepository persists PKI roles via Raft.
 type PKIRoleRepository struct{ c raftClient }
 
-func NewPKIRoleRepository(c *raft.Client) *PKIRoleRepository { return &PKIRoleRepository{c: c} }
+func NewPKIRoleRepository(c raftClient) *PKIRoleRepository { return &PKIRoleRepository{c: c} }
 
 func (r *PKIRoleRepository) Save(ctx context.Context, role *pki.Role) error {
 	return write(ctx, r.c, raft.OpPKIRoleSave, role)
@@ -202,7 +202,7 @@ func (r *PKIRoleRepository) List(ctx context.Context) ([]*pki.Role, error) {
 // AuditRepository appends audit records via Raft.
 type AuditRepository struct{ c raftClient }
 
-func NewAuditRepository(c *raft.Client) *AuditRepository { return &AuditRepository{c: c} }
+func NewAuditRepository(c raftClient) *AuditRepository { return &AuditRepository{c: c} }
 
 func (r *AuditRepository) Append(ctx context.Context, entry *audit.Entry) error {
 	return write(ctx, r.c, raft.OpAuditAppend, entry)
@@ -223,7 +223,7 @@ func (r *AuditRepository) LatestHash(ctx context.Context) (string, error) {
 // RevocationRepository tracks revocations via Raft.
 type RevocationRepository struct{ c raftClient }
 
-func NewRevocationRepository(c *raft.Client) *RevocationRepository {
+func NewRevocationRepository(c raftClient) *RevocationRepository {
 	return &RevocationRepository{c: c}
 }
 
@@ -246,7 +246,7 @@ func (r *RevocationRepository) ListByCA(ctx context.Context, caID uuid.UUID) ([]
 // LeaseRepository persists leases via Raft.
 type LeaseRepository struct{ c raftClient }
 
-func NewLeaseRepository(c *raft.Client) *LeaseRepository { return &LeaseRepository{c: c} }
+func NewLeaseRepository(c raftClient) *LeaseRepository { return &LeaseRepository{c: c} }
 
 func (r *LeaseRepository) Save(ctx context.Context, lease *secrets.Lease) error {
 	return write(ctx, r.c, raft.OpLeaseSave, lease)
@@ -283,10 +283,16 @@ func (r *LeaseRepository) Revoke(ctx context.Context, id string, revokedAt time.
 	}{ID: id, RevokedAt: revokedAt})
 }
 
+func (r *LeaseRepository) CountActive(ctx context.Context) (int, error) {
+	var count int
+	err := read(ctx, r.c, raft.OpLeaseCountActive, nil, &count)
+	return count, err
+}
+
 // PolicyRepository persists policies via Raft.
 type PolicyRepository struct{ c raftClient }
 
-func NewPolicyRepository(c *raft.Client) *PolicyRepository { return &PolicyRepository{c: c} }
+func NewPolicyRepository(c raftClient) *PolicyRepository { return &PolicyRepository{c: c} }
 
 func (r *PolicyRepository) Save(ctx context.Context, policy *domainauth.Policy) error {
 	return write(ctx, r.c, raft.OpPolicySave, policy)
@@ -314,7 +320,7 @@ func (r *PolicyRepository) Delete(ctx context.Context, name string) error {
 // RoleRepository persists roles via Raft.
 type RoleRepository struct{ c raftClient }
 
-func NewRoleRepository(c *raft.Client) *RoleRepository { return &RoleRepository{c: c} }
+func NewRoleRepository(c raftClient) *RoleRepository { return &RoleRepository{c: c} }
 
 func (r *RoleRepository) Save(ctx context.Context, role *domainauth.Role) error {
 	return write(ctx, r.c, raft.OpRoleSave, role)
@@ -342,7 +348,7 @@ func (r *RoleRepository) Delete(ctx context.Context, name string) error {
 // DatabaseRoleRepository persists database roles via Raft.
 type DatabaseRoleRepository struct{ c raftClient }
 
-func NewDatabaseRoleRepository(c *raft.Client) *DatabaseRoleRepository {
+func NewDatabaseRoleRepository(c raftClient) *DatabaseRoleRepository {
 	return &DatabaseRoleRepository{c: c}
 }
 
@@ -372,7 +378,7 @@ func (r *DatabaseRoleRepository) Delete(ctx context.Context, name string) error 
 // IssuedCertRepository tracks issued certificates via Raft.
 type IssuedCertRepository struct{ c raftClient }
 
-func NewIssuedCertRepository(c *raft.Client) *IssuedCertRepository {
+func NewIssuedCertRepository(c raftClient) *IssuedCertRepository {
 	return &IssuedCertRepository{c: c}
 }
 

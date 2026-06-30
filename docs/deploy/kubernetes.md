@@ -26,6 +26,8 @@ Edit [`deployments/k8s/secret.yaml`](../../deployments/k8s/secret.yaml):
 2. `KNXVAULT_ROOT_TOKEN` — strong bootstrap token
 3. `KNXVAULT_AUDIT_SIGNING_KEY` — optional HMAC key for audit export integrity
 
+> **Note:** `deployments/k8s/legacy/deployment.yaml` is deprecated (single Deployment without Raft). Use the StatefulSet flow below for production.
+
 ## Deploy (3-node Raft)
 
 ```bash

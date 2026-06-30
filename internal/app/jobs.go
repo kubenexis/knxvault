@@ -20,6 +20,7 @@ type JobRunner struct {
 	database *service.DatabaseService
 	pki      *service.PKIService
 	cas      repository.CARepository
+	leases   repository.LeaseRepository
 	cfg      config.Config
 	log      *zap.Logger
 }
@@ -30,6 +31,7 @@ func NewJobRunner(
 	database *service.DatabaseService,
 	pki *service.PKIService,
 	cas repository.CARepository,
+	leases repository.LeaseRepository,
 	cfg config.Config,
 	log *zap.Logger,
 ) *JobRunner {
@@ -38,6 +40,7 @@ func NewJobRunner(
 		database: database,
 		pki:      pki,
 		cas:      cas,
+		leases:   leases,
 		cfg:      cfg,
 		log:      log,
 	}
@@ -67,6 +70,7 @@ func (j *JobRunner) runOnLeader(ctx context.Context) {
 	defer renewTicker.Stop()
 
 	j.runLeaseCleanup(ctx)
+	j.updateActiveLeasesMetric(ctx)
 	j.runCRLRefresh(ctx)
 	j.runCertRenewal(ctx)
 
@@ -77,6 +81,7 @@ func (j *JobRunner) runOnLeader(ctx context.Context) {
 			return
 		case <-leaseTicker.C:
 			j.runLeaseCleanup(ctx)
+			j.updateActiveLeasesMetric(ctx)
 		case <-crlTicker.C:
 			j.runCRLRefresh(ctx)
 		case <-renewTicker.C:
@@ -111,7 +116,18 @@ func (j *JobRunner) runLeaseCleanup(ctx context.Context) {
 	if revoked > 0 {
 		j.log.Info("expired leases revoked", zap.Int("count", revoked))
 	}
-	metrics.SetActiveLeasesGauge(revoked)
+}
+
+func (j *JobRunner) updateActiveLeasesMetric(ctx context.Context) {
+	if j.leases == nil {
+		return
+	}
+	count, err := j.leases.CountActive(ctx)
+	if err != nil {
+		j.log.Warn("count active leases failed", zap.Error(err))
+		return
+	}
+	metrics.SetActiveLeasesGauge(count)
 }
 
 func (j *JobRunner) runCRLRefresh(ctx context.Context) {

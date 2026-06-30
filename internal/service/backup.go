@@ -4,15 +4,20 @@ import (
 	"context"
 
 	auditsvc "github.com/kubenexis/knxvault/internal/audit"
-	"github.com/kubenexis/knxvault/internal/auth"
 	"github.com/kubenexis/knxvault/internal/backup"
 	kvncrypto "github.com/kubenexis/knxvault/internal/crypto"
 	"github.com/kubenexis/knxvault/internal/domain/common"
+	"github.com/kubenexis/knxvault/internal/service/audithelper"
 )
 
 // SnapshotImporter replaces vault state from a portable snapshot.
 type SnapshotImporter interface {
 	ImportSnapshot(ctx context.Context, snapshot *backup.Snapshot) error
+}
+
+// SnapshotExporter performs an atomic snapshot export (Raft read path).
+type SnapshotExporter interface {
+	ExportSnapshot(ctx context.Context, opts backup.ExportOptions) (*backup.Snapshot, error)
 }
 
 // SnapshotRequester triggers an on-disk Dragonboat snapshot.
@@ -26,6 +31,7 @@ type BackupService struct {
 	crypto    *kvncrypto.Service
 	audit     *auditsvc.Service
 	importer  SnapshotImporter
+	exporter  SnapshotExporter
 	snapshots SnapshotRequester
 }
 
@@ -47,16 +53,14 @@ func (s *BackupService) SetSnapshotImporter(importer SnapshotImporter) {
 	s.importer = importer
 }
 
+// SetSnapshotExporter configures atomic Raft snapshot export.
+func (s *BackupService) SetSnapshotExporter(exporter SnapshotExporter) {
+	s.exporter = exporter
+}
+
 // SetSnapshotRequester configures Dragonboat snapshot persistence after export.
 func (s *BackupService) SetSnapshotRequester(requester SnapshotRequester) {
 	s.snapshots = requester
-}
-
-func (s *BackupService) actor(ctx context.Context) string {
-	if principal, ok := auth.PrincipalFromContext(ctx); ok {
-		return principal.Subject
-	}
-	return "anonymous"
 }
 
 // Create exports and encrypts a backup archive.
@@ -64,9 +68,17 @@ func (s *BackupService) Create(ctx context.Context, opts backup.ExportOptions) (
 	if s.crypto == nil {
 		return nil, common.New(common.ErrCodeInternal, "master key required for encrypted backups")
 	}
-	snapshot, err := backup.Export(ctx, s.repos, opts)
+	var (
+		snapshot *backup.Snapshot
+		err      error
+	)
+	if s.exporter != nil {
+		snapshot, err = s.exporter.ExportSnapshot(ctx, opts)
+	} else {
+		snapshot, err = backup.Export(ctx, s.repos, opts)
+	}
 	if err != nil {
-		s.record(ctx, "backup.create", "sys/backup", err, nil)
+		audithelper.Record(s.audit, ctx, "backup.create", "sys/backup", err, nil)
 		return nil, err
 	}
 	if s.snapshots != nil {
@@ -74,12 +86,13 @@ func (s *BackupService) Create(ctx context.Context, opts backup.ExportOptions) (
 	}
 	data, err := backup.Seal(s.crypto, snapshot)
 	if err != nil {
-		s.record(ctx, "backup.create", "sys/backup", err, nil)
+		audithelper.Record(s.audit, ctx, "backup.create", "sys/backup", err, nil)
 		return nil, err
 	}
-	s.record(ctx, "backup.create", "sys/backup", nil, map[string]any{
-		"cas":     len(snapshot.CAs),
-		"secrets": len(snapshot.Secrets),
+	audithelper.Record(s.audit, ctx, "backup.create", "sys/backup", nil, map[string]any{
+		"cas":       len(snapshot.CAs),
+		"secrets":   len(snapshot.Secrets),
+		"pki_roles": len(snapshot.PKIRoles),
 	})
 	return data, nil
 }
@@ -91,7 +104,11 @@ func (s *BackupService) Restore(ctx context.Context, data []byte) error {
 	}
 	snapshot, err := backup.Open(s.crypto, data)
 	if err != nil {
-		s.record(ctx, "backup.restore", "sys/restore", err, nil)
+		audithelper.Record(s.audit, ctx, "backup.restore", "sys/restore", err, nil)
+		return err
+	}
+	if err := backup.ValidateSnapshot(snapshot); err != nil {
+		audithelper.Record(s.audit, ctx, "backup.restore", "sys/restore", err, nil)
 		return err
 	}
 	if s.importer != nil {
@@ -99,20 +116,9 @@ func (s *BackupService) Restore(ctx context.Context, data []byte) error {
 	} else {
 		err = backup.Restore(ctx, s.repos, snapshot)
 	}
-	s.record(ctx, "backup.restore", "sys/restore", err, map[string]any{
+	audithelper.Record(s.audit, ctx, "backup.restore", "sys/restore", err, map[string]any{
 		"cas":     len(snapshot.CAs),
 		"secrets": len(snapshot.Secrets),
 	})
 	return err
-}
-
-func (s *BackupService) record(ctx context.Context, action, resource string, err error, details map[string]any) {
-	if s.audit == nil {
-		return
-	}
-	status := "success"
-	if err != nil {
-		status = "failure"
-	}
-	_ = s.audit.Record(ctx, s.actor(ctx), action, resource, status, details)
 }

@@ -140,6 +140,19 @@ Kubernetes auth uses in-cluster **TokenReview** automatically — do not set `KN
 
 Do not store database admin passwords in database role `config` — use KV paths. See [Operator security](../operations/operator-security.md).
 
+## Legacy Kubernetes Lease HA (non-Raft)
+
+When `KNXVAULT_RAFT_ENABLED=false`, optional background-job leader election uses a Kubernetes `coordination.k8s.io/v1` Lease:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `KNXVAULT_HA_ENABLED` | `false` | Enable K8s Lease elector for background jobs |
+| `KNXVAULT_HA_NAMESPACE` | `knxvault` | Lease namespace |
+| `KNXVAULT_HA_LEASE_NAME` | `knxvault-leader` | Lease object name |
+| `KNXVAULT_HA_IDENTITY` | pod hostname | Holder identity (defaults to `KNXVAULT_POD_NAME`) |
+
+Production HA should use **Dragonboat Raft** (`KNXVAULT_RAFT_ENABLED=true`) instead of Lease-only mode. Lease HA does not replicate vault data.
+
 ## Related documents
 
 - [Operator security](../operations/operator-security.md)

@@ -34,7 +34,9 @@ Located in `test/integration/`:
 | Suite | Description |
 |-------|-------------|
 | `api_test.go` | Full HTTP API against in-memory backend |
-| `raft_*` | 3-node Raft cluster: linearizable writes, leader failover |
+| `api_raft_test.go` | HTTP API with single-node Raft (`KNXVAULT_RAFT_ENABLED=true`) |
+| `raft_test.go` | 3-node Raft cluster: linearizable writes |
+| `raft_failover_test.go` | Leader failover: stop leader, verify reads/writes on survivors |
 
 Integration tests set `KNXVAULT_MASTER_KEY` and `KNXVAULT_ROOT_TOKEN` programmatically. Raft tests spawn multiple server processes with distinct `KNXVAULT_RAFT_NODE_ID` values. Unit tests that enable Raft via `config.Load()` must also set `KNXVAULT_RAFT_NODE_ID` (> 0) — otherwise validation fails before dependency wiring.
 
