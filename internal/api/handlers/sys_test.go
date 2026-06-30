@@ -19,7 +19,7 @@ func TestSysHandlerCapabilities(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	authSvc := testAuthService("admin")
-	handler := handlers.NewSysHandler(authSvc, nil, testCryptoKey())
+	handler := handlers.NewSysHandler(authSvc, nil, nil, nil, testCryptoKey(), false, nil)
 
 	r := gin.New()
 	r.Use(middleware.Auth(authSvc), middleware.ErrorHandler())
@@ -44,7 +44,7 @@ func TestSysHandlerCapabilities(t *testing.T) {
 func TestSysHandlerCapabilitiesUnauthenticated(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	handler := handlers.NewSysHandler(testAuthService("admin"), nil, nil)
+	handler := handlers.NewSysHandler(testAuthService("admin"), nil, nil, nil, nil, false, nil)
 	r := gin.New()
 	r.Use(middleware.ErrorHandler())
 	r.GET("/sys/capabilities", handler.Capabilities)
@@ -68,7 +68,7 @@ func TestSysHandlerIssueListenerTLSNotImplemented(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	authSvc := testAuthService("admin")
-	handler := handlers.NewSysHandler(authSvc, nil, nil)
+	handler := handlers.NewSysHandler(authSvc, nil, nil, nil, nil, false, nil)
 	r := gin.New()
 	r.Use(middleware.Auth(authSvc), middleware.ErrorHandler())
 	r.POST("/sys/tls/issue-listener", middleware.RequirePermission(authSvc, "sys/tls", "write"), handler.IssueListenerTLS)
@@ -90,7 +90,7 @@ func TestSysHandlerInit(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	authSvc := testAuthService("admin")
-	handler := handlers.NewSysHandler(authSvc, nil, testCryptoKey())
+	handler := handlers.NewSysHandler(authSvc, nil, nil, nil, testCryptoKey(), false, nil)
 	r := gin.New()
 	r.Use(middleware.Auth(authSvc), middleware.ErrorHandler())
 	r.POST("/sys/init", middleware.RequirePermission(authSvc, "sys/init", "write"), handler.Init)

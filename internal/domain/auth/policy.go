@@ -39,12 +39,28 @@ func (p *Policy) Validate() error {
 	return nil
 }
 
+// Auth method types for role login.
+const (
+	AuthMethodKubernetes = "kubernetes"
+	AuthMethodOIDC       = "oidc"
+)
+
+// OIDCConfig configures OIDC/JWT login for a role.
+type OIDCConfig struct {
+	Issuer   string `json:"issuer"`
+	Audience string `json:"audience"`
+	JWKSURL  string `json:"jwks_url"`
+	MaxTTL   int64  `json:"max_ttl_seconds"`
+}
+
 // Role binds policy names to a role identifier and optional Kubernetes ServiceAccount constraints.
 type Role struct {
 	Name                          string
 	Policies                      []string
 	BoundServiceAccountNames      []string
 	BoundServiceAccountNamespaces []string
+	AuthMethod                    string
+	OIDC                          *OIDCConfig
 }
 
 // Validate checks role fields.

@@ -48,7 +48,7 @@ See [`config/knxvault.example.yaml`](../../config/knxvault.example.yaml) for the
 | `KNXVAULT_RAFT_HEARTBEAT_RTT` | `1` | No | Heartbeat interval (RTT ticks) |
 | `KNXVAULT_RAFT_RTT_MILLISECOND` | `1` | No | Logical RTT milliseconds |
 | `KNXVAULT_POD_NAME` | — | K8s | StatefulSet pod name (`knxvault-0` → node ID `1`) when `KNXVAULT_RAFT_NODE_ID` is unset |
-| `KNXVAULT_RAFT_MTLS_CERT` | — | No | Raft peer TLS certificate (stub — W38-14) |
+| `KNXVAULT_RAFT_MTLS_CERT` | — | No | Raft peer TLS certificate (all three required together) |
 | `KNXVAULT_RAFT_MTLS_KEY` | — | No | Raft peer TLS private key |
 | `KNXVAULT_RAFT_MTLS_CA` | — | No | Raft peer CA bundle for mutual TLS |
 | `KNXVAULT_RAFT_LEADER_WAIT` | `10s` | No | Max wait for a Raft leader during startup before failing |
@@ -79,6 +79,18 @@ Jobs run on the **Raft leader** when Raft is enabled.
 | `KNXVAULT_RATE_LIMIT_RPM` | `300` | Requests per minute per client |
 | `KNXVAULT_REQUEST_SIGNING_KEY` | — | HMAC key for `X-KNX-Signature` header |
 | `KNXVAULT_REQUEST_SIGNING_REQUIRED` | `false` | Reject unsigned requests when true |
+| `KNXVAULT_TLS_CERT` | — | HTTPS server certificate PEM path |
+| `KNXVAULT_TLS_KEY` | — | HTTPS server private key PEM path |
+| `KNXVAULT_MTLS_REQUIRED` | `false` | Require client certificates on KV write routes |
+| `KNXVAULT_MTLS_CA` | — | Client CA bundle when mTLS is enabled |
+| `KNXVAULT_OIDC_DEFAULT_TTL` | `1h` | Default OIDC-issued client token TTL |
+| `KNXVAULT_JOB_KV_ROTATION_INTERVAL` | `5m` | Leader job for scheduled KV rotation |
+| `KNXVAULT_ROTATION_WEBHOOK_URL` | — | Webhook on successful KV rotation |
+| `KNXVAULT_EXPOSURE_SIGNING_KEY` | — | HMAC key for `POST /sys/exposure/report` |
+| `KNXVAULT_EXPOSURE_AUTO_REVOKE` | `false` | Auto-revoke leases / rotate KV on exposure report |
+| `KNXVAULT_EXPOSURE_WEBHOOK_URL` | — | Webhook on exposure reports |
+
+See [Tier 0 production features](../product/tier0-production.md) and [exposure detection](../integration/exposure-detection.md).
 
 ## Observability
 

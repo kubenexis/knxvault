@@ -9,6 +9,7 @@ import (
 	sm "github.com/lni/dragonboat/v3/statemachine"
 
 	appconfig "github.com/kubenexis/knxvault/internal/config"
+	"github.com/kubenexis/knxvault/internal/infra/metrics"
 )
 
 // NodeHostBundle owns a running Dragonboat NodeHost and vault Raft client.
@@ -33,6 +34,15 @@ func StartNodeHost(cfg appconfig.RaftConfig) (*NodeHostBundle, error) {
 		ListenAddress:     cfg.ListenAddress,
 		EnableMetrics:     true,
 		RaftEventListener: eventListener{},
+	}
+	if cfg.MTLSCertFile != "" {
+		nhc.MutualTLS = true
+		nhc.CertFile = cfg.MTLSCertFile
+		nhc.KeyFile = cfg.MTLSKeyFile
+		nhc.CAFile = cfg.MTLSCAFile
+		metrics.SetRaftTLSEnabled(true)
+	} else {
+		metrics.SetRaftTLSEnabled(false)
 	}
 
 	nh, err := dragonboat.NewNodeHost(nhc)

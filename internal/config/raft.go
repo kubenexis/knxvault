@@ -54,5 +54,19 @@ func (r RaftConfig) Validate() error {
 	if r.ElectionRTT <= 2*r.HeartbeatRTT {
 		return fmt.Errorf("raft election RTT must be > 2 * heartbeat RTT")
 	}
+	if err := validateRaftMTLS(r.MTLSCertFile, r.MTLSKeyFile, r.MTLSCAFile); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateRaftMTLS(cert, key, ca string) error {
+	set := cert != "" || key != "" || ca != ""
+	if !set {
+		return nil
+	}
+	if cert == "" || key == "" || ca == "" {
+		return fmt.Errorf("raft mTLS requires KNXVAULT_RAFT_MTLS_CERT, KEY, and CA")
+	}
 	return nil
 }

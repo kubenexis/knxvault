@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"github.com/kubenexis/knxvault/internal/infra/metrics"
 	"github.com/kubenexis/knxvault/internal/version"
 	"google.golang.org/grpc"
 	provider "sigs.k8s.io/secrets-store-csi-driver/provider/v1alpha1"
@@ -107,6 +108,7 @@ func (s *Server) Mount(ctx context.Context, req *provider.MountRequest) (*provid
 		versionStr := strconv.Itoa(version)
 		if prev, ok := current[objectID]; ok && prev != "" && prev != versionStr {
 			s.rotations.Add(1)
+			metrics.IncCSIMountRotations()
 		}
 		versions = append(versions, &provider.ObjectVersion{Id: objectID, Version: versionStr})
 		files = append(files, &provider.File{

@@ -10,6 +10,7 @@ import (
 
 	"github.com/kubenexis/knxvault/internal/api"
 	"github.com/kubenexis/knxvault/internal/config"
+	"github.com/kubenexis/knxvault/internal/crypto/tlsconfig"
 	"github.com/kubenexis/knxvault/internal/infra/tracing"
 	"github.com/kubenexis/knxvault/internal/version"
 )
@@ -21,6 +22,7 @@ type App struct {
 	deps            *Dependencies
 	server          *http.Server
 	tracingShutdown func(context.Context) error
+	tlsEnabled      bool
 }
 
 // New constructs an App from configuration.
@@ -35,19 +37,35 @@ func New(ctx context.Context, cfg config.Config, log *zap.Logger) (*App, error) 
 		return nil, err
 	}
 
+	tlsCfg, err := tlsconfig.LoadServerTLS(tlsconfig.ServerConfig{
+		CertFile:     cfg.TLSCertFile,
+		KeyFile:      cfg.TLSKeyFile,
+		MTLSRequired: cfg.MTLSRequired,
+		CAFile:       cfg.MTLSCAFile,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("tls: %w", err)
+	}
+
 	router := api.NewRouter(log, cfg.Version, cfg.TracingEnabled, api.RouterDeps{
 		Ready:              deps,
 		MasterKey:          deps.MasterKey,
 		CORSAllowedOrigins: cfg.CORSAllowedOrigins,
+		MTLSRequired:       cfg.MTLSRequired,
 		OpenSSL:            deps.OpenSSL,
 		AuthService:        deps.AuthService,
 		PKIService:         deps.PKIService,
 		SecretsService:     deps.SecretsService,
 		DatabaseService:    deps.DatabaseService,
 		PolicyService:      deps.PolicyService,
+		RotationService:    deps.RotationService,
+		MachineIdentitySvc: deps.MachineIdentityService,
 		AuditExportService: deps.AuditExportService,
 		InjectService:      deps.InjectService,
 		BackupService:      deps.BackupService,
+		ExposureSigningKey: cfg.ExposureSigningKey,
+		ExposureAutoRevoke: cfg.ExposureAutoRevoke,
+		ExposureWebhook:    deps.ExposureWebhook,
 		TokenTTL:           deps.TokenTTL,
 		HAStatus:           deps,
 		IsLeader:           deps.IsLeader,
@@ -55,15 +73,21 @@ func New(ctx context.Context, cfg config.Config, log *zap.Logger) (*App, error) 
 		RequestSigning:     deps.RequestSigning,
 	})
 
+	server := &http.Server{
+		Addr:    cfg.HTTPAddr,
+		Handler: router,
+	}
+	if tlsCfg != nil {
+		server.TLSConfig = tlsCfg
+	}
+
 	app := &App{
 		cfg:             cfg,
 		log:             log,
 		deps:            deps,
 		tracingShutdown: traceShutdown,
-		server: &http.Server{
-			Addr:    cfg.HTTPAddr,
-			Handler: router,
-		},
+		server:          server,
+		tlsEnabled:      tlsCfg != nil,
 	}
 	return app, nil
 }
@@ -79,7 +103,13 @@ func (a *App) Run(ctx context.Context) error {
 	go func() {
 		fields := append([]zap.Field{zap.String("addr", a.cfg.HTTPAddr)}, version.ZapFields()...)
 		a.log.Info("starting knxvault", fields...)
-		if err := a.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		var err error
+		if a.tlsEnabled {
+			err = a.server.ListenAndServeTLS(a.cfg.TLSCertFile, a.cfg.TLSKeyFile)
+		} else {
+			err = a.server.ListenAndServe()
+		}
+		if err != nil && err != http.ErrServerClosed {
 			errCh <- err
 		}
 		close(errCh)

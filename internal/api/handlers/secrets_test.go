@@ -40,7 +40,7 @@ func TestSecretsHandlerWriteRead(t *testing.T) {
 		secretsengine.NewKVV2Engine(memory.NewSecretRepository(), cryptoSvc),
 		auditsvc.NewService(auditRepo),
 	)
-	handler := handlers.NewSecretsHandler(secretsSvc)
+	handler := handlers.NewSecretsHandler(secretsSvc, nil)
 
 	r := gin.New()
 	r.Use(middleware.Auth(authSvc))
@@ -84,7 +84,7 @@ func TestSecretsHandlerListMetadataDestroy(t *testing.T) {
 		secretsengine.NewKVV2Engine(memory.NewSecretRepository(), cryptoSvc),
 		auditsvc.NewService(auditRepo),
 	)
-	handler := handlers.NewSecretsHandler(secretsSvc)
+	handler := handlers.NewSecretsHandler(secretsSvc, nil)
 
 	r := gin.New()
 	r.Use(middleware.Auth(authSvc))

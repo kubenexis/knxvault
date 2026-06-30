@@ -23,89 +23,101 @@ type Response struct {
 }
 
 const (
-	OpCASave             = "ca.save"
-	OpCAGetByID          = "ca.get_by_id"
-	OpCAGetByName        = "ca.get_by_name"
-	OpCAList             = "ca.list"
-	OpSecretSaveVersion  = "secret.save_version"
-	OpSecretPut          = "secret.put"
-	OpSecretGetLatest    = "secret.get_latest"
-	OpSecretGetVersion   = "secret.get_version"
-	OpSecretListByPath   = "secret.list_by_path"
-	OpSecretNextVersion  = "secret.next_version"
-	OpSecretDestroyVer   = "secret.destroy_version"
-	OpPKIRoleSave        = "pki_role.save"
-	OpPKIRoleGet         = "pki_role.get"
-	OpPKIRoleList        = "pki_role.list"
-	OpAuditAppend        = "audit.append"
-	OpAuditList          = "audit.list"
-	OpAuditLatestHash    = "audit.latest_hash"
-	OpRevoke             = "revoke.save"
-	OpRevokeIs           = "revoke.is"
-	OpRevokeListByCA     = "revoke.list_by_ca"
-	OpLeaseSave          = "lease.save"
-	OpLeaseGet           = "lease.get"
-	OpLeaseList          = "lease.list"
-	OpLeaseListExpired   = "lease.list_expired"
-	OpLeaseRevoke        = "lease.revoke"
-	OpLeaseCountActive   = "lease.count_active"
-	OpPolicySave         = "policy.save"
-	OpPolicyGet          = "policy.get_by_name"
-	OpPolicyList         = "policy.list"
-	OpPolicyDelete       = "policy.delete"
-	OpRoleSave           = "role.save"
-	OpRoleGet            = "role.get"
-	OpRoleList           = "role.list"
-	OpRoleDelete         = "role.delete"
-	OpDBRoleSave         = "db_role.save"
-	OpDBRoleGet          = "db_role.get"
-	OpDBRoleList         = "db_role.list"
-	OpDBRoleDelete       = "db_role.delete"
-	OpIssuedSave         = "issued.save"
-	OpIssuedGetBySerial  = "issued.get_by_serial"
-	OpIssuedList         = "issued.list"
-	OpIssuedListExpiring = "issued.list_expiring"
-	OpImportSnapshot     = "snapshot.import"
-	OpExportSnapshot     = "snapshot.export"
-	OpTokenSave          = "token.save"         // #nosec G101 -- Raft command name
-	OpTokenGet           = "token.get"          // #nosec G101 -- Raft command name
-	OpTokenRevoke        = "token.revoke"       // #nosec G101 -- Raft command name
-	OpTokenList          = "token.list"         // #nosec G101 -- Raft command name
-	OpTokenListExpired   = "token.list_expired" // #nosec G101 -- Raft command name
+	OpCASave                = "ca.save"
+	OpCAGetByID             = "ca.get_by_id"
+	OpCAGetByName           = "ca.get_by_name"
+	OpCAList                = "ca.list"
+	OpSecretSaveVersion     = "secret.save_version"
+	OpSecretPut             = "secret.put"
+	OpSecretGetLatest       = "secret.get_latest"
+	OpSecretGetVersion      = "secret.get_version"
+	OpSecretListByPath      = "secret.list_by_path"
+	OpSecretNextVersion     = "secret.next_version"
+	OpSecretDestroyVer      = "secret.destroy_version"
+	OpPKIRoleSave           = "pki_role.save"
+	OpPKIRoleGet            = "pki_role.get"
+	OpPKIRoleList           = "pki_role.list"
+	OpAuditAppend           = "audit.append"
+	OpAuditList             = "audit.list"
+	OpAuditLatestHash       = "audit.latest_hash"
+	OpRevoke                = "revoke.save"
+	OpRevokeIs              = "revoke.is"
+	OpRevokeListByCA        = "revoke.list_by_ca"
+	OpLeaseSave             = "lease.save"
+	OpLeaseGet              = "lease.get"
+	OpLeaseList             = "lease.list"
+	OpLeaseListExpired      = "lease.list_expired"
+	OpLeaseRevoke           = "lease.revoke"
+	OpLeaseCountActive      = "lease.count_active"
+	OpPolicySave            = "policy.save"
+	OpPolicyGet             = "policy.get_by_name"
+	OpPolicyList            = "policy.list"
+	OpPolicyDelete          = "policy.delete"
+	OpRoleSave              = "role.save"
+	OpRoleGet               = "role.get"
+	OpRoleList              = "role.list"
+	OpRoleDelete            = "role.delete"
+	OpDBRoleSave            = "db_role.save"
+	OpDBRoleGet             = "db_role.get"
+	OpDBRoleList            = "db_role.list"
+	OpDBRoleDelete          = "db_role.delete"
+	OpIssuedSave            = "issued.save"
+	OpIssuedGetBySerial     = "issued.get_by_serial"
+	OpIssuedList            = "issued.list"
+	OpIssuedListExpiring    = "issued.list_expiring"
+	OpImportSnapshot        = "snapshot.import"
+	OpExportSnapshot        = "snapshot.export"
+	OpTokenSave             = "token.save"         // #nosec G101 -- Raft command name
+	OpTokenGet              = "token.get"          // #nosec G101 -- Raft command name
+	OpTokenRevoke           = "token.revoke"       // #nosec G101 -- Raft command name
+	OpTokenList             = "token.list"         // #nosec G101 -- Raft command name
+	OpTokenListExpired      = "token.list_expired" // #nosec G101 -- Raft command name
+	OpMachineIdentitySave   = "machine_identity.save"
+	OpMachineIdentityGet    = "machine_identity.get"
+	OpMachineIdentityList   = "machine_identity.list"
+	OpMachineIdentityRevoke = "machine_identity.revoke"
+	OpRotationPolicySave    = "rotation_policy.save"
+	OpRotationPolicyGet     = "rotation_policy.get"
+	OpRotationPolicyList    = "rotation_policy.list"
+	OpRotationPolicyDelete  = "rotation_policy.delete"
 )
 
 // readOnlyOps are safe for SyncRead / Lookup; write ops must use Propose.
 var readOnlyOps = map[string]struct{}{
-	OpCAGetByID:          {},
-	OpCAGetByName:        {},
-	OpCAList:             {},
-	OpSecretGetLatest:    {},
-	OpSecretGetVersion:   {},
-	OpSecretListByPath:   {},
-	OpSecretNextVersion:  {},
-	OpPKIRoleGet:         {},
-	OpPKIRoleList:        {},
-	OpAuditList:          {},
-	OpAuditLatestHash:    {},
-	OpRevokeIs:           {},
-	OpRevokeListByCA:     {},
-	OpLeaseGet:           {},
-	OpLeaseList:          {},
-	OpLeaseListExpired:   {},
-	OpLeaseCountActive:   {},
-	OpPolicyGet:          {},
-	OpPolicyList:         {},
-	OpRoleGet:            {},
-	OpRoleList:           {},
-	OpDBRoleGet:          {},
-	OpDBRoleList:         {},
-	OpIssuedGetBySerial:  {},
-	OpIssuedList:         {},
-	OpIssuedListExpiring: {},
-	OpExportSnapshot:     {},
-	OpTokenGet:           {},
-	OpTokenList:          {},
-	OpTokenListExpired:   {},
+	OpCAGetByID:           {},
+	OpCAGetByName:         {},
+	OpCAList:              {},
+	OpSecretGetLatest:     {},
+	OpSecretGetVersion:    {},
+	OpSecretListByPath:    {},
+	OpSecretNextVersion:   {},
+	OpPKIRoleGet:          {},
+	OpPKIRoleList:         {},
+	OpAuditList:           {},
+	OpAuditLatestHash:     {},
+	OpRevokeIs:            {},
+	OpRevokeListByCA:      {},
+	OpLeaseGet:            {},
+	OpLeaseList:           {},
+	OpLeaseListExpired:    {},
+	OpLeaseCountActive:    {},
+	OpPolicyGet:           {},
+	OpPolicyList:          {},
+	OpRoleGet:             {},
+	OpRoleList:            {},
+	OpDBRoleGet:           {},
+	OpDBRoleList:          {},
+	OpIssuedGetBySerial:   {},
+	OpIssuedList:          {},
+	OpIssuedListExpiring:  {},
+	OpExportSnapshot:      {},
+	OpTokenGet:            {},
+	OpTokenList:           {},
+	OpTokenListExpired:    {},
+	OpMachineIdentityGet:  {},
+	OpMachineIdentityList: {},
+	OpRotationPolicyGet:   {},
+	OpRotationPolicyList:  {},
 }
 
 // IsReadOnlyOp reports whether op is permitted on the read path.

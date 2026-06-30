@@ -19,6 +19,7 @@ type JobRunner struct {
 	leader   leader.Elector
 	database *service.DatabaseService
 	pki      *service.PKIService
+	rotation *service.RotationService
 	cas      repository.CARepository
 	leases   repository.LeaseRepository
 	cfg      config.Config
@@ -30,6 +31,7 @@ func NewJobRunner(
 	elector leader.Elector,
 	database *service.DatabaseService,
 	pki *service.PKIService,
+	rotation *service.RotationService,
 	cas repository.CARepository,
 	leases repository.LeaseRepository,
 	cfg config.Config,
@@ -39,6 +41,7 @@ func NewJobRunner(
 		leader:   elector,
 		database: database,
 		pki:      pki,
+		rotation: rotation,
 		cas:      cas,
 		leases:   leases,
 		cfg:      cfg,
@@ -65,14 +68,17 @@ func (j *JobRunner) runOnLeader(ctx context.Context) {
 	leaseTicker := time.NewTicker(j.cfg.JobLeaseCleanupInterval)
 	crlTicker := time.NewTicker(j.cfg.JobCRLRefreshInterval)
 	renewTicker := time.NewTicker(j.cfg.JobCertRenewInterval)
+	kvRotTicker := time.NewTicker(j.cfg.JobKVRotationInterval)
 	defer leaseTicker.Stop()
 	defer crlTicker.Stop()
 	defer renewTicker.Stop()
+	defer kvRotTicker.Stop()
 
 	j.runLeaseCleanup(ctx)
 	j.updateActiveLeasesMetric(ctx)
 	j.runCRLRefresh(ctx)
 	j.runCertRenewal(ctx)
+	j.runKVRotation(ctx)
 
 	for {
 		select {
@@ -86,7 +92,23 @@ func (j *JobRunner) runOnLeader(ctx context.Context) {
 			j.runCRLRefresh(ctx)
 		case <-renewTicker.C:
 			j.runCertRenewal(ctx)
+		case <-kvRotTicker.C:
+			j.runKVRotation(ctx)
 		}
+	}
+}
+
+func (j *JobRunner) runKVRotation(ctx context.Context) {
+	if j.rotation == nil {
+		return
+	}
+	count, err := j.rotation.RunDue(ctx, time.Now().UTC())
+	if err != nil {
+		j.log.Warn("kv rotation failed", zap.Error(err))
+		return
+	}
+	if count > 0 {
+		j.log.Info("kv secrets rotated", zap.Int("count", count))
 	}
 }
 

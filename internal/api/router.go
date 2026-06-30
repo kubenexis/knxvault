@@ -46,6 +46,7 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 		authGroup := r.Group("/auth")
 		{
 			authGroup.POST("/kubernetes", authHandler.LoginKubernetes)
+			authGroup.POST("/oidc/:role", authHandler.LoginOIDC)
 			authGroup.POST("/token", authHandler.LoginToken)
 		}
 		securedAuth := authGroup.Group("/")
@@ -72,7 +73,15 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 	}
 
 	if deps.AuthService != nil {
-		sys := handlers.NewSysHandler(deps.AuthService, deps.PKIService, deps.MasterKey)
+		sys := handlers.NewSysHandler(
+			deps.AuthService,
+			deps.PKIService,
+			deps.DatabaseService,
+			deps.RotationService,
+			deps.MasterKey,
+			deps.ExposureAutoRevoke,
+			deps.ExposureWebhook,
+		)
 		secured.GET("/sys/capabilities", sys.Capabilities)
 		secured.POST("/sys/init",
 			middleware.RequirePermission(deps.AuthService, "sys/init", "write"),
@@ -107,8 +116,12 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 	}
 
 	if deps.SecretsService != nil && deps.AuthService != nil {
-		secretsHandler := handlers.NewSecretsHandler(deps.SecretsService)
-		secured.POST("/secrets/kv/*path",
+		secretsHandler := handlers.NewSecretsHandler(deps.SecretsService, deps.RotationService)
+		kvWrite := secured.Group("/secrets/kv")
+		if deps.MTLSRequired {
+			kvWrite.Use(middleware.MTLSRequired(true))
+		}
+		kvWrite.POST("/*path",
 			middleware.RequirePermission(deps.AuthService, "secrets/kv", "write"),
 			secretsHandler.Write,
 		)
@@ -135,6 +148,18 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 		secured.GET("/secrets/database/roles/:name",
 			middleware.RequirePermission(deps.AuthService, "secrets/database", "read"),
 			dbHandler.GetRole,
+		)
+	}
+
+	if deps.RotationService != nil && deps.AuthService != nil {
+		secretsHandler := handlers.NewSecretsHandler(deps.SecretsService, deps.RotationService)
+		secured.PUT("/sys/kv-rotation",
+			middleware.RequirePermission(deps.AuthService, "secrets/kv", "write"),
+			secretsHandler.PutRotation,
+		)
+		secured.DELETE("/sys/kv-rotation",
+			middleware.RequirePermission(deps.AuthService, "secrets/kv", "write"),
+			secretsHandler.DeleteRotation,
 		)
 	}
 
@@ -179,6 +204,33 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 			middleware.RequirePermission(deps.AuthService, "audit/verify", "read"),
 			auditHandler.Verify,
 		)
+	}
+
+	if deps.MachineIdentitySvc != nil && deps.AuthService != nil {
+		nhi := handlers.NewMachineIdentityHandler(deps.MachineIdentitySvc)
+		secured.GET("/sys/machine-identities",
+			middleware.RequirePermission(deps.AuthService, "sys/policies", "read"),
+			nhi.List,
+		)
+		secured.DELETE("/sys/machine-identities/:id",
+			middleware.RequirePermission(deps.AuthService, "sys/policies", "write"),
+			nhi.Revoke,
+		)
+	}
+
+	if deps.ExposureSigningKey != "" {
+		exposureSigning := middleware.NewExposureSigning(deps.ExposureSigningKey)
+		r.POST("/sys/exposure/report", exposureSigning.Middleware(), func(c *gin.Context) {
+			if deps.AuthService == nil {
+				c.JSON(http.StatusServiceUnavailable, gin.H{"message": "not configured"})
+				return
+			}
+			sysHandler := handlers.NewSysHandler(
+				deps.AuthService, deps.PKIService, deps.DatabaseService, deps.RotationService,
+				deps.MasterKey, deps.ExposureAutoRevoke, deps.ExposureWebhook,
+			)
+			sysHandler.ReportExposure(c)
+		})
 	}
 
 	if deps.BackupService != nil && deps.AuthService != nil {

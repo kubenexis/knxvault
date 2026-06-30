@@ -23,6 +23,7 @@ import (
 	"github.com/kubenexis/knxvault/internal/infra/leader"
 	"github.com/kubenexis/knxvault/internal/infra/metrics"
 	"github.com/kubenexis/knxvault/internal/inject"
+	"github.com/kubenexis/knxvault/internal/notify"
 	"github.com/kubenexis/knxvault/internal/raft"
 	"github.com/kubenexis/knxvault/internal/repository"
 	"github.com/kubenexis/knxvault/internal/repository/dragonboat"
@@ -32,36 +33,41 @@ import (
 
 // Dependencies groups runtime subsystems wired at startup.
 type Dependencies struct {
-	Crypto         *crypto.Service
-	MasterKey      []byte
-	OpenSSL        *openssl.Wrapper
-	Raft           *raft.NodeHostBundle
-	CARepo         repository.CARepository
-	PKIRoleRepo    repository.PKIRoleRepository
-	SecretRepo     repository.SecretRepository
-	AuditRepo      repository.AuditRepository
-	RevokeRepo     repository.RevocationRepository
-	LeaseRepo      repository.LeaseRepository
-	PolicyRepo     repository.PolicyRepository
-	RoleRepo       repository.RoleRepository
-	TokenRepo      repository.TokenRepository
-	DBRoleRepo     repository.DatabaseRoleRepository
-	IssuedCertRepo repository.IssuedCertRepository
+	Crypto              *crypto.Service
+	MasterKey           []byte
+	OpenSSL             *openssl.Wrapper
+	Raft                *raft.NodeHostBundle
+	CARepo              repository.CARepository
+	PKIRoleRepo         repository.PKIRoleRepository
+	SecretRepo          repository.SecretRepository
+	AuditRepo           repository.AuditRepository
+	RevokeRepo          repository.RevocationRepository
+	LeaseRepo           repository.LeaseRepository
+	PolicyRepo          repository.PolicyRepository
+	RoleRepo            repository.RoleRepository
+	TokenRepo           repository.TokenRepository
+	MachineIdentityRepo repository.MachineIdentityRepository
+	RotationPolicyRepo  repository.RotationPolicyRepository
+	DBRoleRepo          repository.DatabaseRoleRepository
+	IssuedCertRepo      repository.IssuedCertRepository
 
-	AuthService        *auth.Service
-	AuditService       *auditsvc.Service
-	PKIEngine          *pkiengine.Engine
-	SecretsEngine      *secretsengine.KVV2Engine
-	DatabaseEngine     *databaseengine.Engine
-	PKIService         *service.PKIService
-	SecretsService     *service.SecretsService
-	DatabaseService    *service.DatabaseService
-	PolicyService      *service.PolicyService
-	AuditExportService *service.AuditExportService
-	InjectService      *service.InjectService
-	BackupService      *service.BackupService
-	EngineRegistry     *engine.Registry
-	TokenTTL           time.Duration
+	AuthService            *auth.Service
+	AuditService           *auditsvc.Service
+	PKIEngine              *pkiengine.Engine
+	SecretsEngine          *secretsengine.KVV2Engine
+	DatabaseEngine         *databaseengine.Engine
+	PKIService             *service.PKIService
+	SecretsService         *service.SecretsService
+	DatabaseService        *service.DatabaseService
+	PolicyService          *service.PolicyService
+	AuditExportService     *service.AuditExportService
+	InjectService          *service.InjectService
+	BackupService          *service.BackupService
+	RotationService        *service.RotationService
+	MachineIdentityService *service.MachineIdentityService
+	ExposureWebhook        *notify.Webhook
+	EngineRegistry         *engine.Registry
+	TokenTTL               time.Duration
 
 	RateLimiter    *middleware.RateLimiter
 	RequestSigning *middleware.RequestSigning
@@ -122,6 +128,8 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 		deps.IssuedCertRepo = repos.IssuedCert
 		deps.PKIRoleRepo = repos.PKIRole
 		deps.TokenRepo = repos.Token
+		deps.MachineIdentityRepo = repos.MachineIdentity
+		deps.RotationPolicyRepo = repos.RotationPolicy
 		deps.Leader = raft.NewLeaderElector(bundle.Client)
 		log.Info("dragonboat raft repositories initialized",
 			zap.Uint64("node_id", raftCfg.NodeID),
@@ -140,6 +148,8 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 		deps.IssuedCertRepo = memory.NewIssuedCertRepository()
 		deps.PKIRoleRepo = memory.NewPKIRoleRepository()
 		deps.TokenRepo = memory.NewTokenRepository()
+		deps.MachineIdentityRepo = memory.NewMachineIdentityRepository()
+		deps.RotationPolicyRepo = memory.NewRotationPolicyRepository()
 	}
 
 	if deps.Crypto != nil {
@@ -210,9 +220,22 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 		}
 		log.Info("root token registered")
 	}
+	deps.MachineIdentityService = service.NewMachineIdentityService(deps.MachineIdentityRepo, deps.AuditService)
+	if deps.SecretsService != nil {
+		deps.RotationService = service.NewRotationService(
+			deps.RotationPolicyRepo,
+			deps.SecretsService,
+			deps.AuditService,
+			cfg.RotationWebhookURL,
+		)
+	}
+	deps.ExposureWebhook = notify.NewWebhook(cfg.ExposureWebhookURL)
+
 	deps.AuthService = auth.NewService(tokenStore, rbac, cfg.JWTSecret)
 	deps.AuthService.SetRBACSyncer(deps.PolicyService)
 	deps.AuthService.SetRoleResolver(auth.NewRepositoryRoleResolver(deps.RoleRepo))
+	deps.AuthService.SetOIDCValidator(auth.NewOIDCValidator(), cfg.OIDCDefaultTTL)
+	deps.AuthService.SetMachineIdentityRecorder(deps.MachineIdentityService)
 	var tokenReviewer k8s.TokenReviewer
 	if reviewer, err := k8s.NewInClusterTokenReviewer(); err == nil {
 		tokenReviewer = reviewer
@@ -275,7 +298,7 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 	deps.RateLimiter = middleware.NewRateLimiter(cfg.RateLimitRPM, cfg.RateLimitEnabled)
 	deps.RequestSigning = middleware.NewRequestSigning(cfg.RequestSigningKey, cfg.RequestSigningRequired)
 
-	deps.JobRunner = NewJobRunner(deps.Leader, deps.DatabaseService, deps.PKIService, deps.CARepo, deps.LeaseRepo, cfg, log)
+	deps.JobRunner = NewJobRunner(deps.Leader, deps.DatabaseService, deps.PKIService, deps.RotationService, deps.CARepo, deps.LeaseRepo, cfg, log)
 
 	return deps, nil
 }

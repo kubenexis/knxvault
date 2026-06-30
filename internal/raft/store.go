@@ -11,33 +11,37 @@ import (
 
 // Store holds vault state replicated by Raft.
 type Store struct {
-	CA         *memory.CARepository
-	Secret     *memory.SecretRepository
-	Audit      *memory.AuditRepository
-	Revoke     *memory.RevocationRepository
-	Lease      *memory.LeaseRepository
-	Policy     *memory.PolicyRepository
-	Role       *memory.RoleRepository
-	DBRole     *memory.DatabaseRoleRepository
-	IssuedCert *memory.IssuedCertRepository
-	PKIRole    *memory.PKIRoleRepository
-	Token      *memory.TokenRepository
+	CA              *memory.CARepository
+	Secret          *memory.SecretRepository
+	Audit           *memory.AuditRepository
+	Revoke          *memory.RevocationRepository
+	Lease           *memory.LeaseRepository
+	Policy          *memory.PolicyRepository
+	Role            *memory.RoleRepository
+	DBRole          *memory.DatabaseRoleRepository
+	IssuedCert      *memory.IssuedCertRepository
+	PKIRole         *memory.PKIRoleRepository
+	Token           *memory.TokenRepository
+	MachineIdentity *memory.MachineIdentityRepository
+	RotationPolicy  *memory.RotationPolicyRepository
 }
 
 // NewStore constructs an empty vault store.
 func NewStore() *Store {
 	return &Store{
-		CA:         memory.NewCARepository(),
-		Secret:     memory.NewSecretRepository(),
-		Audit:      memory.NewAuditRepository(),
-		Revoke:     memory.NewRevocationRepository(),
-		Lease:      memory.NewLeaseRepository(),
-		Policy:     memory.NewPolicyRepository(),
-		Role:       memory.NewRoleRepository(),
-		DBRole:     memory.NewDatabaseRoleRepository(),
-		IssuedCert: memory.NewIssuedCertRepository(),
-		PKIRole:    memory.NewPKIRoleRepository(),
-		Token:      memory.NewTokenRepository(),
+		CA:              memory.NewCARepository(),
+		Secret:          memory.NewSecretRepository(),
+		Audit:           memory.NewAuditRepository(),
+		Revoke:          memory.NewRevocationRepository(),
+		Lease:           memory.NewLeaseRepository(),
+		Policy:          memory.NewPolicyRepository(),
+		Role:            memory.NewRoleRepository(),
+		DBRole:          memory.NewDatabaseRoleRepository(),
+		IssuedCert:      memory.NewIssuedCertRepository(),
+		PKIRole:         memory.NewPKIRoleRepository(),
+		Token:           memory.NewTokenRepository(),
+		MachineIdentity: memory.NewMachineIdentityRepository(),
+		RotationPolicy:  memory.NewRotationPolicyRepository(),
 	}
 }
 

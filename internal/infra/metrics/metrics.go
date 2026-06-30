@@ -58,6 +58,18 @@ var (
 			Help: "1 when the OpenSSL circuit breaker is open",
 		},
 	)
+	csiMountRotationsTotal = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "knxvault_csi_mount_rotations_total",
+			Help: "CSI mount operations that detected a KV version change",
+		},
+	)
+	raftTLSEnabled = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "knxvault_raft_tls_enabled",
+			Help: "1 when Raft peer mutual TLS is enabled",
+		},
+	)
 )
 
 // SetBuildInfo records the running application build metadata.
@@ -77,6 +89,20 @@ func SetLeader(isLeader bool) {
 // SetActiveLeasesGauge records the latest lease cleanup batch size.
 func SetActiveLeasesGauge(count int) {
 	activeLeasesGauge.Set(float64(count))
+}
+
+// IncCSIMountRotations increments CSI rotation detections.
+func IncCSIMountRotations() {
+	csiMountRotationsTotal.Inc()
+}
+
+// SetRaftTLSEnabled records whether Raft mTLS is active.
+func SetRaftTLSEnabled(enabled bool) {
+	if enabled {
+		raftTLSEnabled.Set(1)
+	} else {
+		raftTLSEnabled.Set(0)
+	}
 }
 
 // IncRateLimited increments the rate-limited request counter.

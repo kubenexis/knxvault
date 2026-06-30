@@ -19,55 +19,63 @@ import (
 type storeHandler func(s *Store, ctx context.Context, payload json.RawMessage) (any, error)
 
 var storeHandlers = map[string]storeHandler{
-	OpCASave:             handleCASave,
-	OpCAGetByID:          handleCAGetByID,
-	OpCAGetByName:        handleCAGetByName,
-	OpCAList:             handleCAList,
-	OpSecretSaveVersion:  handleSecretSaveVersion,
-	OpSecretGetLatest:    handleSecretGetLatest,
-	OpSecretGetVersion:   handleSecretGetVersion,
-	OpSecretListByPath:   handleSecretListByPath,
-	OpSecretNextVersion:  handleSecretNextVersion,
-	OpSecretPut:          handleSecretPut,
-	OpSecretDestroyVer:   handleSecretDestroyVer,
-	OpPKIRoleSave:        handlePKIRoleSave,
-	OpPKIRoleGet:         handlePKIRoleGet,
-	OpPKIRoleList:        handlePKIRoleList,
-	OpAuditAppend:        handleAuditAppend,
-	OpAuditList:          handleAuditList,
-	OpAuditLatestHash:    handleAuditLatestHash,
-	OpRevoke:             handleRevoke,
-	OpRevokeIs:           handleRevokeIs,
-	OpRevokeListByCA:     handleRevokeListByCA,
-	OpLeaseSave:          handleLeaseSave,
-	OpLeaseGet:           handleLeaseGet,
-	OpLeaseList:          handleLeaseList,
-	OpLeaseListExpired:   handleLeaseListExpired,
-	OpLeaseRevoke:        handleLeaseRevoke,
-	OpLeaseCountActive:   handleLeaseCountActive,
-	OpPolicySave:         handlePolicySave,
-	OpPolicyGet:          handlePolicyGet,
-	OpPolicyList:         handlePolicyList,
-	OpPolicyDelete:       handlePolicyDelete,
-	OpRoleSave:           handleRoleSave,
-	OpRoleGet:            handleRoleGet,
-	OpRoleList:           handleRoleList,
-	OpRoleDelete:         handleRoleDelete,
-	OpDBRoleSave:         handleDBRoleSave,
-	OpDBRoleGet:          handleDBRoleGet,
-	OpDBRoleList:         handleDBRoleList,
-	OpDBRoleDelete:       handleDBRoleDelete,
-	OpIssuedSave:         handleIssuedSave,
-	OpIssuedGetBySerial:  handleIssuedGetBySerial,
-	OpIssuedList:         handleIssuedList,
-	OpIssuedListExpiring: handleIssuedListExpiring,
-	OpImportSnapshot:     handleImportSnapshot,
-	OpExportSnapshot:     handleExportSnapshot,
-	OpTokenSave:          handleTokenSave,
-	OpTokenGet:           handleTokenGet,
-	OpTokenRevoke:        handleTokenRevoke,
-	OpTokenList:          handleTokenList,
-	OpTokenListExpired:   handleTokenListExpired,
+	OpCASave:                handleCASave,
+	OpCAGetByID:             handleCAGetByID,
+	OpCAGetByName:           handleCAGetByName,
+	OpCAList:                handleCAList,
+	OpSecretSaveVersion:     handleSecretSaveVersion,
+	OpSecretGetLatest:       handleSecretGetLatest,
+	OpSecretGetVersion:      handleSecretGetVersion,
+	OpSecretListByPath:      handleSecretListByPath,
+	OpSecretNextVersion:     handleSecretNextVersion,
+	OpSecretPut:             handleSecretPut,
+	OpSecretDestroyVer:      handleSecretDestroyVer,
+	OpPKIRoleSave:           handlePKIRoleSave,
+	OpPKIRoleGet:            handlePKIRoleGet,
+	OpPKIRoleList:           handlePKIRoleList,
+	OpAuditAppend:           handleAuditAppend,
+	OpAuditList:             handleAuditList,
+	OpAuditLatestHash:       handleAuditLatestHash,
+	OpRevoke:                handleRevoke,
+	OpRevokeIs:              handleRevokeIs,
+	OpRevokeListByCA:        handleRevokeListByCA,
+	OpLeaseSave:             handleLeaseSave,
+	OpLeaseGet:              handleLeaseGet,
+	OpLeaseList:             handleLeaseList,
+	OpLeaseListExpired:      handleLeaseListExpired,
+	OpLeaseRevoke:           handleLeaseRevoke,
+	OpLeaseCountActive:      handleLeaseCountActive,
+	OpPolicySave:            handlePolicySave,
+	OpPolicyGet:             handlePolicyGet,
+	OpPolicyList:            handlePolicyList,
+	OpPolicyDelete:          handlePolicyDelete,
+	OpRoleSave:              handleRoleSave,
+	OpRoleGet:               handleRoleGet,
+	OpRoleList:              handleRoleList,
+	OpRoleDelete:            handleRoleDelete,
+	OpDBRoleSave:            handleDBRoleSave,
+	OpDBRoleGet:             handleDBRoleGet,
+	OpDBRoleList:            handleDBRoleList,
+	OpDBRoleDelete:          handleDBRoleDelete,
+	OpIssuedSave:            handleIssuedSave,
+	OpIssuedGetBySerial:     handleIssuedGetBySerial,
+	OpIssuedList:            handleIssuedList,
+	OpIssuedListExpiring:    handleIssuedListExpiring,
+	OpImportSnapshot:        handleImportSnapshot,
+	OpExportSnapshot:        handleExportSnapshot,
+	OpTokenSave:             handleTokenSave,
+	OpTokenGet:              handleTokenGet,
+	OpTokenRevoke:           handleTokenRevoke,
+	OpTokenList:             handleTokenList,
+	OpTokenListExpired:      handleTokenListExpired,
+	OpMachineIdentitySave:   handleMachineIdentitySave,
+	OpMachineIdentityGet:    handleMachineIdentityGet,
+	OpMachineIdentityList:   handleMachineIdentityList,
+	OpMachineIdentityRevoke: handleMachineIdentityRevoke,
+	OpRotationPolicySave:    handleRotationPolicySave,
+	OpRotationPolicyGet:     handleRotationPolicyGet,
+	OpRotationPolicyList:    handleRotationPolicyList,
+	OpRotationPolicyDelete:  handleRotationPolicyDelete,
 }
 
 func handleCASave(s *Store, ctx context.Context, payload json.RawMessage) (any, error) {
@@ -470,4 +478,60 @@ func handleTokenListExpired(s *Store, ctx context.Context, payload json.RawMessa
 		return nil, err
 	}
 	return s.Token.ListExpired(ctx, req.Before, req.Limit)
+}
+
+func handleMachineIdentitySave(s *Store, ctx context.Context, payload json.RawMessage) (any, error) {
+	var id domainauth.MachineIdentity
+	if err := json.Unmarshal(payload, &id); err != nil {
+		return nil, err
+	}
+	return nil, s.MachineIdentity.Save(ctx, &id)
+}
+
+func handleMachineIdentityGet(s *Store, ctx context.Context, payload json.RawMessage) (any, error) {
+	var req struct{ ID string }
+	if err := json.Unmarshal(payload, &req); err != nil {
+		return nil, err
+	}
+	return s.MachineIdentity.Get(ctx, req.ID)
+}
+
+func handleMachineIdentityList(s *Store, ctx context.Context, _ json.RawMessage) (any, error) {
+	return s.MachineIdentity.List(ctx)
+}
+
+func handleMachineIdentityRevoke(s *Store, ctx context.Context, payload json.RawMessage) (any, error) {
+	var req struct{ ID string }
+	if err := json.Unmarshal(payload, &req); err != nil {
+		return nil, err
+	}
+	return nil, s.MachineIdentity.Revoke(ctx, req.ID)
+}
+
+func handleRotationPolicySave(s *Store, ctx context.Context, payload json.RawMessage) (any, error) {
+	var policy secrets.RotationPolicy
+	if err := json.Unmarshal(payload, &policy); err != nil {
+		return nil, err
+	}
+	return nil, s.RotationPolicy.Save(ctx, &policy)
+}
+
+func handleRotationPolicyGet(s *Store, ctx context.Context, payload json.RawMessage) (any, error) {
+	var req struct{ Path string }
+	if err := json.Unmarshal(payload, &req); err != nil {
+		return nil, err
+	}
+	return s.RotationPolicy.Get(ctx, req.Path)
+}
+
+func handleRotationPolicyList(s *Store, ctx context.Context, _ json.RawMessage) (any, error) {
+	return s.RotationPolicy.List(ctx)
+}
+
+func handleRotationPolicyDelete(s *Store, ctx context.Context, payload json.RawMessage) (any, error) {
+	var req struct{ Path string }
+	if err := json.Unmarshal(payload, &req); err != nil {
+		return nil, err
+	}
+	return nil, s.RotationPolicy.Delete(ctx, req.Path)
 }

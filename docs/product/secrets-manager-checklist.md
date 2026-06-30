@@ -2,6 +2,18 @@
 
 Use this checklist before promoting KNXVault to production secrets management workloads.
 
+**Implementation status** (code complete — operator validation still required):
+
+| Criterion | Status | Backlog | Doc |
+|-----------|--------|---------|-----|
+| Encryption in transit (TLS/mTLS) | ✅ Shipped | W37-01 | [tier0-production.md](tier0-production.md) |
+| OIDC / short-lived credentials | ✅ Shipped | W37-02 | [tier0-production.md](tier0-production.md) |
+| Machine identity (NHI) | ✅ Shipped | W37-03 | [tier0-production.md](tier0-production.md) |
+| Scheduled KV rotation | ✅ Shipped | W37-05 | [tier0-production.md](tier0-production.md) |
+| Exposure detection hooks | ✅ Shipped | W37-07 | [exposure-detection.md](../integration/exposure-detection.md) |
+| Raft peer mTLS | ✅ Shipped | W38-14 | [tier0-production.md](tier0-production.md) |
+| CSI secret rotation | ✅ Shipped | W39-05 | [secrets-injection.md](../deploy/secrets-injection.md) |
+
 ## Core capabilities
 
 - [ ] Master key configured (`KNXVAULT_MASTER_KEY` or file) and rotation procedure documented
@@ -9,6 +21,7 @@ Use this checklist before promoting KNXVault to production secrets management wo
 - [ ] Backup/restore tested (`POST /sys/backup`, `POST /sys/restore`) including PKI roles and audit entries
 - [ ] RBAC policies and roles loaded; root token rotated or disabled after bootstrap
 - [ ] Audit log forwarding or export signing configured for compliance
+- [ ] TLS enabled (`KNXVAULT_TLS_CERT` / `KNXVAULT_TLS_KEY`) or ingress TLS documented
 
 ## PKI
 
@@ -30,6 +43,7 @@ Use this checklist before promoting KNXVault to production secrets management wo
 - [ ] TokenReview authentication enabled; `KNXVAULT_K8S_AUTH_INSECURE=false`
 - [ ] NetworkPolicy restricts Raft and HTTP surfaces
 - [ ] CSI provider or inject webhook tested for target namespaces
+- [ ] CSI rotation polling enabled on SecretProviderClass
 
 ## Operations
 
@@ -37,3 +51,4 @@ Use this checklist before promoting KNXVault to production secrets management wo
 - [ ] Raft leader and term metrics alerted
 - [ ] Runbooks: [Raft failover](../operations/runbooks/raft-failover.md), [CA compromise](../operations/runbooks/ca-compromise.md)
 - [ ] Integration test suite passes: `make test-integration`
+- [ ] Exposure report signing key configured if using scanner integration

@@ -23,6 +23,7 @@ jobs:
   lease_cleanup_interval: 1m
   crl_refresh_interval: 15m
   cert_renew_interval: 1h
+  kv_rotation_interval: 5m
   renew_grace: 72h
 
 audit:
@@ -34,6 +35,14 @@ security:
   rate_limit_rpm: 300
   request_signing_required: false
   cors_allowed_origins: []
+  # tls_cert: /etc/knxvault/tls/server.pem
+  # tls_key: /etc/knxvault/tls/server.key
+  # mtls_required: false
+  # mtls_ca: /etc/knxvault/tls/client-ca.pem
+  # exposure_signing_key: ""
+  # exposure_auto_revoke: false
+  # exposure_webhook_url: ""
+  # rotation_webhook_url: ""
 
 tracing:
   enabled: false
@@ -51,3 +60,6 @@ raft:
   rtt_millisecond: 1
   leader_wait: 10s
   join: false
+  # mtls_cert: /etc/knxvault/raft/tls/node.pem
+  # mtls_key: /etc/knxvault/raft/tls/node.key
+  # mtls_ca: /etc/knxvault/raft/tls/ca.pem

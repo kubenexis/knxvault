@@ -41,6 +41,7 @@ type JobsFile struct {
 	LeaseCleanupInterval string `yaml:"lease_cleanup_interval,omitempty"`
 	CRLRefreshInterval   string `yaml:"crl_refresh_interval,omitempty"`
 	CertRenewInterval    string `yaml:"cert_renew_interval,omitempty"`
+	KVRotationInterval   string `yaml:"kv_rotation_interval,omitempty"`
 	RenewGrace           string `yaml:"renew_grace,omitempty"`
 }
 
@@ -50,13 +51,21 @@ type AuditFile struct {
 	ForwardURL string `yaml:"forward_url,omitempty"`
 }
 
-// SecurityFile configures rate limiting, signing, and CORS.
+// SecurityFile configures rate limiting, signing, CORS, and TLS.
 type SecurityFile struct {
 	RateLimitEnabled       *bool    `yaml:"rate_limit_enabled,omitempty"`
 	RateLimitRPM           *int     `yaml:"rate_limit_rpm,omitempty"`
 	RequestSigningKey      string   `yaml:"request_signing_key,omitempty"`
 	RequestSigningRequired *bool    `yaml:"request_signing_required,omitempty"`
 	CORSAllowedOrigins     []string `yaml:"cors_allowed_origins,omitempty"`
+	TLSCert                string   `yaml:"tls_cert,omitempty"`
+	TLSKey                 string   `yaml:"tls_key,omitempty"`
+	MTLSRequired           *bool    `yaml:"mtls_required,omitempty"`
+	MTLSCA                 string   `yaml:"mtls_ca,omitempty"`
+	ExposureSigningKey     string   `yaml:"exposure_signing_key,omitempty"`
+	ExposureAutoRevoke     *bool    `yaml:"exposure_auto_revoke,omitempty"`
+	ExposureWebhookURL     string   `yaml:"exposure_webhook_url,omitempty"`
+	RotationWebhookURL     string   `yaml:"rotation_webhook_url,omitempty"`
 }
 
 // TracingFile configures OpenTelemetry export.
@@ -184,6 +193,13 @@ func applyFile(cfg Config, file File) (Config, error) {
 			}
 			cfg.RenewGrace = d
 		}
+		if v := strings.TrimSpace(file.Jobs.KVRotationInterval); v != "" {
+			d, err := time.ParseDuration(v)
+			if err != nil {
+				return Config{}, fmt.Errorf("jobs.kv_rotation_interval: %w", err)
+			}
+			cfg.JobKVRotationInterval = d
+		}
 	}
 	if file.Audit != nil {
 		if v := strings.TrimSpace(file.Audit.SigningKey); v != "" {
@@ -208,6 +224,30 @@ func applyFile(cfg Config, file File) (Config, error) {
 		}
 		if len(file.Security.CORSAllowedOrigins) > 0 {
 			cfg.CORSAllowedOrigins = append([]string(nil), file.Security.CORSAllowedOrigins...)
+		}
+		if v := strings.TrimSpace(file.Security.TLSCert); v != "" {
+			cfg.TLSCertFile = v
+		}
+		if v := strings.TrimSpace(file.Security.TLSKey); v != "" {
+			cfg.TLSKeyFile = v
+		}
+		if file.Security.MTLSRequired != nil {
+			cfg.MTLSRequired = *file.Security.MTLSRequired
+		}
+		if v := strings.TrimSpace(file.Security.MTLSCA); v != "" {
+			cfg.MTLSCAFile = v
+		}
+		if v := strings.TrimSpace(file.Security.ExposureSigningKey); v != "" {
+			cfg.ExposureSigningKey = v
+		}
+		if file.Security.ExposureAutoRevoke != nil {
+			cfg.ExposureAutoRevoke = *file.Security.ExposureAutoRevoke
+		}
+		if v := strings.TrimSpace(file.Security.ExposureWebhookURL); v != "" {
+			cfg.ExposureWebhookURL = v
+		}
+		if v := strings.TrimSpace(file.Security.RotationWebhookURL); v != "" {
+			cfg.RotationWebhookURL = v
 		}
 	}
 	if file.Tracing != nil {

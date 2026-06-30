@@ -4,7 +4,7 @@ package version
 // Link-time metadata (override via -ldflags -X).
 var (
 	// Version is the semantic release version.
-	Version = "0.4.3"
+	Version = "0.4.4"
 	// Commit is the git commit hash baked in at build time.
 	Commit = "unknown"
 	// BuildID is a Unix epoch seconds identifier set at build time.

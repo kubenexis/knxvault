@@ -207,6 +207,12 @@ type RBACSyncer interface {
 	SyncRBAC(ctx context.Context) error
 }
 
+// MachineIdentityRecorder upserts NHI records on login.
+type MachineIdentityRecorder interface {
+	UpsertFromLogin(ctx context.Context, identity *domainauth.MachineIdentity) error
+	IsRevoked(ctx context.Context, id string) (bool, error)
+}
+
 // Service coordinates authentication flows.
 type Service struct {
 	tokens    *TokenStore
@@ -215,6 +221,9 @@ type Service struct {
 	roles     RoleResolver
 	jwtSecret []byte
 	k8s       K8sLoginOptions
+	oidc      *OIDCValidator
+	oidcTTL   time.Duration
+	nhi       MachineIdentityRecorder
 }
 
 // RoleResolver resolves role names to policy names.
@@ -251,6 +260,17 @@ func (s *Service) SetK8sLoginOptions(opts K8sLoginOptions) {
 	s.k8s = opts
 }
 
+// SetOIDCValidator configures OIDC JWT validation.
+func (s *Service) SetOIDCValidator(v *OIDCValidator, defaultTTL time.Duration) {
+	s.oidc = v
+	s.oidcTTL = defaultTTL
+}
+
+// SetMachineIdentityRecorder configures NHI upsert on login.
+func (s *Service) SetMachineIdentityRecorder(recorder MachineIdentityRecorder) {
+	s.nhi = recorder
+}
+
 // LoginWithToken authenticates an opaque token.
 func (s *Service) LoginWithToken(ctx context.Context, token string) (*TokenRecord, error) {
 	return s.tokens.Authenticate(ctx, token)
@@ -284,7 +304,71 @@ func (s *Service) LoginKubernetes(ctx context.Context, role, jwtToken string) (s
 	if s.roles != nil {
 		policies = s.roles.PoliciesForRole(ctx, role)
 	}
+	nhiID := domainauth.NHIKey(domainauth.IdentityTypeK8sSA, identity.Namespace, identity.Name, subject)
+	if s.nhi != nil {
+		if revoked, err := s.nhi.IsRevoked(ctx, nhiID); err == nil && revoked {
+			return "", nil, common.New(common.ErrCodeForbidden, "machine identity revoked")
+		}
+		_ = s.nhi.UpsertFromLogin(ctx, &domainauth.MachineIdentity{
+			ID:             nhiID,
+			Type:           domainauth.IdentityTypeK8sSA,
+			BoundNamespace: identity.Namespace,
+			BoundName:      identity.Name,
+			Policies:       policies,
+		})
+	}
 	return s.tokens.Issue(ctx, subject, policies)
+}
+
+// LoginOIDC validates an OIDC JWT and maps it to a role.
+func (s *Service) LoginOIDC(ctx context.Context, role, jwtToken string) (string, *TokenRecord, error) {
+	if jwtToken == "" {
+		return "", nil, common.New(common.ErrCodeValidation, "jwt is required")
+	}
+	if role == "" {
+		return "", nil, common.New(common.ErrCodeValidation, "role is required")
+	}
+	if s.oidc == nil {
+		return "", nil, common.New(common.ErrCodeUnauthorized, "oidc authentication not configured")
+	}
+	var oidcCfg *domainauth.OIDCConfig
+	if bindingResolver, ok := s.roles.(RoleBindingResolver); ok {
+		storedRole, err := bindingResolver.GetRole(ctx, role)
+		if err != nil {
+			return "", nil, common.Wrap(common.ErrCodeForbidden, "role not found", err)
+		}
+		if storedRole.AuthMethod != "" && storedRole.AuthMethod != domainauth.AuthMethodOIDC {
+			return "", nil, common.New(common.ErrCodeForbidden, "role does not allow oidc login")
+		}
+		oidcCfg = storedRole.OIDC
+	}
+	if oidcCfg == nil {
+		return "", nil, common.New(common.ErrCodeValidation, "oidc not configured for role")
+	}
+	subject, _, err := s.oidc.Validate(ctx, oidcCfg, jwtToken)
+	if err != nil {
+		return "", nil, err
+	}
+	policies := PoliciesForRole(role)
+	if s.roles != nil {
+		policies = s.roles.PoliciesForRole(ctx, role)
+	}
+	ttl := OIDCTTL(oidcCfg, s.oidcTTL)
+	nhiID := domainauth.NHIKey(domainauth.IdentityTypeOIDC, "", "", subject)
+	if s.nhi != nil {
+		if revoked, err := s.nhi.IsRevoked(ctx, nhiID); err == nil && revoked {
+			return "", nil, common.New(common.ErrCodeForbidden, "machine identity revoked")
+		}
+		_ = s.nhi.UpsertFromLogin(ctx, &domainauth.MachineIdentity{
+			ID:        nhiID,
+			Type:      domainauth.IdentityTypeOIDC,
+			BoundName: subject,
+			Policies:  policies,
+			MaxTTL:    int64(ttl.Seconds()),
+		})
+	}
+	subjectLabel := OIDCSubjectLabel(oidcCfg.Issuer, subject)
+	return s.tokens.Create(ctx, subjectLabel, policies, ttl, true)
 }
 
 func (s *Service) validateKubernetesJWT(ctx context.Context, role, jwtToken string) (ServiceAccountIdentity, string, error) {

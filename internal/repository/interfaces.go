@@ -119,3 +119,19 @@ type TokenRepository interface {
 	List(ctx context.Context) ([]*domainauth.ClientToken, error)
 	ListExpired(ctx context.Context, before time.Time, limit int) ([]*domainauth.ClientToken, error)
 }
+
+// MachineIdentityRepository persists non-human identities.
+type MachineIdentityRepository interface {
+	Save(ctx context.Context, identity *domainauth.MachineIdentity) error
+	Get(ctx context.Context, id string) (*domainauth.MachineIdentity, error)
+	List(ctx context.Context) ([]*domainauth.MachineIdentity, error)
+	Revoke(ctx context.Context, id string) error
+}
+
+// RotationPolicyRepository persists KV rotation policies.
+type RotationPolicyRepository interface {
+	Save(ctx context.Context, policy *secrets.RotationPolicy) error
+	Get(ctx context.Context, path string) (*secrets.RotationPolicy, error)
+	List(ctx context.Context) ([]*secrets.RotationPolicy, error)
+	Delete(ctx context.Context, path string) error
+}

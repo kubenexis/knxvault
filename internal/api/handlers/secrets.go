@@ -8,18 +8,21 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/kubenexis/knxvault/internal/api/dto"
+	domainsecrets "github.com/kubenexis/knxvault/internal/domain/secrets"
 	secretsengine "github.com/kubenexis/knxvault/internal/engine/secrets"
 	"github.com/kubenexis/knxvault/internal/service"
+	"github.com/kubenexis/knxvault/internal/utils"
 )
 
 // SecretsHandler serves KV secret endpoints.
 type SecretsHandler struct {
-	svc *service.SecretsService
+	svc      *service.SecretsService
+	rotation *service.RotationService
 }
 
 // NewSecretsHandler constructs a SecretsHandler.
-func NewSecretsHandler(svc *service.SecretsService) *SecretsHandler {
-	return &SecretsHandler{svc: svc}
+func NewSecretsHandler(svc *service.SecretsService, rotation *service.RotationService) *SecretsHandler {
+	return &SecretsHandler{svc: svc, rotation: rotation}
 }
 
 // Write handles POST /secrets/kv/*path.
@@ -124,6 +127,54 @@ func (h *SecretsHandler) Delete(c *gin.Context) {
 	}
 
 	if err := h.svc.Delete(c.Request.Context(), path); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// PutRotation handles PUT /secrets/kv/rotation.
+func (h *SecretsHandler) PutRotation(c *gin.Context) {
+	if h.rotation == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"message": "rotation not configured"})
+		return
+	}
+	var req dto.RotationPolicyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	interval, err := utils.ParseTTL(req.Interval)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	policy := &domainsecrets.RotationPolicy{
+		Path:      req.Path,
+		Interval:  int64(interval.Seconds()),
+		Generator: req.Generator,
+		ScriptRef: req.ScriptRef,
+		Enabled:   true,
+	}
+	if err := h.rotation.PutPolicy(c.Request.Context(), policy); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"path": req.Path, "interval": req.Interval, "generator": req.Generator})
+}
+
+// DeleteRotation handles DELETE /secrets/kv/rotation.
+func (h *SecretsHandler) DeleteRotation(c *gin.Context) {
+	if h.rotation == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"message": "rotation not configured"})
+		return
+	}
+	path := c.Query("path")
+	if path == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "path query parameter required"})
+		return
+	}
+	if err := h.rotation.DeletePolicy(c.Request.Context(), path); err != nil {
 		_ = c.Error(err)
 		return
 	}

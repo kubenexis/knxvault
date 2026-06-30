@@ -153,6 +153,52 @@ func overlayEnv(cfg Config) (Config, error) {
 		}
 		cfg.TracingSampleRatio = ratio
 	}
+	if v := os.Getenv("KNXVAULT_TLS_CERT"); v != "" {
+		cfg.TLSCertFile = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("KNXVAULT_TLS_KEY"); v != "" {
+		cfg.TLSKeyFile = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("KNXVAULT_MTLS_CA"); v != "" {
+		cfg.MTLSCAFile = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("KNXVAULT_MTLS_REQUIRED"); v != "" {
+		required, err := strconv.ParseBool(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_MTLS_REQUIRED: %w", err)
+		}
+		cfg.MTLSRequired = required
+	}
+	if v := os.Getenv("KNXVAULT_EXPOSURE_SIGNING_KEY"); v != "" {
+		cfg.ExposureSigningKey = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("KNXVAULT_EXPOSURE_AUTO_REVOKE"); v != "" {
+		auto, err := strconv.ParseBool(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_EXPOSURE_AUTO_REVOKE: %w", err)
+		}
+		cfg.ExposureAutoRevoke = auto
+	}
+	if v := os.Getenv("KNXVAULT_EXPOSURE_WEBHOOK_URL"); v != "" {
+		cfg.ExposureWebhookURL = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("KNXVAULT_ROTATION_WEBHOOK_URL"); v != "" {
+		cfg.RotationWebhookURL = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("KNXVAULT_JOB_KV_ROTATION_INTERVAL"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_JOB_KV_ROTATION_INTERVAL: %w", err)
+		}
+		cfg.JobKVRotationInterval = d
+	}
+	if v := os.Getenv("KNXVAULT_OIDC_DEFAULT_TTL"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_OIDC_DEFAULT_TTL: %w", err)
+		}
+		cfg.OIDCDefaultTTL = d
+	}
 	if v := os.Getenv("KNXVAULT_K8S_AUTH_INSECURE"); v != "" {
 		insecure, err := strconv.ParseBool(v)
 		if err != nil {

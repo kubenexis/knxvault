@@ -7,6 +7,7 @@ import (
 	"github.com/kubenexis/knxvault/internal/api/middleware"
 	"github.com/kubenexis/knxvault/internal/auth"
 	"github.com/kubenexis/knxvault/internal/crypto/openssl"
+	"github.com/kubenexis/knxvault/internal/notify"
 	"github.com/kubenexis/knxvault/internal/service"
 )
 
@@ -24,6 +25,12 @@ type RouterDeps struct {
 	AuditExportService *service.AuditExportService
 	InjectService      *service.InjectService
 	BackupService      *service.BackupService
+	RotationService    *service.RotationService
+	MachineIdentitySvc *service.MachineIdentityService
+	ExposureSigningKey string
+	ExposureAutoRevoke bool
+	ExposureWebhook    *notify.Webhook
+	MTLSRequired       bool
 	TokenTTL           time.Duration
 	RateLimiter        *middleware.RateLimiter
 	RequestSigning     *middleware.RequestSigning

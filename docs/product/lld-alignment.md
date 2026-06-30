@@ -23,7 +23,7 @@ Maps [`docs/lld.md`](../lld.md) sections to code paths and backlog status. Updat
 | §6.4 | Mutating webhook (CSI inject) | `cmd/knxvault-webhook/`, `internal/webhook/` | W38-07 | ✅ Shipped |
 | §6.5 | NetworkPolicy + PDB | `deployments/k8s/networkpolicy.yaml`, `pdb.yaml` | W38-05 | ✅ Shipped |
 | §6.5 | Startup probe + seccomp | `deployments/k8s/statefulset.yaml` | W38-21 | ✅ Shipped |
-| §7.1 | Raft peer mTLS | `internal/config/raft.go` stubs | W38-14 | 🔶 Config stub |
+| §7.1 | Raft peer mTLS | `internal/raft/nodehost.go` | W38-14 | ✅ Shipped |
 | §7.2 | CA rotation workflow | `POST /pki/ca/:id/rotate` stub | W38-24 | 🔶 Stub |
 | §7.3 | Audit hash chain | `internal/audit/service.go` | W7-04 | ✅ Shipped |
 | §7.3 | Per-entry signatures | `domain/audit/entry.go` `Signature` | W38-09 | ✅ Shipped |

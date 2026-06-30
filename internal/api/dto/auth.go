@@ -6,6 +6,11 @@ type K8sLoginRequest struct {
 	JWT  string `json:"jwt" binding:"required"`
 }
 
+// OIDCLoginRequest is POST /auth/oidc/:role.
+type OIDCLoginRequest struct {
+	JWT string `json:"jwt" binding:"required"`
+}
+
 // TokenLoginRequest is POST /auth/token.
 type TokenLoginRequest struct {
 	Token string `json:"token" binding:"required"`

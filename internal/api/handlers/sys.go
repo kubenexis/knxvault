@@ -12,20 +12,41 @@ import (
 	"github.com/kubenexis/knxvault/internal/auth"
 	"github.com/kubenexis/knxvault/internal/domain/common"
 	pkiengine "github.com/kubenexis/knxvault/internal/engine/pki"
+	"github.com/kubenexis/knxvault/internal/notify"
 	"github.com/kubenexis/knxvault/internal/service"
 	"github.com/kubenexis/knxvault/internal/sys"
 )
 
 // SysHandler serves system endpoints.
 type SysHandler struct {
-	auth      *auth.Service
-	pki       *service.PKIService
-	masterKey []byte
+	auth            *auth.Service
+	pki             *service.PKIService
+	database        *service.DatabaseService
+	rotation        *service.RotationService
+	masterKey       []byte
+	exposureAuto    bool
+	exposureWebhook *notify.Webhook
 }
 
 // NewSysHandler constructs a SysHandler.
-func NewSysHandler(svc *auth.Service, pki *service.PKIService, masterKey []byte) *SysHandler {
-	return &SysHandler{auth: svc, pki: pki, masterKey: masterKey}
+func NewSysHandler(
+	svc *auth.Service,
+	pki *service.PKIService,
+	database *service.DatabaseService,
+	rotation *service.RotationService,
+	masterKey []byte,
+	exposureAuto bool,
+	exposureWebhook *notify.Webhook,
+) *SysHandler {
+	return &SysHandler{
+		auth:            svc,
+		pki:             pki,
+		database:        database,
+		rotation:        rotation,
+		masterKey:       masterKey,
+		exposureAuto:    exposureAuto,
+		exposureWebhook: exposureWebhook,
+	}
 }
 
 // Capabilities handles GET /sys/capabilities.
@@ -88,6 +109,48 @@ func (h *SysHandler) Init(c *gin.Context) {
 		"initialized":            true,
 		"master_key_fingerprint": fp,
 		"root_ca":                caResp,
+	})
+}
+
+// ReportExposure handles POST /sys/exposure/report.
+func (h *SysHandler) ReportExposure(c *gin.Context) {
+	var req dto.ExposureReportRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	actions := make([]string, 0, 2)
+	if h.exposureAuto {
+		if req.LeaseID != "" && h.database != nil {
+			if err := h.database.Revoke(c.Request.Context(), req.LeaseID); err == nil {
+				actions = append(actions, "lease_revoked")
+			}
+		}
+		if req.SecretPath != "" && h.rotation != nil {
+			policy, err := h.rotation.GetPolicy(c.Request.Context(), req.SecretPath)
+			if err == nil && policy != nil {
+				if err := h.rotation.RotatePath(c.Request.Context(), policy); err == nil {
+					actions = append(actions, "kv_rotated")
+				}
+			}
+		}
+	}
+	if h.exposureWebhook != nil {
+		_ = h.exposureWebhook.Send(c.Request.Context(), notify.Event{
+			Event:    "exposure.reported",
+			Path:     req.SecretPath,
+			LeaseID:  req.LeaseID,
+			Severity: req.Severity,
+			Detector: req.Detector,
+			Details: map[string]any{
+				"fingerprint": req.Fingerprint,
+				"actions":     actions,
+			},
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"reported": true,
+		"actions":  actions,
 	})
 }
 

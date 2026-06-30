@@ -23,6 +23,28 @@ func NewAuthHandler(svc *auth.Service, ttl time.Duration) *AuthHandler {
 	return &AuthHandler{auth: svc, ttl: ttl}
 }
 
+// LoginOIDC handles POST /auth/oidc/:role.
+func (h *AuthHandler) LoginOIDC(c *gin.Context) {
+	var req dto.OIDCLoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	role := c.Param("role")
+	token, record, err := h.auth.LoginOIDC(c.Request.Context(), role, req.JWT)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	ttl := int(time.Until(record.ExpiresAt).Seconds())
+	c.JSON(http.StatusOK, dto.LoginResponse{
+		ClientToken: token,
+		TTL:         ttl,
+		Policies:    record.Policies,
+		Renewable:   record.Renewable,
+	})
+}
+
 // LoginKubernetes handles POST /auth/kubernetes.
 func (h *AuthHandler) LoginKubernetes(c *gin.Context) {
 	var req dto.K8sLoginRequest

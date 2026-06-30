@@ -18,8 +18,10 @@ const (
 	defaultJobLeaseCleanupInterval = 1 * time.Minute
 	defaultJobCRLRefreshInterval   = 15 * time.Minute
 	defaultJobCertRenewInterval    = 1 * time.Hour
+	defaultJobKVRotationInterval   = 5 * time.Minute
 	defaultRenewGrace              = 72 * time.Hour
 	defaultRateLimitRPM            = 300
+	defaultOIDCTokenTTL            = 1 * time.Hour
 )
 
 // Config holds process-wide settings loaded from environment variables.
@@ -45,8 +47,21 @@ type Config struct {
 	AuditForwardURL         string
 	CORSAllowedOrigins      []string
 
-	JobCertRenewInterval   time.Duration
-	RenewGrace             time.Duration
+	JobCertRenewInterval  time.Duration
+	JobKVRotationInterval time.Duration
+	RenewGrace            time.Duration
+
+	TLSCertFile  string
+	TLSKeyFile   string
+	MTLSRequired bool
+	MTLSCAFile   string
+
+	ExposureSigningKey string
+	ExposureAutoRevoke bool
+	ExposureWebhookURL string
+	RotationWebhookURL string
+
+	OIDCDefaultTTL         time.Duration
 	RateLimitEnabled       bool
 	RateLimitRPM           int
 	RequestSigningKey      string

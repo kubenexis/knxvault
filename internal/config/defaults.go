@@ -16,7 +16,9 @@ func defaults() Config {
 		JobLeaseCleanupInterval: defaultJobLeaseCleanupInterval,
 		JobCRLRefreshInterval:   defaultJobCRLRefreshInterval,
 		JobCertRenewInterval:    defaultJobCertRenewInterval,
+		JobKVRotationInterval:   defaultJobKVRotationInterval,
 		RenewGrace:              defaultRenewGrace,
+		OIDCDefaultTTL:          defaultOIDCTokenTTL,
 		RateLimitRPM:            defaultRateLimitRPM,
 		Raft:                    defaultRaft(),
 	}

@@ -38,33 +38,37 @@ func read(ctx context.Context, c raftClient, op string, payload any, out any) er
 
 // Repos wires all Dragonboat-backed repositories.
 type Repos struct {
-	CA         *CARepository
-	Secret     *SecretRepository
-	Audit      *AuditRepository
-	Revoke     *RevocationRepository
-	Lease      *LeaseRepository
-	Policy     *PolicyRepository
-	Role       *RoleRepository
-	DBRole     *DatabaseRoleRepository
-	IssuedCert *IssuedCertRepository
-	PKIRole    *PKIRoleRepository
-	Token      *TokenRepository
+	CA              *CARepository
+	Secret          *SecretRepository
+	Audit           *AuditRepository
+	Revoke          *RevocationRepository
+	Lease           *LeaseRepository
+	Policy          *PolicyRepository
+	Role            *RoleRepository
+	DBRole          *DatabaseRoleRepository
+	IssuedCert      *IssuedCertRepository
+	PKIRole         *PKIRoleRepository
+	Token           *TokenRepository
+	MachineIdentity *MachineIdentityRepository
+	RotationPolicy  *RotationPolicyRepository
 }
 
 // NewRepos constructs Raft repository adapters.
 func NewRepos(client raftClient) Repos {
 	return Repos{
-		CA:         NewCARepository(client),
-		Secret:     NewSecretRepository(client),
-		Audit:      NewAuditRepository(client),
-		Revoke:     NewRevocationRepository(client),
-		Lease:      NewLeaseRepository(client),
-		Policy:     NewPolicyRepository(client),
-		Role:       NewRoleRepository(client),
-		DBRole:     NewDatabaseRoleRepository(client),
-		IssuedCert: NewIssuedCertRepository(client),
-		PKIRole:    NewPKIRoleRepository(client),
-		Token:      NewTokenRepository(client),
+		CA:              NewCARepository(client),
+		Secret:          NewSecretRepository(client),
+		Audit:           NewAuditRepository(client),
+		Revoke:          NewRevocationRepository(client),
+		Lease:           NewLeaseRepository(client),
+		Policy:          NewPolicyRepository(client),
+		Role:            NewRoleRepository(client),
+		DBRole:          NewDatabaseRoleRepository(client),
+		IssuedCert:      NewIssuedCertRepository(client),
+		PKIRole:         NewPKIRoleRepository(client),
+		Token:           NewTokenRepository(client),
+		MachineIdentity: NewMachineIdentityRepository(client),
+		RotationPolicy:  NewRotationPolicyRepository(client),
 	}
 }
 
@@ -453,4 +457,64 @@ func (r *TokenRepository) ListExpired(ctx context.Context, before time.Time, lim
 		Limit  int
 	}{Before: before, Limit: limit}, &out)
 	return out, err
+}
+
+// MachineIdentityRepository persists NHIs via Raft.
+type MachineIdentityRepository struct{ c raftClient }
+
+func NewMachineIdentityRepository(c raftClient) *MachineIdentityRepository {
+	return &MachineIdentityRepository{c: c}
+}
+
+func (r *MachineIdentityRepository) Save(ctx context.Context, id *domainauth.MachineIdentity) error {
+	return write(ctx, r.c, raft.OpMachineIdentitySave, id)
+}
+
+func (r *MachineIdentityRepository) Get(ctx context.Context, id string) (*domainauth.MachineIdentity, error) {
+	var out domainauth.MachineIdentity
+	err := read(ctx, r.c, raft.OpMachineIdentityGet, struct{ ID string }{ID: id}, &out)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (r *MachineIdentityRepository) List(ctx context.Context) ([]*domainauth.MachineIdentity, error) {
+	var out []*domainauth.MachineIdentity
+	err := read(ctx, r.c, raft.OpMachineIdentityList, nil, &out)
+	return out, err
+}
+
+func (r *MachineIdentityRepository) Revoke(ctx context.Context, id string) error {
+	return write(ctx, r.c, raft.OpMachineIdentityRevoke, struct{ ID string }{ID: id})
+}
+
+// RotationPolicyRepository persists rotation policies via Raft.
+type RotationPolicyRepository struct{ c raftClient }
+
+func NewRotationPolicyRepository(c raftClient) *RotationPolicyRepository {
+	return &RotationPolicyRepository{c: c}
+}
+
+func (r *RotationPolicyRepository) Save(ctx context.Context, policy *secrets.RotationPolicy) error {
+	return write(ctx, r.c, raft.OpRotationPolicySave, policy)
+}
+
+func (r *RotationPolicyRepository) Get(ctx context.Context, path string) (*secrets.RotationPolicy, error) {
+	var out secrets.RotationPolicy
+	err := read(ctx, r.c, raft.OpRotationPolicyGet, struct{ Path string }{Path: path}, &out)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (r *RotationPolicyRepository) List(ctx context.Context) ([]*secrets.RotationPolicy, error) {
+	var out []*secrets.RotationPolicy
+	err := read(ctx, r.c, raft.OpRotationPolicyList, nil, &out)
+	return out, err
+}
+
+func (r *RotationPolicyRepository) Delete(ctx context.Context, path string) error {
+	return write(ctx, r.c, raft.OpRotationPolicyDelete, struct{ Path string }{Path: path})
 }
