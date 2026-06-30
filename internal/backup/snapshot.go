@@ -224,3 +224,15 @@ func auditFromDomain(entry *audit.Entry) AuditRecord {
 		Hash:      entry.Hash,
 	}
 }
+
+func auditToDomain(rec AuditRecord) *audit.Entry {
+	return &audit.Entry{
+		Timestamp: rec.Timestamp,
+		Actor:     rec.Actor,
+		Action:    rec.Action,
+		Resource:  rec.Resource,
+		Status:    rec.Status,
+		Details:   rec.Details,
+		Hash:      rec.Hash,
+	}
+}

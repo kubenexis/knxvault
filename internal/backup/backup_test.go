@@ -9,8 +9,10 @@ import (
 
 	"github.com/kubenexis/knxvault/internal/backup"
 	"github.com/kubenexis/knxvault/internal/crypto"
+	"github.com/kubenexis/knxvault/internal/domain/audit"
 	domainpki "github.com/kubenexis/knxvault/internal/domain/pki"
 	"github.com/kubenexis/knxvault/internal/domain/secrets"
+	"github.com/kubenexis/knxvault/internal/repository"
 	"github.com/kubenexis/knxvault/internal/repository/memory"
 )
 
@@ -118,5 +120,55 @@ func TestExportSealOpenRestore(t *testing.T) {
 	secretsList, err := targetSecret.ListByPath(ctx, "")
 	if err != nil || len(secretsList) != 1 {
 		t.Fatalf("restored secrets = %v, %v", secretsList, err)
+	}
+}
+
+func TestRestoreAuditEntries(t *testing.T) {
+	ctx := context.Background()
+	auditRepo := memory.NewAuditRepository()
+	now := time.Now().UTC()
+	if err := auditRepo.Append(ctx, &audit.Entry{
+		Timestamp: now,
+		Actor:     "admin",
+		Action:    "kv.read",
+		Resource:  "app/db",
+		Status:    "success",
+		Hash:      "abc123",
+	}); err != nil {
+		t.Fatalf("Append() = %v", err)
+	}
+
+	source := backup.Repos{
+		CA:     memory.NewCARepository(),
+		Secret: memory.NewSecretRepository(),
+		Audit:  auditRepo,
+	}
+	snapshot, err := backup.Export(ctx, source, backup.ExportOptions{IncludeAudit: true})
+	if err != nil {
+		t.Fatalf("Export() = %v", err)
+	}
+	if len(snapshot.Audit) != 1 {
+		t.Fatalf("audit records = %d", len(snapshot.Audit))
+	}
+
+	targetAudit := memory.NewAuditRepository()
+	target := backup.Repos{
+		CA:     memory.NewCARepository(),
+		Secret: memory.NewSecretRepository(),
+		Audit:  targetAudit,
+	}
+	if err := backup.Restore(ctx, target, nil, snapshot); err != nil {
+		t.Fatalf("Restore() = %v", err)
+	}
+
+	entries, err := targetAudit.List(ctx, repository.AuditListOptions{OrderAsc: true})
+	if err != nil {
+		t.Fatalf("List() = %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("restored audit entries = %d", len(entries))
+	}
+	if entries[0].Hash != "abc123" || entries[0].Action != "kv.read" {
+		t.Fatalf("unexpected entry: %+v", entries[0])
 	}
 }

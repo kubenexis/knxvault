@@ -62,6 +62,39 @@ const (
 	OpImportSnapshot     = "snapshot.import"
 )
 
+// readOnlyOps are safe for SyncRead / Lookup; write ops must use Propose.
+var readOnlyOps = map[string]struct{}{
+	OpCAGetByID:          {},
+	OpCAGetByName:        {},
+	OpCAList:             {},
+	OpSecretGetLatest:    {},
+	OpSecretGetVersion:   {},
+	OpSecretListByPath:   {},
+	OpSecretNextVersion:  {},
+	OpAuditList:          {},
+	OpAuditLatestHash:    {},
+	OpRevokeIs:           {},
+	OpRevokeListByCA:     {},
+	OpLeaseGet:           {},
+	OpLeaseList:          {},
+	OpLeaseListExpired:   {},
+	OpPolicyGet:          {},
+	OpPolicyList:         {},
+	OpRoleGet:            {},
+	OpRoleList:           {},
+	OpDBRoleGet:          {},
+	OpDBRoleList:         {},
+	OpIssuedGetBySerial:  {},
+	OpIssuedList:         {},
+	OpIssuedListExpiring: {},
+}
+
+// IsReadOnlyOp reports whether op is permitted on the read path.
+func IsReadOnlyOp(op string) bool {
+	_, ok := readOnlyOps[op]
+	return ok
+}
+
 func encodeCommand(op string, payload any) ([]byte, error) {
 	var raw json.RawMessage
 	if payload != nil {

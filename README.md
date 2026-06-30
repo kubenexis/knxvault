@@ -166,9 +166,20 @@ make docker-build          # container image
 
 Observability: [`docs/metrics.md`](docs/metrics.md)
 
-## Layout
+## Documentation
 
-See [`docs/lld.md`](docs/lld.md) §3.1. Progress: [`docs/backlog.md`](docs/backlog.md).
+Full documentation index: [`docs/README.md`](docs/README.md)
+
+| Topic | Guide |
+|-------|-------|
+| Architecture | [`docs/architecture/hld.md`](docs/architecture/hld.md) |
+| Install | [`docs/installation/install.md`](docs/installation/install.md) |
+| Kubernetes | [`docs/deploy/kubernetes.md`](docs/deploy/kubernetes.md) |
+| Operations | [`docs/operations/day2.md`](docs/operations/day2.md) |
+| Development | [`docs/engineering/development.md`](docs/engineering/development.md) |
+| Backlog | [`docs/backlog.md`](docs/backlog.md) |
+
+Low-level design: [`docs/lld.md`](docs/lld.md) §3.1.
 
 ## License
 

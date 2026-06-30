@@ -106,7 +106,7 @@ Phases 1–2 below were implemented against the **interim PostgreSQL backend** a
 
 ---
 
-## Phase 3 — Dragonboat storage backend (in progress)
+## Phase 3 — Dragonboat storage backend (complete)
 
 Replace PostgreSQL and K8s Lease–based HA with an embedded [Dragonboat](https://github.com/lni/dragonboat) Raft cluster. Default log store: Pebble (Dragonboat default). Repository interfaces unchanged; new implementations live under `internal/repository/dragonboat/` and `internal/raft/`.
 
@@ -140,13 +140,24 @@ Replace PostgreSQL and K8s Lease–based HA with an embedded [Dragonboat](https:
 
 ---
 
-## Phase 4 — Ecosystem (outline)
+## Phase 4 — Ecosystem (planned)
 
-High-level scope from LLD §9.4; items not yet broken down. **Blocked on Phase 3** (Dragonboat backend) for production HA semantics.
+High-level scope from LLD §9.4. Phase 3 is complete; detailed design in [`docs/design/phase4-ecosystem.md`](design/phase4-ecosystem.md).
 
-- Kubernetes Operator (CRD-based CA/role management)
-- HSM support via OpenSSL engine
-- Multi-tenancy, Redis cache, full mTLS, DR automation
+| ID | Title | Area | Effort | Depends on | Description | Acceptance criteria |
+|----|-------|------|--------|------------|-------------|---------------------|
+| **W30-01** | Kubernetes Operator scaffold | k8s | L | W29 | kubebuilder project, CRD types for CA and policy resources. | CRDs apply cleanly; scaffold compiles. |
+| **W30-02** | Operator reconciliation loop | k8s | L | W30-01 | Reconcile CRDs to KNXVault REST API with status conditions. | Create CA via CRD → visible in API; e2e test passes. |
+| **W31-01** | OpenSSL engine abstraction | crypto | M | W3-03 | Pluggable engine interface in `internal/crypto/openssl/`. | Unit tests with mock engine. |
+| **W31-02** | PKCS#11 HSM integration | crypto | L | W31-01 | HSM-backed CA key generation via OpenSSL engine. | Root CA created on SoftHSM; documented config. |
+| **W32-01** | Multi-tenancy policy model | auth | M | W13-01 | Namespace-scoped policy isolation. | Cross-tenant access denied in tests. |
+| **W32-02** | Tenant-aware API enforcement | api | M | W32-01 | Optional `X-KNX-Namespace` header enforcement. | Integration tests for tenant boundaries. |
+| **W33-01** | Redis read cache | storage | M | W26 | Cache public CA material, CRLs, policies. | Cache hit metrics; fallback on miss. |
+| **W33-02** | Cache invalidation on write | storage | S | W33-01 | Invalidate cache entries on Raft commit. | Write → read sees fresh data. |
+| **W34-01** | Server mTLS | security | M | W5-03 | TLS with client certificate requirement on secured routes. | mTLS handshake test; opt-in flag. |
+| **W34-02** | Client cert issuance API | security | M | W34-01 | PKI role for API consumer certificates. | Issue + authenticate with client cert. |
+| **W35-01** | DR automation | ops | L | W27 | Cross-cluster backup replication and failover runbook. | DR drill documented and tested. |
+| **W35-02** | Compliance audit packs | docs | M | W14 | Exportable audit bundles for compliance evidence. | Pack generation CLI command. |
 
 ---
 

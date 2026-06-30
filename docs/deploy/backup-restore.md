@@ -12,7 +12,7 @@ curl -s -X POST http://localhost:8200/sys/backup \
   -d '{"include_audit":false}' \
   | jq -r '.data' | base64 -d > knxvault-backup.json
 
-# Restore (replaces PostgreSQL state when configured)
+# Restore (replaces Raft state via snapshot.import)
 curl -sf -X POST http://localhost:8200/sys/restore \
   -H "Authorization: Bearer ${KNXVAULT_ROOT_TOKEN}" \
   -H "Content-Type: application/json" \
@@ -36,8 +36,13 @@ export KNXVAULT_TOKEN=dev-root-token
 ## Requirements
 
 - `KNXVAULT_MASTER_KEY` must match the key used when the backup was created.
-- PostgreSQL restores truncate vault tables before import. Run against a maintenance window.
+- Raft restores propose `snapshot.import` — run against a maintenance window or a fresh cluster.
 - In-memory mode supports export; restore targets a fresh process or empty repositories.
+- Legacy PostgreSQL restores truncate vault tables; migrate to Raft with `knxvault-cli migrate postgres`.
+
+## Raft-specific notes
+
+When `KNXVAULT_RAFT_ENABLED=true`, backup also triggers an on-disk Dragonboat snapshot. Restore replaces the full state machine contents. See [Dragonboat storage](../storage/dragonboat.md) and [Raft failover runbook](../operations/runbooks/raft-failover.md).
 
 ## Archive format
 

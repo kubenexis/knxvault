@@ -105,6 +105,14 @@ func Restore(ctx context.Context, repos Repos, pool *pgxpool.Pool, snapshot *Sna
 		}
 	}
 
+	if repos.Audit != nil {
+		for _, rec := range snapshot.Audit {
+			if err := repos.Audit.Append(ctx, auditToDomain(rec)); err != nil {
+				return fmt.Errorf("restore audit entry %s: %w", rec.Action, err)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -143,6 +151,7 @@ TRUNCATE TABLE
     database_roles,
     revoked_certificates,
     secret_versions,
+    audit_logs,
     policies,
     roles,
     cas

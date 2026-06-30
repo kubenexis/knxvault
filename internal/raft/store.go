@@ -309,6 +309,9 @@ func (s *Store) Handle(cmd Command) ([]byte, error) {
 
 // Lookup executes a read-only command.
 func (s *Store) Lookup(query Command) ([]byte, error) {
+	if !IsReadOnlyOp(query.Op) {
+		return encodeResponse(nil, common.New(common.ErrCodeValidation, "write command not allowed on read path"))
+	}
 	return s.Handle(query)
 }
 
