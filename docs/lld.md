@@ -28,6 +28,7 @@ KNXVault emphasizes **simplicity without sacrificing security**, making it ideal
 - Cryptographic operations: Strictly via secure OpenSSL CLI wrappers (ephemeral filesystem usage only).
 - Audit logging, health checks, and basic observability.
 - Encryption at rest and in transit (mTLS support).
+- **Permissive licensing only**: all runtime dependencies (Go modules, container base images, Helm subcharts, and bundled tooling) must use **Apache-2.0** or an equivalently permissive license (see §1.5).
 
 **Phase 1 Focus**: KV Secrets + Root/Intermediate CA management + Basic Auth + Kubernetes deployment.
 
@@ -52,8 +53,42 @@ KNXVault emphasizes **simplicity without sacrificing security**, making it ideal
 | **Kubernetes-Native**         | Leverage K8s primitives deeply.                              | ServiceAccount tokens, Lease-based leader election, Helm charts, CSI/secrets injection readiness. |
 | **Performance & Lightweight** | Low resource usage, fast startup.                            | Gin router, connection pooling, minimal dependencies, ephemeral OpenSSL workspaces. |
 | **Auditability & Compliance** | All sensitive operations logged immutably.                   | Append-only audit table with cryptographic signing of entries (future). |
+| **Permissive Licensing**      | No copyleft or proprietary deps in production artifacts.       | Apache-2.0 preferred; allow-list enforced in CI (`deny.toml` / license scan). |
 
 These principles guide every decision in the LLD to ensure KNXVault is secure, maintainable, and suitable for production workloads in regulated environments.
+
+### 1.5 Licensing & Third-Party Dependencies (Strict Requirement)
+
+KNXVault is released under **Apache-2.0**. Every component that ships in production binaries, container images, or Helm charts **must** use a permissive license only.
+
+**Allowed (non-exhaustive):**
+
+| License | Notes |
+| ------- | ----- |
+| **Apache-2.0** | Preferred for new Go crates and libraries |
+| **MIT** | Acceptable alternative |
+| **BSD-2-Clause**, **BSD-3-Clause** | Acceptable |
+| **ISC**, **Unicode-3.0**, **0BSD**, **CC0-1.0** | Acceptable when required by a dependency |
+
+**Forbidden in any production dependency path:**
+
+- Copyleft: GPL-2.0, GPL-3.0, AGPL-3.0, LGPL-*
+- Weak copyleft: MPL-2.0 (unless explicitly approved via exception record — default **deny**)
+- Non-standard / restrictive: CDLA-*, OFL-* (except narrowly scoped font exceptions), proprietary, UNLICENSED
+
+**Enforcement:**
+
+1. **Before merge**: new dependencies require SPDX identifier review against the allow-list.
+2. **CI gate**: `go-licenses check` (or `license-eye`) plus Trivy license scanning fails the build on disallowed licenses.
+3. **Container images**: base images and apt packages in Dockerfiles must be documented and scanned (Trivy license scanner).
+4. **OpenSSL**: system/OpenSSL 3.x via distro packages with Apache-compatible linkage policy; no GPL-only OpenSSL builds in production images.
+5. **Exceptions**: documented in `docs/licensing.md` with rationale and ADR reference; must not weaken the default deny posture.
+
+**Dependency selection guidance:**
+
+- Prefer Go modules that are **Apache-2.0** or **MIT** when multiple options exist.
+- Avoid transitive deps under **MPL-2.0**, **GPL**, or **AGPL** (e.g. replace path-based helpers with stdlib or Apache-licensed alternatives).
+- Reject dependencies that bundle precompiled binaries without a clear permissive license.
 
 **Versioning & Compatibility**: Go 1.23+, PostgreSQL 15+, OpenSSL 3.x. Backward compatibility for issued certificates and stored secrets will be maintained across minor versions.
 
@@ -922,6 +957,7 @@ type AuditEvent struct {
 
 - **Data Residency**: Self-hosted, full control.
 - **Audit Readiness**: SOC2, ISO 27001-friendly logging and RBAC.
+- **License Compliance**: Permissive-only dependency policy (§1.5); automated license scans in CI and release pipelines.
 - **Revocation**: CRL + basic OCSP responder support.
 - **Backup Encryption**: All backups encrypted with master key.
 
@@ -1051,7 +1087,7 @@ KNXVault follows a phased approach aligned with the HLD, prioritizing core value
 - Storage: PostgreSQL with envelope encryption (AES-256-GCM).
 - API Layer with OpenAPI spec and core endpoints.
 - OpenSSL secure wrapper.
-- Kubernetes Deployment (single replica) via Helm chart.
+- Container image + raw Kubernetes manifests (single replica). **Helm chart deferred** to long-term / Phase 2+ (see §9.4).
 - Basic observability (logs, health checks, metrics).
 - Audit logging (append-only).
 
@@ -1065,7 +1101,7 @@ KNXVault follows a phased approach aligned with the HLD, prioritizing core value
 **Deliverables**:
 
 - Working binary + Docker image.
-- Helm chart.
+- Raw Kubernetes manifests (`deployments/k8s/`).
 - Complete Section 1–8 of this LLD.
 - Automated tests (unit + integration).
 
@@ -1109,6 +1145,7 @@ KNXVault follows a phased approach aligned with the HLD, prioritizing core value
 - Full mTLS enforcement + client certificate management.
 - Disaster recovery automation.
 - Compliance certifications support (audit packs).
+- **Helm chart** (install packaging, values, hooks) — deferred from Phase 1; see `deployments/helm/` when implemented.
 
 **Success Criteria**:
 
@@ -1119,6 +1156,7 @@ KNXVault follows a phased approach aligned with the HLD, prioritizing core value
 ### 9.5 Cross-Cutting Activities (All Phases)
 
 - Security reviews and threat modeling at phase boundaries.
+- **License compliance**: SPDX allow-list checks on every PR; SBOM includes license metadata.
 - Comprehensive automated testing (including chaos testing in later phases).
 - Documentation updates (API, deployment guides, runbooks).
 - Performance benchmarking.

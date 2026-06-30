@@ -1,0 +1,829 @@
+openapi: 3.1.0
+info:
+  title: KNXVault API
+  version: 0.1.0-dev
+  description: Secrets management and PKI REST API (Phase 1 MVP + Phase 2 W12–W15).
+servers:
+  - url: http://localhost:8200
+    description: Local development
+tags:
+  - name: sys
+    description: System health, capabilities, RBAC policies, and roles
+  - name: auth
+    description: Authentication
+  - name: pki
+    description: Public Key Infrastructure
+  - name: secrets
+    description: KV and dynamic secrets engines
+  - name: audit
+    description: Audit export and verification
+paths:
+  /health:
+    get:
+      tags: [sys]
+      summary: Liveness probe
+      operationId: getHealth
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /ready:
+    get:
+      tags: [sys]
+      summary: Readiness probe
+      operationId: getReady
+      responses:
+        "200":
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "503":
+          description: Service is not ready
+  /metrics:
+    get:
+      tags: [sys]
+      summary: Prometheus metrics
+      operationId: getMetrics
+      responses:
+        "200":
+          description: Prometheus text exposition format
+          content:
+            text/plain:
+              schema:
+                type: string
+  /openapi.yaml:
+    get:
+      tags: [sys]
+      summary: OpenAPI specification
+      operationId: getOpenAPI
+      responses:
+        "200":
+          description: OpenAPI YAML document
+  /swagger:
+    get:
+      tags: [sys]
+      summary: Swagger UI
+      operationId: getSwaggerUI
+      responses:
+        "200":
+          description: Swagger UI HTML page
+  /sys/capabilities:
+    get:
+      tags: [sys]
+      summary: Token capabilities
+      operationId: getCapabilities
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Allowed capabilities for the current token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CapabilitiesResponse"
+  /auth/kubernetes:
+    post:
+      tags: [auth]
+      summary: Kubernetes service account login
+      operationId: loginKubernetes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/K8sLoginRequest"
+      responses:
+        "200":
+          description: Client token issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+  /auth/token:
+    post:
+      tags: [auth]
+      summary: Validate an existing client token
+      operationId: loginToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TokenLoginRequest"
+      responses:
+        "200":
+          description: Token is valid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+  /pki/root:
+    post:
+      tags: [pki]
+      summary: Create a root CA
+      operationId: createRootCA
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRootCARequest"
+      responses:
+        "201":
+          description: Root CA created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CAResponse"
+  /pki/intermediate:
+    post:
+      tags: [pki]
+      summary: Create an intermediate CA
+      operationId: createIntermediateCA
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateIntermediateCARequest"
+      responses:
+        "201":
+          description: Intermediate CA created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CAResponse"
+  /pki/issue:
+    post:
+      tags: [pki]
+      summary: Issue a leaf certificate
+      operationId: issueCertificate
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IssueCertRequest"
+      responses:
+        "201":
+          description: Certificate issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IssueCertResponse"
+  /pki/ca/{id}:
+    get:
+      tags: [pki]
+      summary: Get CA by ID
+      operationId: getCA
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: CA details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CAResponse"
+  /pki/revoke:
+    post:
+      tags: [pki]
+      summary: Revoke a certificate serial
+      operationId: revokeCertificate
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RevokeCertRequest"
+      responses:
+        "204":
+          description: Certificate revoked
+  /pki/crl/{id}:
+    get:
+      tags: [pki]
+      summary: Generate CRL for a CA
+      operationId: getCRL
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: PEM CRL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CRLResponse"
+  /secrets/kv/{path}:
+    post:
+      tags: [secrets]
+      summary: Write a KV secret version
+      operationId: writeSecret
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KVWriteRequest"
+      responses:
+        "200":
+          description: Secret written
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KVWriteResponse"
+    get:
+      tags: [secrets]
+      summary: Read latest KV secret version
+      operationId: readSecret
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Secret payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KVReadResponse"
+    delete:
+      tags: [secrets]
+      summary: Delete a KV secret path
+      operationId: deleteSecret
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Secret deleted
+  /secrets/database/roles/{name}:
+    put:
+      tags: [secrets]
+      summary: Configure database credential role
+      operationId: putDatabaseRole
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DatabaseRoleRequest"
+      responses:
+        "204": { description: Role saved }
+    get:
+      tags: [secrets]
+      summary: Get database credential role
+      operationId: getDatabaseRole
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Role configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DatabaseRoleResponse"
+  /secrets/database/creds/{role}:
+    post:
+      tags: [secrets]
+      summary: Generate ephemeral database credentials
+      operationId: generateDatabaseCreds
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: role
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DatabaseCredsRequest"
+      responses:
+        "200":
+          description: Generated credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DatabaseCredsResponse"
+  /secrets/database/renew/{lease_id}:
+    post:
+      tags: [secrets]
+      summary: Renew database credential lease
+      operationId: renewDatabaseLease
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: lease_id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DatabaseRenewRequest"
+      responses:
+        "200":
+          description: Renewed credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DatabaseCredsResponse"
+  /secrets/database/revoke/{lease_id}:
+    put:
+      tags: [secrets]
+      summary: Revoke database credential lease
+      operationId: revokeDatabaseLease
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: lease_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: Lease revoked }
+  /sys/policies:
+    get:
+      tags: [sys]
+      summary: List RBAC policies
+      operationId: listPolicies
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Policy list }
+  /sys/policies/{name}:
+    put:
+      tags: [sys]
+      summary: Create or update RBAC policy
+      operationId: putPolicy
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PolicyRequest"
+      responses:
+        "204": { description: Policy saved }
+    get:
+      tags: [sys]
+      summary: Get RBAC policy
+      operationId: getPolicy
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Policy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyResponse"
+    delete:
+      tags: [sys]
+      summary: Delete RBAC policy
+      operationId: deletePolicy
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: Policy deleted }
+  /sys/roles/{name}:
+    put:
+      tags: [sys]
+      summary: Create or update role binding
+      operationId: putRole
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleRequest"
+      responses:
+        "204": { description: Role saved }
+    get:
+      tags: [sys]
+      summary: Get role binding
+      operationId: getRole
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Role
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleResponse"
+  /audit/export:
+    get:
+      tags: [audit]
+      summary: Export audit log with signed chain head
+      operationId: exportAudit
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: since
+          in: query
+          schema: { type: string, format: date-time }
+        - name: limit
+          in: query
+          schema: { type: integer }
+        - name: offset
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Audit export
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditExportResponse"
+  /audit/verify:
+    post:
+      tags: [audit]
+      summary: Verify audit hash chain integrity
+      operationId: verifyAudit
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuditVerifyRequest"
+      responses:
+        "200":
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditVerifyResponse"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status, version]
+      properties:
+        status:
+          type: string
+        version:
+          type: string
+        ha_enabled:
+          type: boolean
+        leader:
+          type: boolean
+    ErrorResponse:
+      type: object
+      required: [error_code, message, request_id, timestamp]
+      properties:
+        error_code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+        request_id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+    CapabilitiesResponse:
+      type: object
+      properties:
+        capabilities:
+          type: array
+          items:
+            type: string
+    K8sLoginRequest:
+      type: object
+      required: [role, jwt]
+      properties:
+        role:
+          type: string
+        jwt:
+          type: string
+    TokenLoginRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+    LoginResponse:
+      type: object
+      properties:
+        client_token:
+          type: string
+        ttl:
+          type: integer
+        policies:
+          type: array
+          items:
+            type: string
+        renewable:
+          type: boolean
+    CreateRootCARequest:
+      type: object
+      required: [name, common_name, ttl]
+      properties:
+        name:
+          type: string
+        common_name:
+          type: string
+        ttl:
+          type: string
+        key_type:
+          type: string
+        key_bits:
+          type: integer
+    CreateIntermediateCARequest:
+      type: object
+      required: [parent_name, name, common_name, ttl]
+      properties:
+        parent_name:
+          type: string
+        name:
+          type: string
+        common_name:
+          type: string
+        ttl:
+          type: string
+        key_bits:
+          type: integer
+    IssueCertRequest:
+      type: object
+      required: [role, common_name]
+      properties:
+        role:
+          type: string
+        common_name:
+          type: string
+        dns_names:
+          type: array
+          items:
+            type: string
+        ip_addresses:
+          type: array
+          items:
+            type: string
+        ttl:
+          type: string
+        key_bits:
+          type: integer
+    CAResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        cert_pem:
+          type: string
+        serial:
+          type: string
+        expires_at:
+          type: string
+    IssueCertResponse:
+      type: object
+      properties:
+        cert_pem:
+          type: string
+        private_key_pem:
+          type: string
+        serial:
+          type: string
+        expires_at:
+          type: string
+    RevokeCertRequest:
+      type: object
+      required: [ca_id, serial]
+      properties:
+        ca_id:
+          type: string
+        serial:
+          type: string
+        reason:
+          type: string
+    CRLResponse:
+      type: object
+      properties:
+        crl_pem:
+          type: string
+    KVWriteRequest:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          additionalProperties: true
+        options:
+          type: object
+          properties:
+            ttl:
+              type: string
+            cas_version:
+              type: integer
+    KVWriteResponse:
+      type: object
+      properties:
+        version:
+          type: integer
+    KVReadResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          additionalProperties: true
+        metadata:
+          type: object
+          properties:
+            version:
+              type: integer
+            created_at:
+              type: string
+              format: date-time
+            ttl:
+              type: string
+    DatabaseRoleRequest:
+      type: object
+      properties:
+        ttl_seconds: { type: integer }
+        username_prefix: { type: string }
+        default_username: { type: string }
+        creation_statements:
+          type: array
+          items: { type: string }
+        revocation_statements:
+          type: array
+          items: { type: string }
+        config:
+          type: object
+          additionalProperties: true
+    DatabaseRoleResponse:
+      allOf:
+        - $ref: "#/components/schemas/DatabaseRoleRequest"
+        - type: object
+          properties:
+            name: { type: string }
+    DatabaseCredsRequest:
+      type: object
+      properties:
+        ttl_seconds: { type: integer }
+    DatabaseCredsResponse:
+      type: object
+      properties:
+        lease_id: { type: string }
+        username: { type: string }
+        password: { type: string }
+        role: { type: string }
+        ttl_seconds: { type: integer }
+        expires_at: { type: string, format: date-time }
+        creation_statements:
+          type: array
+          items: { type: string }
+    DatabaseRenewRequest:
+      type: object
+      properties:
+        ttl_seconds: { type: integer }
+    PolicyRequest:
+      type: object
+      required: [effect, resources, actions]
+      properties:
+        effect: { type: string }
+        resources:
+          type: array
+          items: { type: string }
+        actions:
+          type: array
+          items: { type: string }
+        conditions:
+          type: object
+          additionalProperties: true
+    PolicyResponse:
+      allOf:
+        - $ref: "#/components/schemas/PolicyRequest"
+        - type: object
+          properties:
+            name: { type: string }
+    RoleRequest:
+      type: object
+      required: [policies]
+      properties:
+        policies:
+          type: array
+          items: { type: string }
+    RoleResponse:
+      type: object
+      properties:
+        name: { type: string }
+        policies:
+          type: array
+          items: { type: string }
+    AuditEntryResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        timestamp: { type: string, format: date-time }
+        actor: { type: string }
+        action: { type: string }
+        resource: { type: string }
+        status: { type: string }
+        details:
+          type: object
+          additionalProperties: true
+        hash: { type: string }
+    AuditExportResponse:
+      type: object
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditEntryResponse"
+        head_hash: { type: string }
+        signature: { type: string }
+        signed_at: { type: string, format: date-time }
+    AuditVerifyRequest:
+      type: object
+      properties:
+        signature: { type: string }
+        signed_at: { type: string, format: date-time }
+    AuditVerifyResponse:
+      type: object
+      properties:
+        valid: { type: boolean }
+        head_hash: { type: string }
+        signature: { type: string }
+        message: { type: string }

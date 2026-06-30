@@ -1,0 +1,12 @@
+.git
+.gitignore
+bin/
+*.md
+docs/
+deployments/
+test/
+sbom*.json
+.trivyignore
+.golangci.yml
+.gosec.json
+**/*_test.go

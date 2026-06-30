@@ -1,0 +1,27 @@
+# syntax=docker/dockerfile:1
+
+FROM golang:1.25-bookworm AS builder
+
+ENV GOTOOLCHAIN=go1.25.11
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/knxvault ./cmd/knxvault
+
+FROM debian:bookworm-slim
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates openssl \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -r -u 65532 -g nogroup knxvault
+
+COPY --from=builder /out/knxvault /usr/local/bin/knxvault
+
+USER 65532:65532
+EXPOSE 8200
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD ["/usr/local/bin/knxvault", "-healthcheck"]
+
+ENTRYPOINT ["/usr/local/bin/knxvault"]

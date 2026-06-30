@@ -1,0 +1,7 @@
+{
+  "global": {
+    "nosec": "false",
+    "audit": "false"
+  },
+  "exclude": ["G104"]
+}

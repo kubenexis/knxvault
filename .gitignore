@@ -1,0 +1,25 @@
+# Build artifacts
+/bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# SBOM & scan output
+sbom.json
+sbom-binary.json
+trivy-report.json
+trivy-results.sarif
+
+# Go
+/vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,91 @@
+// Package metrics exposes Prometheus instrumentation (LLD observability).
+package metrics
+
+import (
+	"strconv"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+)
+
+var (
+	requestsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "knxvault_http_requests_total",
+			Help: "Total HTTP requests processed",
+		},
+		[]string{"method", "route", "status"},
+	)
+	requestDuration = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "knxvault_http_request_duration_seconds",
+			Help:    "HTTP request latency in seconds",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"method", "route"},
+	)
+	buildInfo = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "knxvault_build_info",
+			Help: "KNXVault build metadata (always 1)",
+		},
+		[]string{"version"},
+	)
+	leaderGauge = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "knxvault_leader",
+			Help: "1 when this instance is the elected leader, 0 otherwise",
+		},
+	)
+	activeLeasesGauge = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "knxvault_active_leases",
+			Help: "Number of leases processed in the most recent cleanup cycle",
+		},
+	)
+)
+
+// SetBuildInfo records the running application version.
+func SetBuildInfo(version string) {
+	buildInfo.WithLabelValues(version).Set(1)
+}
+
+// SetLeader records HA leadership status.
+func SetLeader(isLeader bool) {
+	if isLeader {
+		leaderGauge.Set(1)
+	} else {
+		leaderGauge.Set(0)
+	}
+}
+
+// SetActiveLeasesGauge records the latest lease cleanup batch size.
+func SetActiveLeasesGauge(count int) {
+	activeLeasesGauge.Set(float64(count))
+}
+
+// Handler returns the Prometheus scrape handler.
+func Handler() gin.HandlerFunc {
+	return gin.WrapH(promhttp.Handler())
+}
+
+// Middleware records request counts and latency.
+func Middleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
+		c.Next()
+
+		route := c.FullPath()
+		if route == "" {
+			route = "unknown"
+		}
+		status := strconv.Itoa(c.Writer.Status())
+		method := c.Request.Method
+
+		requestsTotal.WithLabelValues(method, route, status).Inc()
+		requestDuration.WithLabelValues(method, route).Observe(time.Since(start).Seconds())
+	}
+}
