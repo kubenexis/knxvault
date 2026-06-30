@@ -40,7 +40,7 @@ kubectl apply -f deployments/k8s/statefulset.yaml
 kubectl apply -f deployments/k8s/service.yaml
 ```
 
-The StatefulSet runs **3 replicas** with Dragonboat Raft (`KNXVAULT_RAFT_ENABLED=true`). Node IDs are derived from pod names (`knxvault-0` → node `1`). Background jobs run only on the Raft leader.
+The StatefulSet runs **3 replicas** with Dragonboat Raft (`KNXVAULT_RAFT_ENABLED=true`). Node IDs are **derived** from pod names when `KNXVAULT_RAFT_NODE_ID` is unset: `knxvault-0` → `1`, `knxvault-1` → `2`, `knxvault-2` → `3`. These must match the IDs in `KNXVAULT_RAFT_INITIAL_MEMBERS` in the ConfigMap. See [Raft node IDs](../storage/dragonboat.md#raft-node-ids--how-to-choose-and-assign). Background jobs run only on the Raft leader.
 
 | Resource | Purpose |
 |----------|---------|

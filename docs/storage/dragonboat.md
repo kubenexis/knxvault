@@ -9,9 +9,89 @@ KNXVault persists all vault state in a single Dragonboat Raft cluster (cluster I
 | Mode | Nodes | Use case |
 |------|-------|----------|
 | Single-node | `KNXVAULT_RAFT_NODE_ID=1` | Dev / CI |
-| 3-node StatefulSet | `0,1,2` pod indices + headless Service | Production HA |
+| 3-node StatefulSet | pod ordinals `0,1,2` → node IDs `1,2,3` | Production HA |
 
 Raft addresses use `host:63001` by default. HTTP remains on `:8200`.
+
+## Raft node IDs — how to choose and assign
+
+A **Raft node ID** is a stable numeric member identifier in the Dragonboat cluster. It is **not** generated randomly at runtime — you **assign** it when planning the cluster, then reference the same ID in `KNXVAULT_RAFT_INITIAL_MEMBERS`.
+
+### Rules
+
+| Rule | Detail |
+|------|--------|
+| Must be > 0 | `KNXVAULT_RAFT_NODE_ID=0` or unset (with no auto-derivation) fails startup |
+| Unique per replica | Each running member needs a distinct ID |
+| Stable for life of member | Reusing an ID on a different host corrupts quorum semantics — treat IDs like server names |
+| Must match `INITIAL_MEMBERS` | The ID in `KNXVAULT_RAFT_INITIAL_MEMBERS` must equal this node's configured/derived ID |
+
+There is no `knxvault raft gen-node-id` command. Pick integers `1`, `2`, `3`, … when designing the cluster.
+
+### Option 1 — Set explicitly (recommended for dev, bare metal, Docker)
+
+Choose the next free integer and set it on **that** process only:
+
+```bash
+# Single-node laptop / CI
+export KNXVAULT_RAFT_NODE_ID=1
+export KNXVAULT_RAFT_INITIAL_MEMBERS=1=127.0.0.1:63001
+
+# Three VMs (example)
+# host-a: KNXVAULT_RAFT_NODE_ID=1  KNXVAULT_RAFT_ADDRESS=10.0.0.1:63001
+# host-b: KNXVAULT_RAFT_NODE_ID=2  KNXVAULT_RAFT_ADDRESS=10.0.0.2:63001
+# host-c: KNXVAULT_RAFT_NODE_ID=3  KNXVAULT_RAFT_ADDRESS=10.0.0.3:63001
+export KNXVAULT_RAFT_INITIAL_MEMBERS=1=10.0.0.1:63001,2=10.0.0.2:63001,3=10.0.0.3:63001
+```
+
+**Planning tip:** Use contiguous IDs starting at `1`. The left-hand side of `INITIAL_MEMBERS` is the node ID; the right-hand side is the **reachable** Raft address for that ID.
+
+### Option 2 — Kubernetes auto-derivation (production StatefulSet)
+
+When `KNXVAULT_RAFT_NODE_ID` is **unset**, KNXVault derives the ID from `KNXVAULT_POD_NAME` (or `HOSTNAME` / OS hostname):
+
+```
+node_id = <trailing_numeric_ordinal> + 1
+```
+
+| Pod / host name | Derived node ID |
+|-----------------|-----------------|
+| `knxvault-0` | `1` |
+| `knxvault-1` | `2` |
+| `knxvault-2` | `3` |
+| `myhost-0` | `1` |
+
+The StatefulSet injects `KNXVAULT_POD_NAME` from `metadata.name` and sets `KNXVAULT_RAFT_ADDRESS` to the headless Service DNS name. Your ConfigMap `KNXVAULT_RAFT_INITIAL_MEMBERS` must use the **same** IDs:
+
+```text
+1=knxvault-0.knxvault-raft.knxvault.svc.cluster.local:63001,
+2=knxvault-1.knxvault-raft.knxvault.svc.cluster.local:63001,
+3=knxvault-2.knxvault-raft.knxvault.svc.cluster.local:63001
+```
+
+**Naming requirement:** Auto-derivation only works when the hostname ends with `-<ordinal>` where `<ordinal>` is a non-negative integer. Names like `knxvault` or `server01` do **not** auto-derive — set `KNXVAULT_RAFT_NODE_ID` explicitly instead.
+
+### Option 3 — Override on Kubernetes
+
+You may set `KNXVAULT_RAFT_NODE_ID` in the ConfigMap or per-pod env to override derivation. If you do, update `KNXVAULT_RAFT_INITIAL_MEMBERS` so the same numeric ID maps to that pod's Raft address.
+
+### Verify after startup
+
+```bash
+curl -s http://localhost:8200/ready | jq
+# expect: raft_enabled=true, raft_ready=true, leader=true|false
+```
+
+Prometheus gauge `knxvault_raft_leader` is `1` only on the elected leader replica.
+
+### Common mistakes
+
+| Mistake | Symptom |
+|---------|---------|
+| Raft enabled without node ID on a generic host | `KNXVAULT_RAFT_NODE_ID must be > 0 when raft is enabled` |
+| Node ID `2` but `INITIAL_MEMBERS` only lists ID `1` | Peer cannot join quorum / readiness stuck |
+| Two pods both derive ID `1` (duplicate ordinals) | Split-brain / Raft startup failure |
+| Changing a pod's ID after data was written | Treat as a **new** member — requires operational migration (see backlog W36-23) |
 
 ## Configuration
 

@@ -48,9 +48,9 @@ KNXVault is configured entirely via environment variables. No config file is req
 | `KNXVAULT_RAFT_MTLS_KEY` | — | No | Raft peer TLS private key |
 | `KNXVAULT_RAFT_MTLS_CA` | — | No | Raft peer CA bundle for mutual TLS |
 
-**Node ID resolution:** Set `KNXVAULT_RAFT_NODE_ID` explicitly for bare-metal, Docker, and local dev. On Kubernetes, the StatefulSet sets `KNXVAULT_POD_NAME` from the pod metadata; the server derives node ID from the trailing ordinal (`knxvault-0` → `1`, `knxvault-1` → `2`). If neither env var nor a matching hostname is present, Raft validation fails at startup.
+**Node ID:** Assign a stable integer > 0 per replica (not randomly generated). Set `KNXVAULT_RAFT_NODE_ID` explicitly for bare-metal, Docker, and local dev. On Kubernetes, omit it and let the StatefulSet derive from `KNXVAULT_POD_NAME` (`knxvault-0` → `1`). The ID must match the left-hand key in `KNXVAULT_RAFT_INITIAL_MEMBERS`.
 
-See [Dragonboat storage](../storage/dragonboat.md) for topology examples.
+See [Raft node IDs — how to choose and assign](../storage/dragonboat.md#raft-node-ids--how-to-choose-and-assign) for planning tables and examples.
 
 ## Background jobs
 
