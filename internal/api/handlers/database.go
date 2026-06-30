@@ -35,6 +35,8 @@ func (h *DatabaseHandler) PutRole(c *gin.Context) {
 		DefaultUsername:      req.DefaultUsername,
 		CreationStatements:   req.CreationStatements,
 		RevocationStatements: req.RevocationStatements,
+		ExecutionMode:        req.ExecutionMode,
+		AdminCredentialsPath: req.AdminCredentialsPath,
 		Config:               req.Config,
 	}
 	if err := h.svc.SaveRole(c.Request.Context(), cfg); err != nil {
@@ -58,6 +60,8 @@ func (h *DatabaseHandler) GetRole(c *gin.Context) {
 		DefaultUsername:      role.DefaultUsername,
 		CreationStatements:   role.CreationStatements,
 		RevocationStatements: role.RevocationStatements,
+		ExecutionMode:        role.ExecutionMode,
+		AdminCredentialsPath: role.AdminCredentialsPath,
 		Config:               role.Config,
 	})
 }

@@ -29,6 +29,7 @@ Version-controlled documentation for architects, operators, developers, and inte
 | [Kubernetes deployment](deploy/kubernetes.md) | Operators | 3-node Raft StatefulSet manifests |
 | [Backup & restore](deploy/backup-restore.md) | Operators | Encrypted snapshots and migration |
 | [Secrets injection](deploy/secrets-injection.md) | Integrators | Sidecar, init container, CSI scaffolding |
+| [Database credentials](deploy/database-credentials.md) | Operators | Generator-only mode, admin cred patterns |
 | [Integration overview](integration/overview.md) | Integrators | K8s auth, CI/CD, client SDK patterns |
 
 ## Operations

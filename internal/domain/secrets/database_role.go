@@ -13,6 +13,8 @@ type DatabaseRole struct {
 	DefaultUsername      string
 	CreationStatements   []string
 	RevocationStatements []string
+	ExecutionMode        string
+	AdminCredentialsPath string
 	Config               map[string]any
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
@@ -20,6 +22,7 @@ type DatabaseRole struct {
 
 // Validate checks database role configuration.
 func (r *DatabaseRole) Validate() error {
+	NormalizeDatabaseRole(r)
 	if r.Name == "" {
 		return fmt.Errorf("database role name is required")
 	}
@@ -28,6 +31,15 @@ func (r *DatabaseRole) Validate() error {
 	}
 	if r.UsernamePrefix == "" {
 		return fmt.Errorf("database role username prefix is required")
+	}
+	if err := ValidateExecutionMode(r.ExecutionMode); err != nil {
+		return err
+	}
+	if err := ValidateAdminCredentialsPath(r.AdminCredentialsPath); err != nil {
+		return err
+	}
+	if err := ValidateDatabaseRoleConfig(r.Config); err != nil {
+		return err
 	}
 	return nil
 }

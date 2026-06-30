@@ -9,6 +9,8 @@ type DatabaseRoleRequest struct {
 	DefaultUsername      string         `json:"default_username"`
 	CreationStatements   []string       `json:"creation_statements"`
 	RevocationStatements []string       `json:"revocation_statements"`
+	ExecutionMode        string         `json:"execution_mode,omitempty"`
+	AdminCredentialsPath string         `json:"admin_credentials_path,omitempty"`
 	Config               map[string]any `json:"config"`
 }
 
@@ -20,6 +22,8 @@ type DatabaseRoleResponse struct {
 	DefaultUsername      string         `json:"default_username"`
 	CreationStatements   []string       `json:"creation_statements"`
 	RevocationStatements []string       `json:"revocation_statements"`
+	ExecutionMode        string         `json:"execution_mode,omitempty"`
+	AdminCredentialsPath string         `json:"admin_credentials_path,omitempty"`
 	Config               map[string]any `json:"config"`
 }
 

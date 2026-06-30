@@ -68,6 +68,53 @@ func TestEngineGenerateAndRevoke(t *testing.T) {
 	}
 }
 
+func TestEngineSaveRoleRejectsSecretConfig(t *testing.T) {
+	cryptoSvc, err := crypto.NewService(testMasterKey())
+	if err != nil {
+		t.Fatalf("NewService() = %v", err)
+	}
+	engine := database.NewEngine(memory.NewDatabaseRoleRepository(), memory.NewLeaseRepository(), memory.NewSecretRepository(), cryptoSvc)
+	err = engine.SaveRole(context.Background(), database.RoleConfig{
+		Name:           "readonly",
+		TTLSeconds:     60,
+		UsernamePrefix: "v-",
+		Config: map[string]any{
+			"connection_url": "postgres://admin:pass@db:5432/app",
+		},
+	})
+	if err == nil {
+		t.Fatal("expected validation error for secret config")
+	}
+}
+
+func TestEngineSaveRoleAdminCredentialsPath(t *testing.T) {
+	cryptoSvc, err := crypto.NewService(testMasterKey())
+	if err != nil {
+		t.Fatalf("NewService() = %v", err)
+	}
+	roles := memory.NewDatabaseRoleRepository()
+	engine := database.NewEngine(roles, memory.NewLeaseRepository(), memory.NewSecretRepository(), cryptoSvc)
+	ctx := context.Background()
+	if err := engine.SaveRole(ctx, database.RoleConfig{
+		Name:                 "readonly",
+		TTLSeconds:           60,
+		UsernamePrefix:       "v-",
+		AdminCredentialsPath: "database/admin/postgres",
+		Config: map[string]any{
+			"db_type": "postgresql",
+		},
+	}); err != nil {
+		t.Fatalf("SaveRole() = %v", err)
+	}
+	role, err := roles.Get(ctx, "readonly")
+	if err != nil {
+		t.Fatalf("Get() = %v", err)
+	}
+	if role.AdminCredentialsPath != "database/admin/postgres" {
+		t.Fatalf("AdminCredentialsPath = %q", role.AdminCredentialsPath)
+	}
+}
+
 func TestEngineCleanupExpired(t *testing.T) {
 	cryptoSvc, err := crypto.NewService(testMasterKey())
 	if err != nil {

@@ -1,0 +1,53 @@
+package audit_test
+
+import (
+	"context"
+	"testing"
+
+	"github.com/kubenexis/knxvault/internal/audit"
+	"github.com/kubenexis/knxvault/internal/repository"
+	"github.com/kubenexis/knxvault/internal/repository/memory"
+)
+
+func TestSanitizeDetailsRedactsSensitiveKeys(t *testing.T) {
+	in := map[string]any{
+		"role":     "readonly",
+		"password": "s3cret",
+		"nested": map[string]any{
+			"connection_url": "postgres://admin:pass@db:5432/app",
+		},
+	}
+	out := audit.SanitizeDetails(in)
+	if out["password"] != "[REDACTED]" {
+		t.Fatalf("password = %v", out["password"])
+	}
+	nested := out["nested"].(map[string]any)
+	if nested["connection_url"] != "[REDACTED]" {
+		t.Fatalf("connection_url = %v", nested["connection_url"])
+	}
+	if out["role"] != "readonly" {
+		t.Fatalf("role = %v", out["role"])
+	}
+}
+
+func TestServiceRecordRedactsDetails(t *testing.T) {
+	repo := memory.NewAuditRepository()
+	svc := audit.NewService(repo)
+	ctx := context.Background()
+
+	if err := svc.Record(ctx, "tester", "database.creds.generate", "secrets/database/creds/readonly", "success", map[string]any{
+		"password": "generated",
+	}); err != nil {
+		t.Fatalf("Record() = %v", err)
+	}
+	entries, err := repo.List(ctx, repository.AuditListOptions{})
+	if err != nil {
+		t.Fatalf("List() = %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("entries = %d", len(entries))
+	}
+	if entries[0].Details["password"] != "[REDACTED]" {
+		t.Fatalf("details = %#v", entries[0].Details)
+	}
+}

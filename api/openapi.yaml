@@ -923,8 +923,17 @@ components:
         revocation_statements:
           type: array
           items: { type: string }
+        execution_mode:
+          type: string
+          description: Credential execution mode. Only `client` is supported (KNXVault returns SQL; caller executes with external admin creds).
+          enum: [client]
+          default: client
+        admin_credentials_path:
+          type: string
+          description: Optional KV path where operators store admin DB credentials (e.g. `database/admin/postgres`). Used for runbooks; not read by the engine in client mode.
         config:
           type: object
+          description: Non-secret tuning only (`db_type`, `ssl_mode`, `database_name`). Credentials are rejected.
           additionalProperties: true
     DatabaseRoleResponse:
       allOf:

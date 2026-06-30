@@ -9,6 +9,7 @@ ADRs document significant architectural decisions with context, options consider
 | [0001](0001-dragonboat-storage-backend.md) | Dragonboat Raft storage backend | Accepted |
 | [0002](0002-openssl-cli-crypto-backend.md) | OpenSSL CLI as cryptographic backend | Accepted |
 | [0003](0003-envelope-encryption.md) | Envelope encryption with master key | Accepted |
+| [0004](0004-encrypt-before-replication.md) | Encrypt before Raft replication | Accepted |
 
 ## Format
 

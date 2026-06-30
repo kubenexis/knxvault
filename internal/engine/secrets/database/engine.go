@@ -60,6 +60,8 @@ type RoleConfig struct {
 	DefaultUsername      string
 	CreationStatements   []string
 	RevocationStatements []string
+	ExecutionMode        string
+	AdminCredentialsPath string
 	Config               map[string]any
 }
 
@@ -75,6 +77,8 @@ func (e *Engine) SaveRole(ctx context.Context, cfg RoleConfig) error {
 		DefaultUsername:      cfg.DefaultUsername,
 		CreationStatements:   cfg.CreationStatements,
 		RevocationStatements: cfg.RevocationStatements,
+		ExecutionMode:        cfg.ExecutionMode,
+		AdminCredentialsPath: cfg.AdminCredentialsPath,
 		Config:               cfg.Config,
 	}
 	if role.TTLSeconds <= 0 {
@@ -82,6 +86,10 @@ func (e *Engine) SaveRole(ctx context.Context, cfg RoleConfig) error {
 	}
 	if role.UsernamePrefix == "" {
 		role.UsernamePrefix = "v-"
+	}
+	domainsecrets.NormalizeDatabaseRole(role)
+	if err := role.Validate(); err != nil {
+		return common.Wrap(common.ErrCodeValidation, "invalid database role", err)
 	}
 	return e.roles.Save(ctx, role)
 }
@@ -124,6 +132,10 @@ func (e *Engine) GenerateCredentials(ctx context.Context, req CredsRequest) (*Cr
 	role, err := e.roles.Get(ctx, req.Role)
 	if err != nil {
 		return nil, err
+	}
+	domainsecrets.NormalizeDatabaseRole(role)
+	if role.ExecutionMode != domainsecrets.ExecutionModeClient {
+		return nil, common.New(common.ErrCodeValidation, "only client execution mode is supported; KNXVault returns SQL for external execution")
 	}
 
 	ttlSeconds := role.TTLSeconds

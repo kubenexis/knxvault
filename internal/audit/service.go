@@ -41,6 +41,7 @@ func (s *Service) Record(ctx context.Context, actor, action, resource, status st
 		return err
 	}
 
+	safeDetails := SanitizeDetails(details)
 	now := time.Now().UTC()
 	entry := &audit.Entry{
 		Timestamp: now,
@@ -48,8 +49,8 @@ func (s *Service) Record(ctx context.Context, actor, action, resource, status st
 		Action:    action,
 		Resource:  resource,
 		Status:    status,
-		Details:   details,
-		Hash:      computeHash(prevHash, actor, action, resource, status, details, now),
+		Details:   safeDetails,
+		Hash:      computeHash(prevHash, actor, action, resource, status, safeDetails, now),
 	}
 	return s.repo.Append(ctx, entry)
 }

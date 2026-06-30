@@ -115,20 +115,28 @@ curl -s $KNXVAULT_ADDR/sys/capabilities \
 
 ## 5. Dynamic database credentials
 
+KNXVault generates credentials and SQL statements; **your tooling runs the SQL** using admin credentials stored outside the role (typically in KV). See [Database credentials guide](../deploy/database-credentials.md).
+
 ```bash
-# Configure a role
+# Store admin DB credentials in KV (encrypted before Raft)
+curl -s -X POST $KNXVAULT_ADDR/secrets/kv/database/admin/postgres \
+  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"data":{"username":"vault_admin","password":"admin-pass","host":"db.internal"}}'
+
+# Configure role (no credentials in config)
 curl -s -X PUT $KNXVAULT_ADDR/secrets/database/roles/readonly \
   -H "Authorization: Bearer $KNXVAULT_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{
-    "db_type": "postgresql",
-    "connection_url": "postgres://admin@db:5432/app",
-    "creation_statements": ["CREATE ROLE \"{{name}}\" LOGIN PASSWORD '\''{{password}}'\'' VALID UNTIL '\''{{expiration}}'\'';"],
-    "default_ttl": "1h",
-    "max_ttl": "24h"
+    "ttl_seconds": 3600,
+    "username_prefix": "v-",
+    "admin_credentials_path": "database/admin/postgres",
+    "creation_statements": ["CREATE ROLE \"{{username}}\" LOGIN PASSWORD '\''{{password}}'\'';"],
+    "config": {"db_type": "postgresql"}
   }'
 
-# Generate ephemeral credentials
+# Generate ephemeral credentials + SQL statements
 curl -s -X POST $KNXVAULT_ADDR/secrets/database/creds/readonly \
   -H "Authorization: Bearer $KNXVAULT_TOKEN"
 ```

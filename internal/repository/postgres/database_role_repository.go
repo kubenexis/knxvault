@@ -48,17 +48,22 @@ func (r *DatabaseRoleRepository) Save(ctx context.Context, role *secrets.Databas
 	}
 
 	now := time.Now().UTC()
+	secrets.NormalizeDatabaseRole(role)
+
 	const q = `
 INSERT INTO database_roles (
     name, ttl_seconds, username_prefix, default_username,
-    creation_statements, revocation_statements, config, created_at, updated_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
+    creation_statements, revocation_statements, execution_mode,
+    admin_credentials_path, config, created_at, updated_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
 ON CONFLICT (name) DO UPDATE SET
     ttl_seconds = EXCLUDED.ttl_seconds,
     username_prefix = EXCLUDED.username_prefix,
     default_username = EXCLUDED.default_username,
     creation_statements = EXCLUDED.creation_statements,
     revocation_statements = EXCLUDED.revocation_statements,
+    execution_mode = EXCLUDED.execution_mode,
+    admin_credentials_path = EXCLUDED.admin_credentials_path,
     config = EXCLUDED.config,
     updated_at = EXCLUDED.updated_at
 `
@@ -69,6 +74,8 @@ ON CONFLICT (name) DO UPDATE SET
 		role.DefaultUsername,
 		creationJSON,
 		revocationJSON,
+		role.ExecutionMode,
+		role.AdminCredentialsPath,
 		configJSON,
 		now,
 	)
@@ -82,7 +89,8 @@ ON CONFLICT (name) DO UPDATE SET
 func (r *DatabaseRoleRepository) Get(ctx context.Context, name string) (*secrets.DatabaseRole, error) {
 	const q = `
 SELECT name, ttl_seconds, username_prefix, default_username,
-       creation_statements, revocation_statements, config, created_at, updated_at
+       creation_statements, revocation_statements, execution_mode,
+       admin_credentials_path, config, created_at, updated_at
 FROM database_roles WHERE name = $1
 `
 	row := r.pool.QueryRow(ctx, q, name)
@@ -100,7 +108,8 @@ FROM database_roles WHERE name = $1
 func (r *DatabaseRoleRepository) List(ctx context.Context) ([]*secrets.DatabaseRole, error) {
 	const q = `
 SELECT name, ttl_seconds, username_prefix, default_username,
-       creation_statements, revocation_statements, config, created_at, updated_at
+       creation_statements, revocation_statements, execution_mode,
+       admin_credentials_path, config, created_at, updated_at
 FROM database_roles ORDER BY name ASC
 `
 	rows, err := r.pool.Query(ctx, q)
@@ -154,6 +163,8 @@ func scanDatabaseRole(row databaseRoleScanner) (*secrets.DatabaseRole, error) {
 		&role.DefaultUsername,
 		&creationJSON,
 		&revocationJSON,
+		&role.ExecutionMode,
+		&role.AdminCredentialsPath,
 		&configJSON,
 		&role.CreatedAt,
 		&role.UpdatedAt,
@@ -178,5 +189,6 @@ func scanDatabaseRole(row databaseRoleScanner) (*secrets.DatabaseRole, error) {
 	if role.Config == nil {
 		role.Config = map[string]any{}
 	}
+	secrets.NormalizeDatabaseRole(&role)
 	return &role, nil
 }

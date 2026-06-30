@@ -90,6 +90,10 @@ The CLI (`knxvault-cli`) uses the same client package. See [CLI reference](../cl
 
 Store `KNXVAULT_TOKEN` as a masked CI variable. Use the same curl pattern or the CLI in a job image that includes `knxvault-cli`.
 
+## Dynamic database credentials
+
+KNXVault runs in **client** execution mode: it returns SQL `creation_statements` and ephemeral credentials; your executor connects with admin creds from KV or K8s Secrets. See [Database credentials](../deploy/database-credentials.md).
+
 ## PKI integration
 
 | Endpoint | Purpose |

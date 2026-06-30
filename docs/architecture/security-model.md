@@ -22,12 +22,30 @@ Threat assumptions, cryptographic controls, and operational security guidance fo
 - Never logged or returned via API
 - See [ADR-0003](../adr/0003-envelope-encryption.md)
 
+### Encrypt before replication
+
+Secret and key material is **never written to Raft in plaintext**. Engines seal data before calling repositories; Raft only ever proposes already-encrypted domain objects.
+
+```
+PutSecret
+    │
+Serialize (JSON)
+    │
+Encrypt — AES-256-GCM envelope (per-object DEK, master-wrapped DEK)
+    │
+Replicate via Dragonboat (Propose)
+    │
+Persist — Pebble WAL + snapshots contain ciphertext
+```
+
+An attacker with Raft disk access sees base64-encoded `data_enc` and `dek_enc` fields — not recoverable without `KNXVAULT_MASTER_KEY`. See [ADR-0004](../adr/0004-encrypt-before-replication.md).
+
 ### Envelope encryption
 
 1. Generate per-object DEK (AES-256)
 2. Encrypt payload with DEK (AES-256-GCM)
 3. Wrap DEK with master key
-4. Store `DataEnc` + `DEKEnc` in Raft state
+4. Store `DataEnc` + `DEKEnc` in Raft state (only after steps 1–3)
 
 CA private keys and secret payloads use the same pattern.
 
@@ -97,6 +115,11 @@ The production image:
 - Includes only OpenSSL and the static binary
 
 CI gates: `gosec`, `golangci-lint`, Trivy vulnerability and license scan, SPDX allow-list.
+
+## Database role and audit controls
+
+- **Database roles:** `config` rejects passwords, tokens, and connection URLs. Use `admin_credentials_path` to document where KV admin creds live; store admin creds in the secrets engine.
+- **Audit logs:** `details` fields are redacted before persistence (`password`, `connection_url`, credential-like strings → `[REDACTED]`).
 
 ## Compliance posture
 

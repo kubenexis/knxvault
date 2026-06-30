@@ -2,6 +2,8 @@
 
 KNXVault persists all vault state in a single Dragonboat Raft cluster (cluster ID `1`). Repository interfaces delegate to a replicated state machine backed by in-memory stores snapshotted as portable JSON.
 
+**Encryption invariant:** Secret payloads and private keys are encrypted by the engine layer (AES-256-GCM envelope) *before* `Propose`. Raft logs, Pebble WAL entries, and on-disk snapshots therefore contain ciphertext for sensitive fields — not plaintext secrets. See [ADR-0004](../adr/0004-encrypt-before-replication.md).
+
 ## Topology
 
 | Mode | Nodes | Use case |

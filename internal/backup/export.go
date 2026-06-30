@@ -140,6 +140,7 @@ func Export(ctx context.Context, repos Repos, opts ExportOptions) (*Snapshot, er
 }
 
 func databaseRoleFromDomain(role *secrets.DatabaseRole) DatabaseRoleRecord {
+	secrets.NormalizeDatabaseRole(role)
 	return DatabaseRoleRecord{
 		Name:                 role.Name,
 		TTLSeconds:           role.TTLSeconds,
@@ -147,20 +148,26 @@ func databaseRoleFromDomain(role *secrets.DatabaseRole) DatabaseRoleRecord {
 		DefaultUsername:      role.DefaultUsername,
 		CreationStatements:   append([]string(nil), role.CreationStatements...),
 		RevocationStatements: append([]string(nil), role.RevocationStatements...),
+		ExecutionMode:        role.ExecutionMode,
+		AdminCredentialsPath: role.AdminCredentialsPath,
 		Config:               role.Config,
 	}
 }
 
 func databaseRoleToDomain(rec DatabaseRoleRecord) *secrets.DatabaseRole {
-	return &secrets.DatabaseRole{
+	role := &secrets.DatabaseRole{
 		Name:                 rec.Name,
 		TTLSeconds:           rec.TTLSeconds,
 		UsernamePrefix:       rec.UsernamePrefix,
 		DefaultUsername:      rec.DefaultUsername,
 		CreationStatements:   rec.CreationStatements,
 		RevocationStatements: rec.RevocationStatements,
+		ExecutionMode:        rec.ExecutionMode,
+		AdminCredentialsPath: rec.AdminCredentialsPath,
 		Config:               rec.Config,
 	}
+	secrets.NormalizeDatabaseRole(role)
+	return role
 }
 
 func leaseFromDomain(lease *secrets.Lease) LeaseRecord {
