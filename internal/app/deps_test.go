@@ -37,6 +37,7 @@ func TestNewDependenciesInMemory(t *testing.T) {
 
 func TestNewDependenciesRequiresMasterKeyWithRaft(t *testing.T) {
 	t.Setenv("KNXVAULT_RAFT_ENABLED", "true")
+	t.Setenv("KNXVAULT_RAFT_NODE_ID", "1")
 	t.Setenv("KNXVAULT_RAFT_INITIAL_MEMBERS", "1=127.0.0.1:63001")
 	t.Setenv("KNXVAULT_MASTER_KEY", "")
 	t.Setenv("KNXVAULT_MASTER_KEY_FILE", "")
