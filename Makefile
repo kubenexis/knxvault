@@ -21,7 +21,7 @@ GOLANGCI_LINT   := $(firstword $(shell command -v golangci-lint 2>/dev/null) $(G
 GOSEC           := $(firstword $(shell command -v gosec 2>/dev/null) $(GOPATH_BIN)/gosec)
 TRIVY           := $(firstword $(shell command -v trivy 2>/dev/null) $(LOCAL_BIN)/trivy)
 DOCKER          := $(firstword $(shell command -v docker 2>/dev/null))
-VERSION         ?= 0.4.3
+VERSION         ?= 0.4.5
 COMMIT          ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 BUILD_ID        ?= $(shell date +%s)
 IMAGE           ?= knxvault:$(VERSION)
@@ -142,7 +142,7 @@ test: ## Run unit tests
 	$(call require_cmd,go)
 	$(GO) test $$(go list ./... | grep -v '/test/integration') -count=1
 
-test-integration: ## Run integration tests (API + Raft)
+test-integration: build build-cli ## Run integration tests (API + Raft + daemon e2e)
 	$(call log,Running integration tests)
 	$(call require_cmd,go)
 	$(GO) test ./test/integration/... -count=1

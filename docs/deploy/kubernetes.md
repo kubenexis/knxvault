@@ -13,7 +13,7 @@ KNXVault ships **raw Kubernetes manifests** in [`deployments/k8s/`](../../deploy
 ```bash
 make docker-build
 # or with a registry tag:
-docker build -t registry.example.com/knxvault:0.4.3 .
+docker build -t registry.example.com/knxvault:0.4.5 .
 ```
 
 Update `deployments/k8s/statefulset.yaml` `image:` to match your tag.

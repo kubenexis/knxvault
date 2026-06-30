@@ -37,8 +37,9 @@ Located in `test/integration/`:
 | `api_raft_test.go` | HTTP API with single-node Raft (`KNXVAULT_RAFT_ENABLED=true`) |
 | `raft_test.go` | 3-node Raft cluster: linearizable writes |
 | `raft_failover_test.go` | Leader failover: stop leader, verify reads/writes on survivors |
+| `e2e_daemon_test.go` | Local `knxvault serve` daemon + `knxvault-cli` over `--addr` (PKI + KV workflow) |
 
-Integration tests set `KNXVAULT_MASTER_KEY` and `KNXVAULT_ROOT_TOKEN` programmatically. Raft tests spawn multiple server processes with distinct `KNXVAULT_RAFT_NODE_ID` values. Unit tests that enable Raft via `config.Load()` must also set `KNXVAULT_RAFT_NODE_ID` (> 0) — otherwise validation fails before dependency wiring.
+Integration tests set `KNXVAULT_MASTER_KEY` and `KNXVAULT_ROOT_TOKEN` programmatically. E2E daemon tests (`TestE2E*`) build `knxvault` and `knxvault-cli` once, start `knxvault serve` on an ephemeral port, and drive the CLI with `KNXVAULT_ADDR` / `--addr`. OpenSSL must be on `PATH` for PKI steps. Raft tests spawn multiple server processes with distinct `KNXVAULT_RAFT_NODE_ID` values. Unit tests that enable Raft via `config.Load()` must also set `KNXVAULT_RAFT_NODE_ID` (> 0) — otherwise validation fails before dependency wiring.
 
 ## Static analysis and security gates
 
@@ -58,7 +59,7 @@ A PR should pass all gates locally before submission.
 ```bash
 export KNXVAULT_MASTER_KEY=$(openssl rand -base64 32)
 export KNXVAULT_ROOT_TOKEN=dev-root-token
-./bin/knxvault &
+./bin/knxvault serve &
 
 export KNXVAULT_ADDR=http://localhost:8200
 export KNXVAULT_TOKEN=dev-root-token
@@ -75,7 +76,7 @@ export KNXVAULT_RAFT_NODE_ID=1
 export KNXVAULT_RAFT_ADDRESS=127.0.0.1:63001
 export KNXVAULT_RAFT_DATA_DIR=/tmp/knxvault-raft-test
 export KNXVAULT_RAFT_INITIAL_MEMBERS=1=127.0.0.1:63001
-./bin/knxvault
+./bin/knxvault serve
 ```
 
 ## Writing new tests

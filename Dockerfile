@@ -6,7 +6,7 @@
 
 FROM golang:1.25-bookworm AS builder
 
-ARG VERSION=0.4.3
+ARG VERSION=0.4.5
 ARG COMMIT=unknown
 ARG BUILD_ID=0
 

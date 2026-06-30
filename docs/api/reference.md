@@ -1,6 +1,6 @@
 # API Reference
 
-KNXVault exposes a REST API on port **8200** (configurable via `KNXVAULT_HTTP_ADDR`).
+KNXVault exposes a REST API on port **8200** (configurable via `KNXVAULT_HTTP_ADDR` or `http_addr` in the config file).
 
 ## Interactive documentation
 
@@ -24,6 +24,8 @@ Optional request signing (when `KNXVAULT_REQUEST_SIGNING_REQUIRED=true`):
 X-KNX-Timestamp: <RFC3339>
 X-KNX-Signature: <HMAC-SHA256 of method+path+body+timestamp>
 ```
+
+When the vault is **sealed**, mutating secured routes return `503`; reads and `POST /sys/unseal` remain available.
 
 ## Response envelope
 
@@ -59,31 +61,57 @@ Errors:
 
 ## Endpoint catalog
 
-### Health & system
+### Health & observability
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/health` | No | Liveness |
-| GET | `/ready` | No | Readiness (includes Raft status) |
+| GET | `/ready` | No | Readiness (storage, Raft leader, seal state) |
 | GET | `/metrics` | No | Prometheus metrics |
 | GET | `/openapi.yaml` | No | OpenAPI spec |
 | GET | `/swagger` | No | Swagger UI |
+
+### System
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
 | GET | `/sys/capabilities` | Yes | Token capabilities |
+| POST | `/sys/init` | Yes | Bootstrap initialization |
+| POST | `/sys/tls/issue-listener` | Yes | Issue listener TLS certificate |
+| POST | `/sys/rotate-master-key` | Yes | Rotate envelope master key |
+| POST | `/sys/seal` | Yes | Seal vault (block mutating operations) |
+| POST | `/sys/unseal` | No | Unseal vault (`{"key":"<base64>"}`) |
+| POST | `/sys/raft/add-node` | Yes | Add Raft member (when Raft enabled) |
+| POST | `/sys/raft/remove-node` | Yes | Remove Raft member |
+| PUT | `/sys/kv-rotation` | Yes | Configure scheduled KV rotation |
+| DELETE | `/sys/kv-rotation` | Yes | Remove KV rotation schedule |
+| GET | `/sys/machine-identities` | Yes | List machine identities |
+| DELETE | `/sys/machine-identities/:id` | Yes | Revoke machine identity |
+| POST | `/sys/exposure/report` | HMAC | Report credential exposure (when signing key configured) |
+| POST | `/sys/backup` | Yes | Export encrypted snapshot |
+| POST | `/sys/restore` | Yes | Restore from encrypted snapshot |
+
+### RBAC policies & roles
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
 | PUT | `/sys/policies/:name` | Yes | Create/update policy |
 | GET | `/sys/policies` | Yes | List policies |
 | GET | `/sys/policies/:name` | Yes | Get policy |
 | DELETE | `/sys/policies/:name` | Yes | Delete policy |
-| PUT | `/sys/roles/:name` | Yes | Create/update role |
+| PUT | `/sys/roles/:name` | Yes | Create/update role binding |
 | GET | `/sys/roles/:name` | Yes | Get role |
-| POST | `/sys/backup` | Yes | Export encrypted snapshot |
-| POST | `/sys/restore` | Yes | Restore from snapshot |
 
 ### Authentication
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | `/auth/token` | No | Validate opaque token |
 | POST | `/auth/kubernetes` | No | K8s SA JWT → client token |
+| POST | `/auth/oidc/:role` | No | OIDC login |
+| POST | `/auth/token` | No | Validate opaque token |
+| POST | `/auth/token/create` | Yes | Issue scoped client token |
+| POST | `/auth/token/renew` | Yes | Renew client token |
+| DELETE | `/auth/token/self` | Yes | Revoke current token |
 
 ### Secrets (KVv2)
 
@@ -111,8 +139,11 @@ Errors:
 | POST | `/pki/intermediate` | Yes | Create intermediate CA |
 | POST | `/pki/issue` | Yes | Issue leaf certificate |
 | POST | `/pki/renew` | Yes | Renew tracked certificate |
-| GET | `/pki/ca/:id` | Yes | Get CA by ID |
 | POST | `/pki/revoke` | Yes | Revoke serial |
+| POST | `/pki/ca/import` | Yes | Import CA material |
+| POST | `/pki/ca/:id/rotate` | Yes | Rotate CA keys |
+| GET | `/pki/ca/:id` | Yes | Get CA by ID |
+| GET | `/pki/ca/:id/export` | Yes | Export CA PEM bundle |
 | GET | `/pki/crl/:id` | Yes | Generate CRL |
 | POST | `/pki/ocsp/:id` | No | OCSP responder (DER) |
 
@@ -127,8 +158,8 @@ Errors:
 ## Go client
 
 ```go
-c := client.New("http://localhost:8200", client.WithToken(token))
-resp, err := c.GetSecret(ctx, "app/db")
+c := client.New("http://localhost:8200", token)
+resp, err := c.KVGet(ctx, "app/db")
 ```
 
 Package: [`pkg/client`](../../pkg/client/).

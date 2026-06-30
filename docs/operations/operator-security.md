@@ -74,6 +74,10 @@ Secret **values**, CA **private keys**, and generated DB credentials are encrypt
 - [ ] Store admin DB credentials in KV, not in database role config
 - [ ] Schedule encrypted backups (`scripts/backup.sh` or CLI)
 
+## PKI-specific guidance
+
+See [PKI security best practices](pki-security-practices.md) for trust hierarchy, private key handling, and issuance access control.
+
 ## Related documents
 
 - [Security model](../architecture/security-model.md)

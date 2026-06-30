@@ -20,7 +20,7 @@ Version-controlled documentation for architects, operators, developers, and inte
 | Document | Audience | Description |
 |----------|----------|-------------|
 | [Installation guide](installation/install.md) | Operators | Binary, Docker, Kubernetes quick start |
-| [Configuration reference](installation/configuration.md) | Operators | Environment variables and tuning |
+| [Configuration reference](installation/configuration.md) | Operators | `/etc/knxvault.conf`, environment variables, and tuning |
 
 ## Deployment & integration
 
@@ -39,6 +39,9 @@ Version-controlled documentation for architects, operators, developers, and inte
 | Document | Audience | Description |
 |----------|----------|-------------|
 | [Day-2 operations](operations/day2.md) | Operators | Renewal, rotation, monitoring, upgrades |
+| [PKI administration](operations/pki-administration.md) | Operators | CA hierarchy, issuance recipes, renewal, CRL/OCSP |
+| [PKI Kubernetes integration](operations/pki-kubernetes.md) | Operators | Ingress TLS, cert-manager, CronJob issuance patterns |
+| [PKI security best practices](operations/pki-security-practices.md) | Security / SRE | Trust hierarchy, key handling, access control |
 | [Operator security](operations/operator-security.md) | Operators | Credential placement, audit rules, storage classification |
 | [Runbook: CA compromise](operations/runbooks/ca-compromise.md) | SRE | CA key compromise recovery |
 | [Runbook: Raft failover](operations/runbooks/raft-failover.md) | SRE | Leader loss, quorum loss, recovery |

@@ -205,7 +205,7 @@ KNXVault follows a clean, hexagonal-inspired layered architecture to maximize te
 
 **Cross-cutting Concerns**:
 
-- Configuration (Viper + K8s ConfigMap).
+- Configuration (server: YAML `/etc/knxvault.conf` or `-c/--config`, environment overrides; CLI: Viper `~/.knxvault/config.yaml`).
 - Logging (Zap).
 - Tracing (OpenTelemetry).
 - Error handling (custom `errors.KNXVaultError` with codes).
@@ -1251,7 +1251,7 @@ KNXVault includes a native **Command-Line Interface (CLI)** tool named `knxvault
 ### 11.2 CLI Architecture & Technology
 
 - **Framework**: `github.com/spf13/cobra` (widely used, powerful, supports subcommands, flags, and completion).
-- **Configuration**: Viper for config file (`~/.knxvault/config.yaml`), environment variables, and flag precedence.
+- **Configuration**: Viper for CLI config file (`~/.knxvault/config.yaml`), `KNXVAULT_ADDR` / `KNXVAULT_TOKEN` environment variables, and `--addr` / `--token` flags. The **server** (`knxvault serve`) uses `/etc/knxvault.conf` (override with `-c/--config`) plus environment variables — see [`docs/installation/configuration.md`](installation/configuration.md).
 - **Authentication**: Supports token-based (JWT), Kubernetes Service Account (via mounted token), and mTLS client certificates.
 - **Output Formats**: Human-readable (table/JSON/YAML), machine-friendly (JSON by default for scripting).
 - **Security**: All sensitive operations go through the same backend services; no local crypto bypass.
@@ -1260,18 +1260,16 @@ KNXVault includes a native **Command-Line Interface (CLI)** tool named `knxvault
 
 ### 11.3 CLI Command Structure
 
+> **Implementation status (v0.4.5):** The shipped binary is `knxvault-cli`. Implemented commands are documented in [`docs/cli/reference.md`](cli/reference.md). The structure below includes planned commands beyond the current MVP.
+
 ```bash
-knxvault [global flags] <command> <subcommand> [flags]
+knxvault-cli [global flags] <command> <subcommand> [flags]
 ```
 
-#### Global Flags
+#### Global Flags (implemented)
 
-- `--address` / `-a`: Server address (default: `https://localhost:8200`)
+- `--addr`: Server address (default: `http://localhost:8200`)
 - `--token`: Authentication token
-- `--kube`: Use Kubernetes Service Account auth
-- `--ca-cert`: mTLS CA certificate
-- `--output` / `-o`: json|yaml|table
-- `--insecure`: Skip TLS verification (dev only)
 
 #### Major Command Groups
 
@@ -1320,7 +1318,7 @@ knxvault audit list
 ```bash
 knxvault admin init                     # Bootstrap master key + initial root CA
 knxvault admin rekey
-knxvault admin seal / unseal            # Future soft seal capability
+knxvault-cli sys seal / unseal           # Implemented (v0.4.5)
 ```
 
 ### 11.4 Implementation Highlights

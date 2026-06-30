@@ -3,7 +3,9 @@
 # cert-manager's built-in Vault issuer expects HashiCorp Vault HTTP paths. W40-02 adds
 # a compatibility layer (/v1/pki/sign/:role) or a first-class spec.knxvault issuer CRD.
 #
-# Until W40-02 ships, issue certs via KNXVault API / kubectl / CSI and reference manually.
+# Until W40-02 ships, use CronJob/operator patterns documented in:
+#   docs/operations/pki-kubernetes.md
+# PKI setup (root/intermediate/leaf): docs/operations/pki-administration.md
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:

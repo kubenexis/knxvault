@@ -8,14 +8,14 @@ KNXVault supports OpenTelemetry HTTP tracing when enabled.
 |----------|---------|-------------|
 | `KNXVAULT_TRACING_ENABLED` | `false` | Enable OTLP HTTP export |
 | `KNXVAULT_OTLP_ENDPOINT` | _(collector default)_ | OTLP HTTP endpoint host:port |
-| `KNXVAULT_TRACING_SAMPLE_RATIO` | `1` | Trace sampling ratio (0–1) |
+| `KNXVAULT_TRACING_SAMPLE_RATIO` | `0` (effective `1` when tracing enabled) | Trace sampling ratio (0–1) |
 
 ## Jaeger / Tempo example
 
 ```bash
 export KNXVAULT_TRACING_ENABLED=true
 export KNXVAULT_OTLP_ENDPOINT=localhost:4318
-./bin/knxvault
+./bin/knxvault serve
 ```
 
 Gin requests are instrumented with service name `knxvault`. Propagate `traceparent` headers from upstream clients for correlated traces.

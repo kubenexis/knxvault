@@ -30,7 +30,7 @@ curl -s -X POST $KNXVAULT_ADDR/auth/token \
   -d "{\"token\":\"$KNXVAULT_TOKEN\"}"
 ```
 
-Kubernetes workloads use `POST /auth/kubernetes` with a ServiceAccount JWT. Configure `KNXVAULT_JWT_SECRET` on the server.
+Kubernetes workloads use `POST /auth/kubernetes` with a ServiceAccount JWT. In-cluster **TokenReview** is used automatically in production. `KNXVAULT_JWT_SECRET` is for local dev only.
 
 ## 2. Store and read a secret
 
@@ -60,26 +60,28 @@ KVv2 supports versioning, TTL expiration, and check-and-set via the `options` bl
 ## 3. Create a PKI hierarchy
 
 ```bash
-# Root CA
+# Root CA (self-signed trust anchor)
 curl -s -X POST $KNXVAULT_ADDR/pki/root \
   -H "Authorization: Bearer $KNXVAULT_TOKEN" \
   -H 'Content-Type: application/json' \
-  -d '{"name":"root","common_name":"KNXVault Root CA","ttl":"8760h"}'
+  -d '{"name":"dev-root","common_name":"KNXVault Root CA","ttl":"8760h"}'
 
-# Issue a leaf certificate (save ca_id from root response)
+# Issue a leaf certificate — role is the CA name
 curl -s -X POST $KNXVAULT_ADDR/pki/issue \
   -H "Authorization: Bearer $KNXVAULT_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{
-    "ca_id": "<root-ca-uuid>",
+    "role": "dev-root",
     "common_name": "api.example.com",
-    "dns_sans": ["api.example.com"],
+    "dns_names": ["api.example.com"],
     "ttl": "720h",
     "auto_renew": true
   }'
 ```
 
 Set `"auto_renew": true` to track the certificate for background renewal by the Raft leader.
+
+Detailed recipes (intermediate CA, trust bundles, Kubernetes): [PKI administration](../operations/pki-administration.md).
 
 ## 4. Define access control
 
@@ -152,4 +154,5 @@ Use `POST /inject/render` from an init container or sidecar. See [Secrets inject
 - [CLI reference](../cli/reference.md)
 - [API reference](../api/reference.md)
 - [Integration overview](../integration/overview.md)
+- [PKI administration](../operations/pki-administration.md)
 - [Day-2 operations](../operations/day2.md)

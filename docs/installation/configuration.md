@@ -1,10 +1,12 @@
 # Configuration Reference
 
-KNXVault accepts a YAML v3 base configuration file for daemon mode (`knxvault serve -c /path/to/config.yaml`). Environment variables override file values — use the file for static settings and env/Secrets for credentials and per-pod overrides.
+KNXVault accepts a YAML v3 base configuration file for daemon mode. By default, `knxvault serve` loads `/etc/knxvault.conf` when that file exists. Override the path with `-c` / `--config` on the root command (e.g. `knxvault -c /path/to/knxvault.conf serve`). Environment variables override file values — use the file for static settings and env/Secrets for credentials and per-pod overrides.
 
-Running `./knxvault` without arguments prints usage. Start the server with `knxvault serve` (env-only) or `knxvault serve -c config.yaml`.
+Running `./knxvault` without arguments prints usage. Start the server with `knxvault serve` (default file or env-only) or `knxvault -c config.yaml serve`.
 
 See [`config/knxvault.example.yaml`](../../config/knxvault.example.yaml) for the file schema.
+
+**Environment-only settings** (not in the YAML schema today): `KNXVAULT_MASTER_KEY`, `KNXVAULT_MASTER_KEY_FILE`, `KNXVAULT_UNSEAL_KEY`, `KNXVAULT_OIDC_DEFAULT_TTL`, `KNXVAULT_JOB_MASTER_KEY_REENCRYPT_INTERVAL`. Use environment variables or Kubernetes Secrets for these values.
 
 ## Core
 
@@ -12,7 +14,7 @@ See [`config/knxvault.example.yaml`](../../config/knxvault.example.yaml) for the
 |----------|---------|----------|-------------|
 | `KNXVAULT_HTTP_ADDR` | `:8200` | No | HTTP listen address |
 | `KNXVAULT_LOG_LEVEL` | `info` | No | `debug`, `info`, `warn`, `error` |
-| `KNXVAULT_VERSION` | `0.4.3` | No | Version string in metrics and health |
+| `KNXVAULT_VERSION` | `0.4.5` | No | Version string in metrics and health (build metadata when unset) |
 | `KNXVAULT_SHUTDOWN_GRACE` | `10s` | No | Graceful shutdown timeout |
 
 ## Cryptography
@@ -100,7 +102,7 @@ See [Tier 0 production features](../product/tier0-production.md) and [exposure d
 |----------|---------|-------------|
 | `KNXVAULT_TRACING_ENABLED` | `false` | Enable OpenTelemetry HTTP tracing |
 | `KNXVAULT_OTLP_ENDPOINT` | collector default | OTLP HTTP endpoint |
-| `KNXVAULT_TRACING_SAMPLE_RATIO` | `1` | Trace sampling ratio (0–1) |
+| `KNXVAULT_TRACING_SAMPLE_RATIO` | `0` (effective `1` when tracing enabled) | Trace sampling ratio (0–1) |
 
 ## Configuration profiles
 

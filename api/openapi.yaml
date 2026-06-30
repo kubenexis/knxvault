@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: KNXVault API
-  version: 0.4.3
+  version: 0.4.5
   description: Secrets management and PKI REST API (Phase 1 MVP + Phase 2 complete).
 servers:
   - url: http://localhost:8200

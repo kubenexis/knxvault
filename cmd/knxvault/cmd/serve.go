@@ -20,15 +20,9 @@ var serveCmd = &cobra.Command{
 	Short: "Start the KNXVault HTTP server",
 	Long: `Start the KNXVault API server in the foreground.
 
-Load base settings from a YAML file with -c/--config. Environment variables
-override file values (useful for secrets and per-pod overrides in Kubernetes).
-
-  knxvault serve -c /etc/knxvault/config.yaml`,
+Loads /etc/knxvault.conf by default when that file exists, or an alternate path
+from -c/--config on the root command. Environment variables override file values.`,
 	RunE: runServe,
-}
-
-func init() {
-	serveCmd.Flags().StringVarP(&configFile, "config", "c", "", "YAML configuration file (base settings)")
 }
 
 func runServe(_ *cobra.Command, _ []string) error {
@@ -61,10 +55,7 @@ func runServe(_ *cobra.Command, _ []string) error {
 }
 
 func loadConfig() (config.Config, error) {
-	if configFile != "" {
-		return config.LoadFile(configFile)
-	}
-	return config.Load()
+	return config.LoadResolved(configFile)
 }
 
 func newLogger(level string) (*zap.Logger, error) {

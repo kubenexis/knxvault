@@ -64,6 +64,23 @@ type KVReadResponse struct {
 	Data map[string]any `json:"data"`
 }
 
+// CreateRootCARequest is POST /pki/root.
+type CreateRootCARequest struct {
+	Name       string `json:"name"`
+	CommonName string `json:"common_name"`
+	TTL        string `json:"ttl"`
+	KeyBits    int    `json:"key_bits,omitempty"`
+}
+
+// CAResponse is returned for CA create operations.
+type CAResponse struct {
+	ID        string `json:"id"`
+	Name      string `json:"name,omitempty"`
+	CertPEM   string `json:"cert_pem"`
+	Serial    string `json:"serial"`
+	ExpiresAt string `json:"expires_at"`
+}
+
 // IssueCertRequest is POST /pki/issue.
 type IssueCertRequest struct {
 	Role       string   `json:"role"`
@@ -165,6 +182,15 @@ func (c *Client) KVGet(ctx context.Context, path string) (*KVReadResponse, error
 // KVPut writes a secret path.
 func (c *Client) KVPut(ctx context.Context, path string, data map[string]any) error {
 	return c.postJSON(ctx, "/secrets/kv/"+trimPath(path), true, KVWriteRequest{Data: data}, nil)
+}
+
+// PKICreateRoot creates a self-signed root CA.
+func (c *Client) PKICreateRoot(ctx context.Context, req CreateRootCARequest) (*CAResponse, error) {
+	var out CAResponse
+	if err := c.postJSON(ctx, "/pki/root", true, req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
 // PKIIssue issues a leaf certificate.

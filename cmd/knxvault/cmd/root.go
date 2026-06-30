@@ -17,14 +17,16 @@ var rootCmd = &cobra.Command{
 	Long: `KNXVault is a lightweight secrets manager and certificate authority.
 
 Start the HTTP server (daemon mode):
-  knxvault serve -c /etc/knxvault/config.yaml
+  knxvault serve
 
-Environment variables override values from the YAML file.
+Configuration is read from /etc/knxvault.conf when present, or from -c/--config.
+Environment variables override values from the configuration file.
 Use -version to print build metadata.`,
 	Version: version.String(),
 }
 
 func init() {
 	rootCmd.SetVersionTemplate("{{.Version}}\n")
+	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "c", "", "Configuration file (default: /etc/knxvault.conf when present)")
 	rootCmd.AddCommand(serveCmd)
 }

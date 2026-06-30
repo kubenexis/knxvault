@@ -72,6 +72,8 @@ Use for automated certificate lifecycle (Ingress TLS, internal mTLS, workload ce
 
 Example manifests (require W40-02 API shim): `deployments/cert-manager/`.
 
+**Until W40-02 ships:** use the CronJob / operator patterns in [PKI Kubernetes integration](../operations/pki-kubernetes.md) to issue via `POST /pki/issue` and write `kubernetes.io/tls` Secrets.
+
 ## Kubernetes authentication method
 
 Production path:

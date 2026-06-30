@@ -31,7 +31,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: knxvault
-          image: knxvault:0.4.3
+          image: knxvault:0.4.5
           imagePullPolicy: IfNotPresent
           command: ["/usr/local/bin/knxvault", "serve"]
           ports:

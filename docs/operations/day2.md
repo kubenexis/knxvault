@@ -38,24 +38,21 @@ Requirements:
 
 Details: [Backup & restore](../deploy/backup-restore.md).
 
-## Certificate renewal
+## PKI and TLS
 
-### Automatic
+Full PKI operations (CA hierarchy, issuance, trust bundles, Kubernetes integration):
+
+| Guide | Topics |
+|-------|--------|
+| [PKI administration](pki-administration.md) | Root/intermediate/leaf recipes, import/export, renewal, revocation |
+| [PKI Kubernetes integration](pki-kubernetes.md) | Ingress TLS, CronJob issuance, cert-manager (W40-02) |
+| [PKI security best practices](pki-security-practices.md) | Trust hierarchy, key handling, production checklist |
+
+### Certificate renewal (summary)
 
 Issue certificates with `"auto_renew": true`. The Raft leader job calls `RenewExpiring` every `KNXVAULT_JOB_CERT_RENEW_INTERVAL` (default 1h) for certs expiring within `KNXVAULT_RENEW_GRACE` (default 72h).
 
-### Manual
-
-```bash
-curl -s -X POST $KNXVAULT_ADDR/pki/renew \
-  -H "Authorization: Bearer $TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{"ca_id":"<uuid>","serial":"<serial>","ttl":"720h"}'
-```
-
-### CRL refresh
-
-The leader pre-generates CRLs every `KNXVAULT_JOB_CRL_REFRESH_INTERVAL` (default 15m). Distribute via `GET /pki/crl/:id` or OCSP at `POST /pki/ocsp/:id`.
+Manual renew: `POST /pki/renew` with `ca_id`, `serial`, and `ttl`. CRL: `GET /pki/crl/:id`. OCSP: `POST /pki/ocsp/:id`.
 
 ## Lease management
 
@@ -128,7 +125,7 @@ Structured logs include `request_id`, `actor`, `method`, `path`, `status`, and `
 
 | Scenario | Document |
 |----------|----------|
-| CA private key compromise | [CA compromise runbook](runbooks/ca-compromise.md) |
+| CA private key compromise | [CA compromise runbook](runbooks/ca-compromise.md) · [PKI security practices](pki-security-practices.md) |
 | Raft leader loss / quorum loss | [Raft failover runbook](runbooks/raft-failover.md) |
 | Scaling replicas | [Scaling runbook](runbooks/scaling.md) |
 

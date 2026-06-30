@@ -40,7 +40,7 @@ Artifacts:
 ```bash
 export KNXVAULT_MASTER_KEY=$(openssl rand -base64 32)
 export KNXVAULT_ROOT_TOKEN=dev-root-token
-./bin/knxvault
+./bin/knxvault serve
 ```
 
 Swagger: http://localhost:8200/swagger
@@ -56,7 +56,7 @@ internal/
   auth/                 Token auth, RBAC evaluator
   audit/                Hash-chained audit service
   backup/               Snapshot export/import
-  config/               Environment configuration
+  config/               YAML file + environment configuration
   crypto/               Master key, envelope crypto, OpenSSL
   domain/               Pure domain models
   engine/               PKI, KVv2, database engines

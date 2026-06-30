@@ -13,6 +13,28 @@ var pkiCmd = &cobra.Command{
 	Short: "PKI commands",
 }
 
+var pkiRootCmd = &cobra.Command{
+	Use:   "root",
+	Short: "Create a self-signed root CA",
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		name, _ := cmd.Flags().GetString("name")
+		cn, _ := cmd.Flags().GetString("common-name")
+		ttl, _ := cmd.Flags().GetString("ttl")
+		keyBits, _ := cmd.Flags().GetInt("key-bits")
+
+		resp, err := apiClient().PKICreateRoot(cmd.Context(), client.CreateRootCARequest{
+			Name:       name,
+			CommonName: cn,
+			TTL:        ttl,
+			KeyBits:    keyBits,
+		})
+		if err != nil {
+			return err
+		}
+		return encodeJSON(os.Stdout, resp)
+	},
+}
+
 var pkiIssueCmd = &cobra.Command{
 	Use:   "issue",
 	Short: "Issue a leaf certificate",
@@ -38,6 +60,12 @@ var pkiIssueCmd = &cobra.Command{
 }
 
 func init() {
+	pkiRootCmd.Flags().String("name", "", "CA name (used as issuance role)")
+	pkiRootCmd.Flags().String("common-name", "", "Certificate common name")
+	pkiRootCmd.Flags().String("ttl", "8760h", "CA TTL")
+	pkiRootCmd.Flags().Int("key-bits", 2048, "RSA key size")
+	_ = pkiRootCmd.MarkFlagRequired("name")
+	_ = pkiRootCmd.MarkFlagRequired("common-name")
 	pkiIssueCmd.Flags().String("role", "", "Issuing CA role name")
 	pkiIssueCmd.Flags().String("common-name", "", "Certificate common name")
 	pkiIssueCmd.Flags().String("ttl", "24h", "Certificate TTL")
@@ -45,5 +73,5 @@ func init() {
 	pkiIssueCmd.Flags().StringSlice("dns", nil, "DNS SAN entries")
 	_ = pkiIssueCmd.MarkFlagRequired("role")
 	_ = pkiIssueCmd.MarkFlagRequired("common-name")
-	pkiCmd.AddCommand(pkiIssueCmd)
+	pkiCmd.AddCommand(pkiRootCmd, pkiIssueCmd)
 }

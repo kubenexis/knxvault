@@ -20,7 +20,7 @@ make build build-cli
 
 export KNXVAULT_MASTER_KEY=$(openssl rand -base64 32)
 export KNXVAULT_ROOT_TOKEN=dev-root-token
-./bin/knxvault
+./bin/knxvault serve
 ```
 
 Verify:
@@ -32,6 +32,8 @@ open http://localhost:8200/swagger   # or visit in browser
 
 Without `KNXVAULT_RAFT_ENABLED`, the server uses **in-memory** repositories. Data is lost on restart.
 
+When `/etc/knxvault.conf` exists, `knxvault serve` loads it automatically. Override with `knxvault -c /path/knxvault.conf serve`. See [Configuration reference](configuration.md).
+
 ### Single-node Raft (persistent local dev)
 
 ```bash
@@ -41,7 +43,7 @@ export KNXVAULT_RAFT_ADDRESS=127.0.0.1:63001
 export KNXVAULT_RAFT_DATA_DIR=/tmp/knxvault-raft
 export KNXVAULT_RAFT_INITIAL_MEMBERS=1=127.0.0.1:63001
 
-./bin/knxvault
+./bin/knxvault serve
 curl -s http://localhost:8200/ready | jq
 ```
 
@@ -53,7 +55,7 @@ make docker-build
 docker run --rm -p 8200:8200 \
   -e KNXVAULT_MASTER_KEY="$(openssl rand -base64 32)" \
   -e KNXVAULT_ROOT_TOKEN=dev-root-token \
-  knxvault:0.4.3
+  knxvault:0.4.5 serve
 ```
 
 For persistent Raft data, mount a volume at `/var/lib/knxvault/raft` and set the `KNXVAULT_RAFT_*` variables.

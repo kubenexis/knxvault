@@ -9,6 +9,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// DefaultConfigFile is the default daemon configuration path when present on disk.
+const DefaultConfigFile = "/etc/knxvault.conf"
+
 // File is the YAML configuration schema (gopkg.in/yaml.v3).
 type File struct {
 	HTTPAddr        string        `yaml:"http_addr,omitempty"`
@@ -91,6 +94,27 @@ type RaftFile struct {
 	MTLSCert       string  `yaml:"mtls_cert,omitempty"`
 	MTLSKey        string  `yaml:"mtls_key,omitempty"`
 	MTLSCA         string  `yaml:"mtls_ca,omitempty"`
+}
+
+// ResolveConfigPath picks the configuration file to load.
+// An explicit flagPath wins; otherwise DefaultConfigFile is used when it exists.
+// Returns "" to indicate environment-only configuration.
+func ResolveConfigPath(flagPath string) string {
+	if p := strings.TrimSpace(flagPath); p != "" {
+		return p
+	}
+	if _, err := os.Stat(DefaultConfigFile); err == nil {
+		return DefaultConfigFile
+	}
+	return ""
+}
+
+// LoadResolved loads configuration from an optional CLI path, the default file, or environment only.
+func LoadResolved(flagPath string) (Config, error) {
+	if path := ResolveConfigPath(flagPath); path != "" {
+		return LoadFile(path)
+	}
+	return Load()
 }
 
 // LoadFile reads a YAML config file as the base settings, then applies environment overrides.

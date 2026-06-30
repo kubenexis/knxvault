@@ -89,5 +89,8 @@ If the master key may also be compromised:
 
 ## Related documents
 
+- [PKI administration](../pki-administration.md)
+- [PKI security best practices](../pki-security-practices.md)
+- [PKI Kubernetes integration](../pki-kubernetes.md)
 - [Security model](../../architecture/security-model.md)
 - [Day-2 operations](../day2.md)

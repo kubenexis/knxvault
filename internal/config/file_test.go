@@ -58,6 +58,52 @@ func TestLoadFileInvalidDuration(t *testing.T) {
 	}
 }
 
+func TestResolveConfigPathExplicit(t *testing.T) {
+	got := config.ResolveConfigPath("/custom/knxvault.conf")
+	if got != "/custom/knxvault.conf" {
+		t.Fatalf("ResolveConfigPath() = %q, want explicit path", got)
+	}
+}
+
+func TestResolveConfigPathDefaultWhenPresent(t *testing.T) {
+	if _, err := os.Stat(config.DefaultConfigFile); err != nil {
+		t.Skip("default config file not present on host")
+	}
+	if got := config.ResolveConfigPath(""); got != config.DefaultConfigFile {
+		t.Fatalf("ResolveConfigPath() = %q, want %s", got, config.DefaultConfigFile)
+	}
+}
+
+func TestResolveConfigPathEmptyWithoutDefault(t *testing.T) {
+	if _, err := os.Stat(config.DefaultConfigFile); err == nil {
+		t.Skip("default config file present on host")
+	}
+	if got := config.ResolveConfigPath(""); got != "" {
+		t.Fatalf("ResolveConfigPath() = %q, want empty", got)
+	}
+}
+
+func TestLoadResolvedMissingExplicitFile(t *testing.T) {
+	if _, err := config.LoadResolved("/nonexistent/knxvault.conf"); err == nil {
+		t.Fatal("expected error for missing explicit config file")
+	}
+}
+
+func TestLoadResolvedExplicitFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "knxvault.conf")
+	if err := os.WriteFile(path, []byte("log_level: warn\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile() = %v", err)
+	}
+	cfg, err := config.LoadResolved(path)
+	if err != nil {
+		t.Fatalf("LoadResolved() = %v", err)
+	}
+	if cfg.LogLevel != "warn" {
+		t.Fatalf("LogLevel = %q, want warn", cfg.LogLevel)
+	}
+}
+
 func TestLoadFileJobsSection(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "jobs.yaml")
