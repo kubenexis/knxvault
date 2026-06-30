@@ -18,7 +18,7 @@ Raft addresses use `host:63001` by default. HTTP remains on `:8200`.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `KNXVAULT_RAFT_ENABLED` | `false` | Enable Dragonboat backend |
-| `KNXVAULT_RAFT_NODE_ID` | — | Raft node ID (required when enabled) |
+| `KNXVAULT_RAFT_NODE_ID` | — | Raft node ID (**required** when enabled; must be > 0). Set explicitly for local dev; on K8s derived from `KNXVAULT_POD_NAME` ordinal (`knxvault-0` → `1`) when unset |
 | `KNXVAULT_RAFT_ADDRESS` | `127.0.0.1:63001` | Public Raft address |
 | `KNXVAULT_RAFT_LISTEN_ADDRESS` | _(empty)_ | Optional bind address |
 | `KNXVAULT_RAFT_DATA_DIR` | `/var/lib/knxvault/raft` | Pebble/WAL data directory |

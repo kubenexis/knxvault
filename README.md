@@ -111,7 +111,7 @@ Secrets injection: [`docs/deploy/secrets-injection.md`](docs/deploy/secrets-inje
 | `KNXVAULT_VERSION` | `0.1.0-dev` | Version string |
 | `KNXVAULT_SHUTDOWN_GRACE` | `10s` | Graceful shutdown timeout |
 | `KNXVAULT_RAFT_ENABLED` | `false` | Enable Dragonboat Raft storage |
-| `KNXVAULT_RAFT_NODE_ID` | _(auto from pod name)_ | Raft node ID |
+| `KNXVAULT_RAFT_NODE_ID` | _(K8s: from pod ordinal)_ | Raft node ID (> 0, required when Raft enabled) |
 | `KNXVAULT_RAFT_ADDRESS` | `127.0.0.1:63001` | Raft advertise/listen address |
 | `KNXVAULT_RAFT_DATA_DIR` | `/var/lib/knxvault/raft` | Raft data directory |
 | `KNXVAULT_RAFT_INITIAL_MEMBERS` | _(empty)_ | `id=host:port,...` peer map |

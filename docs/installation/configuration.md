@@ -34,7 +34,7 @@ KNXVault is configured entirely via environment variables. No config file is req
 | Variable | Default | Required | Description |
 |----------|---------|----------|-------------|
 | `KNXVAULT_RAFT_ENABLED` | `false` | Prod: **Yes** | Enable Dragonboat backend |
-| `KNXVAULT_RAFT_NODE_ID` | auto from pod | When enabled | Unique Raft node ID (> 0) |
+| `KNXVAULT_RAFT_NODE_ID` | — (see below) | **Yes** when enabled | Unique Raft node ID; must be **> 0** or startup fails with `KNXVAULT_RAFT_NODE_ID must be > 0 when raft is enabled` |
 | `KNXVAULT_RAFT_ADDRESS` | `127.0.0.1:63001` | When enabled | Advertised Raft address |
 | `KNXVAULT_RAFT_LISTEN_ADDRESS` | — | No | Bind address override |
 | `KNXVAULT_RAFT_DATA_DIR` | `/var/lib/knxvault/raft` | When enabled | Pebble WAL + snapshot directory |
@@ -43,10 +43,12 @@ KNXVault is configured entirely via environment variables. No config file is req
 | `KNXVAULT_RAFT_ELECTION_RTT` | `10` | No | Election interval (RTT ticks) |
 | `KNXVAULT_RAFT_HEARTBEAT_RTT` | `1` | No | Heartbeat interval (RTT ticks) |
 | `KNXVAULT_RAFT_RTT_MILLISECOND` | `1` | No | Logical RTT milliseconds |
-| `KNXVAULT_POD_NAME` | — | K8s | StatefulSet pod name for node ID derivation |
+| `KNXVAULT_POD_NAME` | — | K8s | StatefulSet pod name (`knxvault-0` → node ID `1`) when `KNXVAULT_RAFT_NODE_ID` is unset |
 | `KNXVAULT_RAFT_MTLS_CERT` | — | No | Raft peer TLS certificate (stub — W38-14) |
 | `KNXVAULT_RAFT_MTLS_KEY` | — | No | Raft peer TLS private key |
 | `KNXVAULT_RAFT_MTLS_CA` | — | No | Raft peer CA bundle for mutual TLS |
+
+**Node ID resolution:** Set `KNXVAULT_RAFT_NODE_ID` explicitly for bare-metal, Docker, and local dev. On Kubernetes, the StatefulSet sets `KNXVAULT_POD_NAME` from the pod metadata; the server derives node ID from the trailing ordinal (`knxvault-0` → `1`, `knxvault-1` → `2`). If neither env var nor a matching hostname is present, Raft validation fails at startup.
 
 See [Dragonboat storage](../storage/dragonboat.md) for topology examples.
 
@@ -91,6 +93,20 @@ export KNXVAULT_ROOT_TOKEN=dev-root-token
 # KNXVAULT_RAFT_ENABLED unset → in-memory
 ```
 
+### Development (single-node Raft)
+
+Requires `KNXVAULT_RAFT_NODE_ID` (and `KNXVAULT_MASTER_KEY`) — auto-derivation does not apply on a generic host:
+
+```bash
+export KNXVAULT_MASTER_KEY=$(openssl rand -base64 32)
+export KNXVAULT_ROOT_TOKEN=dev-root-token
+export KNXVAULT_RAFT_ENABLED=true
+export KNXVAULT_RAFT_NODE_ID=1
+export KNXVAULT_RAFT_ADDRESS=127.0.0.1:63001
+export KNXVAULT_RAFT_DATA_DIR=/tmp/knxvault-raft
+export KNXVAULT_RAFT_INITIAL_MEMBERS=1=127.0.0.1:63001
+```
+
 ### Production (3-node Raft)
 
 Set in ConfigMap / StatefulSet:
@@ -99,6 +115,7 @@ Set in ConfigMap / StatefulSet:
 KNXVAULT_RAFT_ENABLED: "true"
 KNXVAULT_RAFT_DATA_DIR: "/var/lib/knxvault/raft"
 KNXVAULT_RAFT_INITIAL_MEMBERS: "1=knxvault-0.knxvault-raft:63001,2=knxvault-1.knxvault-raft:63001,3=knxvault-2.knxvault-raft:63001"
+# Node IDs: derived from KNXVAULT_POD_NAME in the StatefulSet (knxvault-0 → 1, etc.)
 ```
 
 Secrets (never in ConfigMap):
