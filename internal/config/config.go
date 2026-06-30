@@ -53,6 +53,10 @@ type Config struct {
 	RateLimitRPM           int
 	RequestSigningKey      string
 	RequestSigningRequired bool
+
+	TracingEnabled     bool
+	OTLPEndpoint       string
+	TracingSampleRatio float64
 }
 
 // Load reads configuration from the environment with sensible defaults.
@@ -79,6 +83,7 @@ func Load() (Config, error) {
 		RenewGrace:              defaultRenewGrace,
 		RateLimitRPM:            defaultRateLimitRPM,
 		RequestSigningKey:       strings.TrimSpace(os.Getenv("KNXVAULT_REQUEST_SIGNING_KEY")),
+		OTLPEndpoint:            strings.TrimSpace(os.Getenv("KNXVAULT_OTLP_ENDPOINT")),
 	}
 
 	if v := os.Getenv("KNXVAULT_SHUTDOWN_GRACE"); v != "" {
@@ -175,6 +180,22 @@ func Load() (Config, error) {
 			return Config{}, fmt.Errorf("KNXVAULT_REQUEST_SIGNING_REQUIRED: %w", err)
 		}
 		cfg.RequestSigningRequired = required
+	}
+
+	if v := os.Getenv("KNXVAULT_TRACING_ENABLED"); v != "" {
+		enabled, err := strconv.ParseBool(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_TRACING_ENABLED: %w", err)
+		}
+		cfg.TracingEnabled = enabled
+	}
+
+	if v := os.Getenv("KNXVAULT_TRACING_SAMPLE_RATIO"); v != "" {
+		ratio, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_TRACING_SAMPLE_RATIO: %w", err)
+		}
+		cfg.TracingSampleRatio = ratio
 	}
 
 	return cfg, nil

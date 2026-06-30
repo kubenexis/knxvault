@@ -75,6 +75,32 @@ FROM leases WHERE id = $1
 	return lease, nil
 }
 
+// List returns all leases.
+func (r *LeaseRepository) List(ctx context.Context) ([]*secrets.Lease, error) {
+	const q = `
+SELECT id, path, role_name, engine, ttl_seconds, created_at, expires_at, revoked_at, renewable
+FROM leases ORDER BY id
+`
+	rows, err := r.pool.Query(ctx, q)
+	if err != nil {
+		return nil, fmt.Errorf("list leases: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*secrets.Lease
+	for rows.Next() {
+		lease, err := scanLease(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, lease)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list leases rows: %w", err)
+	}
+	return out, nil
+}
+
 // ListExpired returns active leases that expired before the given time.
 func (r *LeaseRepository) ListExpired(ctx context.Context, before time.Time, limit int) ([]*secrets.Lease, error) {
 	if limit <= 0 {

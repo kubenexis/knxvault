@@ -97,6 +97,8 @@ Secrets injection: [`docs/deploy/secrets-injection.md`](docs/deploy/secrets-inje
 | DELETE | `/sys/policies/:name` | Delete policy |
 | PUT | `/sys/roles/:name` | Create/update role binding |
 | GET | `/sys/roles/:name` | Get role |
+| POST | `/sys/backup` | Export encrypted vault snapshot |
+| POST | `/sys/restore` | Restore from encrypted snapshot |
 | GET | `/audit/export` | Export audit log with signed chain head |
 | POST | `/audit/verify` | Verify audit hash chain |
 
@@ -130,11 +132,26 @@ Secrets injection: [`docs/deploy/secrets-injection.md`](docs/deploy/secrets-inje
 | `KNXVAULT_RATE_LIMIT_RPM` | `300` | Requests per minute per client |
 | `KNXVAULT_REQUEST_SIGNING_KEY` | _(empty)_ | HMAC key for optional request signing |
 | `KNXVAULT_REQUEST_SIGNING_REQUIRED` | `false` | Reject unsigned requests when enabled |
+| `KNXVAULT_TRACING_ENABLED` | `false` | Enable OpenTelemetry HTTP tracing |
+| `KNXVAULT_OTLP_ENDPOINT` | _(collector default)_ | OTLP HTTP endpoint |
+| `KNXVAULT_TRACING_SAMPLE_RATIO` | `1` | Trace sampling ratio (0–1) |
+
+## CLI
+
+```bash
+make build-cli
+export KNXVAULT_TOKEN=dev-root-token
+./bin/knxvault-cli health
+./bin/knxvault-cli kv put app/db password=s3cret
+./bin/knxvault-cli backup create -o backup.json
+```
+
+Reference: [`docs/cli/reference.md`](docs/cli/reference.md) · Backup: [`docs/deploy/backup-restore.md`](docs/deploy/backup-restore.md) · Tracing: [`docs/observability/tracing.md`](docs/observability/tracing.md)
 
 ## Development
 
 ```bash
-make all                   # fmt, vet, lint, gosec, licenses, scan, test, test-integration, build, sbom
+make all                   # fmt, vet, lint, gosec, licenses, scan, test, test-integration, build, build-cli, sbom
 make test                  # unit tests only
 make test-integration      # API integration tests (+ Postgres if Docker available)
 make gosec                 # security static analysis

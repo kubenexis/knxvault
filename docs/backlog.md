@@ -65,7 +65,7 @@ Actionable backlog derived from [`docs/lld.md`](lld.md) (Phase 1 / MVP). Items a
 
 ---
 
-## Phase 2 — Enterprise (in progress)
+## Phase 2 — Enterprise (complete)
 
 | ID | Title | Area | Effort | Depends on | Description | Acceptance criteria |
 |----|-------|------|--------|------------|-------------|---------------------|
@@ -85,11 +85,9 @@ Actionable backlog derived from [`docs/lld.md`](lld.md) (Phase 1 / MVP). Items a
 | ~~**W19-01**~~ | ~~Rate limiting~~ | security | M | W8-04 | Per-token/IP token-bucket rate limiting on secured routes. | Done — `internal/api/middleware/ratelimit.go`, `knxvault_rate_limited_total` metric. |
 | ~~**W19-02**~~ | ~~Request signing~~ | security | M | W7-05 | Optional HMAC request signatures with timestamp skew check. | Done — `internal/api/middleware/signing.go`, `KNXVAULT_REQUEST_SIGNING_*` config. |
 
-### Phase 2 — remaining (outline)
-
-- CLI tool (`knxvault`)
-- Backup & restore procedures
-- Improved observability (tracing, Grafana dashboards)
+| ~~**W20-01**~~ | ~~Administration CLI~~ | docs | M | W8-04 | Cobra CLI + `pkg/client` SDK for Day-2 operations. | Done — `cmd/knxvault-cli`, `make build-cli`, `docs/cli/reference.md`. |
+| ~~**W21-01**~~ | ~~Backup & restore~~ | storage | M | W4-04, W3-02 | Encrypted snapshot export/import API and runbooks. | Done — `internal/backup/`, `POST /sys/backup` + `/sys/restore`, `scripts/backup.sh`. |
+| ~~**W22-01**~~ | ~~Tracing & Grafana dashboards~~ | docs | M | W10-01 | OpenTelemetry HTTP tracing and overview dashboard JSON. | Done — `internal/infra/tracing/`, `deployments/grafana/knxvault-overview.json`. |
 
 ---
 

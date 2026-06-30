@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: KNXVault API
   version: 0.1.0-dev
-  description: Secrets management and PKI REST API (Phase 1 MVP + Phase 2 W12–W19).
+  description: Secrets management and PKI REST API (Phase 1 MVP + Phase 2 complete).
 servers:
   - url: http://localhost:8200
     description: Local development
@@ -556,6 +556,40 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RoleResponse"
+  /sys/backup:
+    post:
+      tags: [sys]
+      summary: Export encrypted vault snapshot
+      operationId: createBackup
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BackupCreateRequest"
+      responses:
+        "200":
+          description: Encrypted backup archive
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BackupCreateResponse"
+  /sys/restore:
+    post:
+      tags: [sys]
+      summary: Restore vault state from encrypted snapshot
+      operationId: restoreBackup
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "204":
+          description: Restore completed
   /audit/export:
     get:
       tags: [audit]
@@ -827,6 +861,21 @@ components:
           type: string
         value:
           type: string
+    BackupCreateRequest:
+      type: object
+      properties:
+        include_audit:
+          type: boolean
+        audit_limit:
+          type: integer
+    BackupCreateResponse:
+      type: object
+      properties:
+        format:
+          type: string
+        data:
+          type: string
+          description: Base64-encoded encrypted backup archive
     KVWriteRequest:
       type: object
       required: [data]

@@ -85,6 +85,33 @@ FROM issued_certificates WHERE ca_id = $1 AND serial = $2
 	return cert, nil
 }
 
+// List returns all issued certificate records.
+func (r *IssuedCertRepository) List(ctx context.Context) ([]*pki.IssuedCertificate, error) {
+	const q = `
+SELECT id, ca_id, role, serial, common_name, dns_names, ttl_seconds,
+       issued_at, expires_at, auto_renew, renewed_from_serial
+FROM issued_certificates ORDER BY ca_id, serial
+`
+	rows, err := r.pool.Query(ctx, q)
+	if err != nil {
+		return nil, fmt.Errorf("list issued certificates: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*pki.IssuedCertificate
+	for rows.Next() {
+		cert, err := scanIssuedCert(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, cert)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list issued certificates rows: %w", err)
+	}
+	return out, nil
+}
+
 // ListExpiring returns auto-renew certs expiring before the given time.
 func (r *IssuedCertRepository) ListExpiring(ctx context.Context, before time.Time, limit int) ([]*pki.IssuedCertificate, error) {
 	if limit <= 0 {

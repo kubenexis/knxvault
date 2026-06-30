@@ -11,6 +11,7 @@ import (
 	"github.com/kubenexis/knxvault/internal/api/middleware"
 	auditsvc "github.com/kubenexis/knxvault/internal/audit"
 	"github.com/kubenexis/knxvault/internal/auth"
+	"github.com/kubenexis/knxvault/internal/backup"
 	"github.com/kubenexis/knxvault/internal/config"
 	"github.com/kubenexis/knxvault/internal/crypto"
 	"github.com/kubenexis/knxvault/internal/crypto/masterkey"
@@ -53,6 +54,7 @@ type Dependencies struct {
 	PolicyService      *service.PolicyService
 	AuditExportService *service.AuditExportService
 	InjectService      *service.InjectService
+	BackupService      *service.BackupService
 	TokenTTL           time.Duration
 
 	RateLimiter    *middleware.RateLimiter
@@ -163,6 +165,20 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 
 	if deps.AuditService != nil {
 		deps.AuditExportService = service.NewAuditExportService(deps.AuditService)
+	}
+
+	if deps.Crypto != nil {
+		deps.BackupService = service.NewBackupService(backup.Repos{
+			CA:         deps.CARepo,
+			Secret:     deps.SecretRepo,
+			Audit:      deps.AuditRepo,
+			Revoke:     deps.RevokeRepo,
+			Lease:      deps.LeaseRepo,
+			Policy:     deps.PolicyRepo,
+			Role:       deps.RoleRepo,
+			DBRole:     deps.DBRoleRepo,
+			IssuedCert: deps.IssuedCertRepo,
+		}, deps.Pool, deps.Crypto, deps.AuditService)
 	}
 
 	deps.Leader = leader.NewNoopElector()

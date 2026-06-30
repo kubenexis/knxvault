@@ -1,2 +1,2 @@
-// Package client will expose a public Go SDK for KNXVault (future).
+// Package client provides a lightweight HTTP SDK for the KNXVault REST API.
 package client

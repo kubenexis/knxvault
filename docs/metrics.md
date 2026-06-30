@@ -32,6 +32,10 @@ prometheus.io/port: "8200"
 
 Go runtime metrics are also exposed via the default Prometheus registry.
 
+## Grafana dashboard
+
+Import [`deployments/grafana/knxvault-overview.json`](../../deployments/grafana/knxvault-overview.json) for request rate, latency, HA leader, rate limiting, and lease panels.
+
 ## Structured logging
 
 Every HTTP request logs:

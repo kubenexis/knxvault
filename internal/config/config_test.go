@@ -88,3 +88,23 @@ func TestLoadCertRenewalAndSecurity(t *testing.T) {
 		t.Error("RequestSigningRequired = false, want true")
 	}
 }
+
+func TestLoadTracing(t *testing.T) {
+	t.Setenv("KNXVAULT_TRACING_ENABLED", "true")
+	t.Setenv("KNXVAULT_OTLP_ENDPOINT", "otel-collector:4318")
+	t.Setenv("KNXVAULT_TRACING_SAMPLE_RATIO", "0.5")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() = %v", err)
+	}
+	if !cfg.TracingEnabled {
+		t.Error("TracingEnabled = false, want true")
+	}
+	if cfg.OTLPEndpoint != "otel-collector:4318" {
+		t.Errorf("OTLPEndpoint = %q", cfg.OTLPEndpoint)
+	}
+	if cfg.TracingSampleRatio != 0.5 {
+		t.Errorf("TracingSampleRatio = %v, want 0.5", cfg.TracingSampleRatio)
+	}
+}

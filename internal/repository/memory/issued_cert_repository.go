@@ -51,6 +51,24 @@ func (r *IssuedCertRepository) GetBySerial(_ context.Context, caID uuid.UUID, se
 	return &copy, nil
 }
 
+// List returns all issued certificate records.
+func (r *IssuedCertRepository) List(_ context.Context) ([]*pki.IssuedCertificate, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]*pki.IssuedCertificate, 0, len(r.certs))
+	for _, cert := range r.certs {
+		copy := *cert
+		out = append(out, &copy)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].CAID == out[j].CAID {
+			return out[i].Serial < out[j].Serial
+		}
+		return out[i].CAID.String() < out[j].CAID.String()
+	})
+	return out, nil
+}
+
 // ListExpiring returns auto-renew certs expiring before the given time.
 func (r *IssuedCertRepository) ListExpiring(_ context.Context, before time.Time, limit int) ([]*pki.IssuedCertificate, error) {
 	r.mu.Lock()

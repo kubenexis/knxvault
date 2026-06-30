@@ -44,7 +44,7 @@ func newTestRouter(t *testing.T) (*gin.Engine, string) {
 		t.Fatalf("NewDependencies() = %v", err)
 	}
 
-	return api.NewRouter(zap.NewNop(), cfg.Version, api.RouterDeps{
+	return api.NewRouter(zap.NewNop(), cfg.Version, false, api.RouterDeps{
 		Ready:          deps,
 		AuthService:    deps.AuthService,
 		PKIService:     deps.PKIService,

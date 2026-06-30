@@ -3,6 +3,7 @@ package api
 
 import (
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.uber.org/zap"
 
 	"github.com/kubenexis/knxvault/internal/api/handlers"
@@ -11,9 +12,12 @@ import (
 )
 
 // NewRouter builds the Gin engine with all routes registered.
-func NewRouter(log *zap.Logger, version string, deps RouterDeps) *gin.Engine {
+func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps RouterDeps) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
+	if tracingEnabled {
+		r.Use(otelgin.Middleware("knxvault"))
+	}
 	r.Use(middleware.RequestID())
 	r.Use(metrics.Middleware())
 	r.Use(middleware.RequestLogger(log))
@@ -144,6 +148,16 @@ func NewRouter(log *zap.Logger, version string, deps RouterDeps) *gin.Engine {
 			middleware.RequirePermission(deps.AuthService, "audit/verify", "read"),
 			auditHandler.Verify,
 		)
+	}
+
+	if deps.BackupService != nil && deps.AuthService != nil {
+		backupHandler := handlers.NewBackupHandler(deps.BackupService)
+		sysBackup := secured.Group("/sys")
+		sysBackup.Use(middleware.RequirePermission(deps.AuthService, "sys/backup", "write"))
+		{
+			sysBackup.POST("/backup", backupHandler.Create)
+			sysBackup.POST("/restore", backupHandler.Restore)
+		}
 	}
 
 	return r

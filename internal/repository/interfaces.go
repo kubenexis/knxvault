@@ -64,6 +64,7 @@ type RevocationRepository interface {
 type LeaseRepository interface {
 	Save(ctx context.Context, lease *secrets.Lease) error
 	Get(ctx context.Context, id string) (*secrets.Lease, error)
+	List(ctx context.Context) ([]*secrets.Lease, error)
 	ListExpired(ctx context.Context, before time.Time, limit int) ([]*secrets.Lease, error)
 	Revoke(ctx context.Context, id string, revokedAt time.Time) error
 }
@@ -96,5 +97,6 @@ type DatabaseRoleRepository interface {
 type IssuedCertRepository interface {
 	Save(ctx context.Context, cert *pki.IssuedCertificate) error
 	GetBySerial(ctx context.Context, caID uuid.UUID, serial string) (*pki.IssuedCertificate, error)
+	List(ctx context.Context) ([]*pki.IssuedCertificate, error)
 	ListExpiring(ctx context.Context, before time.Time, limit int) ([]*pki.IssuedCertificate, error)
 }

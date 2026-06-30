@@ -10,24 +10,31 @@ import (
 
 	"github.com/kubenexis/knxvault/internal/api"
 	"github.com/kubenexis/knxvault/internal/config"
+	"github.com/kubenexis/knxvault/internal/infra/tracing"
 )
 
 // App owns the HTTP server lifecycle.
 type App struct {
-	cfg    config.Config
-	log    *zap.Logger
-	deps   *Dependencies
-	server *http.Server
+	cfg             config.Config
+	log             *zap.Logger
+	deps            *Dependencies
+	server          *http.Server
+	tracingShutdown func(context.Context) error
 }
 
 // New constructs an App from configuration.
 func New(ctx context.Context, cfg config.Config, log *zap.Logger) (*App, error) {
+	traceShutdown, err := tracing.Init(ctx, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("tracing: %w", err)
+	}
+
 	deps, err := NewDependencies(ctx, cfg, log)
 	if err != nil {
 		return nil, err
 	}
 
-	router := api.NewRouter(log, cfg.Version, api.RouterDeps{
+	router := api.NewRouter(log, cfg.Version, cfg.TracingEnabled, api.RouterDeps{
 		Ready:              deps,
 		AuthService:        deps.AuthService,
 		PKIService:         deps.PKIService,
@@ -36,6 +43,7 @@ func New(ctx context.Context, cfg config.Config, log *zap.Logger) (*App, error) 
 		PolicyService:      deps.PolicyService,
 		AuditExportService: deps.AuditExportService,
 		InjectService:      deps.InjectService,
+		BackupService:      deps.BackupService,
 		TokenTTL:           deps.TokenTTL,
 		HAEnabled:          deps.HAEnabled(),
 		IsLeader:           deps.IsLeader,
@@ -44,9 +52,10 @@ func New(ctx context.Context, cfg config.Config, log *zap.Logger) (*App, error) 
 	})
 
 	app := &App{
-		cfg:  cfg,
-		log:  log,
-		deps: deps,
+		cfg:             cfg,
+		log:             log,
+		deps:            deps,
+		tracingShutdown: traceShutdown,
 		server: &http.Server{
 			Addr:    cfg.HTTPAddr,
 			Handler: router,
@@ -80,10 +89,19 @@ func (a *App) Run(ctx context.Context) error {
 		if err := a.server.Shutdown(shutdownCtx); err != nil {
 			return fmt.Errorf("shutdown: %w", err)
 		}
-		a.deps.Close()
+		a.shutdownObservability(shutdownCtx)
 		return nil
 	case err := <-errCh:
-		a.deps.Close()
+		a.shutdownObservability(context.Background())
 		return err
+	}
+}
+
+func (a *App) shutdownObservability(ctx context.Context) {
+	if a.deps != nil {
+		a.deps.Close()
+	}
+	if a.tracingShutdown != nil {
+		_ = a.tracingShutdown(ctx)
 	}
 }

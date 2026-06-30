@@ -18,6 +18,7 @@ type RouterDeps struct {
 	PolicyService      *service.PolicyService
 	AuditExportService *service.AuditExportService
 	InjectService      *service.InjectService
+	BackupService      *service.BackupService
 	TokenTTL           time.Duration
 	RateLimiter        *middleware.RateLimiter
 	RequestSigning     *middleware.RequestSigning

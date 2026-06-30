@@ -27,6 +27,7 @@ var licensePatterns = []struct {
 }{
 	{spdx: "Apache-2.0", matches: []*regexp.Regexp{
 		regexp.MustCompile(`(?i)Apache License, Version 2\.0`),
+		regexp.MustCompile(`(?is)Apache License\s+Version 2\.0`),
 		regexp.MustCompile(`(?i)Licensed under the Apache License, Version 2\.0`),
 		regexp.MustCompile(`(?i)SPDX-License-Identifier:\s*Apache-2\.0`),
 	}},

@@ -45,6 +45,19 @@ func (r *LeaseRepository) Get(_ context.Context, id string) (*secrets.Lease, err
 	return &copy, nil
 }
 
+// List returns all leases.
+func (r *LeaseRepository) List(_ context.Context) ([]*secrets.Lease, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]*secrets.Lease, 0, len(r.leases))
+	for _, lease := range r.leases {
+		copy := *lease
+		out = append(out, &copy)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out, nil
+}
+
 // ListExpired returns active leases expiring before the given time.
 func (r *LeaseRepository) ListExpired(_ context.Context, before time.Time, limit int) ([]*secrets.Lease, error) {
 	r.mu.Lock()

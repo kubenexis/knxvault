@@ -29,7 +29,9 @@ export GOTOOLCHAIN := $(GO_TOOLCHAIN)
 # -----------------------------------------------------------------------------
 PROJECT         ?= knxvault
 BINARY          ?= bin/knxvault
+CLI_BINARY      ?= bin/knxvault-cli
 MAIN_PKG        ?= ./cmd/knxvault
+CLI_PKG         ?= ./cmd/knxvault-cli
 SBOM_FILE       ?= sbom.json
 TRIVY_CACHE_DIR ?= $(HOME)/.cache/trivy
 LDFLAGS         ?= -s -w
@@ -76,6 +78,7 @@ all: ## Run fmt, vet, lint, gosec, licenses, scan, test, test-integration, build
 	$(MAKE) --no-print-directory test
 	$(MAKE) --no-print-directory test-integration
 	$(MAKE) --no-print-directory build
+	$(MAKE) --no-print-directory build-cli
 	$(MAKE) --no-print-directory sbom
 	@printf "$(COLOR_GREEN)All pipeline stages passed.$(COLOR_RESET)\n"
 
@@ -83,7 +86,7 @@ all: ## Run fmt, vet, lint, gosec, licenses, scan, test, test-integration, build
 # Go quality
 # =============================================================================
 
-.PHONY: fmt vet lint gosec licenses test test-integration build sbom scan tidy install-tools docker-build
+.PHONY: fmt vet lint gosec licenses test test-integration build build-cli sbom scan tidy install-tools docker-build
 
 fmt: ## Check Go formatting (gofmt)
 	$(call log,Checking gofmt)
@@ -149,6 +152,12 @@ build: ## Build statically linked release binary to bin/knxvault
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags="$(LDFLAGS)" -o $(BINARY) $(MAIN_PKG)
 	@file $(BINARY) | grep -q 'statically linked'
 	@(ldd $(BINARY) 2>&1 || true) | grep -q 'not a dynamic executable'
+
+build-cli: ## Build statically linked CLI binary to bin/knxvault-cli
+	$(call log,Building CLI binary $(CLI_BINARY))
+	$(call require_cmd,go)
+	@mkdir -p bin
+	CGO_ENABLED=0 $(GO) build -trimpath -ldflags="$(LDFLAGS)" -o $(CLI_BINARY) $(CLI_PKG)
 
 sbom: ## Generate CycloneDX SBOM (modules + release binary)
 	@test -f $(BINARY) || $(MAKE) --no-print-directory build
