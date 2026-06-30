@@ -37,6 +37,7 @@ Version-controlled documentation for architects, operators, developers, and inte
 | Document | Audience | Description |
 |----------|----------|-------------|
 | [Day-2 operations](operations/day2.md) | Operators | Renewal, rotation, monitoring, upgrades |
+| [Operator security](operations/operator-security.md) | Operators | Credential placement, audit rules, storage classification |
 | [Runbook: CA compromise](operations/runbooks/ca-compromise.md) | SRE | CA key compromise recovery |
 | [Runbook: Raft failover](operations/runbooks/raft-failover.md) | SRE | Leader loss, quorum loss, recovery |
 | [Runbook: Scaling](operations/runbooks/scaling.md) | SRE | Horizontal scaling and capacity |

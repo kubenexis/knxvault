@@ -30,6 +30,20 @@ func TestSanitizeDetailsRedactsSensitiveKeys(t *testing.T) {
 	}
 }
 
+func TestRejectSensitiveDetails(t *testing.T) {
+	err := audit.RejectSensitiveDetails(map[string]any{"password": "x"})
+	if err == nil {
+		t.Fatal("expected rejection for sensitive key")
+	}
+	err = audit.RejectSensitiveDetails(map[string]any{"note": "postgres://admin:pass@db:5432/app"})
+	if err == nil {
+		t.Fatal("expected rejection for credential-like string")
+	}
+	if err := audit.RejectSensitiveDetails(map[string]any{"role": "readonly"}); err != nil {
+		t.Fatalf("benign details: %v", err)
+	}
+}
+
 func TestServiceRecordRedactsDetails(t *testing.T) {
 	repo := memory.NewAuditRepository()
 	svc := audit.NewService(repo)

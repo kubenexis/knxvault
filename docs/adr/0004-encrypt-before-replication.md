@@ -71,9 +71,10 @@ Raft commands carry **already-encrypted** byte slices. The Dragonboat log and sn
 
 ### Follow-up
 
-- Encrypt `DatabaseRole.Config` when it contains credentials
+- ~~Encrypt `DatabaseRole.Config` when it contains credentials~~ — Done: validation rejects credential keys; use KV + `admin_credentials_path`
 - Optional Raft transport TLS between peers (network layer, separate from this ADR)
-- Audit redaction guard: reject `details` fields that resemble secret values
+- ~~Audit redaction guard~~ — Done: `SanitizeDetails` strips sensitive `details` before persistence ([ADR-0005](0005-cleartext-metadata-in-raft.md))
+- Path encryption — explicitly deferred; see ADR-0005
 
 ## References
 

@@ -116,10 +116,23 @@ The production image:
 
 CI gates: `gosec`, `golangci-lint`, Trivy vulnerability and license scan, SPDX allow-list.
 
+## Storage classification in Raft
+
+| Stored in Raft | Encrypted? | Notes |
+|----------------|------------|-------|
+| Secret values, CA private keys | **Yes** | Envelope encryption before `Propose` |
+| CA certificate PEM | No | Public by design |
+| Secret paths, versions, TTL | No | Required for RBAC and routing; see ADR-0005 |
+| RBAC policies and roles | No | No secret payloads; architecture metadata |
+| Audit log entries | No | `details` redacted; `resource` paths kept for compliance |
+| Database role `config` | No | Must not contain credentials; API validates |
+
+Path encryption is **not implemented** — significant complexity with limited benefit vs. separate vault instances per classification level. See [ADR-0005](../adr/0005-cleartext-metadata-in-raft.md).
+
 ## Database role and audit controls
 
-- **Database roles:** `config` rejects passwords, tokens, and connection URLs. Use `admin_credentials_path` to document where KV admin creds live; store admin creds in the secrets engine.
-- **Audit logs:** `details` fields are redacted before persistence (`password`, `connection_url`, credential-like strings → `[REDACTED]`).
+- **Database roles:** `config` rejects passwords, tokens, and connection URLs. Store admin creds in KV; set `admin_credentials_path` for runbooks. Prefer passwordless DB admin (IAM, cert auth) where possible. See [operator security](../operations/operator-security.md).
+- **Audit logs:** `details` fields are **stripped** before persistence — sensitive keys and credential-like strings become `[REDACTED]`. Operations are not failed if a caller accidentally includes a sensitive key (strip policy). Do not log secret values intentionally.
 
 ## Compliance posture
 

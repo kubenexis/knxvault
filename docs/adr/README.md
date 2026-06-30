@@ -10,6 +10,7 @@ ADRs document significant architectural decisions with context, options consider
 | [0002](0002-openssl-cli-crypto-backend.md) | OpenSSL CLI as cryptographic backend | Accepted |
 | [0003](0003-envelope-encryption.md) | Envelope encryption with master key | Accepted |
 | [0004](0004-encrypt-before-replication.md) | Encrypt before Raft replication | Accepted |
+| [0005](0005-cleartext-metadata-in-raft.md) | Cleartext metadata in Raft (paths, RBAC, audit, CA PEM) | Accepted |
 
 ## Format
 

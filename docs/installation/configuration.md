@@ -124,8 +124,20 @@ KNXVAULT_JWT_SECRET: "<k8s-jwt-hmac>"
 KNXVAULT_AUDIT_SIGNING_KEY: "<audit-hmac>"
 ```
 
+## Operator security notes
+
+| Variable | Guidance |
+|----------|----------|
+| `KNXVAULT_MASTER_KEY` | Never commit to git; use K8s Secret or KMS |
+| `KNXVAULT_ROOT_TOKEN` | Rotate after bootstrap; replace with scoped tokens |
+| `KNXVAULT_JWT_SECRET` | Required for K8s SA auth; treat as secret |
+| `KNXVAULT_AUDIT_SIGNING_KEY` | Enable in production for tamper-evident audit export |
+
+Do not store database admin passwords in database role `config` — use KV paths. See [Operator security](../operations/operator-security.md).
+
 ## Related documents
 
+- [Operator security](../operations/operator-security.md)
 - [Kubernetes deployment](../deploy/kubernetes.md)
 - [Metrics](../metrics.md)
 - [Tracing](../observability/tracing.md)
