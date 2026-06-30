@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"github.com/kubenexis/knxvault/internal/version"
 	"github.com/kubenexis/knxvault/pkg/client"
 )
 
@@ -21,12 +22,14 @@ func Execute() error {
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "knxvault-cli",
-	Short: "KNXVault CLI — secure secrets and PKI management",
+	Use:     "knxvault-cli",
+	Short:   "KNXVault CLI — secure secrets and PKI management",
+	Version: version.String(),
 }
 
 func init() {
-	cobra.OnInitialize(initConfig)
+	cobra.OnInitialize(initConfig, announceBuild)
+	rootCmd.SetVersionTemplate("{{.Version}}\n")
 
 	rootCmd.PersistentFlags().StringVar(&addr, "addr", "http://localhost:8200", "KNXVault API address")
 	rootCmd.PersistentFlags().StringVar(&token, "token", "", "Client token")
@@ -42,6 +45,10 @@ func init() {
 	rootCmd.AddCommand(pkiCmd)
 	rootCmd.AddCommand(backupCmd)
 	rootCmd.AddCommand(completionCmd)
+}
+
+func announceBuild() {
+	version.AnnounceStandard("knxvault-cli")
 }
 
 func initConfig() {

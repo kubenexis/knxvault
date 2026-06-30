@@ -14,7 +14,7 @@ import (
 func TestMiddlewareAndHandler(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	metrics.SetBuildInfo("test")
+	metrics.SetBuildInfo("test", "abc123", "1710000000")
 
 	r := gin.New()
 	r.Use(metrics.Middleware())

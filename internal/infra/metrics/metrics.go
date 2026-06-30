@@ -32,7 +32,7 @@ var (
 			Name: "knxvault_build_info",
 			Help: "KNXVault build metadata (always 1)",
 		},
-		[]string{"version"},
+		[]string{"version", "commit", "build_id"},
 	)
 	leaderGauge = promauto.NewGauge(
 		prometheus.GaugeOpts{
@@ -60,9 +60,9 @@ var (
 	)
 )
 
-// SetBuildInfo records the running application version.
-func SetBuildInfo(version string) {
-	buildInfo.WithLabelValues(version).Set(1)
+// SetBuildInfo records the running application build metadata.
+func SetBuildInfo(version, commit, buildID string) {
+	buildInfo.WithLabelValues(version, commit, buildID).Set(1)
 }
 
 // SetLeader records HA leadership status.

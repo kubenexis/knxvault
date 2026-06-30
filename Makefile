@@ -22,6 +22,8 @@ GOSEC           := $(firstword $(shell command -v gosec 2>/dev/null) $(GOPATH_BI
 TRIVY           := $(firstword $(shell command -v trivy 2>/dev/null) $(LOCAL_BIN)/trivy)
 DOCKER          := $(firstword $(shell command -v docker 2>/dev/null))
 VERSION         ?= 0.4.3
+COMMIT          ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+BUILD_ID        ?= $(shell date +%s)
 IMAGE           ?= knxvault:$(VERSION)
 export GOTOOLCHAIN := $(GO_TOOLCHAIN)
 
@@ -39,7 +41,10 @@ CSI_PKG         ?= ./cmd/knxvault-csi
 WEBHOOK_PKG     ?= ./cmd/knxvault-webhook
 SBOM_FILE       ?= sbom.json
 TRIVY_CACHE_DIR ?= $(HOME)/.cache/trivy
-LDFLAGS         ?= -s -w -X github.com/kubenexis/knxvault/internal/version.Version=$(VERSION)
+LDFLAGS         ?= -s -w \
+	-X github.com/kubenexis/knxvault/internal/version.Version=$(VERSION) \
+	-X github.com/kubenexis/knxvault/internal/version.Commit=$(COMMIT) \
+	-X github.com/kubenexis/knxvault/internal/version.BuildID=$(BUILD_ID)
 TRIVY_SEVERITY  ?= HIGH,CRITICAL
 
 # -----------------------------------------------------------------------------
@@ -145,7 +150,11 @@ test-integration: ## Run integration tests (API + Raft)
 docker-build: ## Build container image ($(IMAGE))
 	$(call log,Building Docker image $(IMAGE))
 	$(call require_cmd,docker)
-	$(DOCKER) build -t $(IMAGE) .
+	$(DOCKER) build \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg COMMIT=$(COMMIT) \
+		--build-arg BUILD_ID=$(BUILD_ID) \
+		-t $(IMAGE) .
 
 build: ## Build statically linked release binary to bin/knxvault
 	$(call log,Building static binary $(BINARY))

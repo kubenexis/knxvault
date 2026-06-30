@@ -6,14 +6,22 @@
 
 FROM golang:1.25-bookworm AS builder
 
+ARG VERSION=0.4.3
+ARG COMMIT=unknown
+ARG BUILD_ID=0
+
 ENV GOTOOLCHAIN=go1.25.11
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/knxvault ./cmd/knxvault \
-    && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/knxvault-csi ./cmd/knxvault-csi \
-    && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/knxvault-webhook ./cmd/knxvault-webhook
+RUN ldflags="-s -w \
+    -X github.com/kubenexis/knxvault/internal/version.Version=${VERSION} \
+    -X github.com/kubenexis/knxvault/internal/version.Commit=${COMMIT} \
+    -X github.com/kubenexis/knxvault/internal/version.BuildID=${BUILD_ID}" \
+    && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="${ldflags}" -o /out/knxvault ./cmd/knxvault \
+    && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="${ldflags}" -o /out/knxvault-csi ./cmd/knxvault-csi \
+    && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="${ldflags}" -o /out/knxvault-webhook ./cmd/knxvault-webhook
 
 FROM debian:bookworm-slim AS runtime
 

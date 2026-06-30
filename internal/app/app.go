@@ -11,6 +11,7 @@ import (
 	"github.com/kubenexis/knxvault/internal/api"
 	"github.com/kubenexis/knxvault/internal/config"
 	"github.com/kubenexis/knxvault/internal/infra/tracing"
+	"github.com/kubenexis/knxvault/internal/version"
 )
 
 // App owns the HTTP server lifecycle.
@@ -76,7 +77,8 @@ func (a *App) Run(ctx context.Context) error {
 	}
 
 	go func() {
-		a.log.Info("starting knxvault", zap.String("addr", a.cfg.HTTPAddr), zap.String("version", a.cfg.Version))
+		fields := append([]zap.Field{zap.String("addr", a.cfg.HTTPAddr)}, version.ZapFields()...)
+		a.log.Info("starting knxvault", fields...)
 		if err := a.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			errCh <- err
 		}

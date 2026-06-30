@@ -10,10 +10,16 @@ import (
 
 	admissionv1 "k8s.io/api/admission/v1"
 
+	"github.com/kubenexis/knxvault/internal/version"
 	"github.com/kubenexis/knxvault/internal/webhook"
 )
 
 func main() {
+	if version.HandleArgs(os.Args[1:]) {
+		return
+	}
+	version.AnnounceStandard("knxvault-webhook")
+
 	addr := os.Getenv("KNXVAULT_WEBHOOK_ADDR")
 	if addr == "" {
 		addr = ":9443"

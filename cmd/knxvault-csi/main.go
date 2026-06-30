@@ -9,9 +9,15 @@ import (
 	"syscall"
 
 	"github.com/kubenexis/knxvault/internal/inject/csi"
+	"github.com/kubenexis/knxvault/internal/version"
 )
 
 func main() {
+	if version.HandleArgs(os.Args[1:]) {
+		return
+	}
+	version.AnnounceStandard("knxvault-csi")
+
 	socket := os.Getenv("KNXVAULT_CSI_SOCKET")
 	if socket == "" {
 		socket = "/var/run/secrets-store-csi-providers/knxvault.sock"

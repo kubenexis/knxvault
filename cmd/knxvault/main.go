@@ -15,9 +15,14 @@ import (
 
 	"github.com/kubenexis/knxvault/internal/app"
 	"github.com/kubenexis/knxvault/internal/config"
+	"github.com/kubenexis/knxvault/internal/version"
 )
 
 func main() {
+	if version.HandleArgs(os.Args[1:]) {
+		return
+	}
+
 	if len(os.Args) > 1 && os.Args[1] == "-healthcheck" {
 		os.Exit(runHealthcheck())
 	}
@@ -34,6 +39,7 @@ func main() {
 		os.Exit(1)
 	}
 	defer func() { _ = log.Sync() }()
+	version.AnnounceZap(log, "knxvault")
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

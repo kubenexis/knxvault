@@ -13,6 +13,7 @@ import (
 	"github.com/kubenexis/knxvault/internal/crypto/openssl"
 	"github.com/kubenexis/knxvault/internal/domain/common"
 	"github.com/kubenexis/knxvault/internal/infra/metrics"
+	buildinfo "github.com/kubenexis/knxvault/internal/version"
 )
 
 // NewRouter builds the Gin engine with all routes registered.
@@ -30,7 +31,8 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 	r.Use(middleware.RequestLogger(log))
 	r.Use(middleware.ErrorHandler())
 
-	metrics.SetBuildInfo(version)
+	build := buildinfo.Get()
+	metrics.SetBuildInfo(build.Version, build.Commit, build.BuildID)
 	r.GET("/metrics", metrics.Handler())
 
 	health := handlers.NewHealthHandler(version, deps.Ready, deps.HAStatus, deps.IsLeader)

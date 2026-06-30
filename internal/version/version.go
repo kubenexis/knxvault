@@ -1,6 +1,12 @@
-// Package version holds the KNXVault release version (semver).
+// Package version holds KNXVault release and build metadata.
 package version
 
-// Version is the current semantic version of KNXVault.
-// Override at link time with: -ldflags "-X github.com/kubenexis/knxvault/internal/version.Version=..."
-var Version = "0.4.3"
+// Link-time metadata (override via -ldflags -X).
+var (
+	// Version is the semantic release version.
+	Version = "0.4.3"
+	// Commit is the git commit hash baked in at build time.
+	Commit = "unknown"
+	// BuildID is a Unix epoch seconds identifier set at build time.
+	BuildID = "0"
+)
