@@ -48,6 +48,7 @@ type Repos struct {
 	DBRole     *DatabaseRoleRepository
 	IssuedCert *IssuedCertRepository
 	PKIRole    *PKIRoleRepository
+	Token      *TokenRepository
 }
 
 // NewRepos constructs Raft repository adapters.
@@ -63,6 +64,7 @@ func NewRepos(client raftClient) Repos {
 		DBRole:     NewDatabaseRoleRepository(client),
 		IssuedCert: NewIssuedCertRepository(client),
 		PKIRole:    NewPKIRoleRepository(client),
+		Token:      NewTokenRepository(client),
 	}
 }
 
@@ -407,6 +409,46 @@ func (r *IssuedCertRepository) List(ctx context.Context) ([]*pki.IssuedCertifica
 func (r *IssuedCertRepository) ListExpiring(ctx context.Context, before time.Time, limit int) ([]*pki.IssuedCertificate, error) {
 	var out []*pki.IssuedCertificate
 	err := read(ctx, r.c, raft.OpIssuedListExpiring, struct {
+		Before time.Time
+		Limit  int
+	}{Before: before, Limit: limit}, &out)
+	return out, err
+}
+
+// TokenRepository persists client tokens via Raft.
+type TokenRepository struct{ c raftClient }
+
+func NewTokenRepository(c raftClient) *TokenRepository { return &TokenRepository{c: c} }
+
+func (r *TokenRepository) Save(ctx context.Context, token *domainauth.ClientToken) error {
+	return write(ctx, r.c, raft.OpTokenSave, token)
+}
+
+func (r *TokenRepository) Get(ctx context.Context, id string) (*domainauth.ClientToken, error) {
+	var out domainauth.ClientToken
+	err := read(ctx, r.c, raft.OpTokenGet, struct{ ID string }{ID: id}, &out)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (r *TokenRepository) Revoke(ctx context.Context, id string, revokedAt time.Time) error {
+	return write(ctx, r.c, raft.OpTokenRevoke, struct {
+		ID        string
+		RevokedAt time.Time
+	}{ID: id, RevokedAt: revokedAt})
+}
+
+func (r *TokenRepository) List(ctx context.Context) ([]*domainauth.ClientToken, error) {
+	var out []*domainauth.ClientToken
+	err := read(ctx, r.c, raft.OpTokenList, nil, &out)
+	return out, err
+}
+
+func (r *TokenRepository) ListExpired(ctx context.Context, before time.Time, limit int) ([]*domainauth.ClientToken, error) {
+	var out []*domainauth.ClientToken
+	err := read(ctx, r.c, raft.OpTokenListExpired, struct {
 		Before time.Time
 		Limit  int
 	}{Before: before, Limit: limit}, &out)

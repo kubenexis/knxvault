@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	auditsvc "github.com/kubenexis/knxvault/internal/audit"
 	"github.com/kubenexis/knxvault/internal/backup"
 	"github.com/kubenexis/knxvault/internal/domain/audit"
 	domainauth "github.com/kubenexis/knxvault/internal/domain/auth"
@@ -62,6 +63,11 @@ var storeHandlers = map[string]storeHandler{
 	OpIssuedListExpiring: handleIssuedListExpiring,
 	OpImportSnapshot:     handleImportSnapshot,
 	OpExportSnapshot:     handleExportSnapshot,
+	OpTokenSave:          handleTokenSave,
+	OpTokenGet:           handleTokenGet,
+	OpTokenRevoke:        handleTokenRevoke,
+	OpTokenList:          handleTokenList,
+	OpTokenListExpired:   handleTokenListExpired,
 }
 
 func handleCASave(s *Store, ctx context.Context, payload json.RawMessage) (any, error) {
@@ -163,6 +169,9 @@ func handlePKIRoleSave(s *Store, ctx context.Context, payload json.RawMessage) (
 	if err := json.Unmarshal(payload, &role); err != nil {
 		return nil, err
 	}
+	if _, err := s.CA.GetByName(ctx, role.CAName); err != nil {
+		return nil, err
+	}
 	if err := s.PKIRole.Save(ctx, &role); err != nil {
 		return nil, err
 	}
@@ -186,6 +195,14 @@ func handleAuditAppend(s *Store, ctx context.Context, payload json.RawMessage) (
 	if err := json.Unmarshal(payload, &entry); err != nil {
 		return nil, err
 	}
+	if entry.Timestamp.IsZero() {
+		entry.Timestamp = time.Now().UTC()
+	}
+	prevHash, err := s.Audit.LatestHash(ctx)
+	if err != nil {
+		return nil, err
+	}
+	entry.Hash = auditsvc.EntryHash(prevHash, entry.Actor, entry.Action, entry.Resource, entry.Status, entry.Details, entry.Timestamp)
 	if err := s.Audit.Append(ctx, &entry); err != nil {
 		return nil, err
 	}
@@ -411,4 +428,46 @@ func handleExportSnapshot(s *Store, _ context.Context, payload json.RawMessage) 
 		}
 	}
 	return s.ExportSnapshot(opts.IncludeAudit)
+}
+
+func handleTokenSave(s *Store, ctx context.Context, payload json.RawMessage) (any, error) {
+	var token domainauth.ClientToken
+	if err := json.Unmarshal(payload, &token); err != nil {
+		return nil, err
+	}
+	return nil, s.Token.Save(ctx, &token)
+}
+
+func handleTokenGet(s *Store, ctx context.Context, payload json.RawMessage) (any, error) {
+	var req struct{ ID string }
+	if err := json.Unmarshal(payload, &req); err != nil {
+		return nil, err
+	}
+	return s.Token.Get(ctx, req.ID)
+}
+
+func handleTokenRevoke(s *Store, ctx context.Context, payload json.RawMessage) (any, error) {
+	var req struct {
+		ID        string
+		RevokedAt time.Time
+	}
+	if err := json.Unmarshal(payload, &req); err != nil {
+		return nil, err
+	}
+	return nil, s.Token.Revoke(ctx, req.ID, req.RevokedAt)
+}
+
+func handleTokenList(s *Store, ctx context.Context, _ json.RawMessage) (any, error) {
+	return s.Token.List(ctx)
+}
+
+func handleTokenListExpired(s *Store, ctx context.Context, payload json.RawMessage) (any, error) {
+	var req struct {
+		Before time.Time
+		Limit  int
+	}
+	if err := json.Unmarshal(payload, &req); err != nil {
+		return nil, err
+	}
+	return s.Token.ListExpired(ctx, req.Before, req.Limit)
 }

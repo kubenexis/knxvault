@@ -2,6 +2,11 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"sort"
+	"sync"
 
 	auditsvc "github.com/kubenexis/knxvault/internal/audit"
 	"github.com/kubenexis/knxvault/internal/auth"
@@ -12,10 +17,12 @@ import (
 
 // PolicyService manages persisted RBAC policies and roles.
 type PolicyService struct {
-	policies repository.PolicyRepository
-	roles    repository.RoleRepository
-	rbac     *auth.RBAC
-	audit    *auditsvc.Service
+	policies   repository.PolicyRepository
+	roles      repository.RoleRepository
+	rbac       *auth.RBAC
+	audit      *auditsvc.Service
+	policyHash string
+	hashMu     sync.Mutex
 }
 
 // NewPolicyService constructs a policy service.
@@ -38,6 +45,7 @@ func (s *PolicyService) SavePolicy(ctx context.Context, policy *domainauth.Polic
 	err := s.policies.Save(ctx, policy)
 	if err == nil && s.rbac != nil {
 		s.rbac.UpsertPolicy(*policy)
+		s.invalidatePolicyHash()
 	}
 	audithelper.Record(s.audit, ctx, "policy.write", "sys/policies/"+policy.Name, err, nil)
 	return err
@@ -58,6 +66,7 @@ func (s *PolicyService) DeletePolicy(ctx context.Context, name string) error {
 	err := s.policies.Delete(ctx, name)
 	if err == nil && s.rbac != nil {
 		s.rbac.DeletePolicy(name)
+		s.invalidatePolicyHash()
 	}
 	audithelper.Record(s.audit, ctx, "policy.delete", "sys/policies/"+name, err, nil)
 	return err
@@ -96,8 +105,50 @@ func (s *PolicyService) LoadIntoRBAC(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	for _, policy := range policies {
-		s.rbac.UpsertPolicy(*policy)
-	}
+	s.rbac.ReloadFromPersisted(policies)
+	s.hashMu.Lock()
+	s.policyHash = hashPolicies(policies)
+	s.hashMu.Unlock()
 	return nil
+}
+
+// SyncRBAC reloads persisted policies when the cluster policy set has changed.
+func (s *PolicyService) SyncRBAC(ctx context.Context) error {
+	if s.policies == nil || s.rbac == nil {
+		return nil
+	}
+	policies, err := s.policies.List(ctx)
+	if err != nil {
+		return err
+	}
+	hash := hashPolicies(policies)
+	s.hashMu.Lock()
+	if hash == s.policyHash {
+		s.hashMu.Unlock()
+		return nil
+	}
+	s.hashMu.Unlock()
+
+	s.rbac.ReloadFromPersisted(policies)
+	s.hashMu.Lock()
+	s.policyHash = hash
+	s.hashMu.Unlock()
+	return nil
+}
+
+func (s *PolicyService) invalidatePolicyHash() {
+	s.hashMu.Lock()
+	s.policyHash = ""
+	s.hashMu.Unlock()
+}
+
+func hashPolicies(policies []*domainauth.Policy) string {
+	if len(policies) == 0 {
+		return ""
+	}
+	sorted := append([]*domainauth.Policy(nil), policies...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Name < sorted[j].Name })
+	payload, _ := json.Marshal(sorted)
+	sum := sha256.Sum256(payload)
+	return hex.EncodeToString(sum[:])
 }

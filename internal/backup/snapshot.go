@@ -27,6 +27,17 @@ type Snapshot struct {
 	Leases    []LeaseRecord        `json:"leases"`
 	Issued    []IssuedCertRecord   `json:"issued_certificates"`
 	Audit     []AuditRecord        `json:"audit,omitempty"`
+	Tokens    []TokenRecord        `json:"tokens,omitempty"`
+}
+
+// TokenRecord serializes a persisted client token.
+type TokenRecord struct {
+	ID        string    `json:"id"`
+	Subject   string    `json:"subject"`
+	Policies  []string  `json:"policies"`
+	ExpiresAt time.Time `json:"expires_at"`
+	Renewable bool      `json:"renewable"`
+	Revoked   bool      `json:"revoked"`
 }
 
 // CARecord serializes a certificate authority.
@@ -159,4 +170,5 @@ type Repos struct {
 	PKIRole    repository.PKIRoleRepository
 	DBRole     repository.DatabaseRoleRepository
 	IssuedCert repository.IssuedCertRepository
+	Token      repository.TokenRepository
 }

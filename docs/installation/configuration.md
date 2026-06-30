@@ -26,7 +26,7 @@ KNXVault is configured entirely via environment variables. No config file is req
 |----------|---------|----------|-------------|
 | `KNXVAULT_ROOT_TOKEN` | — | Bootstrap | Initial admin token |
 | `KNXVAULT_JWT_SECRET` | — | Dev K8s auth | HS256 secret for local ServiceAccount JWT login (dev only; not used when TokenReview is available) |
-| `KNXVAULT_K8S_AUTH_INSECURE` | `false` | Dev only | When `KNXVAULT_RAFT_ENABLED=false`, allow unvalidated K8s login (never enable in production) |
+| `KNXVAULT_K8S_AUTH_INSECURE` | `false` | Dev only | When `KNXVAULT_RAFT_ENABLED=false`, parse JWT structure without signature verification (still requires a valid `sub` service-account claim; never enable in production) |
 | `KNXVAULT_TOKEN_TTL` | `24h` | No | Issued client token lifetime |
 
 ## Dragonboat Raft (production storage)
@@ -47,6 +47,7 @@ KNXVault is configured entirely via environment variables. No config file is req
 | `KNXVAULT_RAFT_MTLS_CERT` | — | No | Raft peer TLS certificate (stub — W38-14) |
 | `KNXVAULT_RAFT_MTLS_KEY` | — | No | Raft peer TLS private key |
 | `KNXVAULT_RAFT_MTLS_CA` | — | No | Raft peer CA bundle for mutual TLS |
+| `KNXVAULT_RAFT_LEADER_WAIT` | `10s` | No | Max wait for a Raft leader during startup before failing |
 
 **Node ID:** Assign a stable integer > 0 per replica (not randomly generated). Set `KNXVAULT_RAFT_NODE_ID` explicitly for bare-metal, Docker, and local dev. On Kubernetes, omit it and let the StatefulSet derive from `KNXVAULT_POD_NAME` (`knxvault-0` → `1`). The ID must match the left-hand key in `KNXVAULT_RAFT_INITIAL_MEMBERS`.
 

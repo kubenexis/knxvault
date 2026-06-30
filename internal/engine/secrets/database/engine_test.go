@@ -52,8 +52,8 @@ func TestEngineGenerateAndRevoke(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Renew() = %v", err)
 	}
-	if renewed.TTLSeconds != 120 {
-		t.Fatalf("TTLSeconds = %d, want 120", renewed.TTLSeconds)
+	if renewed.TTLSeconds != 60 {
+		t.Fatalf("TTLSeconds = %d, want 60", renewed.TTLSeconds)
 	}
 
 	if err := engine.RevokeLease(ctx, result.LeaseID); err != nil {

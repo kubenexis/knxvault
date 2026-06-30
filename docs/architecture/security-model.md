@@ -65,7 +65,7 @@ All X.509 operations execute via the OpenSSL CLI in an isolated temporary direct
 | Opaque client tokens | Automation, CLI | `POST /auth/token/create`, renew, revoke | Production |
 | Kubernetes ServiceAccount | In-cluster workloads | TokenReview (in-cluster) | **Production** |
 | Kubernetes JWT (HS256) | Local dev only | `KNXVAULT_JWT_SECRET` | Dev-only |
-| K8s login bypass | Local dev only | `KNXVAULT_K8S_AUTH_INSECURE=true` | Dev-only (never with Raft) |
+| K8s login bypass | Local dev only | `KNXVAULT_K8S_AUTH_INSECURE=true` | Dev-only (never with Raft); parses JWT `sub` without verification |
 
 ### Kubernetes authentication (production)
 
@@ -75,7 +75,11 @@ When KNXVault runs in a Kubernetes cluster, `POST /auth/kubernetes` validates th
 
 **Role bindings:** Roles may restrict login to specific service accounts via `bound_service_account_names` and `bound_service_account_namespaces`. A successful TokenReview with a non-matching SA returns `403`.
 
-**Dev-only paths:** `KNXVAULT_JWT_SECRET` enables HS256 validation for local testing. `KNXVAULT_K8S_AUTH_INSECURE=true` skips validation when Raft is disabled — never enable in production.
+**Dev-only paths:** `KNXVAULT_JWT_SECRET` enables HS256 validation for local testing. `KNXVAULT_K8S_AUTH_INSECURE=true` parses JWT structure without signature verification when Raft is disabled — still requires a `system:serviceaccount:…` subject for SA binding checks; never enable in production.
+
+**HA client tokens:** When Raft is enabled, opaque client tokens (root, `POST /auth/token/create`, K8s login) are replicated via `token.save` / `token.get` / `token.revoke` Raft commands. Tokens survive node restarts and authenticate on any cluster member.
+
+**RBAC cluster sync:** Each node reloads persisted policies from Raft before `Authorize` when the policy set hash changes, so policy writes on the leader are visible on followers without restart.
 
 Tokens carry a TTL (`KNXVAULT_TOKEN_TTL`, default 24h). The root token should be rotated or disabled after bootstrap policies are established.
 

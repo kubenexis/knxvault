@@ -44,6 +44,7 @@ type Dependencies struct {
 	LeaseRepo      repository.LeaseRepository
 	PolicyRepo     repository.PolicyRepository
 	RoleRepo       repository.RoleRepository
+	TokenRepo      repository.TokenRepository
 	DBRoleRepo     repository.DatabaseRoleRepository
 	IssuedCertRepo repository.IssuedCertRepository
 
@@ -120,6 +121,7 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 		deps.DBRoleRepo = repos.DBRole
 		deps.IssuedCertRepo = repos.IssuedCert
 		deps.PKIRoleRepo = repos.PKIRole
+		deps.TokenRepo = repos.Token
 		deps.Leader = raft.NewLeaderElector(bundle.Client)
 		log.Info("dragonboat raft repositories initialized",
 			zap.Uint64("node_id", raftCfg.NodeID),
@@ -137,6 +139,7 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 		deps.DBRoleRepo = memory.NewDatabaseRoleRepository()
 		deps.IssuedCertRepo = memory.NewIssuedCertRepository()
 		deps.PKIRoleRepo = memory.NewPKIRoleRepository()
+		deps.TokenRepo = memory.NewTokenRepository()
 	}
 
 	if deps.Crypto != nil {
@@ -176,10 +179,17 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 	}
 
 	tokenStore := auth.NewTokenStore(cfg.TokenTTL)
+	if deps.TokenRepo != nil {
+		tokenStore.SetRepository(deps.TokenRepo)
+	}
 	rbac := auth.NewRBAC()
 	deps.PolicyService = service.NewPolicyService(deps.PolicyRepo, deps.RoleRepo, rbac, deps.AuditService)
 	if deps.Raft != nil {
-		deadline := time.Now().Add(10 * time.Second)
+		leaderWait := cfg.Raft.LeaderWait
+		if leaderWait <= 0 {
+			leaderWait = 10 * time.Second
+		}
+		deadline := time.Now().Add(leaderWait)
 		for time.Now().Before(deadline) {
 			if deps.Raft.Ready() {
 				break
@@ -195,10 +205,13 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 	}
 
 	if cfg.RootToken != "" {
-		tokenStore.RegisterRootToken(cfg.RootToken, []string{"admin"})
+		if err := tokenStore.RegisterRootToken(ctx, cfg.RootToken, []string{"admin"}); err != nil {
+			return nil, fmt.Errorf("register root token: %w", err)
+		}
 		log.Info("root token registered")
 	}
 	deps.AuthService = auth.NewService(tokenStore, rbac, cfg.JWTSecret)
+	deps.AuthService.SetRBACSyncer(deps.PolicyService)
 	deps.AuthService.SetRoleResolver(auth.NewRepositoryRoleResolver(deps.RoleRepo))
 	var tokenReviewer k8s.TokenReviewer
 	if reviewer, err := k8s.NewInClusterTokenReviewer(); err == nil {
@@ -230,6 +243,7 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 			DBRole:     deps.DBRoleRepo,
 			IssuedCert: deps.IssuedCertRepo,
 		}, deps.Crypto, deps.AuditService)
+		deps.BackupService.SetPolicyReloader(deps.PolicyService)
 		if deps.Raft != nil {
 			importer := raft.NewSnapshotImporter(deps.Raft.Client)
 			deps.BackupService.SetSnapshotImporter(importer)

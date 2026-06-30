@@ -21,6 +21,7 @@ type Store struct {
 	DBRole     *memory.DatabaseRoleRepository
 	IssuedCert *memory.IssuedCertRepository
 	PKIRole    *memory.PKIRoleRepository
+	Token      *memory.TokenRepository
 }
 
 // NewStore constructs an empty vault store.
@@ -36,6 +37,7 @@ func NewStore() *Store {
 		DBRole:     memory.NewDatabaseRoleRepository(),
 		IssuedCert: memory.NewIssuedCertRepository(),
 		PKIRole:    memory.NewPKIRoleRepository(),
+		Token:      memory.NewTokenRepository(),
 	}
 }
 
@@ -52,6 +54,7 @@ func (s *Store) Repos() backup.Repos {
 		PKIRole:    s.PKIRole,
 		DBRole:     s.DBRole,
 		IssuedCert: s.IssuedCert,
+		Token:      s.Token,
 	}
 }
 

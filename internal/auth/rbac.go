@@ -55,6 +55,19 @@ func (r *RBAC) LoadPolicies(policies []domainauth.Policy) {
 	}
 }
 
+// ReloadFromPersisted resets built-in defaults and overlays persisted policies.
+func (r *RBAC) ReloadFromPersisted(policies []*domainauth.Policy) {
+	fresh := NewRBAC()
+	for _, policy := range policies {
+		if policy != nil {
+			fresh.UpsertPolicy(*policy)
+		}
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.policies = fresh.policies
+}
+
 // Authorize returns true when any assigned policy allows the action.
 func (r *RBAC) Authorize(policyNames []string, resource, action string, req RequestContext) bool {
 	allowed := false

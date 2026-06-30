@@ -110,3 +110,12 @@ type IssuedCertRepository interface {
 	List(ctx context.Context) ([]*pki.IssuedCertificate, error)
 	ListExpiring(ctx context.Context, before time.Time, limit int) ([]*pki.IssuedCertificate, error)
 }
+
+// TokenRepository persists opaque client token records (hashed IDs only).
+type TokenRepository interface {
+	Save(ctx context.Context, token *domainauth.ClientToken) error
+	Get(ctx context.Context, id string) (*domainauth.ClientToken, error)
+	Revoke(ctx context.Context, id string, revokedAt time.Time) error
+	List(ctx context.Context) ([]*domainauth.ClientToken, error)
+	ListExpired(ctx context.Context, before time.Time, limit int) ([]*domainauth.ClientToken, error)
+}

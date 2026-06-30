@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	auditsvc "github.com/kubenexis/knxvault/internal/audit"
 	"github.com/kubenexis/knxvault/internal/backup"
 	"github.com/kubenexis/knxvault/internal/crypto"
 	"github.com/kubenexis/knxvault/internal/domain/audit"
@@ -127,14 +128,15 @@ func TestRestoreAuditEntries(t *testing.T) {
 	ctx := context.Background()
 	auditRepo := memory.NewAuditRepository()
 	now := time.Now().UTC()
-	if err := auditRepo.Append(ctx, &audit.Entry{
+	entry := &audit.Entry{
 		Timestamp: now,
 		Actor:     "admin",
 		Action:    "kv.read",
 		Resource:  "app/db",
 		Status:    "success",
-		Hash:      "abc123",
-	}); err != nil {
+	}
+	entry.Hash = auditsvc.EntryHash("", entry.Actor, entry.Action, entry.Resource, entry.Status, entry.Details, entry.Timestamp)
+	if err := auditRepo.Append(ctx, entry); err != nil {
 		t.Fatalf("Append() = %v", err)
 	}
 
@@ -168,7 +170,7 @@ func TestRestoreAuditEntries(t *testing.T) {
 	if len(entries) != 1 {
 		t.Fatalf("restored audit entries = %d", len(entries))
 	}
-	if entries[0].Hash != "abc123" || entries[0].Action != "kv.read" {
+	if entries[0].Hash != entry.Hash || entries[0].Action != "kv.read" {
 		t.Fatalf("unexpected entry: %+v", entries[0])
 	}
 }

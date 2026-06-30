@@ -142,6 +142,9 @@ func (e *Engine) GenerateCredentials(ctx context.Context, req CredsRequest) (*Cr
 	if req.TTLSecond > 0 {
 		ttlSeconds = req.TTLSecond
 	}
+	if role.TTLSeconds > 0 && ttlSeconds > role.TTLSeconds {
+		ttlSeconds = role.TTLSeconds
+	}
 	if ttlSeconds <= 0 {
 		return nil, common.New(common.ErrCodeValidation, "ttl must be positive")
 	}
@@ -174,10 +177,6 @@ func (e *Engine) GenerateCredentials(ctx context.Context, req CredsRequest) (*Cr
 		ExpiresAt:  expiresAt,
 		Renewable:  true,
 	}
-	if err := e.leases.Save(ctx, lease); err != nil {
-		return nil, err
-	}
-
 	data := map[string]any{
 		"username": username,
 		"password": password,
@@ -185,6 +184,10 @@ func (e *Engine) GenerateCredentials(ctx context.Context, req CredsRequest) (*Cr
 		"role":     req.Role,
 	}
 	if err := e.storeSecret(ctx, path, leaseID, ttlSeconds, expiresAt, data); err != nil {
+		return nil, err
+	}
+	if err := e.leases.Save(ctx, lease); err != nil {
+		_ = e.destroySecret(ctx, path)
 		return nil, err
 	}
 
@@ -220,10 +223,12 @@ func (e *Engine) Renew(ctx context.Context, leaseID string, ttlSeconds int) (*Cr
 	if ttlSeconds <= 0 {
 		ttlSeconds = lease.TTLSeconds
 	}
-
 	role, err := e.roles.Get(ctx, lease.RoleName)
 	if err != nil {
 		return nil, err
+	}
+	if role.TTLSeconds > 0 && ttlSeconds > role.TTLSeconds {
+		ttlSeconds = role.TTLSeconds
 	}
 
 	latest, err := e.secrets.GetLatest(ctx, lease.Path)
@@ -279,7 +284,9 @@ func (e *Engine) RevokeLease(ctx context.Context, leaseID string) error {
 		return err
 	}
 	if e.secrets != nil && e.crypto != nil {
-		_ = e.destroySecret(ctx, lease.Path)
+		if err := e.destroySecret(ctx, lease.Path); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -295,13 +302,17 @@ func (e *Engine) CleanupExpired(ctx context.Context, limit int) (int, error) {
 		return 0, err
 	}
 	revoked := 0
+	var firstErr error
 	for _, lease := range expired {
 		if err := e.RevokeLease(ctx, lease.ID); err != nil {
-			return revoked, err
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
 		}
 		revoked++
 	}
-	return revoked, nil
+	return revoked, firstErr
 }
 
 func (e *Engine) storeSecret(
@@ -339,16 +350,10 @@ func (e *Engine) destroySecret(ctx context.Context, path string) error {
 	if err != nil {
 		return nil
 	}
-	destroyed := &domainsecrets.SecretVersion{
-		ID:        uuid.New(),
-		Path:      path,
-		Version:   latest.Version + 1,
-		DataEnc:   []byte{0},
-		DEKEnc:    latest.DEKEnc,
-		CreatedAt: e.now().UTC(),
-		Destroyed: true,
+	if latest.Destroyed {
+		return nil
 	}
-	return e.secrets.SaveVersion(ctx, destroyed)
+	return e.secrets.DestroyVersion(ctx, path, latest.Version)
 }
 
 func (e *Engine) generateUsername(role *domainsecrets.DatabaseRole) (string, error) {

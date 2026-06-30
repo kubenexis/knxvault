@@ -25,6 +25,11 @@ type SnapshotRequester interface {
 	RequestSnapshot(ctx context.Context) error
 }
 
+// PolicyReloader refreshes the in-memory RBAC cache after restore.
+type PolicyReloader interface {
+	LoadIntoRBAC(ctx context.Context) error
+}
+
 // BackupService creates and restores encrypted vault snapshots.
 type BackupService struct {
 	repos     backup.Repos
@@ -33,6 +38,7 @@ type BackupService struct {
 	importer  SnapshotImporter
 	exporter  SnapshotExporter
 	snapshots SnapshotRequester
+	policies  PolicyReloader
 }
 
 // NewBackupService constructs a backup service.
@@ -61,6 +67,11 @@ func (s *BackupService) SetSnapshotExporter(exporter SnapshotExporter) {
 // SetSnapshotRequester configures Dragonboat snapshot persistence after export.
 func (s *BackupService) SetSnapshotRequester(requester SnapshotRequester) {
 	s.snapshots = requester
+}
+
+// SetPolicyReloader configures RBAC reload after restore.
+func (s *BackupService) SetPolicyReloader(reloader PolicyReloader) {
+	s.policies = reloader
 }
 
 // Create exports and encrypts a backup archive.
@@ -115,6 +126,11 @@ func (s *BackupService) Restore(ctx context.Context, data []byte) error {
 		err = s.importer.ImportSnapshot(ctx, snapshot)
 	} else {
 		err = backup.Restore(ctx, s.repos, snapshot)
+	}
+	if err == nil && s.policies != nil {
+		if reloadErr := s.policies.LoadIntoRBAC(ctx); reloadErr != nil {
+			err = reloadErr
+		}
 	}
 	audithelper.Record(s.audit, ctx, "backup.restore", "sys/restore", err, map[string]any{
 		"cas":     len(snapshot.CAs),

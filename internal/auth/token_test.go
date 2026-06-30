@@ -25,14 +25,25 @@ func TestLoginKubernetesFailsClosedProduction(t *testing.T) {
 	}
 }
 
-func TestLoginKubernetesInsecureDev(t *testing.T) {
+func TestLoginKubernetesInsecureDevRequiresJWT(t *testing.T) {
 	svc := auth.NewService(auth.NewTokenStore(time.Hour), auth.NewRBAC(), "")
 	svc.SetK8sLoginOptions(auth.K8sLoginOptions{InsecureDev: true})
-	token, rec, err := svc.LoginKubernetes(context.Background(), "admin", "anything")
+	_, _, err := svc.LoginKubernetes(context.Background(), "admin", "not-a-jwt")
+	if err == nil {
+		t.Fatal("expected jwt parse error")
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodNone, jwt.MapClaims{
+		"sub": "system:serviceaccount:default:app",
+	})
+	unsigned, err := token.SignedString(jwt.UnsafeAllowNoneSignatureType)
+	if err != nil {
+		t.Fatalf("sign jwt: %v", err)
+	}
+	clientToken, rec, err := svc.LoginKubernetes(context.Background(), "admin", unsigned)
 	if err != nil {
 		t.Fatalf("LoginKubernetes() = %v", err)
 	}
-	if token == "" || rec == nil {
+	if clientToken == "" || rec == nil {
 		t.Fatal("expected issued token")
 	}
 }
@@ -95,31 +106,34 @@ func TestLoginKubernetesTokenReviewBindingDenied(t *testing.T) {
 func TestCreateRenewRevokeToken(t *testing.T) {
 	store := auth.NewTokenStore(time.Hour)
 	svc := auth.NewService(store, auth.NewRBAC(), "")
-	token, record, err := svc.CreateToken(context.Background(), "ci-bot", []string{"secrets-admin"}, 30*time.Minute, true)
+	ctx := context.Background()
+	token, record, err := svc.CreateToken(ctx, "ci-bot", []string{"secrets-admin"}, 30*time.Minute, true)
 	if err != nil {
 		t.Fatalf("CreateToken() = %v", err)
 	}
 	if token == "" || !record.Renewable {
 		t.Fatal("expected renewable token")
 	}
-	renewed, err := svc.RenewToken(context.Background(), token, time.Hour)
+	renewed, err := svc.RenewToken(ctx, token, time.Hour)
 	if err != nil {
 		t.Fatalf("RenewToken() = %v", err)
 	}
 	if renewed.ExpiresAt.Before(record.ExpiresAt) {
 		t.Fatal("expected extended expiry")
 	}
-	if err := svc.RevokeToken(context.Background(), token); err != nil {
+	if err := svc.RevokeToken(ctx, token); err != nil {
 		t.Fatalf("RevokeToken() = %v", err)
 	}
-	if _, err := svc.LoginWithToken(context.Background(), token); err == nil {
+	if _, err := svc.LoginWithToken(ctx, token); err == nil {
 		t.Fatal("expected revoked token to fail authentication")
 	}
 }
 
 func TestLoginKubernetesHS256Dev(t *testing.T) {
 	secret := []byte("dev-secret")
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{"sub": "system:serviceaccount:default:app"})
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub": "system:serviceaccount:default:app",
+	})
 	signed, err := token.SignedString(secret)
 	if err != nil {
 		t.Fatalf("sign jwt: %v", err)
@@ -130,7 +144,25 @@ func TestLoginKubernetesHS256Dev(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoginKubernetes() = %v", err)
 	}
-	if clientToken == "" || rec.Subject == "" {
-		t.Fatal("expected token")
+	if clientToken == "" || rec.Subject != "system:serviceaccount:default:app" {
+		t.Fatalf("unexpected token: %+v", rec)
+	}
+}
+
+func TestTokenStoreReplicated(t *testing.T) {
+	ctx := context.Background()
+	repo := memory.NewTokenRepository()
+	store := auth.NewTokenStore(time.Hour)
+	store.SetRepository(repo)
+
+	token, _, err := store.Create(ctx, "bot", []string{"admin"}, time.Hour, false)
+	if err != nil {
+		t.Fatalf("Create() = %v", err)
+	}
+
+	remote := auth.NewTokenStore(time.Hour)
+	remote.SetRepository(repo)
+	if _, err := remote.Authenticate(ctx, token); err != nil {
+		t.Fatalf("Authenticate() on remote store = %v", err)
 	}
 }

@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -31,7 +32,7 @@ func TestSecretsHandlerWriteRead(t *testing.T) {
 	}
 
 	tokenStore := auth.NewTokenStore(time.Hour)
-	tokenStore.RegisterRootToken("root-token", []string{"secrets-admin"})
+	_ = tokenStore.RegisterRootToken(context.Background(), "root-token", []string{"secrets-admin"})
 	authSvc := auth.NewService(tokenStore, auth.NewRBAC(), "")
 
 	auditRepo := memory.NewAuditRepository()
@@ -75,7 +76,7 @@ func TestSecretsHandlerListMetadataDestroy(t *testing.T) {
 	}
 
 	tokenStore := auth.NewTokenStore(time.Hour)
-	tokenStore.RegisterRootToken("root-token", []string{"secrets-admin"})
+	_ = tokenStore.RegisterRootToken(context.Background(), "root-token", []string{"secrets-admin"})
 	authSvc := auth.NewService(tokenStore, auth.NewRBAC(), "")
 
 	auditRepo := memory.NewAuditRepository()

@@ -1,6 +1,6 @@
 # Backup & Restore
 
-KNXVault exports an encrypted JSON archive containing CAs, secrets, RBAC configuration, leases, issued certificate metadata, and revocations.
+KNXVault exports an encrypted JSON archive containing CAs, secrets, RBAC configuration, client token hashes, leases, issued certificate metadata, and revocations. Optional audit history is included when `include_audit` is true.
 
 ## API
 
@@ -37,7 +37,9 @@ export KNXVAULT_TOKEN=dev-root-token
 
 - `KNXVAULT_MASTER_KEY` must match the key used when the backup was created.
 - Raft restores propose `snapshot.import` — run against a maintenance window or a fresh cluster.
-- In-memory mode supports export; restore targets a fresh process or empty repositories.
+- In-memory mode supports export; restore **replaces** existing repository state (not merge).
+- Snapshots are validated before import (CA/PKI references, RBAC policy refs, issued-cert CA refs, audit hash chain when hashes are present).
+- After restore, the in-memory RBAC cache is reloaded from persisted policies.
 
 ## Raft-specific notes
 

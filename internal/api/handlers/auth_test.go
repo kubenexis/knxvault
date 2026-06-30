@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -42,7 +43,7 @@ func TestAuthHandlerCreateRenewRevokeToken(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	tokenStore := auth.NewTokenStore(time.Hour)
-	tokenStore.RegisterRootToken("root-token", []string{"admin"})
+	_ = tokenStore.RegisterRootToken(context.Background(), "root-token", []string{"admin"})
 	authSvc := auth.NewService(tokenStore, auth.NewRBAC(), "")
 	handler := handlers.NewAuthHandler(authSvc, time.Hour)
 

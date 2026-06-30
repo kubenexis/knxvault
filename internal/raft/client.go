@@ -59,8 +59,8 @@ func (c *Client) Propose(ctx context.Context, op string, payload any) ([]byte, e
 		return nil, err
 	}
 	ObservePropose(time.Since(start), result.Value)
-	if result.Data == nil {
-		return nil, nil
+	if len(result.Data) == 0 {
+		return nil, fmt.Errorf("empty raft response")
 	}
 	return result.Data, nil
 }

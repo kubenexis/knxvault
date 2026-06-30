@@ -1,6 +1,7 @@
 package handlers_test
 
 import (
+	"context"
 	"time"
 
 	auditsvc "github.com/kubenexis/knxvault/internal/audit"
@@ -23,7 +24,7 @@ func testCryptoService() (*crypto.Service, error) {
 
 func testAuthService(policies ...string) *auth.Service {
 	tokenStore := auth.NewTokenStore(time.Hour)
-	tokenStore.RegisterRootToken("root-token", policies)
+	_ = tokenStore.RegisterRootToken(context.Background(), "root-token", policies)
 	return auth.NewService(tokenStore, auth.NewRBAC(), "")
 }
 

@@ -118,6 +118,16 @@ func Export(ctx context.Context, repos Repos, opts ExportOptions) (*Snapshot, er
 		}
 	}
 
+	if repos.Token != nil {
+		tokens, err := repos.Token.List(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("list tokens: %w", err)
+		}
+		for _, token := range tokens {
+			snapshot.Tokens = append(snapshot.Tokens, tokenFromDomain(token))
+		}
+	}
+
 	if opts.IncludeAudit && repos.Audit != nil {
 		limit := opts.AuditLimit
 		if limit <= 0 {

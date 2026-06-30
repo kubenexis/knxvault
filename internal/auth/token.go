@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -15,22 +16,17 @@ import (
 	domainauth "github.com/kubenexis/knxvault/internal/domain/auth"
 	"github.com/kubenexis/knxvault/internal/domain/common"
 	"github.com/kubenexis/knxvault/internal/infra/k8s"
+	"github.com/kubenexis/knxvault/internal/repository"
 )
 
 // TokenRecord is a stored client token.
-type TokenRecord struct {
-	ID        string
-	Subject   string
-	Policies  []string
-	ExpiresAt time.Time
-	Renewable bool
-	Revoked   bool
-}
+type TokenRecord = domainauth.ClientToken
 
-// TokenStore manages in-memory client tokens.
+// TokenStore manages client tokens in memory and optionally via a replicated repository.
 type TokenStore struct {
 	mu     sync.RWMutex
 	tokens map[string]TokenRecord
+	repo   repository.TokenRepository
 	ttl    time.Duration
 }
 
@@ -45,13 +41,18 @@ func NewTokenStore(ttl time.Duration) *TokenStore {
 	}
 }
 
+// SetRepository configures replicated token persistence (Raft).
+func (s *TokenStore) SetRepository(repo repository.TokenRepository) {
+	s.repo = repo
+}
+
 // Issue creates a new opaque client token.
-func (s *TokenStore) Issue(subject string, policies []string) (string, *TokenRecord, error) {
-	return s.Create(subject, policies, s.ttl, true)
+func (s *TokenStore) Issue(ctx context.Context, subject string, policies []string) (string, *TokenRecord, error) {
+	return s.Create(ctx, subject, policies, s.ttl, true)
 }
 
 // Create issues a token with explicit TTL and renewability.
-func (s *TokenStore) Create(subject string, policies []string, ttl time.Duration, renewable bool) (string, *TokenRecord, error) {
+func (s *TokenStore) Create(ctx context.Context, subject string, policies []string, ttl time.Duration, renewable bool) (string, *TokenRecord, error) {
 	if ttl <= 0 {
 		ttl = s.ttl
 	}
@@ -67,23 +68,20 @@ func (s *TokenStore) Create(subject string, policies []string, ttl time.Duration
 		ExpiresAt: time.Now().UTC().Add(ttl),
 		Renewable: renewable,
 	}
-
-	s.mu.Lock()
-	s.tokens[record.ID] = record
-	s.mu.Unlock()
-
-	return token, &record, nil
+	if err := s.save(ctx, record); err != nil {
+		return "", nil, err
+	}
+	copy := record
+	return token, &copy, nil
 }
 
 // Renew extends a renewable token's TTL.
-func (s *TokenStore) Renew(token string, increment time.Duration) (*TokenRecord, error) {
+func (s *TokenStore) Renew(ctx context.Context, token string, increment time.Duration) (*TokenRecord, error) {
 	if increment <= 0 {
 		increment = s.ttl
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	record, ok := s.tokens[hashToken(token)]
-	if !ok {
+	record, err := s.get(ctx, hashToken(token))
+	if err != nil {
 		return nil, common.New(common.ErrCodeUnauthorized, "invalid token")
 	}
 	if record.Revoked {
@@ -96,32 +94,46 @@ func (s *TokenStore) Renew(token string, increment time.Duration) (*TokenRecord,
 		return nil, common.New(common.ErrCodeUnauthorized, "token expired")
 	}
 	record.ExpiresAt = time.Now().UTC().Add(increment)
-	s.tokens[record.ID] = record
-	copy := record
+	if err := s.save(ctx, *record); err != nil {
+		return nil, err
+	}
+	copy := *record
 	return &copy, nil
 }
 
 // Revoke invalidates a token immediately.
-func (s *TokenStore) Revoke(token string) error {
+func (s *TokenStore) Revoke(ctx context.Context, token string) error {
+	id := hashToken(token)
+	now := time.Now().UTC()
+	if s.repo != nil {
+		if err := s.repo.Revoke(ctx, id, now); err != nil {
+			var kv *common.KNXVaultError
+			if errors.As(err, &kv) && kv.Code == common.ErrCodeNotFound {
+				return common.New(common.ErrCodeUnauthorized, "invalid token")
+			}
+			return err
+		}
+		s.mu.Lock()
+		delete(s.tokens, id)
+		s.mu.Unlock()
+		return nil
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	id := hashToken(token)
 	record, ok := s.tokens[id]
 	if !ok {
 		return common.New(common.ErrCodeUnauthorized, "invalid token")
 	}
 	record.Revoked = true
-	record.ExpiresAt = time.Now().UTC()
+	record.ExpiresAt = now
 	s.tokens[id] = record
 	return nil
 }
 
 // Authenticate validates an opaque client token.
-func (s *TokenStore) Authenticate(token string) (*TokenRecord, error) {
-	s.mu.RLock()
-	record, ok := s.tokens[hashToken(token)]
-	s.mu.RUnlock()
-	if !ok {
+func (s *TokenStore) Authenticate(ctx context.Context, token string) (*TokenRecord, error) {
+	record, err := s.get(ctx, hashToken(token))
+	if err != nil {
 		return nil, common.New(common.ErrCodeUnauthorized, "invalid token")
 	}
 	if record.Revoked {
@@ -130,21 +142,52 @@ func (s *TokenStore) Authenticate(token string) (*TokenRecord, error) {
 	if time.Now().UTC().After(record.ExpiresAt) {
 		return nil, common.New(common.ErrCodeUnauthorized, "token expired")
 	}
-	copy := record
+	copy := *record
 	return &copy, nil
 }
 
 // RegisterRootToken registers a bootstrap token hash.
-func (s *TokenStore) RegisterRootToken(token string, policies []string) {
+func (s *TokenStore) RegisterRootToken(ctx context.Context, token string, policies []string) error {
 	record := TokenRecord{
 		ID:        hashToken(token),
 		Subject:   "root",
 		Policies:  policies,
 		ExpiresAt: time.Now().UTC().Add(365 * 24 * time.Hour),
 	}
+	return s.save(ctx, record)
+}
+
+func (s *TokenStore) save(ctx context.Context, record TokenRecord) error {
+	if s.repo != nil {
+		if err := s.repo.Save(ctx, &record); err != nil {
+			return err
+		}
+	}
 	s.mu.Lock()
 	s.tokens[record.ID] = record
 	s.mu.Unlock()
+	return nil
+}
+
+func (s *TokenStore) get(ctx context.Context, id string) (*TokenRecord, error) {
+	if s.repo != nil {
+		record, err := s.repo.Get(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		s.mu.Lock()
+		s.tokens[id] = *record
+		s.mu.Unlock()
+		return record, nil
+	}
+	s.mu.RLock()
+	record, ok := s.tokens[id]
+	s.mu.RUnlock()
+	if !ok {
+		return nil, common.New(common.ErrCodeNotFound, "token not found")
+	}
+	copy := record
+	return &copy, nil
 }
 
 func hashToken(token string) string {
@@ -159,10 +202,16 @@ type K8sLoginOptions struct {
 	TokenReviewer k8s.TokenReviewer
 }
 
+// RBACSyncer reloads persisted policies into the local RBAC cache.
+type RBACSyncer interface {
+	SyncRBAC(ctx context.Context) error
+}
+
 // Service coordinates authentication flows.
 type Service struct {
 	tokens    *TokenStore
 	rbac      *RBAC
+	rbacSync  RBACSyncer
 	roles     RoleResolver
 	jwtSecret []byte
 	k8s       K8sLoginOptions
@@ -192,14 +241,19 @@ func (s *Service) SetRoleResolver(resolver RoleResolver) {
 	s.roles = resolver
 }
 
+// SetRBACSyncer configures cluster-wide RBAC cache synchronization.
+func (s *Service) SetRBACSyncer(syncer RBACSyncer) {
+	s.rbacSync = syncer
+}
+
 // SetK8sLoginOptions configures Kubernetes login validation.
 func (s *Service) SetK8sLoginOptions(opts K8sLoginOptions) {
 	s.k8s = opts
 }
 
 // LoginWithToken authenticates an opaque token.
-func (s *Service) LoginWithToken(_ context.Context, token string) (*TokenRecord, error) {
-	return s.tokens.Authenticate(token)
+func (s *Service) LoginWithToken(ctx context.Context, token string) (*TokenRecord, error) {
+	return s.tokens.Authenticate(ctx, token)
 }
 
 // LoginKubernetes validates a service account JWT and maps it to a role.
@@ -230,7 +284,7 @@ func (s *Service) LoginKubernetes(ctx context.Context, role, jwtToken string) (s
 	if s.roles != nil {
 		policies = s.roles.PoliciesForRole(ctx, role)
 	}
-	return s.tokens.Issue(subject, policies)
+	return s.tokens.Issue(ctx, subject, policies)
 }
 
 func (s *Service) validateKubernetesJWT(ctx context.Context, role, jwtToken string) (ServiceAccountIdentity, string, error) {
@@ -264,7 +318,7 @@ func (s *Service) validateKubernetesJWT(ctx context.Context, role, jwtToken stri
 	}
 
 	if s.k8s.InsecureDev {
-		return ServiceAccountIdentity{}, role, nil
+		return parseUnverifiedKubernetesJWT(jwtToken, role)
 	}
 
 	if len(s.jwtSecret) > 0 {
@@ -281,18 +335,44 @@ func (s *Service) validateKubernetesJWT(ctx context.Context, role, jwtToken stri
 		if !ok || !parsed.Valid {
 			return ServiceAccountIdentity{}, "", common.New(common.ErrCodeUnauthorized, "invalid kubernetes jwt claims")
 		}
-		subject := role
-		if sub, ok := claims["sub"].(string); ok && sub != "" {
-			subject = sub
-		}
-		return ServiceAccountIdentity{}, subject, nil
+		return identityFromJWTClaims(claims, role)
 	}
 
 	return ServiceAccountIdentity{}, "", common.New(common.ErrCodeUnauthorized, "kubernetes authentication not configured")
 }
 
+func parseUnverifiedKubernetesJWT(jwtToken, role string) (ServiceAccountIdentity, string, error) {
+	parsed, _, err := jwt.NewParser().ParseUnverified(jwtToken, jwt.MapClaims{})
+	if err != nil {
+		return ServiceAccountIdentity{}, "", common.Wrap(common.ErrCodeUnauthorized, "invalid kubernetes jwt", err)
+	}
+	claims, ok := parsed.Claims.(jwt.MapClaims)
+	if !ok {
+		return ServiceAccountIdentity{}, "", common.New(common.ErrCodeUnauthorized, "invalid kubernetes jwt claims")
+	}
+	return identityFromJWTClaims(claims, role)
+}
+
+func identityFromJWTClaims(claims jwt.MapClaims, role string) (ServiceAccountIdentity, string, error) {
+	subject, _ := claims["sub"].(string)
+	if subject == "" {
+		return ServiceAccountIdentity{}, "", common.New(common.ErrCodeUnauthorized, "kubernetes jwt subject is required")
+	}
+	id, ok := ParseServiceAccountUsername(subject)
+	if !ok {
+		return ServiceAccountIdentity{}, "", common.New(common.ErrCodeUnauthorized, "kubernetes jwt subject must be a service account")
+	}
+	if subject == role {
+		subject = fmt.Sprintf("system:serviceaccount:%s:%s", id.Namespace, id.Name)
+	}
+	return id, subject, nil
+}
+
 // Authorize checks RBAC for a principal.
 func (s *Service) Authorize(ctx context.Context, principal Principal, resource, action string) error {
+	if s.rbacSync != nil {
+		_ = s.rbacSync.SyncRBAC(ctx)
+	}
 	req := RequestContext{Resource: resource, Action: action}
 	if existing, ok := RequestContextFromContext(ctx); ok {
 		req = existing
@@ -316,22 +396,22 @@ func (s *Service) Capabilities(principal Principal) []string {
 }
 
 // CreateToken issues a scoped client token (admin).
-func (s *Service) CreateToken(_ context.Context, subject string, policies []string, ttl time.Duration, renewable bool) (string, *TokenRecord, error) {
+func (s *Service) CreateToken(ctx context.Context, subject string, policies []string, ttl time.Duration, renewable bool) (string, *TokenRecord, error) {
 	if subject == "" {
 		subject = "token"
 	}
 	if len(policies) == 0 {
 		return "", nil, common.New(common.ErrCodeValidation, "policies are required")
 	}
-	return s.tokens.Create(subject, policies, ttl, renewable)
+	return s.tokens.Create(ctx, subject, policies, ttl, renewable)
 }
 
 // RenewToken extends the caller token TTL.
-func (s *Service) RenewToken(_ context.Context, token string, increment time.Duration) (*TokenRecord, error) {
-	return s.tokens.Renew(token, increment)
+func (s *Service) RenewToken(ctx context.Context, token string, increment time.Duration) (*TokenRecord, error) {
+	return s.tokens.Renew(ctx, token, increment)
 }
 
 // RevokeToken invalidates the caller token.
-func (s *Service) RevokeToken(_ context.Context, token string) error {
-	return s.tokens.Revoke(token)
+func (s *Service) RevokeToken(ctx context.Context, token string) error {
+	return s.tokens.Revoke(ctx, token)
 }

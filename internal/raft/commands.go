@@ -67,6 +67,11 @@ const (
 	OpIssuedListExpiring = "issued.list_expiring"
 	OpImportSnapshot     = "snapshot.import"
 	OpExportSnapshot     = "snapshot.export"
+	OpTokenSave          = "token.save"
+	OpTokenGet           = "token.get"
+	OpTokenRevoke        = "token.revoke"
+	OpTokenList          = "token.list"
+	OpTokenListExpired   = "token.list_expired"
 )
 
 // readOnlyOps are safe for SyncRead / Lookup; write ops must use Propose.
@@ -98,6 +103,9 @@ var readOnlyOps = map[string]struct{}{
 	OpIssuedList:         {},
 	OpIssuedListExpiring: {},
 	OpExportSnapshot:     {},
+	OpTokenGet:           {},
+	OpTokenList:          {},
+	OpTokenListExpired:   {},
 }
 
 // IsReadOnlyOp reports whether op is permitted on the read path.

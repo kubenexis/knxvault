@@ -9,6 +9,7 @@ import (
 
 	"github.com/kubenexis/knxvault/internal/backup"
 	domainpki "github.com/kubenexis/knxvault/internal/domain/pki"
+	"github.com/kubenexis/knxvault/internal/domain/secrets"
 	"github.com/kubenexis/knxvault/internal/repository/memory"
 )
 
@@ -44,6 +45,61 @@ func TestValidateSnapshotRejectsUnknownPKICA(t *testing.T) {
 	}
 	if err := backup.ValidateSnapshot(snapshot); err == nil {
 		t.Fatal("expected validation error for unknown pki role ca")
+	}
+}
+
+func TestValidateSnapshotRejectsBrokenAuditChain(t *testing.T) {
+	snapshot := &backup.Snapshot{
+		Version: 1,
+		Audit: []backup.AuditRecord{{
+			Timestamp: time.Now().UTC(),
+			Actor:     "admin",
+			Action:    "kv.read",
+			Resource:  "app/db",
+			Status:    "success",
+			Hash:      "invalid",
+		}},
+	}
+	if err := backup.ValidateSnapshot(snapshot); err == nil {
+		t.Fatal("expected audit chain validation error")
+	}
+}
+
+func TestRestoreReplacesExistingState(t *testing.T) {
+	ctx := context.Background()
+	caRepo := memory.NewCARepository()
+	secretRepo := memory.NewSecretRepository()
+	now := time.Now().UTC()
+	_ = secretRepo.SaveVersion(ctx, &secrets.SecretVersion{
+		ID:        uuid.New(),
+		Path:      "stale",
+		Version:   1,
+		DataEnc:   []byte("old"),
+		DEKEnc:    []byte("dek"),
+		CreatedAt: now,
+	})
+
+	snapshot := &backup.Snapshot{
+		Version: 1,
+		Secrets: []backup.SecretRecord{{
+			ID:        uuid.New(),
+			Path:      "fresh",
+			Version:   1,
+			DataEnc:   []byte("new"),
+			DEKEnc:    []byte("dek"),
+			CreatedAt: now,
+		}},
+	}
+	target := backup.Repos{CA: caRepo, Secret: secretRepo}
+	if err := backup.Restore(ctx, target, snapshot); err != nil {
+		t.Fatalf("Restore() = %v", err)
+	}
+	versions, err := secretRepo.ListByPath(ctx, "")
+	if err != nil {
+		t.Fatalf("ListByPath() = %v", err)
+	}
+	if len(versions) != 1 || versions[0].Path != "fresh" {
+		t.Fatalf("unexpected secrets after replace restore: %+v", versions)
 	}
 }
 

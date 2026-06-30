@@ -247,3 +247,25 @@ func roleToDomain(rec RoleRecord) *domainauth.Role {
 		BoundServiceAccountNamespaces: rec.BoundServiceAccountNamespaces,
 	}
 }
+
+func tokenFromDomain(token *domainauth.ClientToken) TokenRecord {
+	return TokenRecord{
+		ID:        token.ID,
+		Subject:   token.Subject,
+		Policies:  append([]string(nil), token.Policies...),
+		ExpiresAt: token.ExpiresAt,
+		Renewable: token.Renewable,
+		Revoked:   token.Revoked,
+	}
+}
+
+func tokenToDomain(rec TokenRecord) *domainauth.ClientToken {
+	return &domainauth.ClientToken{
+		ID:        rec.ID,
+		Subject:   rec.Subject,
+		Policies:  rec.Policies,
+		ExpiresAt: rec.ExpiresAt,
+		Renewable: rec.Renewable,
+		Revoked:   rec.Revoked,
+	}
+}

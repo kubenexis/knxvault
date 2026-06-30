@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/kubenexis/knxvault/internal/infra/hostidentity"
 )
@@ -15,6 +16,7 @@ const (
 	defaultRaftElectionRTT    = 10
 	defaultRaftHeartbeatRTT   = 1
 	defaultRaftRTTMillisecond = 1
+	defaultRaftLeaderWait     = 10 * time.Second
 )
 
 // RaftConfig configures the Dragonboat-backed storage backend.
@@ -33,6 +35,7 @@ type RaftConfig struct {
 	MTLSCertFile      string
 	MTLSKeyFile       string
 	MTLSCAFile        string
+	LeaderWait        time.Duration
 }
 
 // Validate checks Raft settings when enabled.
@@ -60,6 +63,7 @@ func (r RaftConfig) Validate() error {
 
 func loadRaftConfig() (RaftConfig, error) {
 	cfg := RaftConfig{
+		LeaderWait:        defaultRaftLeaderWait,
 		RaftAddress:       envOr("KNXVAULT_RAFT_ADDRESS", defaultRaftAddress),
 		ListenAddress:     strings.TrimSpace(os.Getenv("KNXVAULT_RAFT_LISTEN_ADDRESS")),
 		DataDir:           envOr("KNXVAULT_RAFT_DATA_DIR", defaultRaftDataDir),
@@ -110,6 +114,14 @@ func loadRaftConfig() (RaftConfig, error) {
 			return RaftConfig{}, fmt.Errorf("KNXVAULT_RAFT_RTT_MILLISECOND: %w", err)
 		}
 		cfg.RTTMillisecond = val
+	}
+
+	if v := os.Getenv("KNXVAULT_RAFT_LEADER_WAIT"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return RaftConfig{}, fmt.Errorf("KNXVAULT_RAFT_LEADER_WAIT: %w", err)
+		}
+		cfg.LeaderWait = d
 	}
 
 	if v := os.Getenv("KNXVAULT_RAFT_JOIN"); v != "" {
