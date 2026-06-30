@@ -2,6 +2,8 @@
 
 Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topologically sorted by dependency** — implement in listed order within each phase.
 
+**Current focus:** [Phase 4 — Production hardening](#phase-4--production-hardening-gap-closure) (W36-01–W36-24) closes gaps from the 2026-06 codebase review. Phase 5 (W30–W35) ecosystem work follows.
+
 **Legend**
 
 | Field | Meaning |
@@ -138,9 +140,66 @@ Embedded [Dragonboat](https://github.com/lni/dragonboat) Raft cluster for produc
 
 ---
 
-## Phase 4 — Ecosystem (planned)
+## Phase 4 — Production hardening (gap closure)
 
-High-level scope from LLD §9.4. Phase 3 is complete; detailed design in [`docs/design/phase4-ecosystem.md`](design/phase4-ecosystem.md).
+Items below come from a **2026-06 codebase gap analysis** (Phases 1–3 complete; not production-hardened). Implement **in listed order** within each tier before starting Phase 5 ecosystem work. Descriptions include **file hints** (`path:symbol`) to start quickly.
+
+### Tier A — Security blockers (do first)
+
+| ID | Title | Area | Effort | Depends on | Description | Acceptance criteria |
+|----|-------|------|--------|------------|-------------|---------------------|
+| **W36-01** | Fail closed on K8s login without JWT validation | security | S | W7-03 | **Hint:** `internal/auth/token.go:LoginKubernetes` — when `len(s.jwtSecret)==0`, it currently issues tokens with **no** JWT crypto check (any `role` + arbitrary JWT string works). Reject with `401` unless a validation path is configured. Add `config` guard: production (`KNXVAULT_RAFT_ENABLED=true`) must not allow unvalidated K8s login. | Unit test: empty `KNXVAULT_JWT_SECRET` + `POST /auth/kubernetes` → `401`. Dev mode (`RAFT_ENABLED=false`) may keep opt-in bypass behind explicit `KNXVAULT_K8S_AUTH_INSECURE=true`. |
+| **W36-02** | Kubernetes TokenReview authentication | auth | M | W36-01 | **Hint:** Replace HS256 stub in `internal/auth/token.go:LoginKubernetes` (lines 137–154) with `authentication.k8s.io/v1` **TokenReview** via client in `internal/infra/k8s/`. Real SA tokens are RS256 from the API server — HS256 + `KNXVAULT_JWT_SECRET` is dev-only. Parse `status.user.username`, `groups`, SA namespace/name from review response. Wire SA token from `Authorization: Bearer` or request body `jwt`. | Integration test with fake TokenReview server OR env-gated live cluster test. Real K8s SA JWT (RS256) authenticates; forged JWT rejected. Update `docs/architecture/security-model.md` to distinguish dev HS256 vs prod TokenReview. |
+| **W36-03** | ServiceAccount binding on roles | auth | M | W36-02 | **Hint:** Docs mention `bound_service_account_names` / `bound_service_account_namespaces` (`docs/user/getting-started.md`) but `internal/domain/auth/role.go` has no fields. Extend `Role` domain + Raft `role.save` payload; after TokenReview, match `system:serviceaccount:<ns>:<name>` against role bindings before `tokens.Issue`. | Role bound to `app` SA in `prod` ns: login with matching SA succeeds; wrong SA or namespace → `403`. Persisted via Raft; unit + integration tests. |
+| **W36-04** | Require master key when Raft enabled | security | S | W3-01, W26-01 | **Hint:** `internal/app/deps.go:76–85` logs a warn and continues without crypto when `masterkey.Load()` fails. ADR-0003 says master key required. In `NewDependencies`, return error (fail startup) when `cfg.Raft.Enabled && deps.Crypto == nil`. In-memory dev mode (`RAFT_ENABLED=false`) may remain permissive. | `KNXVAULT_RAFT_ENABLED=true` without `KNXVAULT_MASTER_KEY` → process exits non-zero. Existing `deps_test` updated. Document in `docs/installation/configuration.md`. |
+| **W36-05** | Atomic KV write in Raft state machine | storage | M | W25-01 | **Hint:** Race in `internal/engine/secrets/kvv2.go` — `NextVersion` then `SaveVersion` are **two** Raft ops; `OpSecretNextVersion` is read-only (`internal/raft/commands.go:73`). Add `secret.put` command: allocate version + CAS check + save inside `internal/raft/store.go:Handle` in one `Update`. Dragonboat repo: single `Propose` from `internal/repository/dragonboat/repo.go`. Deprecate split path or retry on `version already exists`. | Concurrent `Put` same path (10 goroutines) under 3-node Raft: all versions unique, no lost writes. `internal/raft/store_test.go` covers atomic put. |
+
+### Tier B — Raft correctness & HA confidence
+
+| ID | Title | Area | Effort | Depends on | Description | Acceptance criteria |
+|----|-------|------|--------|------------|-------------|---------------------|
+| **W36-06** | Include audit log in Dragonboat snapshots | storage | M | W25-01 | **Hint:** `internal/raft/statemachine.go:SaveSnapshot` calls `store.ExportSnapshot(false)` — audit entries are **dropped** after log compaction/recovery. Change to `ExportSnapshot(true)` or add config flag. Extend `internal/raft/statemachine_test.go` to assert audit count round-trips. Align `docs/storage/dragonboat.md` with behavior. | SaveSnapshot → RecoverFromSnapshot preserves audit entries. 3-node test: append audit, trigger snapshot, restart follower, audit list non-empty. |
+| **W36-07** | Validate snapshot before `snapshot.import` | storage | S | W27-01 | **Hint:** `internal/raft/store.go:ImportSnapshot` calls `backup.Restore` directly; `backup.ValidateSnapshot` (`internal/backup/import.go:139`) is never invoked on Raft path. Call `ValidateSnapshot` in `SnapshotImporter` (`internal/raft/snapshot.go`) and `BackupService.Restore` before propose. Reject malformed parent CA refs, bad version. | `POST /sys/restore` with corrupt snapshot → `400` and state unchanged. Unit test on `Store.ImportSnapshot`. |
+| **W36-08** | Consistent backup export (single Raft read) | storage | M | W27-01 | **Hint:** `backup.Export` (`internal/backup/export.go`) issues many separate `SyncRead`/list calls — torn snapshot across entity types. Add `OpExportSnapshot` read-only command in `internal/raft/commands.go` + `store.go` that serializes full state from state machine memory in one `Lookup`. `BackupService.Create` uses it when Raft enabled. | Export during concurrent writes: restored snapshot is self-consistent (all cross-refs valid). Test: write CA + secret, export mid-batch, validate graph. |
+| **W36-09** | Align leader status with live Raft role | k8s | S | W26-02 | **Hint:** `internal/raft/leader.go:LeaderElector.IsLeader` uses 500ms poll cache; `internal/raft/events.go` updates metrics from Dragonboat `LeaderUpdated` — HTTP `/health` `leader` can disagree with `knxvault_raft_leader`. Expose `client.IsLeader()` / `LeaderID()` directly on `Dependencies.IsLeader()` when Raft enabled; or share atomic from `events.go`. | After forced leader step-down, `/health` `leader` and Prometheus gauge agree within one heartbeat RTT. Test in `internal/raft/leader_test.go`. |
+| **W36-10** | Dragonboat repository adapter tests | ci | M | W26-01 | **Hint:** `internal/repository/dragonboat/repo.go` (~350 lines) has **zero** `*_test.go`. Add table-driven tests with mock `raftClient` interface (extract from concrete `*raft.Client` if needed): `Propose` error propagation, `DecodeResult` not-found, read-only op routing. | `go test ./internal/repository/dragonboat/...` passes; covers save/get/list for CA and secret repos. |
+| **W36-11** | Raft leader failover integration test | ci | M | W28-01 | **Hint:** `test/integration/raft_test.go` only tests happy-path CA write + follower read; assertion passes on any non-empty JSON (including errors). Add `TestRaftLeaderFailover`: 3 nodes, write secret, stop leader NodeHost, wait for new leader, write again, read from all replicas. Decode `DecodeResult` / verify payload fields. | `make test-integration` includes failover test; fails if quorum lost >30s. Document timeout tuning in test comments. |
+| **W36-12** | HTTP API integration tests with Raft enabled | ci | M | W26-01, W36-11 | **Hint:** `test/integration/api_test.go:32` sets `KNXVAULT_RAFT_ENABLED=false`. Add `api_raft_test.go`: single-node or 3-node Raft, run existing health/secrets/auth flows against Raft-backed deps. Mirror `newTestRouter` helper with `config.Load` + real `app.NewDependencies`. | PKI + KV round-trip passes with `RAFT_ENABLED=true`. CI runs both memory and Raft suites. |
+
+### Tier C — Auth, tokens & RBAC polish
+
+| ID | Title | Area | Effort | Depends on | Description | Acceptance criteria |
+|----|-------|------|--------|------------|-------------|---------------------|
+| **W36-13** | Persist client tokens in Raft | auth | L | W25-02, W36-02 | **Hint:** `internal/auth/token.go:TokenStore` is in-memory only (`internal/app/deps.go:155`) — tokens lost on restart, not HA-safe. Add `token.save` / `token.get` / `token.revoke` Raft commands; optional TTL index for cleanup job. Issue flow proposes to Raft when enabled. | Issue token on node A, restart node A, token still authenticates on node B. Leader job expires TTL'd tokens. |
+| **W36-14** | Wire `namespace` RBAC condition | auth | S | W13-01 | **Hint:** `internal/auth/evaluator.go:51–55` evaluates `namespace` condition but `internal/api/middleware/auth.go:40–42` never sets `RequestContext.Namespace`. Populate from `X-KNX-Namespace` header (optional, pre–W32) or K8s TokenReview SA namespace. | Policy with `namespace: prod` denies request without header; allows with `X-KNX-Namespace: prod`. Test in `evaluator_test.go` + middleware test. |
+| **W36-15** | Fix `knxvault_active_leases` metric semantics | docs | S | W15-02 | **Hint:** `internal/app/jobs.go:114` sets `knxvault_active_leases` to cleanup **batch size**, not cluster-wide active lease count. Add `LeaseRepository.CountActive` (memory + dragonboat) or gauge from `List` length on leader tick. Update `docs/metrics.md` + `deployments/grafana/knxvault-overview.json`. | Metric reflects active leases; increments on creds generate, decrements on expire/revoke. |
+| **W36-16** | Leader election loop health & job gating | k8s | S | W26-02 | **Hint:** If `LeaderElector.Run` fails silently (`internal/app/jobs.go:47–55`), background jobs stop with only a warn. Add metric `knxvault_leader_election_running`; escalate to error log + `/ready` 503 when loop exits. Ensure `JobRunner` no-ops when `!client.IsLeader()` as double-check. | Kill leader election goroutine in test → `/ready` not ready; jobs do not run on follower. |
+
+### Tier D — Features documented but missing
+
+| ID | Title | Area | Effort | Depends on | Description | Acceptance criteria |
+|----|-------|------|--------|------------|-------------|---------------------|
+| **W36-17** | Master key rotation API | crypto | L | W3-02, W36-04 | **Hint:** LLD §7.2 `/sys/rotate` and CLI `knxvault sys rotate-master-key` documented but absent. Extend `internal/crypto/service.go` with keyring (versioned master keys); add `POST /sys/rotate-master-key` in `internal/api/router.go` + handler; re-encrypt DEKs in background job (`internal/app/jobs.go`). ADR-0003 follow-up. | Rotate accepts new base64 key; old secrets decryptable during transition; new writes use new key. CLI command works. |
+| **W36-18** | Managed database credentials execution mode | crypto | L | W12-01 | **Hint:** `internal/domain/secrets/database_role_config.go:119` rejects `managed`; `admin_credentials_path` validated but never read. Implement: fetch KV at path via `SecretsEngine`, parse `connection_url`, execute `CreationStatements`/`RevocationStatements` with `database/sql` (or pgx/mysql drivers). Gate behind `execution_mode: managed`. Client mode remains default. See `docs/deploy/database-credentials.md`. | `POST /secrets/database/creds/:role` with `managed` role creates real DB user; revoke runs revocation SQL. Integration test with testcontainers MySQL. |
+| **W36-19** | Return revocation SQL on lease revoke (client mode) | api | S | W12-01 | **Hint:** `internal/engine/secrets/database/engine.go:265–284` `RevokeLease` does not return `RevocationStatements` templates. Extend API response DTO (`internal/api/dto/database.go`) with `revocation_statements` for operators to run manually. | `PUT /secrets/database/revoke/:id` returns SQL strings when role defines them. |
+| **W36-20** | Wire `EngineRegistry` at startup | api | S | W6-01 | **Hint:** `internal/engine/registry.go` exists, only used in `registry_test.go`. Register KVv2 + database engines in `internal/app/deps.go`; route future engines through registry. | Registry lists 2 engines; no behavior change for existing API. |
+| **W36-21** | CLI parity for Day-2 operations | docs | M | W20-01 | **Hint:** CLI has `health`, `kv`, `pki`, `backup` only (`cmd/knxvault-cli/cmd/`). Add: `sys policies` CRUD, `sys roles`, `audit export`, `secrets database roles/creds`, `sys rotate-master-key` (after W36-17). Reuse `pkg/client/client.go`. Update `docs/cli/reference.md`. | Each documented CLI command in LLD §11 has working cobra subcommand. |
+| **W36-22** | LLD / security-model doc reconciliation | docs | S | W36-01, W36-02, W36-04 | **Hint:** `docs/lld.md` still claims TokenReview (done), `/sys/rotate` (missing), mTLS (Phase 5). Audit `docs/architecture/security-model.md`, `docs/lld.md` §7 against code; add "implemented / planned / dev-only" labels. | No doc claims production feature that code lacks without "planned" tag. |
+
+### Tier E — Deferred alongside Phase 5
+
+| ID | Title | Area | Effort | Depends on | Description | Acceptance criteria |
+|----|-------|------|--------|------------|-------------|---------------------|
+| **W36-23** | Dynamic Raft cluster membership | storage | XL | W28-02 | **Hint:** `internal/raft/nodehost.go` only `StartCluster` at boot with fixed `KNXVAULT_RAFT_INITIAL_MEMBERS`. No add/remove peer API. Research Dragonboat `NodeHost.RequestAddNode` / `RequestDeleteNode`; document rolling expand/shrink in `docs/operations/runbooks/scaling.md`. | Add 4th node via API; quorum maintained; documented rollback. |
+| **W36-24** | Vault seal / unseal operational mode | security | L | W36-17 | **Hint:** LLD mentions `knxvault admin seal/unseal` — not implemented. Add sealed state in `internal/app/` blocking crypto + mutating API until unseal key provided. Distinct from envelope `crypto.Seal()`. | `POST /sys/seal` returns 503 on writes; unseal restores. CLI commands. |
+
+> **Phase 5 dependency note:** Ecosystem items **W34-01** (mTLS) and **W32-**\* (multi-tenancy) should follow **W36-01–W36-04** (auth + crypto hardening). **W36-13** (token persistence) should precede **W34-02** (client cert issuance).
+
+---
+
+## Phase 5 — Ecosystem (planned)
+
+High-level scope from LLD §9.4. Phase 3 is complete; Phase 4 hardening recommended first. Detailed design in [`docs/design/phase4-ecosystem.md`](design/phase4-ecosystem.md).
 
 | ID | Title | Area | Effort | Depends on | Description | Acceptance criteria |
 |----|-------|------|--------|------------|-------------|---------------------|
@@ -165,7 +224,7 @@ Deferred packaging and ecosystem work — not scheduled for Phase 1 MVP.
 
 | Item | Area | Rationale |
 |------|------|-----------|
-| **Terraform provider** | docs | Infrastructure-as-code integration deferred; not a near-term focus. Revisit after Phase 4 ecosystem items stabilize. |
+| **Terraform provider** | docs | Infrastructure-as-code integration deferred; not a near-term focus. Revisit after Phase 5 ecosystem items stabilize. |
 | **Helm chart** | k8s | Install UX and values templating deferred until core API, auth, and raw K8s deploy path are stable. Target: post–Phase 1 (Phase 2+). See LLD §6.1 for intended chart structure. |
 | Helm hooks (pre-upgrade backup) | k8s | Depends on Helm chart. |
 | Grafana dashboards bundled in chart | docs | Depends on Helm chart + W10 metrics. |
