@@ -2,7 +2,7 @@
 
 Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topologically sorted by dependency** — implement in listed order within each phase.
 
-**Current focus:** [Tier 0 — Secrets manager checklist](#tier-0--secrets-manager-checklist-priority-0) (W37-01–W37-12) closes market-fit gaps vs. enterprise secrets managers. Then [Tier A–E hardening](#tier-a--security-blockers-do-first) (W36-01–W36-24). Phase 5 (W30–W35) ecosystem work follows.
+**Current focus:** [Tier 0 — Secrets manager checklist](#tier-0--secrets-manager-checklist-priority-0) (W37-01–W37-11) closes market-fit gaps vs. enterprise secrets managers. Then [Tier A–E hardening](#tier-a--security-blockers-do-first) (W36-01–W36-24). Phase 5 (W30–W35) ecosystem work follows.
 
 **Legend**
 
@@ -158,12 +158,11 @@ Items below come from a **2026-06 codebase gap analysis** (Phases 1–3 complete
 | **W37-06** | Automated rotation | End-to-end rotation orchestration | crypto | L | W37-05, W36-18 | **Gap:** DB engine returns SQL (client mode); managed mode missing; no unified “rotate and notify consumers” flow. **Hint:** After W36-18 managed DB mode: rotation job calls `database.Engine.RotateLease` for leases nearing expiry. Add `POST /sys/rotation/run` (admin) to trigger all engines. Webhook notifier interface `internal/notify/webhook.go` — POST JSON `{event, path, lease_id}` on rotation success (K8s Job, Argo, custom). Wire optional `rotation_webhook_url` in ConfigMap. | DB lease auto-renewed before TTL; KV rotated per W37-05; webhook receives event; audit trail links old→new version/lease. |
 | **W37-07** | Exposure detection | Secret exposure webhook & auto-remediation hooks | security | L | W37-05, W36-17 | **Gap:** No integration with secret scanners (GitGuardian, Gitleaks, TruffleHog) — vault cannot react to leaks in repos/logs/chat. **Hint:** `POST /sys/exposure/report` (HMAC-signed or mTLS) accepts `{detector, fingerprint, secret_path?, lease_id?, severity}`. Handler audits `exposure.reported`, optionally: (1) revoke DB lease, (2) trigger W37-05 rotation for KV path, (3) fire webhook. Config `exposure_auto_revoke: true`. Document pairing with external scanners in `docs/integration/exposure-detection.md` (new). **Out of scope:** building a scanner — integration only. | Simulated report revokes lease + rotates KV; audit shows remediation actions. Unsigned report rejected. |
 | **W37-08** | Integrations | Helm chart (production install) | k8s | M | W28-02, W37-01 | **Gap:** Only raw manifests (`deployments/k8s/`); Helm deferred since Phase 1. **Hint:** Scaffold `deployments/helm/knxvault/` per LLD §6.1: `values.yaml` with `raft.*`, `persistence`, `tls`, `resources`; StatefulSet template from `statefulset.yaml`; optional `pre-upgrade` Job hook calling `POST /sys/backup`. Move long-term future item into active delivery. | `helm install` brings 3-node Raft cluster; `helm upgrade` runs backup hook; README updated. |
-| **W37-09** | Integrations | Terraform provider scaffold | docs | L | W37-08 | **Gap:** No IaC provider — operators must script REST. **Hint:** New repo or `terraform-provider-knxvault/` with `hashicorp/terraform-plugin-framework`. Resources: `knxvault_kv_secret`, `knxvault_policy`, `knxvault_pki_root` (read-only CA data source). Auth via `KNXVAULT_TOKEN` env. Publish install docs in `docs/integration/terraform.md`. | `terraform apply` creates KV secret and policy; `terraform destroy` removes. CI acceptance test against single-node dev server. |
-| **W37-10** | Integrations | Multi-language SDK via OpenAPI codegen | docs | M | W8-03 | **Gap:** Only Go `pkg/client` — no officially blessed Python/Node/Java clients. **Hint:** Add `make generate-clients` using `openapi-generator` against `api/openapi.yaml`; output to `clients/python`, `clients/typescript` (or separate repos). Pin generated version to release tag. Extend `pkg/client` coverage to match full OpenAPI (policies, database, audit). Document in `docs/integration/overview.md`. | Python + TS clients pass smoke tests (health, kv put/get, auth). CI job verifies codegen drift. |
-| **W37-11** | Dynamic credentials | Cloud dynamic secrets engine (AWS IAM scaffold) | crypto | XL | W37-02, W36-20 | **Gap:** Only database dynamic engine (`internal/engine/secrets/database/`); no AWS/GCP/Azure on-demand creds. **Hint:** New `internal/engine/secrets/aws/` implementing `SecretEngine` — role config: `iam_role_arn`, `ttl`, `policy_document`. Use AWS SDK `sts:AssumeRole` with OIDC/web-identity from W37-02 or static vault IAM user (discouraged, documented). Register in `EngineRegistry`. API: `POST /secrets/aws/creds/:role`. Start with AWS; stub interfaces for GCP/Azure. | `POST /secrets/aws/creds/deploy` returns temporary AKIA… + session token; lease revoke invalidates (document STS limits). |
-| **W37-12** | Checklist / docs | Secrets manager capability matrix | docs | S | W37-01–W37-07 | **Gap:** No single doc mapping product vs. evaluation checklist. **Hint:** Add `docs/product/secrets-manager-checklist.md` — table: criterion → status (yes/partial/planned) → backlog ID → doc link. Update `docs/README.md` index. Reconcile after each W37 ship. | Matrix covers all 10 checklist items; no “implemented” without code or ADR reference. |
+| **W37-09** | Integrations | Multi-language SDK via OpenAPI codegen | docs | M | W8-03 | **Gap:** Only Go `pkg/client` — no officially blessed Python/Node/Java clients. **Hint:** Add `make generate-clients` using `openapi-generator` against `api/openapi.yaml`; output to `clients/python`, `clients/typescript` (or separate repos). Pin generated version to release tag. Extend `pkg/client` coverage to match full OpenAPI (policies, database, audit). Document in `docs/integration/overview.md`. | Python + TS clients pass smoke tests (health, kv put/get, auth). CI job verifies codegen drift. |
+| **W37-10** | Dynamic credentials | Cloud dynamic secrets engine (AWS IAM scaffold) | crypto | XL | W37-02, W36-20 | **Gap:** Only database dynamic engine (`internal/engine/secrets/database/`); no AWS/GCP/Azure on-demand creds. **Hint:** New `internal/engine/secrets/aws/` implementing `SecretEngine` — role config: `iam_role_arn`, `ttl`, `policy_document`. Use AWS SDK `sts:AssumeRole` with OIDC/web-identity from W37-02 or static vault IAM user (discouraged, documented). Register in `EngineRegistry`. API: `POST /secrets/aws/creds/:role`. Start with AWS; stub interfaces for GCP/Azure. | `POST /secrets/aws/creds/deploy` returns temporary AKIA… + session token; lease revoke invalidates (document STS limits). |
+| **W37-11** | Checklist / docs | Secrets manager capability matrix | docs | S | W37-01–W37-07 | **Gap:** No single doc mapping product vs. evaluation checklist. **Hint:** Add `docs/product/secrets-manager-checklist.md` — table: criterion → status (yes/partial/planned) → backlog ID → doc link. Update `docs/README.md` index. Reconcile after each W37 ship. | Matrix covers all 10 checklist items; no “implemented” without code or ADR reference. |
 
-> **Tier 0 sequencing:** **W37-01** (TLS) + **W37-02** (OIDC) unblock most NHI/dynamic-cred work. **W37-07** (exposure) can start after rotation hooks (**W37-05**). **W37-08–W37-10** (integrations) can parallelize once Tier A auth blockers (**W36-01–W36-04**) land. **At rest encryption** is already implemented (envelope + Raft); no W37 item — maintain via **W36-04**.
+> **Tier 0 sequencing:** **W37-01** (TLS) + **W37-02** (OIDC) unblock most NHI/dynamic-cred work. **W37-07** (exposure) can start after rotation hooks (**W37-05**). **W37-08–W37-09** (Helm + SDKs) can parallelize once Tier A auth blockers (**W36-01–W36-04**) land. **At rest encryption** is already implemented (envelope + Raft); no W37 item — maintain via **W36-04**. **Terraform** is deferred to [long-term future](#long-term-future) (**LT-01**).
 
 ### Tier A — Security blockers (do first)
 
@@ -214,7 +213,7 @@ Items below come from a **2026-06 codebase gap analysis** (Phases 1–3 complete
 | **W36-23** | Dynamic Raft cluster membership | storage | XL | W28-02 | **Hint:** `internal/raft/nodehost.go` only `StartCluster` at boot with fixed `KNXVAULT_RAFT_INITIAL_MEMBERS`. No add/remove peer API. Research Dragonboat `NodeHost.RequestAddNode` / `RequestDeleteNode`; document rolling expand/shrink in `docs/operations/runbooks/scaling.md`. | Add 4th node via API; quorum maintained; documented rollback. |
 | **W36-24** | Vault seal / unseal operational mode | security | L | W36-17 | **Hint:** LLD mentions `knxvault admin seal/unseal` — not implemented. Add sealed state in `internal/app/` blocking crypto + mutating API until unseal key provided. Distinct from envelope `crypto.Seal()`. | `POST /sys/seal` returns 503 on writes; unseal restores. CLI commands. |
 
-> **Phase 5 dependency note:** **W37-01** supersedes **W34-01** (mTLS) in priority. **W32-**\* (multi-tenancy) should follow **W37-03** / **W36-14**. **W36-13** (token persistence) should precede **W34-02** (client cert issuance). **W37-09** supersedes long-term **Terraform provider** deferral.
+> **Phase 5 dependency note:** **W37-01** supersedes **W34-01** (mTLS) in priority. **W32-**\* (multi-tenancy) should follow **W37-03** / **W36-14**. **W36-13** (token persistence) should precede **W34-02** (client cert issuance).
 
 ---
 
@@ -241,11 +240,16 @@ High-level scope from LLD §9.4. Phase 3 is complete; Phase 4 hardening recommen
 
 ## Long-term future
 
-Deferred packaging and ecosystem work — not scheduled for Phase 1 MVP.
+Deferred packaging and ecosystem work — not scheduled for Tier 0 / Phase 4–5 near-term delivery. Revisit after **W37** checklist items and **W36** hardening stabilize.
 
 | Item | Area | Rationale |
 |------|------|-----------|
-| **Terraform provider** | docs | Active delivery tracked as **W37-09** (Tier 0). |
-| **Helm chart** | k8s | Install UX and values templating deferred until core API, auth, and raw K8s deploy path are stable. Target: post–Phase 1 (Phase 2+). See LLD §6.1 for intended chart structure. |
-| Helm hooks (pre-upgrade backup) | k8s | Depends on Helm chart. |
-| Grafana dashboards bundled in chart | docs | Depends on Helm chart + W10 metrics. |
+| **Helm chart** | k8s | Active delivery tracked as **W37-08** (Tier 0). Hooks remain below. |
+| Helm hooks (pre-upgrade backup) | k8s | Depends on **W37-08** Helm chart. |
+| Grafana dashboards bundled in chart | docs | Depends on **W37-08** Helm chart + W10 metrics. |
+
+### Long-term backlog (detailed)
+
+| ID | Title | Area | Effort | Depends on | Description | Acceptance criteria |
+|----|-------|------|--------|------------|-------------|---------------------|
+| **LT-01** | Terraform provider | docs | L | W37-08, Phase 5 stable | **Gap:** No IaC provider — operators must script REST or use `knxvault-cli`. **Hint:** New repo or `terraform-provider-knxvault/` using `hashicorp/terraform-plugin-framework`. Initial resources: `knxvault_kv_secret`, `knxvault_policy`, `knxvault_pki_root` (data source). Auth via provider `token` or `KNXVAULT_TOKEN` env. Publish `docs/integration/terraform.md`. Defer until Helm (**W37-08**) and core API auth (**W36-02**) are production-ready. | `terraform apply` creates KV secret and policy; `terraform destroy` removes. CI acceptance test against single-node dev server. |
