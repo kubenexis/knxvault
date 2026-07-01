@@ -19,7 +19,7 @@ Use this checklist before promoting KNXVault to production secrets management wo
 | Criterion | Status | Backlog | Doc |
 |-----------|--------|---------|-----|
 | Memory lock (`mlock`) for root keys | ⏳ Planned | W41-01 | [poc-evaluation-guide.md](poc-evaluation-guide.md) |
-| Cloud KMS auto-unseal | ⏳ Planned | W41-03, W41-04 | [poc-evaluation-guide.md](poc-evaluation-guide.md) |
+| Cloud KMS auto-unseal (AWS/GCP/Azure) | ⏳ Long-term | LT-14, LT-15 | [backlog.md](../backlog.md) |
 | Shamir threshold unseal | ⏳ Planned | W41-05 | [backlog.md](../backlog.md) |
 | Hierarchical token cascade revoke | ⏳ Planned | W41-06 | [backlog.md](../backlog.md) |
 | OIDC group/claim → policy mapping | ⏳ Planned | W41-07 | [backlog.md](../backlog.md) |

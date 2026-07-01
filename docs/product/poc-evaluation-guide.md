@@ -40,7 +40,7 @@ KNXVault is a **Kubernetes-native secrets manager and internal PKI** platform:
 | Dynamic database credentials | **Yes** | Client or managed execution mode |
 | Multi-tenant regulated production (SOC2/PCI/HIPAA) | **No** | Requires compensating controls + roadmap items |
 | Air-gap without image rebuild discipline | **Partial** | See [air-gap patching runbook](../backlog.md) (**W41-12**) |
-| Cloud KMS auto-unseal (no plaintext master key in Pod spec) | **No** | **W41-03** — use sealed Secrets for PoC |
+| Cloud KMS auto-unseal (no plaintext master key in Pod spec) | **No** | **LT-14**, **LT-15** — use sealed Secrets for PoC |
 | Shamir threshold unseal | **No** | **W41-05** — single unseal key today |
 | Hierarchical token cascade revoke | **No** | **W41-06** — per-token revoke only |
 | OIDC AD group → policy mapping | **No** | **W41-07** — static role policies only |
@@ -170,8 +170,8 @@ Capabilities requested in enterprise security reviews map to backlog items:
 |------------|-----------------|---------|----------------|
 | `mlock` for master/unseal keys | Gap | **W41-01** | v1.0 GA |
 | Universal sensitive-buffer zeroing | Partial | **W41-02** | v1.0 GA |
-| AWS KMS auto-unseal | Gap | **W41-03** | v1.1 |
-| GCP/Azure KMS auto-unseal | Gap | **W41-04** | v1.1 |
+| AWS KMS auto-unseal | Gap | **LT-14** | Long-term |
+| GCP/Azure KMS auto-unseal | Gap | **LT-15** | Long-term |
 | Shamir k-of-n unseal | Gap | **W41-05** | v1.2 |
 | Hierarchical token cascade revoke | Gap | **W41-06** | v1.1 |
 | OIDC group → policy mapping | Gap | **W41-07** | v1.1 |
@@ -234,7 +234,7 @@ For regulated PoCs, request a **joint architecture session** covering TokenRevie
 |------------------|----------|-----------------|----------|
 | K8s-native secrets + PKI | ✅ | With compensating controls | v1.0 GA for hardening |
 | No OpenSSL subprocess | ❌ | ❌ | W41-09 (v1.2) |
-| KMS auto-unseal | ❌ | ❌ | W41-03 (v1.1) |
+| KMS auto-unseal | ❌ | ❌ | LT-14, LT-15 (long-term) |
 | Shamir unseal | ❌ | ❌ | W41-05 (v1.2) |
 | AD group OIDC mapping | ❌ | ❌ | W41-07 (v1.1) |
 | External DB storage (Aurora) | ❌ | ❌ | Not planned (LT-13) |
