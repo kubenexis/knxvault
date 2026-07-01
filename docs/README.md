@@ -13,7 +13,7 @@ Version-controlled documentation for architects, operators, developers, and inte
 | [Security model](architecture/security-model.md) | Security / SRE | Threat model, crypto, auth, audit |
 | [Dragonboat storage](storage/dragonboat.md) | Engineers | Raft topology, command catalog, snapshots |
 | [Phase 4 design](design/phase4-ecosystem.md) | Engineers | Ecosystem roadmap and wave breakdown |
-| [ADRs](adr/README.md) | Engineers | Architecture decision records |
+| [ADRs](adr/README.md) | Engineers | Architecture decision records (incl. [seal/unseal ADR-0006](adr/0006-seal-unseal-strategies.md)) |
 
 ## Installation & configuration
 

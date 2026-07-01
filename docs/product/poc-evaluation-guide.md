@@ -41,7 +41,8 @@ KNXVault is a **Kubernetes-native secrets manager and internal PKI** platform:
 | Multi-tenant regulated production (SOC2/PCI/HIPAA) | **No** | Requires compensating controls + roadmap items |
 | Air-gap without image rebuild discipline | **Partial** | See [air-gap patching runbook](../backlog.md) (**W41-12**) |
 | Cloud KMS auto-unseal (no plaintext master key in Pod spec) | **No** | **LT-14**, **LT-15** — use sealed Secrets for PoC |
-| Shamir threshold unseal | **No** | **W41-05** — single unseal key today |
+| Shamir threshold unseal (unseal key only) | **No** | **W41-05** — single unseal key today |
+| Dual-mode unseal (KMS + Shamir break-glass) | **No** | **W41-14** + **LT-14** |
 | Hierarchical token cascade revoke | **No** | **W41-06** — per-token revoke only |
 | OIDC AD group → policy mapping | **No** | **W41-07** — static role policies only |
 | OpenSSL-free / distroless PKI | **No** | **W41-09** — native `crypto/x509` planned v1.2 |
@@ -72,11 +73,19 @@ OIDC login uses **JWKS + RS256/RS384/RS512** validation.
 
 Production state lives in an **embedded Dragonboat Raft cluster** (Pebble WAL + snapshots). External databases (Aurora, Consul) are **not supported** and documented as a non-goal ([LT-13](../backlog.md), [ADR-0001](../adr/0001-dragonboat-storage-backend.md)). Schema evolves via Raft state machine commands — there is no SQL `/migrations` path.
 
-### 3.4 Seal / unseal
+### 3.4 Seal / unseal (two-layer model)
 
-- **Master key** (`KNXVAULT_MASTER_KEY`) — decrypts envelope-encrypted data at rest
-- **Unseal key** (`KNXVAULT_UNSEAL_KEY`) — required when Raft enabled; must differ from master key
-- Seal blocks mutating operations; reads and `POST /sys/unseal` remain available
+KNXVault follows Vault-style separation documented in [ADR-0006](../adr/0006-seal-unseal-strategies.md):
+
+| Layer | Key | Purpose | PoC custody |
+|-------|-----|---------|-------------|
+| **Data at rest** | Master key (`KNXVAULT_MASTER_KEY`) | Decrypts envelope-wrapped secrets and CA keys in Raft | Sealed K8s Secret or ESO — **not** Shamir-split |
+| **Operations** | Unseal key (`KNXVAULT_UNSEAL_KEY`) | Gates sealed → unsealed (mutations allowed) | Separate sealed Secret; future Shamir (**W41-05**) |
+
+- Master and unseal keys **must differ** when Raft is enabled.
+- Seal blocks mutating operations; reads and `POST /sys/unseal` remain available.
+- **Master key loss:** backup restore + `POST /sys/rotate-master-key` — not Shamir recovery.
+- **Production target:** KMS auto-unseal for restarts (**LT-14**) + Shamir break-glass (**W41-14**); master key via KMS wrap or **W31-03** HSM.
 
 ---
 
@@ -172,7 +181,9 @@ Capabilities requested in enterprise security reviews map to backlog items:
 | Universal sensitive-buffer zeroing | Partial | **W41-02** | v1.0 GA |
 | AWS KMS auto-unseal | Gap | **LT-14** | Long-term |
 | GCP/Azure KMS auto-unseal | Gap | **LT-15** | Long-term |
-| Shamir k-of-n unseal | Gap | **W41-05** | v1.2 |
+| Shamir k-of-n unseal (unseal key) | Gap | **W41-05** | v1.1 |
+| Dual-mode KMS + Shamir break-glass | Gap | **W41-14**, **LT-14** | Long-term KMS; v1.1 design |
+| HSM-wrapped master key | Gap | **W31-03** | Phase 5 |
 | Hierarchical token cascade revoke | Gap | **W41-06** | v1.1 |
 | OIDC group → policy mapping | Gap | **W41-07** | v1.1 |
 | Go-native PKI (no OpenSSL fork) | Gap | **W41-08–W41-10** | v1.2 |
@@ -234,9 +245,11 @@ For regulated PoCs, request a **joint architecture session** covering TokenRevie
 |------------------|----------|-----------------|----------|
 | K8s-native secrets + PKI | ✅ | With compensating controls | v1.0 GA for hardening |
 | No OpenSSL subprocess | ❌ | ❌ | W41-09 (v1.2) |
-| KMS auto-unseal | ❌ | ❌ | LT-14, LT-15 (long-term) |
-| Shamir unseal | ❌ | ❌ | W41-05 (v1.2) |
+| KMS auto-unseal (master + routine unseal) | ❌ | ❌ | LT-14, LT-15 (long-term) |
+| Shamir unseal (operational quorum) | ❌ | ❌ | W41-05 (v1.1) |
+| KMS + Shamir dual-mode | ❌ | ❌ | W41-14 + LT-14 |
+| HSM-wrapped master key | ❌ | ❌ | W31-03 (Phase 5) |
 | AD group OIDC mapping | ❌ | ❌ | W41-07 (v1.1) |
 | External DB storage (Aurora) | ❌ | ❌ | Not planned (LT-13) |
 
-**Bottom line:** KNXVault is appropriate for a **scoped, compensating-controls PoC** evaluating Kubernetes-native secrets and internal PKI. It is not yet a full enterprise secrets platform replacement without accepting documented gaps and roadmap timelines.
+**Bottom line:** KNXVault is appropriate for a **scoped, compensating-controls PoC** evaluating Kubernetes-native secrets and internal PKI. Use **sealed Secrets for the master key** and a **separate unseal key** today; plan for **KMS + Shamir break-glass** ([ADR-0006](../adr/0006-seal-unseal-strategies.md)) in production. Not yet a full enterprise secrets platform replacement without accepting documented gaps and roadmap timelines.

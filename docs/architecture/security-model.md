@@ -6,7 +6,7 @@ Threat assumptions, cryptographic controls, and operational security guidance fo
 
 | Threat | Impact | Mitigations |
 |--------|--------|-------------|
-| Master key compromise | All secrets and CA keys recoverable | K8s Secret sealing, short exposure window, backup key custody, future rotation API |
+| Master key compromise | All secrets and CA keys recoverable | Sealed K8s Secret / KMS wrap (**LT-14**), HSM (**W31-03**), `POST /sys/rotate-master-key`, encrypted backups |
 | Raft quorum loss | Write unavailability | 3-node cluster, PVC backups, documented failover runbook |
 | Token theft | Unauthorized API access | Short TTL, RBAC least privilege, rate limiting, optional request signing |
 | OpenSSL sandbox escape | Host compromise | Argument validation, `0700` temp dirs, timeouts, non-root container |
@@ -21,6 +21,14 @@ Threat assumptions, cryptographic controls, and operational security guidance fo
 - Loaded from `KNXVAULT_MASTER_KEY` or `KNXVAULT_MASTER_KEY_FILE`
 - Never logged or returned via API
 - See [ADR-0003](../adr/0003-envelope-encryption.md)
+- **Not Shamir-split** — master key custody is separate from operational unseal ([ADR-0006](../adr/0006-seal-unseal-strategies.md))
+
+### Unseal key (operational seal)
+
+- `KNXVAULT_UNSEAL_KEY` — required when Raft enabled; must differ from master key
+- Gates sealed → unsealed state; does not decrypt Raft payload without master key
+- Future: Shamir k-of-n on unseal key (**W41-05**), KMS auto-unseal + Shamir break-glass (**W41-14**, **LT-14**)
+- See [ADR-0006](../adr/0006-seal-unseal-strategies.md)
 
 ### Encrypt before replication
 
