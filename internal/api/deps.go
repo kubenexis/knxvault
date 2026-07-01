@@ -24,6 +24,7 @@ type RouterDeps struct {
 	PKIService           *service.PKIService
 	SecretsService       *service.SecretsService
 	DatabaseService      *service.DatabaseService
+	SSHService           *service.SSHService
 	PolicyService        *service.PolicyService
 	AuditExportService   *service.AuditExportService
 	InjectService        *service.InjectService

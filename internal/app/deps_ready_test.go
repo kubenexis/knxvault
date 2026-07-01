@@ -34,7 +34,7 @@ func TestReadyRequiresLeaderElectionLoop(t *testing.T) {
 		t.Fatalf("Ready() before JobRunner.Start() = %v", err)
 	}
 
-	runner := NewJobRunner(&staticElectorForReady{leader: false}, monitor, nil, nil, nil, nil, nil, nil, cfg, zap.NewNop())
+	runner := NewJobRunner(&staticElectorForReady{leader: false}, monitor, nil, nil, nil, nil, nil, nil, nil, cfg, zap.NewNop())
 	runner.Start(context.Background())
 
 	deadline := time.Now().Add(500 * time.Millisecond)

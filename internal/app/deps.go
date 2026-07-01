@@ -25,6 +25,7 @@ import (
 	pkiengine "github.com/kubenexis/knxvault/internal/engine/pki"
 	secretsengine "github.com/kubenexis/knxvault/internal/engine/secrets"
 	databaseengine "github.com/kubenexis/knxvault/internal/engine/secrets/database"
+	sshengine "github.com/kubenexis/knxvault/internal/engine/secrets/ssh"
 	"github.com/kubenexis/knxvault/internal/infra/k8s"
 	"github.com/kubenexis/knxvault/internal/infra/leader"
 	"github.com/kubenexis/knxvault/internal/infra/metrics"
@@ -55,6 +56,7 @@ type Dependencies struct {
 	MachineIdentityRepo repository.MachineIdentityRepository
 	RotationPolicyRepo  repository.RotationPolicyRepository
 	DBRoleRepo          repository.DatabaseRoleRepository
+	SSHRoleRepo         repository.SSHRoleRepository
 	IssuedCertRepo      repository.IssuedCertRepository
 
 	AuthService            *auth.Service
@@ -62,9 +64,11 @@ type Dependencies struct {
 	PKIEngine              *pkiengine.Engine
 	SecretsEngine          *secretsengine.KVV2Engine
 	DatabaseEngine         *databaseengine.Engine
+	SSHEngine              *sshengine.Engine
 	PKIService             *service.PKIService
 	SecretsService         *service.SecretsService
 	DatabaseService        *service.DatabaseService
+	SSHService             *service.SSHService
 	PolicyService          *service.PolicyService
 	AuditExportService     *service.AuditExportService
 	InjectService          *service.InjectService
@@ -139,6 +143,7 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 		deps.PolicyRepo = repos.Policy
 		deps.RoleRepo = repos.Role
 		deps.DBRoleRepo = repos.DBRole
+		deps.SSHRoleRepo = repos.SSHRole
 		deps.IssuedCertRepo = repos.IssuedCert
 		deps.PKIRoleRepo = repos.PKIRole
 		deps.TokenRepo = repos.Token
@@ -159,6 +164,7 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 		deps.PolicyRepo = memory.NewPolicyRepository()
 		deps.RoleRepo = memory.NewRoleRepository()
 		deps.DBRoleRepo = memory.NewDatabaseRoleRepository()
+		deps.SSHRoleRepo = memory.NewSSHRoleRepository()
 		deps.IssuedCertRepo = memory.NewIssuedCertRepository()
 		deps.PKIRoleRepo = memory.NewPKIRoleRepository()
 		deps.TokenRepo = memory.NewTokenRepository()
@@ -183,10 +189,12 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 		deps.PKIEngine.SetPKIRoleRepository(deps.PKIRoleRepo)
 		deps.SecretsEngine = secretsengine.NewKVV2Engine(deps.SecretRepo, deps.Crypto)
 		deps.DatabaseEngine = databaseengine.NewEngine(deps.DBRoleRepo, deps.LeaseRepo, deps.SecretRepo, deps.Crypto)
+		deps.SSHEngine = sshengine.NewEngine(deps.SSHRoleRepo, deps.LeaseRepo, deps.SecretRepo, deps.Crypto)
 
 		deps.EngineRegistry = engine.NewRegistry()
 		deps.EngineRegistry.Register(secretsengine.NewRegistryAdapter(deps.SecretsEngine))
 		deps.EngineRegistry.Register(databaseengine.NewRegistryAdapter(deps.DatabaseEngine))
+		deps.EngineRegistry.Register(sshengine.NewRegistryAdapter(deps.SSHEngine))
 	}
 
 	if deps.AuditRepo != nil {
@@ -211,6 +219,9 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 	}
 	if deps.DatabaseEngine != nil {
 		deps.DatabaseService = service.NewDatabaseService(deps.DatabaseEngine, deps.AuditService)
+	}
+	if deps.SSHEngine != nil {
+		deps.SSHService = service.NewSSHService(deps.SSHEngine, deps.AuditService)
 	}
 
 	tokenStore := auth.NewTokenStore(cfg.TokenTTL)
@@ -299,6 +310,7 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 			Role:       deps.RoleRepo,
 			PKIRole:    deps.PKIRoleRepo,
 			DBRole:     deps.DBRoleRepo,
+			SSHRole:    deps.SSHRoleRepo,
 			IssuedCert: deps.IssuedCertRepo,
 		}, deps.Crypto, deps.AuditService)
 		deps.BackupService.SetPolicyReloader(deps.PolicyService)
@@ -338,6 +350,7 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 		deps.Leader,
 		deps.LeaderMonitor,
 		deps.DatabaseService,
+		deps.SSHService,
 		deps.PKIService,
 		deps.RotationService,
 		deps.MasterKeyService,

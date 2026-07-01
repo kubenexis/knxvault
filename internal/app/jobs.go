@@ -19,6 +19,7 @@ type JobRunner struct {
 	leader    leader.Elector
 	monitor   *leader.Monitor
 	database  *service.DatabaseService
+	ssh       *service.SSHService
 	pki       *service.PKIService
 	rotation  *service.RotationService
 	masterKey *service.MasterKeyService
@@ -33,6 +34,7 @@ func NewJobRunner(
 	elector leader.Elector,
 	monitor *leader.Monitor,
 	database *service.DatabaseService,
+	ssh *service.SSHService,
 	pki *service.PKIService,
 	rotation *service.RotationService,
 	masterKey *service.MasterKeyService,
@@ -45,6 +47,7 @@ func NewJobRunner(
 		leader:    elector,
 		monitor:   monitor,
 		database:  database,
+		ssh:       ssh,
 		pki:       pki,
 		rotation:  rotation,
 		masterKey: masterKey,
@@ -167,13 +170,22 @@ func (j *JobRunner) runCertRenewal(ctx context.Context) {
 }
 
 func (j *JobRunner) runLeaseCleanup(ctx context.Context) {
-	if j.database == nil {
-		return
+	revoked := 0
+	if j.database != nil {
+		count, err := j.database.CleanupExpired(ctx, 100)
+		if err != nil {
+			j.log.Warn("database lease cleanup failed", zap.Error(err))
+		} else {
+			revoked += count
+		}
 	}
-	revoked, err := j.database.CleanupExpired(ctx, 100)
-	if err != nil {
-		j.log.Warn("lease cleanup failed", zap.Error(err))
-		return
+	if j.ssh != nil {
+		count, err := j.ssh.CleanupExpired(ctx, 100)
+		if err != nil {
+			j.log.Warn("ssh lease cleanup failed", zap.Error(err))
+		} else {
+			revoked += count
+		}
 	}
 	if revoked > 0 {
 		j.log.Info("expired leases revoked", zap.Int("count", revoked))

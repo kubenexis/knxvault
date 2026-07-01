@@ -11,7 +11,9 @@ Version-controlled documentation for architects, operators, developers, and inte
 | [System diagrams](architecture/diagrams.md) | Architects | Mermaid architecture and data-flow views |
 | [Data models](architecture/data-models.md) | Engineers | Domain entities and Raft persistence |
 | [Security model](architecture/security-model.md) | Security / SRE | Threat model, crypto, auth, audit |
+| [Envelope encryption](architecture/envelope-encryption.md) | Engineers / Security | AES-GCM envelope, DEKs, nonces, master key rotation |
 | [Dragonboat storage](storage/dragonboat.md) | Engineers | Raft topology, command catalog, snapshots |
+| [Raft HA & recovery](storage/raft-ha-and-recovery.md) | Engineers / SRE | Snapshots, quorum, membership, DR, partitions |
 | [Phase 4 design](design/phase4-ecosystem.md) | Engineers | Ecosystem roadmap and wave breakdown |
 | [ADRs](adr/README.md) | Engineers | Architecture decision records |
 

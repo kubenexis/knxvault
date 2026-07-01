@@ -161,6 +161,8 @@ Dragonboat `SaveSnapshot` / `RecoverFromSnapshot` use the same JSON format as `i
 
 Dynamic membership: `POST /sys/raft/add-node` and `POST /sys/raft/remove-node` (leader only). See [`docs/operations/runbooks/scaling.md`](../operations/runbooks/scaling.md).
 
+For snapshot correctness, quorum recovery, disaster recovery, bootstrap, and network partitions, see [Raft HA & recovery](raft-ha-and-recovery.md).
+
 ## Kubernetes
 
 Use [`deployments/k8s/statefulset.yaml`](../../deployments/k8s/statefulset.yaml) with headless Service [`service-raft.yaml`](../../deployments/k8s/service-raft.yaml). Set `KNXVAULT_RAFT_INITIAL_MEMBERS` in the ConfigMap to the stable DNS names of all replicas.

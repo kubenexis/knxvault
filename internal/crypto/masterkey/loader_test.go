@@ -59,6 +59,36 @@ func TestLoadRejectsTraversalPath(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsInvalidBase64(t *testing.T) {
+	t.Setenv("KNXVAULT_MASTER_KEY_FILE", "")
+	t.Setenv("KNXVAULT_MASTER_KEY", "not-valid-base64!!!")
+
+	_, err := masterkey.Load()
+	if err == nil {
+		t.Fatal("expected decode error")
+	}
+}
+
+func TestLoadRejectsWrongKeyLength(t *testing.T) {
+	t.Setenv("KNXVAULT_MASTER_KEY_FILE", "")
+	t.Setenv("KNXVAULT_MASTER_KEY", base64.StdEncoding.EncodeToString([]byte("short")))
+
+	_, err := masterkey.Load()
+	if err == nil {
+		t.Fatal("expected length error")
+	}
+}
+
+func TestLoadRejectsRelativePath(t *testing.T) {
+	t.Setenv("KNXVAULT_MASTER_KEY", "")
+	t.Setenv("KNXVAULT_MASTER_KEY_FILE", "relative/master.key")
+
+	_, err := masterkey.Load()
+	if err == nil {
+		t.Fatal("expected error for relative path")
+	}
+}
+
 func TestLoadMissing(t *testing.T) {
 	t.Setenv("KNXVAULT_MASTER_KEY", "")
 	t.Setenv("KNXVAULT_MASTER_KEY_FILE", "")

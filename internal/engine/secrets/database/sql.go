@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 
+	_ "github.com/jackc/pgx/v5/stdlib"
 	_ "modernc.org/sqlite"
 )
 
@@ -64,8 +65,19 @@ func parseConnectionURL(raw string) (dsn, driver string, err error) {
 	case "mysql":
 		return raw, "mysql", fmt.Errorf("mysql driver not bundled; use sqlite for tests or client execution mode")
 	case "postgres", "postgresql":
-		return raw, "postgres", fmt.Errorf("postgres driver not bundled; use sqlite for tests or client execution mode")
+		return postgresDSN(parsed), "pgx", nil
 	default:
 		return "", "", fmt.Errorf("unsupported connection_url scheme %q", parsed.Scheme)
 	}
+}
+
+func postgresDSN(parsed *url.URL) string {
+	if parsed == nil {
+		return ""
+	}
+	clone := *parsed
+	if clone.Scheme == "postgresql" {
+		clone.Scheme = "postgres"
+	}
+	return clone.String()
 }

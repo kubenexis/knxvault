@@ -67,6 +67,31 @@ func TestKeyRingDEKNeedsReencryptLegacyNoVersionCollision(t *testing.T) {
 	}
 }
 
+func TestKeyRingRejectsInvalidInputs(t *testing.T) {
+	if _, err := crypto.NewKeyRing([]byte{1}); err == nil {
+		t.Fatal("expected error for short master key")
+	}
+	ring, err := crypto.NewKeyRing(testMasterKey())
+	if err != nil {
+		t.Fatalf("NewKeyRing() = %v", err)
+	}
+	if err := ring.AddKey(0, testMasterKey()); err == nil {
+		t.Fatal("expected error for version 0")
+	}
+	if err := ring.AddKey(2, []byte("short")); err == nil {
+		t.Fatal("expected error for short rotation key")
+	}
+	if err := ring.AddKey(2, bytes.Repeat([]byte{0x99}, 32)); err != nil {
+		t.Fatalf("AddKey() = %v", err)
+	}
+	if err := ring.AddKey(2, bytes.Repeat([]byte{0xAA}, 32)); err == nil {
+		t.Fatal("expected duplicate version error")
+	}
+	if _, err := ring.EncryptDEK([]byte("short")); err == nil {
+		t.Fatal("expected error encrypting invalid dek length")
+	}
+}
+
 func TestKeyRingDecryptLegacyWithoutVersionCollision(t *testing.T) {
 	ring, err := crypto.NewKeyRing(testMasterKey())
 	if err != nil {

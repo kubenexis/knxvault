@@ -675,6 +675,68 @@ func (c *Client) GetDatabaseRole(ctx context.Context, name string) (*DatabaseRol
 	return &out, nil
 }
 
+// SSHRoleRequest configures an OpenSSH credential role.
+type SSHRoleRequest struct {
+	TTLSeconds   int               `json:"ttl_seconds"`
+	CAKeyPath    string            `json:"ca_key_path"`
+	AllowedUsers []string          `json:"allowed_users,omitempty"`
+	DefaultUser  string            `json:"default_user,omitempty"`
+	KeyType      string            `json:"key_type,omitempty"`
+	Extensions   map[string]string `json:"extensions,omitempty"`
+}
+
+// SSHRoleResponse returns SSH role configuration.
+type SSHRoleResponse struct {
+	Name         string            `json:"name"`
+	TTLSeconds   int               `json:"ttl_seconds"`
+	CAKeyPath    string            `json:"ca_key_path"`
+	AllowedUsers []string          `json:"allowed_users,omitempty"`
+	DefaultUser  string            `json:"default_user,omitempty"`
+	KeyType      string            `json:"key_type,omitempty"`
+	Extensions   map[string]string `json:"extensions,omitempty"`
+}
+
+// SSHCredsResponse is returned for SSH credential generation.
+type SSHCredsResponse struct {
+	LeaseID    string `json:"lease_id"`
+	Username   string `json:"username"`
+	PrivateKey string `json:"private_key"`
+	SignedKey  string `json:"signed_key"`
+	Role       string `json:"role"`
+	TTLSeconds int    `json:"ttl_seconds"`
+	ExpiresAt  string `json:"expires_at"`
+}
+
+// PutSSHRole stores an SSH role.
+func (c *Client) PutSSHRole(ctx context.Context, name string, req SSHRoleRequest) error {
+	return c.putJSON(ctx, "/secrets/ssh/roles/"+trimPath(name), true, req, nil, http.StatusNoContent)
+}
+
+// GetSSHRole returns an SSH role.
+func (c *Client) GetSSHRole(ctx context.Context, name string) (*SSHRoleResponse, error) {
+	var out SSHRoleResponse
+	if err := c.getJSON(ctx, "/secrets/ssh/roles/"+trimPath(name), true, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GenerateSSHCreds issues OpenSSH credentials.
+func (c *Client) GenerateSSHCreds(ctx context.Context, role string, username string, ttlSeconds int) (*SSHCredsResponse, error) {
+	body := map[string]any{}
+	if username != "" {
+		body["username"] = username
+	}
+	if ttlSeconds > 0 {
+		body["ttl_seconds"] = ttlSeconds
+	}
+	var out SSHCredsResponse
+	if err := c.postJSON(ctx, "/secrets/ssh/creds/"+trimPath(role), true, body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GenerateDatabaseCreds issues database credentials.
 func (c *Client) GenerateDatabaseCreds(ctx context.Context, role string, ttlSeconds int) (*DatabaseCredsResponse, error) {
 	body := map[string]any{}

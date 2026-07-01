@@ -53,3 +53,31 @@ func TestSysHandlerSealAndUnseal(t *testing.T) {
 		t.Fatal("expected unsealed")
 	}
 }
+
+func TestSysHandlerUnsealRejectsInvalidKey(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	key := make([]byte, 32)
+	seal := app.NewSealState(key)
+	seal.Seal()
+	handler := handlers.NewSysHandler(testAuthService("admin"), nil, nil, nil, nil, nil, seal, nil, nil, false, nil)
+
+	r := gin.New()
+	r.Use(middleware.ErrorHandler())
+	r.POST("/sys/unseal", handler.Unseal)
+
+	wrong := make([]byte, 32)
+	for i := range wrong {
+		wrong[i] = 0xFF
+	}
+	body, _ := json.Marshal(map[string]string{"key": base64.StdEncoding.EncodeToString(wrong)})
+	req := httptest.NewRequest(http.MethodPost, "/sys/unseal", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !seal.Sealed() {
+		t.Fatal("expected still sealed after bad unseal")
+	}
+}

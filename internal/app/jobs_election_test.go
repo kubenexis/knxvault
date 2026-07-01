@@ -28,7 +28,7 @@ func TestJobRunnerElectionMonitorStopsOnFailure(t *testing.T) {
 		t.Fatalf("Load() = %v", err)
 	}
 	monitor := leader.NewMonitor()
-	runner := app.NewJobRunner(&failingElector{}, monitor, nil, nil, nil, nil, nil, nil, cfg, zap.NewNop())
+	runner := app.NewJobRunner(&failingElector{}, monitor, nil, nil, nil, nil, nil, nil, nil, cfg, zap.NewNop())
 	runner.Start(context.Background())
 
 	deadline := time.Now().Add(500 * time.Millisecond)

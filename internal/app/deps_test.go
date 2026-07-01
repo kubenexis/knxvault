@@ -55,14 +55,14 @@ func TestNewDependenciesEngineRegistry(t *testing.T) {
 		t.Fatal("expected engine registry")
 	}
 	engines := deps.EngineRegistry.List()
-	if len(engines) != 2 {
-		t.Fatalf("engines = %v, want len 2", engines)
+	if len(engines) != 3 {
+		t.Fatalf("engines = %v, want len 3", engines)
 	}
 	found := map[string]bool{}
 	for _, name := range engines {
 		found[name] = true
 	}
-	for _, want := range []string{"kv", "database"} {
+	for _, want := range []string{"kv", "database", "ssh"} {
 		if !found[want] {
 			t.Fatalf("missing engine %q in %v", want, engines)
 		}

@@ -201,3 +201,48 @@ func TestTokenStoreReplicated(t *testing.T) {
 		t.Fatalf("Authenticate() on remote store = %v", err)
 	}
 }
+
+func TestLoginWithTokenRejectsExpired(t *testing.T) {
+	store := auth.NewTokenStore(time.Millisecond)
+	svc := auth.NewService(store, auth.NewRBAC(), "")
+	ctx := context.Background()
+	token, _, err := svc.CreateToken(ctx, "bot", []string{"read"}, time.Millisecond, false)
+	if err != nil {
+		t.Fatalf("CreateToken() = %v", err)
+	}
+	time.Sleep(5 * time.Millisecond)
+	if _, err := svc.LoginWithToken(ctx, token); err == nil {
+		t.Fatal("expected expired token to fail")
+	}
+}
+
+func TestRenewTokenRejectsNonRenewable(t *testing.T) {
+	svc := auth.NewService(auth.NewTokenStore(time.Hour), auth.NewRBAC(), "")
+	ctx := context.Background()
+	token, _, err := svc.CreateToken(ctx, "bot", []string{"read"}, time.Hour, false)
+	if err != nil {
+		t.Fatalf("CreateToken() = %v", err)
+	}
+	if _, err := svc.RenewToken(ctx, token, time.Hour); err == nil {
+		t.Fatal("expected non-renewable token to fail renewal")
+	}
+}
+
+func TestCreateTokenStoresPolicies(t *testing.T) {
+	svc := auth.NewService(auth.NewTokenStore(time.Hour), auth.NewRBAC(), "")
+	ctx := context.Background()
+	token, record, err := svc.CreateToken(ctx, "deploy", []string{"secrets-admin", "pki-issue"}, 2*time.Hour, true)
+	if err != nil {
+		t.Fatalf("CreateToken() = %v", err)
+	}
+	if len(record.Policies) != 2 {
+		t.Fatalf("policies = %v", record.Policies)
+	}
+	got, err := svc.LoginWithToken(ctx, token)
+	if err != nil {
+		t.Fatalf("LoginWithToken() = %v", err)
+	}
+	if got.Subject != "deploy" {
+		t.Fatalf("subject = %q", got.Subject)
+	}
+}

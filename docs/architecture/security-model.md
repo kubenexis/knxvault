@@ -49,6 +49,8 @@ An attacker with Raft disk access sees base64-encoded `data_enc` and `dek_enc` f
 
 CA private keys and secret payloads use the same pattern.
 
+For implementation detail (nonce layout, KeyRing rotation, master key loading, wire formats), see [Envelope encryption](envelope-encryption.md).
+
 ### PKI operations
 
 All X.509 operations execute via the OpenSSL CLI in an isolated temporary directory:

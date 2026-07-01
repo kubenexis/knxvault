@@ -81,8 +81,8 @@ Persisted issuance policy binding a role name to a CA and domain constraints.
 |-------|------|-------|
 | `Path` | string | Hierarchical path (e.g. `app/db`) |
 | `Version` | int | Monotonic per path |
-| `DataEnc` | bytes | AES-256-GCM ciphertext |
-| `DEKEnc` | bytes | Wrapped DEK |
+| `DataEnc` | bytes | AES-256-GCM ciphertext (`nonce ‖ ciphertext ‖ tag`) |
+| `DEKEnc` | bytes | Master-wrapped DEK (optional 1-byte key version prefix) |
 | `TTLSeconds` | int? | Optional expiration |
 | `Destroyed` | bool | Soft-delete marker |
 

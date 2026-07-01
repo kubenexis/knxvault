@@ -65,6 +65,7 @@ func New(ctx context.Context, cfg config.Config, log *zap.Logger) (*App, error) 
 		PKIService:           deps.PKIService,
 		SecretsService:       deps.SecretsService,
 		DatabaseService:      deps.DatabaseService,
+		SSHService:           deps.SSHService,
 		PolicyService:        deps.PolicyService,
 		RotationService:      deps.RotationService,
 		OrchestrationService: deps.OrchestrationService,

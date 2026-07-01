@@ -57,7 +57,7 @@ internal/
   audit/                Hash-chained audit service
   backup/               Snapshot export/import
   config/               YAML file + environment configuration
-  crypto/               Master key, envelope crypto, OpenSSL
+  crypto/               Master key, envelope crypto, OpenSSL (see docs/architecture/envelope-encryption.md)
   domain/               Pure domain models
   engine/               PKI, KVv2, database engines
   inject/               Secrets injection + CSI provider (`knxvault-csi`)

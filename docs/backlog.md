@@ -2,7 +2,7 @@
 
 Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topologically sorted by dependency** — implement in listed order within each phase.
 
-**Current focus:** [Tier H SDKs](#tier-h--kubernetes-ecosystem-eso-cert-manager-sdks) (W40-04–07) → [Tier D](#tier-d--features-documented-but-missing) (W36-19). **Tier 0, Tier A, Tier F, Tier G, Tier H (ESO/cert-manager), webhook (W38-07)** are **shipped** or **partial** — see status column below. **Helm, Terraform, AWS IAM** → [long-term](#long-term-future) (LT-*).
+**Current focus:** [Tier H SDKs](#tier-h--kubernetes-ecosystem-eso-cert-manager-sdks) (W40-04–07) → [Tier D](#tier-d--features-documented-but-missing) (W36-19) → [Tier I policy engine](#tier-i--policy-engine-vaultopenbao-parity) (W41-01+) → [Tier J advanced leasing](#tier-j--advanced-secret-leasing) (W42-01+). **Tier 0, Tier A, Tier F, Tier G, Tier H (ESO/cert-manager), webhook (W38-07)** are **shipped** or **partial** — see status column below. **Helm, Terraform, AWS IAM** → [long-term](#long-term-future) (LT-*).
 
 **Legend**
 
@@ -20,7 +20,7 @@ Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topological
 |--------|-------|-----|
 | Complete | 29 | W37-04, W37-06, W37-09, W38-15, W39-01/02/03/04/05/06/07/08, W40-01/02/03/08, W36-09, W36-10, W36-14, W36-15, W36-16, W36-20, W36-21, W36-22 |
 | Partial | 0 | — |
-| Not started | 7 | W36-19, W40-04, W40-05, W40-06, W40-07 |
+| Not started | 23 | W36-19, W40-04–07, W41-01–W41-08, W42-01–W42-08 |
 
 ## Storage backend (architecture pivot)
 
@@ -205,6 +205,44 @@ Items below come from a **2026-06 codebase gap analysis**, a **secrets manager c
 
 > **Tier H sequencing:** **W40-03** first (finish pipeline + CI). **W40-04–07** parallel after W40-03 generates client trees.
 
+### Tier I — Policy engine (Vault/OpenBao parity)
+
+**Gap:** RBAC today is **route-level** (`secrets/kv` + read/write), not **path-capability** ACLs like Vault/OpenBao (`path "secret/data/team-a/*" { capabilities = ["read"] }`). Agent delegation has path prefix; normal tokens do not. See conversation / `internal/api/router.go` vs `internal/auth/rbac.go`.
+
+**Best-practice target:** default deny, path-aware least privilege, explicit capabilities, policy simulation before rollout, auditable denials, tenant boundaries — then optional OPA/HCL (LT-06 / W41-08).
+
+| ID | Title | Area | Effort | Depends on | Description | Acceptance criteria |
+|----|-------|------|--------|------------|-------------|---------------------|
+| **W41-01** | Path-aware authorization (KV, inject, PKI) | auth | M | W13-02, W36-14 | **Not started:** `RequirePermission` passes logical paths (e.g. `secrets/kv/<path>`) into `Authorize`, not coarse `secrets/kv`. Reuse `MatchResource` + `path_prefix` conditions. Extend agent-style checks to all principals. | Policy `resources: ["secrets/kv/team-a/*"]` allows `GET /secrets/kv/team-a/x` and denies `team-b/x` in API integration test. |
+| **W41-02** | Capability model (read / write / list / delete / sudo) | auth | M | W41-01 | **Not started:** Map routes to Vault-like capabilities; policies use `capabilities[]` (keep `actions[]` alias during migration). Document mapping in policy guide. | Policy with only `list` can call metadata/list endpoints but not `GET` secret values; `sudo` gates `POST /auth/token/create`. |
+| **W41-03** | Default-deny and deny-precedence semantics | auth | S | W41-02 | **Not started:** Document and test evaluation order: explicit deny > allow; no implicit allow except built-in bootstrap roles. Add `TestDenyOverridesAllow`. | Deny policy on `secrets/kv/team-a/*` blocks even if another policy allows `secrets/*`. |
+| **W41-04** | Policy simulation API | api | M | W41-02 | **Not started:** `POST /sys/policy/simulate` — input token policies (or role), resource, action/capabilities, optional request context → `{allowed, matched_policy, reason}`. Vault `policy cap` / AWS `simulatePrincipalPolicy` pattern. | CLI `sys policy simulate` matches API; unit tests for allow/deny/condition cases. |
+| **W41-05** | KV list vs read separation | api | M | W41-02 | **Not started:** `GET /secrets/kv/*path` (value) requires `read`; list/metadata/versions endpoints require `list`. Aligns with Vault KVv2 list capability. | Reader with `list` only sees paths/versions; `read` required for plaintext. |
+| **W41-06** | Authorization denial audit | security | S | W41-01 | **Not started:** Log `authz.denied` audit events (actor, resource, action, matched deny) at middleware — without leaking token. Rate-limit repeated denials. | Failed `Authorize` produces audit row; success unchanged. |
+| **W41-07** | Policy operator guide & examples | docs | S | W41-02 | **Not started:** `docs/architecture/policy-engine.md` — resource naming, capabilities, conditions, K8s role binding, migration from coarse `secrets-reader`. | Examples cover team-scoped KV, PKI read-only, break-glass admin; linked from security-model. |
+| **W41-08** | HCL policy import (Vault migration) | auth | L | W41-02 | **Not started:** Subset HCL → JSON policy compiler (`path` + `capabilities`); `knxvault-cli sys policy import -f policy.hcl`. Full Sentinel out of scope. | Sample Vault KV policy imports and enforces correctly on path-aware API. |
+
+> **Tier I sequencing:** **W41-01** unblocks all path ACL work (highest ROI). **W41-02** then **W41-03–05** in parallel. **W41-04** before production policy rollouts. **W32-**\* (multi-tenancy) should follow **W41-01** + **W36-14**. **LT-06** (OPA) after **W41-04** and **W32-01**.
+
+### Tier J — Advanced secret leasing
+
+**Gap:** Dynamic engines (database, SSH) issue **per-engine** leases with renew/revoke, but there is no **unified lease API**, bulk revocation, role-level tuning beyond a single `ttl_seconds`, or cross-engine orchestration. `Lease` (`internal/domain/secrets/lease.go`) tracks `engine`, `role_name`, `renewable`, and expiry; cleanup is leader-only per engine (`internal/app/jobs.go`). Vault/OpenBao expose `sys/leases/*`, max TTL / period, lease quotas, and prefix revoke.
+
+**Best-practice target:** operators can inspect and revoke leases without engine-specific URLs; roles enforce max TTL, renewability, and concurrency limits; rotation orchestration renews all dynamic engines; creds responses surface lease warnings before expiry.
+
+| ID | Title | Area | Effort | Depends on | Description | Acceptance criteria |
+|----|-------|------|--------|------------|-------------|---------------------|
+| **W42-01** | Unified lease lookup API | api | M | W12-02 | **Not started:** `GET /sys/leases/:lease_id` returns engine-agnostic metadata (id, engine, role, path, ttl, expires_at, renewable, revoked) — **no secret payload**. Implement in `internal/service/leases.go` over `LeaseRepository`. | Lookup works for database and SSH leases; unknown id → `404`; audit `lease.lookup`. |
+| **W42-02** | Lease list and filter API | api | M | W42-01 | **Not started:** `GET /sys/leases` with query filters `engine`, `role`, `prefix`, `active_only`, pagination. CLI `sys leases list`. | List returns consistent JSON across engines; integration test covers active vs revoked. |
+| **W42-03** | Bulk lease revocation (by role or prefix) | api | M | W42-01 | **Not started:** `PUT /sys/leases/revoke` — revoke all active leases matching `engine` + `role` and/or `path_prefix` (e.g. compromised role). Engine-specific revoke logic delegated per `Lease.Engine`. | Revoke-by-role clears all DB/SSH creds for role; audit per lease; idempotent on already-revoked. |
+| **W42-04** | Role-level lease tuning (max TTL, renewability, period) | crypto | M | W12-01 | **Not started:** Extend `DatabaseRole` / `SSHRole` with `default_ttl`, `max_ttl`, `renewable`, optional `period` (fixed-length lease). Generation caps requested TTL; non-renewable leases reject renew. | Role with `max_ttl=1h` rejects `ttl_seconds=24h`; `renewable=false` → renew returns `400`. |
+| **W42-05** | Renew increment and lease warnings | api | S | W42-04 | **Not started:** Renew accepts explicit increment; cap extension to role `max_ttl` from **now** (Vault-style). Creds/renew responses include `lease_duration`, `lease_max_ttl`, `lease_id`, optional `warnings[]` when expiry within grace window. | Renew with increment > max extends only to cap; warning emitted when &lt;10% TTL remains. |
+| **W42-06** | Multi-engine lease renewal in orchestration | crypto | M | W37-06 | **Not started:** Extend `OrchestrationService.Run` to renew expiring **SSH** leases (and future engines) alongside DB `RenewExpiring`; config grace per engine in `POST /sys/rotation/run`. | `rotation-run` reports `ssh_leases_renewed`; leader job renews SSH before expiry in integration test. |
+| **W42-07** | Per-role lease quotas and issuance limits | storage | M | W42-04 | **Not started:** Optional `max_leases` on dynamic roles; deny creds generation when active lease count for role ≥ limit. Metric `knxvault_leases_by_engine{engine,role}`. | Role with `max_leases=5` rejects 6th issuance; metric exposed on `/metrics`. |
+| **W42-08** | Lease operator guide and runbooks | docs | S | W42-01–W42-03 | **Not started:** `docs/operations/lease-management.md` — unified lookup/list/revoke, bulk revoke playbook, tuning tables, links to DB/SSH engine docs. Update `docs/operations/day2.md` and OpenAPI. | Runbook covers incident revoke-by-role; API reference lists `/sys/leases/*`. |
+
+> **Tier J sequencing:** **W42-01** first (foundation for operator APIs). **W42-02–W42-03** parallel. **W42-04** before **W42-05** and **W42-07**. **W42-06** after SSH engine stable (shipped) and **W37-06** orchestration. **W36-19** (revocation SQL on revoke) complements **W42-03** but remains engine-specific. **W42-08** documents shipped APIs last.
+
 ### Tier F — LLD alignment (gap closure)
 
 Gaps between **`docs/lld.md`** and the codebase not fully covered by Tier 0 or W36. LLD section references included. **No Helm / Terraform / AWS items here** — those are LT-*.
@@ -288,7 +326,7 @@ Gaps between **`docs/lld.md`** and the codebase not fully covered by Tier 0 or W
 | ~~**W36-23**~~ | ~~Dynamic Raft cluster membership~~ | storage | XL | W28-02 | Done — `Client.AddNode`/`RemoveNode`, `POST /sys/raft/*`, `docs/operations/runbooks/scaling.md`. | API + runbook for expand/shrink. |
 | ~~**W36-24**~~ | ~~Vault seal / unseal operational mode~~ | security | L | W36-17 | Done — `SealState`, `SealGuard` middleware, `POST /sys/seal`/`unseal`, CLI, `KNXVAULT_UNSEAL_KEY`. | Seal blocks writes; unseal restores. |
 
-> **Phase 5 dependency note:** **W37-01** supersedes **W34-01** (mTLS) in priority. **W32-**\* (multi-tenancy) should follow **W37-03** / **W36-14**. **W36-13** (token persistence) should precede **W34-02** (client cert issuance).
+> **Phase 5 dependency note:** **W37-01** supersedes **W34-01** (mTLS) in priority. **W32-**\* (multi-tenancy) should follow **W41-01** / **W36-14**. **W36-13** (token persistence) should precede **W34-02** (client cert issuance).
 
 ---
 
@@ -302,8 +340,8 @@ High-level scope from LLD §9.4. Phase 3 is complete; Phase 4 hardening recommen
 | **W30-02** | Operator reconciliation loop | k8s | L | W30-01 | Reconcile CRDs to KNXVault REST API with status conditions. | Create CA via CRD → visible in API; e2e test passes. |
 | **W31-01** | OpenSSL engine abstraction | crypto | M | W3-03 | Pluggable engine interface in `internal/crypto/openssl/`. | Unit tests with mock engine. |
 | **W31-02** | PKCS#11 HSM integration | crypto | L | W31-01 | HSM-backed CA key generation via OpenSSL engine. | Root CA created on SoftHSM; documented config. |
-| **W32-01** | Multi-tenancy policy model | auth | M | W13-01 | Namespace-scoped policy isolation. | Cross-tenant access denied in tests. |
-| **W32-02** | Tenant-aware API enforcement | api | M | W32-01 | Optional `X-KNX-Namespace` header enforcement. | Integration tests for tenant boundaries. |
+| **W32-01** | Multi-tenancy policy model | auth | M | W41-01, W36-14 | Namespace-scoped policy isolation on path-aware resources. | Cross-tenant access denied in tests. |
+| **W32-02** | Tenant-aware API enforcement | api | M | W32-01 | Mandatory `X-KNX-Namespace` (or K8s SA namespace) on mutating routes when tenant mode enabled. | Integration tests for tenant boundaries. |
 | **W33-01** | Redis read cache | storage | M | W26 | Cache public CA material, CRLs, policies. | Cache hit metrics; fallback on miss. |
 | **W33-02** | Cache invalidation on write | storage | S | W33-01 | Invalidate cache entries on Raft commit. | Write → read sees fresh data. |
 | **W34-01** | Server mTLS | security | M | W5-03 | TLS with client certificate requirement on secured routes. | mTLS handshake test; opt-in flag. |
@@ -337,7 +375,7 @@ Deferred packaging and ecosystem work — not scheduled for Tier 0 / Phase 4–5
 | **LT-03** | Helm chart (production install) | k8s | M | W28-02, W37-01 | **Gap:** LLD §1.2, §6.1, §6.6 Helm-first deployment; only `deployments/helm/.gitkeep` + raw manifests. **Hint:** `deployments/helm/knxvault/` per LLD §6.1: `values.yaml` (`raft.*`, `persistence`, `tls`), StatefulSet from `statefulset.yaml`, Service/Ingress templates. Hooks → **LT-09**. Defer until **W37-01** TLS and **W38-05** PDB/NetPol patterns proven in raw manifests. | `helm install` 3-node Raft; README + `docs/deploy/kubernetes.md` updated. |
 | **LT-04** | gRPC API alongside REST | api | L | Phase 5 stable | **Gap:** LLD §10.3 gRPC for service mesh. **Hint:** `api/proto/knxvault/v1/` with grpc-gateway or parallel handlers; mTLS from **W37-01**. | grpcurl list/get KV works; REST unchanged. |
 | **LT-05** | Web UI admin console | docs | XL | Phase 5 stable | **Gap:** LLD §10.3 optional React/Vue UI. **Hint:** Separate repo `knxvault-ui/` consuming OpenAPI; OIDC login (**W37-02**). | Read-only secrets/PKI view; no secrets in browser storage. |
-| **LT-06** | OPA / Gatekeeper policy integration | auth | L | W32-01 | **Gap:** LLD §10.3 “Policy as Code” with OPA. **Hint:** Export KNXVault policies to Rego bundle; optional `POST /sys/policy/validate` delegating to OPA sidecar. | Deny rule in OPA blocks matching KNXVault policy eval. |
+| **LT-06** | OPA / Gatekeeper policy integration | auth | L | W41-04, W32-01 | **Gap:** LLD §10.3 “Policy as Code” with OPA. **Hint:** Export KNXVault policies to Rego bundle; optional `POST /sys/policy/validate` delegating to OPA sidecar (after **W41-04** simulation baseline). | Deny rule in OPA blocks matching KNXVault policy eval. |
 | **LT-07** | OpenSSL FIPS mode | security | M | W31-01 | **Gap:** LLD §7.6 FIPS via OpenSSL config. **Hint:** `KNXVAULT_OPENSSL_FIPS=true` sets `OPENSSL_FIPS` or FIPS config path in `internal/crypto/openssl/wrapper.go`; document compliance limits. | FIPS-enabled image issues cert in test harness. |
 | **LT-08** | Falco rules for OpenSSL anomalies | security | S | W10-01 | **Gap:** LLD §7.7 Falco rules. **Hint:** `deployments/falco/knxvault-rules.yaml` detecting unexpected `openssl` exec paths outside wrapper temp dirs. | Falco alerts in test when exec escapes pattern. |
 | **LT-09** | Helm pre-upgrade backup hooks | k8s | S | LT-03, W27-01 | **Gap:** LLD §6.6 upgrade safety. **Hint:** Helm `pre-upgrade` Job calling `POST /sys/backup` with RBAC token from Secret. | `helm upgrade` creates backup Secret before rollout. |

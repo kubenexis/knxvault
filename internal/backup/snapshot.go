@@ -24,6 +24,7 @@ type Snapshot struct {
 	Roles     []RoleRecord         `json:"roles"`
 	PKIRoles  []PKIRoleRecord      `json:"pki_roles,omitempty"`
 	DBRoles   []DatabaseRoleRecord `json:"database_roles"`
+	SSHRoles  []SSHRoleRecord      `json:"ssh_roles,omitempty"`
 	Leases    []LeaseRecord        `json:"leases"`
 	Issued    []IssuedCertRecord   `json:"issued_certificates"`
 	Audit     []AuditRecord        `json:"audit,omitempty"`
@@ -106,6 +107,17 @@ type PKIRoleRecord struct {
 	AllowSubdomains bool          `json:"allow_subdomains"`
 }
 
+// SSHRoleRecord serializes an OpenSSH credential role.
+type SSHRoleRecord struct {
+	Name         string            `json:"name"`
+	TTLSeconds   int               `json:"ttl_seconds"`
+	CAKeyPath    string            `json:"ca_key_path"`
+	AllowedUsers []string          `json:"allowed_users,omitempty"`
+	DefaultUser  string            `json:"default_user,omitempty"`
+	KeyType      string            `json:"key_type,omitempty"`
+	Extensions   map[string]string `json:"extensions,omitempty"`
+}
+
 // DatabaseRoleRecord serializes a database credential role.
 type DatabaseRoleRecord struct {
 	Name                 string         `json:"name"`
@@ -169,6 +181,7 @@ type Repos struct {
 	Role       repository.RoleRepository
 	PKIRole    repository.PKIRoleRepository
 	DBRole     repository.DatabaseRoleRepository
+	SSHRole    repository.SSHRoleRepository
 	IssuedCert repository.IssuedCertRepository
 	Token      repository.TokenRepository
 }

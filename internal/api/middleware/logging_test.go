@@ -48,3 +48,44 @@ func TestRequestLoggerIncludesRequestIDAndActor(t *testing.T) {
 		t.Fatalf("actor = %v", fields["actor"])
 	}
 }
+
+func TestRequestLoggerStructuredFields(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	core, recorded := observer.New(zap.InfoLevel)
+	log := zap.New(core)
+
+	r := gin.New()
+	r.Use(middleware.RequestID())
+	r.Use(middleware.RequestLogger(log))
+	r.GET("/secrets/kv/:path", func(c *gin.Context) {
+		c.Status(http.StatusCreated)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/secrets/kv/app", nil)
+	req.RemoteAddr = "203.0.113.10:12345"
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if recorded.Len() != 1 {
+		t.Fatalf("log entries = %d, want 1", recorded.Len())
+	}
+	fields := recorded.All()[0].ContextMap()
+	for _, key := range []string{"method", "path", "route", "status", "latency", "client_ip"} {
+		if _, ok := fields[key]; !ok {
+			t.Fatalf("missing structured field %q in %v", key, fields)
+		}
+	}
+	if fields["method"] != "GET" {
+		t.Fatalf("method = %v", fields["method"])
+	}
+	if fields["path"] != "/secrets/kv/app" {
+		t.Fatalf("path = %v", fields["path"])
+	}
+	if fields["route"] != "/secrets/kv/:path" {
+		t.Fatalf("route = %v", fields["route"])
+	}
+	if fields["status"] != int64(http.StatusCreated) {
+		t.Fatalf("status = %v", fields["status"])
+	}
+}

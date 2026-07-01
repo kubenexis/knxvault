@@ -1,0 +1,13 @@
+{
+  "ttl_seconds": 3600,
+  "username_prefix": "v-",
+  "execution_mode": "client",
+  "admin_credentials_path": "database/admin/cnpg-prod",
+  "config": {
+    "db_type": "cnpg",
+    "database_name": "app",
+    "schema": "public",
+    "privilege": "readonly",
+    "ssl_mode": "require"
+  }
+}

@@ -62,6 +62,10 @@ const (
 	OpDBRoleGet             = "db_role.get"
 	OpDBRoleList            = "db_role.list"
 	OpDBRoleDelete          = "db_role.delete"
+	OpSSHRoleSave           = "ssh_role.save"
+	OpSSHRoleGet            = "ssh_role.get"
+	OpSSHRoleList           = "ssh_role.list"
+	OpSSHRoleDelete         = "ssh_role.delete"
 	OpIssuedSave            = "issued.save"
 	OpIssuedGetBySerial     = "issued.get_by_serial"
 	OpIssuedList            = "issued.list"
@@ -108,6 +112,8 @@ var readOnlyOps = map[string]struct{}{
 	OpRoleList:            {},
 	OpDBRoleGet:           {},
 	OpDBRoleList:          {},
+	OpSSHRoleGet:          {},
+	OpSSHRoleList:         {},
 	OpIssuedGetBySerial:   {},
 	OpIssuedList:          {},
 	OpIssuedListExpiring:  {},

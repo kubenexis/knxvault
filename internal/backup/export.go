@@ -98,6 +98,16 @@ func Export(ctx context.Context, repos Repos, opts ExportOptions) (*Snapshot, er
 		}
 	}
 
+	if repos.SSHRole != nil {
+		sshRoles, err := repos.SSHRole.List(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("list ssh roles: %w", err)
+		}
+		for _, role := range sshRoles {
+			snapshot.SSHRoles = append(snapshot.SSHRoles, sshRoleFromDomain(role))
+		}
+	}
+
 	if repos.Lease != nil {
 		leases, err := repos.Lease.List(ctx)
 		if err != nil {

@@ -112,5 +112,6 @@ kubectl -n knxvault exec knxvault-0 -- df -h /var/lib/knxvault/raft
 ## Related documents
 
 - [Dragonboat storage](../../storage/dragonboat.md)
+- [Raft HA & recovery](../../storage/raft-ha-and-recovery.md) — how snapshots, quorum, and partitions work in code
 - [Backup & restore](../../deploy/backup-restore.md)
 - [Scaling runbook](scaling.md)

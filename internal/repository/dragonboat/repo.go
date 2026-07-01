@@ -46,6 +46,7 @@ type Repos struct {
 	Policy          *PolicyRepository
 	Role            *RoleRepository
 	DBRole          *DatabaseRoleRepository
+	SSHRole         *SSHRoleRepository
 	IssuedCert      *IssuedCertRepository
 	PKIRole         *PKIRoleRepository
 	Token           *TokenRepository
@@ -64,6 +65,7 @@ func NewRepos(client raftClient) Repos {
 		Policy:          NewPolicyRepository(client),
 		Role:            NewRoleRepository(client),
 		DBRole:          NewDatabaseRoleRepository(client),
+		SSHRole:         NewSSHRoleRepository(client),
 		IssuedCert:      NewIssuedCertRepository(client),
 		PKIRole:         NewPKIRoleRepository(client),
 		Token:           NewTokenRepository(client),
@@ -387,6 +389,36 @@ func (r *DatabaseRoleRepository) List(ctx context.Context) ([]*secrets.DatabaseR
 
 func (r *DatabaseRoleRepository) Delete(ctx context.Context, name string) error {
 	return write(ctx, r.c, raft.OpDBRoleDelete, struct{ Name string }{Name: name})
+}
+
+// SSHRoleRepository persists SSH roles via Raft.
+type SSHRoleRepository struct{ c raftClient }
+
+func NewSSHRoleRepository(c raftClient) *SSHRoleRepository {
+	return &SSHRoleRepository{c: c}
+}
+
+func (r *SSHRoleRepository) Save(ctx context.Context, role *secrets.SSHRole) error {
+	return write(ctx, r.c, raft.OpSSHRoleSave, role)
+}
+
+func (r *SSHRoleRepository) Get(ctx context.Context, name string) (*secrets.SSHRole, error) {
+	var out secrets.SSHRole
+	err := read(ctx, r.c, raft.OpSSHRoleGet, struct{ Name string }{Name: name}, &out)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (r *SSHRoleRepository) List(ctx context.Context) ([]*secrets.SSHRole, error) {
+	var out []*secrets.SSHRole
+	err := read(ctx, r.c, raft.OpSSHRoleList, nil, &out)
+	return out, err
+}
+
+func (r *SSHRoleRepository) Delete(ctx context.Context, name string) error {
+	return write(ctx, r.c, raft.OpSSHRoleDelete, struct{ Name string }{Name: name})
 }
 
 // IssuedCertRepository tracks issued certificates via Raft.

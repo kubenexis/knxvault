@@ -164,3 +164,33 @@ func TestPKIRoleRoundTrip(t *testing.T) {
 		t.Fatalf("CAName = %q, want root", role.CAName)
 	}
 }
+
+func TestValidateSnapshotRejectsUnsupportedVersion(t *testing.T) {
+	if err := backup.ValidateSnapshot(&backup.Snapshot{Version: 99}); err == nil {
+		t.Fatal("expected unsupported version error")
+	}
+}
+
+func TestValidateSnapshotAcceptsValidGraph(t *testing.T) {
+	parentID := uuid.New()
+	childID := uuid.New()
+	now := time.Now().UTC()
+	snapshot := &backup.Snapshot{
+		Version: 1,
+		CAs: []backup.CARecord{
+			{ID: parentID, Name: "root"},
+			{ID: childID, Name: "intermediate", ParentID: &parentID},
+		},
+		Secrets: []backup.SecretRecord{{
+			ID:        uuid.New(),
+			Path:      "app/db",
+			Version:   1,
+			DataEnc:   []byte("enc"),
+			DEKEnc:    []byte("dek"),
+			CreatedAt: now,
+		}},
+	}
+	if err := backup.ValidateSnapshot(snapshot); err != nil {
+		t.Fatalf("ValidateSnapshot() = %v", err)
+	}
+}

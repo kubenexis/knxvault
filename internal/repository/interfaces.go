@@ -104,6 +104,14 @@ type DatabaseRoleRepository interface {
 	Delete(ctx context.Context, name string) error
 }
 
+// SSHRoleRepository persists OpenSSH credential role configuration.
+type SSHRoleRepository interface {
+	Save(ctx context.Context, role *secrets.SSHRole) error
+	Get(ctx context.Context, name string) (*secrets.SSHRole, error)
+	List(ctx context.Context) ([]*secrets.SSHRole, error)
+	Delete(ctx context.Context, name string) error
+}
+
 // IssuedCertRepository tracks issued leaf certificates for renewal.
 type IssuedCertRepository interface {
 	Save(ctx context.Context, cert *pki.IssuedCertificate) error

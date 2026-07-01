@@ -58,4 +58,4 @@ If `add-node` fails mid-flight:
 
 - Update the headless Service and StatefulSet replica count **after** successful `add-node`.
 - New pods should use `KNXVAULT_RAFT_JOIN=true` and omit writing to an existing peer data directory.
-- See [`docs/storage/dragonboat.md`](../../storage/dragonboat.md) for node ID assignment.
+- See [`docs/storage/dragonboat.md`](../../storage/dragonboat.md) for node ID assignment and [Raft HA & recovery](../../storage/raft-ha-and-recovery.md) for membership change semantics.

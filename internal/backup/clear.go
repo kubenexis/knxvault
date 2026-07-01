@@ -41,6 +41,9 @@ func ClearRepos(ctx context.Context, repos Repos) error {
 	if err := clear(asClearable(repos.DBRole)); err != nil {
 		return err
 	}
+	if err := clear(asClearable(repos.SSHRole)); err != nil {
+		return err
+	}
 	if err := clear(asClearable(repos.IssuedCert)); err != nil {
 		return err
 	}

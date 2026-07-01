@@ -80,6 +80,14 @@ func Restore(ctx context.Context, repos Repos, snapshot *Snapshot) error {
 		}
 	}
 
+	if repos.SSHRole != nil {
+		for _, rec := range snapshot.SSHRoles {
+			if err := repos.SSHRole.Save(ctx, sshRoleToDomain(rec)); err != nil {
+				return fmt.Errorf("restore ssh role %s: %w", rec.Name, err)
+			}
+		}
+	}
+
 	if repos.Lease != nil {
 		for _, rec := range snapshot.Leases {
 			if err := repos.Lease.Save(ctx, leaseToDomain(rec)); err != nil {

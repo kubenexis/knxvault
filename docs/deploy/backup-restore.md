@@ -43,7 +43,7 @@ export KNXVAULT_TOKEN=dev-root-token
 
 ## Raft-specific notes
 
-When `KNXVAULT_RAFT_ENABLED=true`, backup also triggers an on-disk Dragonboat snapshot. Restore replaces the full state machine contents. See [Dragonboat storage](../storage/dragonboat.md) and [Raft failover runbook](../operations/runbooks/raft-failover.md).
+When `KNXVAULT_RAFT_ENABLED=true`, backup also triggers an on-disk Dragonboat snapshot. Restore replaces the full state machine contents. See [Dragonboat storage](../storage/dragonboat.md), [Raft HA & recovery](../storage/raft-ha-and-recovery.md), and [Raft failover runbook](../operations/runbooks/raft-failover.md).
 
 ## Archive format
 

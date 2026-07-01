@@ -75,6 +75,13 @@ func (r *RoleRepository) Clear(_ context.Context) error {
 }
 
 // Clear removes all database roles.
+func (r *SSHRoleRepository) Clear(_ context.Context) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.roles = make(map[string]*secrets.SSHRole)
+	return nil
+}
+
 func (r *DatabaseRoleRepository) Clear(_ context.Context) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

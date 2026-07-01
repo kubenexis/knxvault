@@ -200,6 +200,22 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 		)
 	}
 
+	if deps.SSHService != nil && deps.AuthService != nil {
+		sshHandler := handlers.NewSSHHandler(deps.SSHService)
+		sshGroup := secured.Group("/secrets/ssh")
+		sshGroup.Use(middleware.RequirePermission(deps.AuthService, "secrets/ssh", "write"))
+		{
+			sshGroup.PUT("/roles/:name", sshHandler.PutRole)
+			sshGroup.POST("/creds/:role", sshHandler.GenerateCreds)
+			sshGroup.POST("/renew/:lease_id", sshHandler.Renew)
+			sshGroup.PUT("/revoke/:lease_id", sshHandler.Revoke)
+		}
+		secured.GET("/secrets/ssh/roles/:name",
+			middleware.RequirePermission(deps.AuthService, "secrets/ssh", "read"),
+			sshHandler.GetRole,
+		)
+	}
+
 	if deps.RotationService != nil && deps.AuthService != nil {
 		secretsHandler := handlers.NewSecretsHandler(deps.SecretsService, deps.RotationService)
 		secured.PUT("/sys/kv-rotation",

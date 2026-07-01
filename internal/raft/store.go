@@ -19,6 +19,7 @@ type Store struct {
 	Policy          *memory.PolicyRepository
 	Role            *memory.RoleRepository
 	DBRole          *memory.DatabaseRoleRepository
+	SSHRole         *memory.SSHRoleRepository
 	IssuedCert      *memory.IssuedCertRepository
 	PKIRole         *memory.PKIRoleRepository
 	Token           *memory.TokenRepository
@@ -37,6 +38,7 @@ func NewStore() *Store {
 		Policy:          memory.NewPolicyRepository(),
 		Role:            memory.NewRoleRepository(),
 		DBRole:          memory.NewDatabaseRoleRepository(),
+		SSHRole:         memory.NewSSHRoleRepository(),
 		IssuedCert:      memory.NewIssuedCertRepository(),
 		PKIRole:         memory.NewPKIRoleRepository(),
 		Token:           memory.NewTokenRepository(),
@@ -57,6 +59,7 @@ func (s *Store) Repos() backup.Repos {
 		Role:       s.Role,
 		PKIRole:    s.PKIRole,
 		DBRole:     s.DBRole,
+		SSHRole:    s.SSHRole,
 		IssuedCert: s.IssuedCert,
 		Token:      s.Token,
 	}

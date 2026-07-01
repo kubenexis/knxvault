@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -97,6 +96,7 @@ func (e *Engine) SaveRole(ctx context.Context, cfg RoleConfig) error {
 		role.UsernamePrefix = "v-"
 	}
 	domainsecrets.NormalizeDatabaseRole(role)
+	applyDBTypeDefaults(role)
 	if err := role.Validate(); err != nil {
 		return common.Wrap(common.ErrCodeValidation, "invalid database role", err)
 	}
@@ -197,7 +197,7 @@ func (e *Engine) GenerateCredentials(ctx context.Context, req CredsRequest) (*Cr
 		return nil, err
 	}
 
-	statements := renderStatements(role.CreationStatements, username, password)
+	statements := renderStatementsForRole(role.CreationStatements, role, username, password, expiresAt)
 	if role.ExecutionMode == domainsecrets.ExecutionModeManaged {
 		connURL, err := e.adminConnectionURL(ctx, role)
 		if err != nil {
@@ -283,7 +283,7 @@ func (e *Engine) Renew(ctx context.Context, leaseID string, ttlSeconds int) (*Cr
 		Role:       lease.RoleName,
 		TTLSeconds: ttlSeconds,
 		ExpiresAt:  expiresAt,
-		Statements: renderStatements(role.CreationStatements, username, password),
+		Statements: renderStatementsForRole(role.CreationStatements, role, username, password, expiresAt),
 	}, nil
 }
 
@@ -310,7 +310,7 @@ func (e *Engine) RevokeLease(ctx context.Context, leaseID string) error {
 				if json.Unmarshal(plain, &data) == nil {
 					username, _ := data["username"].(string)
 					password, _ := data["password"].(string)
-					statements := renderStatements(role.RevocationStatements, username, password)
+					statements := renderStatementsForRole(role.RevocationStatements, role, username, password, now)
 					if len(statements) > 0 {
 						connURL, err := e.adminConnectionURL(ctx, role)
 						if err != nil {
@@ -351,10 +351,11 @@ func (e *Engine) adminConnectionURL(ctx context.Context, role *domainsecrets.Dat
 	if err := json.Unmarshal(plain, &data); err != nil {
 		return "", common.Wrap(common.ErrCodeInternal, "unmarshal admin credentials", err)
 	}
-	if raw, ok := data["connection_url"].(string); ok && strings.TrimSpace(raw) != "" {
-		return strings.TrimSpace(raw), nil
+	connURL, err := BuildConnectionURL(data, role.Config)
+	if err != nil {
+		return "", common.Wrap(common.ErrCodeValidation, "admin credentials", err)
 	}
-	return "", common.New(common.ErrCodeValidation, "admin credentials must include connection_url")
+	return connURL, nil
 }
 
 // RenewExpiring renews active leases expiring within the grace window.
@@ -403,6 +404,9 @@ func (e *Engine) CleanupExpired(ctx context.Context, limit int) (int, error) {
 	revoked := 0
 	var firstErr error
 	for _, lease := range expired {
+		if lease.Engine != engineName {
+			continue
+		}
 		if err := e.RevokeLease(ctx, lease.ID); err != nil {
 			if firstErr == nil {
 				firstErr = err
@@ -464,21 +468,6 @@ func (e *Engine) generateUsername(role *domainsecrets.DatabaseRole) (string, err
 		return "", err
 	}
 	return role.UsernamePrefix + role.Name + "-" + suffix, nil
-}
-
-func renderStatements(templates []string, username, password string) []string {
-	if len(templates) == 0 {
-		return nil
-	}
-	out := make([]string, len(templates))
-	for i, tmpl := range templates {
-		out[i] = strings.NewReplacer(
-			"{{username}}", username,
-			"{{password}}", password,
-			"{{name}}", username,
-		).Replace(tmpl)
-	}
-	return out
 }
 
 func newLeaseID() (string, error) {

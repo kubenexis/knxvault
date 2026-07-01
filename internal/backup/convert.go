@@ -119,6 +119,33 @@ func auditToDomain(rec AuditRecord) *audit.Entry {
 	}
 }
 
+func sshRoleFromDomain(role *secrets.SSHRole) SSHRoleRecord {
+	secrets.NormalizeSSHRole(role)
+	return SSHRoleRecord{
+		Name:         role.Name,
+		TTLSeconds:   role.TTLSeconds,
+		CAKeyPath:    role.CAKeyPath,
+		AllowedUsers: append([]string(nil), role.AllowedUsers...),
+		DefaultUser:  role.DefaultUser,
+		KeyType:      role.KeyType,
+		Extensions:   role.Extensions,
+	}
+}
+
+func sshRoleToDomain(rec SSHRoleRecord) *secrets.SSHRole {
+	role := &secrets.SSHRole{
+		Name:         rec.Name,
+		TTLSeconds:   rec.TTLSeconds,
+		CAKeyPath:    rec.CAKeyPath,
+		AllowedUsers: rec.AllowedUsers,
+		DefaultUser:  rec.DefaultUser,
+		KeyType:      rec.KeyType,
+		Extensions:   rec.Extensions,
+	}
+	secrets.NormalizeSSHRole(role)
+	return role
+}
+
 func databaseRoleFromDomain(role *secrets.DatabaseRole) DatabaseRoleRecord {
 	secrets.NormalizeDatabaseRole(role)
 	return DatabaseRoleRecord{

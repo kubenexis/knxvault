@@ -37,15 +37,16 @@ Backup archives encrypt the full snapshot payload with the same master key.
 
 ### Negative
 
-- Master key rotation requires re-encryption of all objects (rotation API not yet implemented)
+- Master key rotation requires re-encryption of all wrapped DEKs (leader background job)
 - Loss of master key means permanent data loss
 - Operators must manage master key custody (K8s Secret, KMS, etc.)
 
 ### Follow-up
 
-- `sys/rotate-master-key` API (Phase 4)
 - External KMS integration for master key unwrap
 - HSM-backed master key via OpenSSL engine
+
+**Implemented (Phase 4):** `POST /sys/rotate-master-key`, versioned `KeyRing`, DEK re-encrypt job — see [Envelope encryption](../architecture/envelope-encryption.md).
 
 ## References
 

@@ -58,6 +58,10 @@ var storeHandlers = map[string]storeHandler{
 	OpDBRoleGet:             handleDBRoleGet,
 	OpDBRoleList:            handleDBRoleList,
 	OpDBRoleDelete:          handleDBRoleDelete,
+	OpSSHRoleSave:           handleSSHRoleSave,
+	OpSSHRoleGet:            handleSSHRoleGet,
+	OpSSHRoleList:           handleSSHRoleList,
+	OpSSHRoleDelete:         handleSSHRoleDelete,
 	OpIssuedSave:            handleIssuedSave,
 	OpIssuedGetBySerial:     handleIssuedGetBySerial,
 	OpIssuedList:            handleIssuedList,
@@ -397,6 +401,34 @@ func handleDBRoleDelete(s *Store, ctx context.Context, payload json.RawMessage) 
 		return nil, err
 	}
 	return nil, s.DBRole.Delete(ctx, req.Name)
+}
+
+func handleSSHRoleSave(s *Store, ctx context.Context, payload json.RawMessage) (any, error) {
+	var role secrets.SSHRole
+	if err := json.Unmarshal(payload, &role); err != nil {
+		return nil, err
+	}
+	return nil, s.SSHRole.Save(ctx, &role)
+}
+
+func handleSSHRoleGet(s *Store, ctx context.Context, payload json.RawMessage) (any, error) {
+	var req struct{ Name string }
+	if err := json.Unmarshal(payload, &req); err != nil {
+		return nil, err
+	}
+	return s.SSHRole.Get(ctx, req.Name)
+}
+
+func handleSSHRoleList(s *Store, ctx context.Context, _ json.RawMessage) (any, error) {
+	return s.SSHRole.List(ctx)
+}
+
+func handleSSHRoleDelete(s *Store, ctx context.Context, payload json.RawMessage) (any, error) {
+	var req struct{ Name string }
+	if err := json.Unmarshal(payload, &req); err != nil {
+		return nil, err
+	}
+	return nil, s.SSHRole.Delete(ctx, req.Name)
 }
 
 func handleIssuedSave(s *Store, ctx context.Context, payload json.RawMessage) (any, error) {
