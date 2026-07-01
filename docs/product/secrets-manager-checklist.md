@@ -14,7 +14,16 @@ Use this checklist before promoting KNXVault to production secrets management wo
 | Raft peer mTLS | ✅ Shipped | W38-14 | [tier0-production.md](tier0-production.md) |
 | CSI secret rotation | ✅ Shipped | W39-05 | [secrets-injection.md](../deploy/secrets-injection.md) |
 
-### Enterprise security (Tier I — planned)
+### Prospect POC immediate (Tier P — memorandum)
+
+| Criterion | Status | Backlog | Doc |
+|-----------|--------|---------|-----|
+| Memorandum traceability matrix | ⏳ P0 | W41-15 | [enterprise-memorandum-matrix.md](enterprise-memorandum-matrix.md) |
+| Native PKI (remove OpenSSL fork) | ⏳ P3 gate | W31-01, W41-08–W41-10 | [Tier P](../backlog.md#tier-p--prospect-poc-immediate-july-2026-enterprise-memorandum) |
+| OpenSSL seccomp (interim) | ⏳ P1 | W41-13 | [enterprise-memorandum-matrix.md](enterprise-memorandum-matrix.md) |
+| API TLS from PKI | ⏳ P2 | W38-15 | [backlog.md](../backlog.md) |
+
+### Enterprise security (Tier I — post-prospect)
 
 | Criterion | Status | Backlog | Doc |
 |-----------|--------|---------|-----|

@@ -76,6 +76,8 @@ Version-controlled documentation for architects, operators, developers, and inte
 | [LLD alignment matrix](product/lld-alignment.md) | Maintainers | LLD § → code traceability |
 | [Secrets manager checklist](product/secrets-manager-checklist.md) | Architects | Capability matrix vs evaluation criteria |
 | [PoC evaluation guide](product/poc-evaluation-guide.md) | Architects / procurement | Scoped PoC path, success criteria, known gaps |
+| [Enterprise memorandum matrix](product/enterprise-memorandum-matrix.md) | Security / sales | July 2026 review → Tier P status and waivers |
+| [Backlog — Tier P](backlog.md#tier-p--prospect-poc-immediate-july-2026-enterprise-memorandum) | Engineering | Immediate prospect POC delivery sequence |
 
 ## Quick links
 

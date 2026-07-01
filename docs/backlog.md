@@ -2,7 +2,7 @@
 
 Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topologically sorted by dependency** — implement in listed order within each phase.
 
-**Current focus:** [Tier H K8s ecosystem](#tier-h--kubernetes-ecosystem-eso-cert-manager-sdks) (W40-01–W40-07) → remaining **W36** tiers (B–E) → [Tier I enterprise security](#tier-i--enterprise-security--compliance-v10v12) (v1.0 GA blockers **W41-01–W41-02**). **Tier 0 (W37-01–03, W37-05, W37-07, W38-14, W39-05), Tier A, Tier F (except W38-15 stub), Tier G, webhook (W38-07)** are **shipped**. **Helm, Terraform, AWS/GCP/Azure cloud integrations** → [long-term](#long-term-future) (LT-*).
+**Current focus:** [**Tier P — Prospect POC immediate**](#tier-p--prospect-poc-immediate-july-2026-enterprise-memorandum) (**supersedes all other tiers** until prospect exit criteria met). Then remaining **W36** (B–E) → [Tier H](#tier-h--kubernetes-ecosystem-eso-cert-manager-sdks) → [Tier I](#tier-i--enterprise-security--compliance-v10v12) remainder. **Tier 0, Tier A, Tier F (except W38-15), Tier G, webhook** are **shipped**. **Helm, Terraform, AWS/GCP/Azure KMS** → [long-term](#long-term-future) (LT-*); prospect near-term master key = sealed Secrets per [ADR-0006](adr/0006-seal-unseal-strategies.md).
 
 **Legend**
 
@@ -25,6 +25,56 @@ Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topological
 | Backup | Dragonboat snapshots + encrypted export API |
 
 Phases 1–2 below cover application-layer work (engines, API, auth). **Phase 3** delivered the Dragonboat storage and HA substrate; repository interfaces (`internal/repository/interfaces.go`) are implemented in `internal/repository/dragonboat/`.
+
+---
+
+## Tier P — Prospect POC immediate (July 2026 enterprise memorandum)
+
+**Trigger:** Regulated prospect requires POC authorization; memorandum blocks sign-off while OpenSSL subprocess wraps core PKI, plaintext bootstrap keys lack SoD, and memory hardening gaps remain.
+
+**Exit criteria (prospect POC gate):** P0 docs shipped · **W41-01** + **W41-02** + **W41-13** · **W41-05** Shamir · **W41-09** native PKI issuance (RSA SHA-256 parity) · **W41-06** cascade revoke · compensating-controls checklist signed · `make all` + integration tests green.
+
+**Already satisfied (no Tier P implementation):**
+
+| Memorandum concern | Status | Evidence |
+|--------------------|--------|----------|
+| Q3 — OpenSSL injection / SafeExec | ✅ Shipped | **W38-11** fuzz, `internal/crypto/openssl/wrapper.go`, circuit breaker **W38-17** |
+| Q5 — K8s asymmetric token validation | ✅ Shipped | **W36-02** TokenReview; HS256 dev-only blocked with Raft |
+| §5 — `readOnlyRootFilesystem`, non-root, cap drop | ✅ Shipped | `deployments/k8s/statefulset.yaml` |
+| Envelope encryption (not OpenSSL) | ✅ Shipped | **W3-02**, [ADR-0003](adr/0003-envelope-encryption.md) |
+| Dedicated unseal ≠ master key | ✅ Shipped | **W36-24**, `internal/config/security.go` |
+
+**Deferred with documented compensating controls (prospect waiver):**
+
+| Concern | Workaround | Backlog |
+|---------|------------|---------|
+| Q2 — Cloud KMS auto-unseal | Sealed Secrets / ESO for `KNXVAULT_MASTER_KEY` | **LT-14**, **LT-15** (long-term) |
+| §2.D — External DB (Aurora/Consul) | Dragonboat intentional | **LT-13** non-goal |
+| Q1 — Full distroless (no OpenSSL binary) | After native PKI parity | **W41-10** (follows **W41-09**) |
+
+### Tier P — implementation sequence
+
+Implement **top to bottom**. Full specs remain in linked IDs (Tier I / Phase 5); Tier P is the **priority overlay** only.
+
+| Priority | ID | Memo § / Q | Title | Area | Effort | Depends on | Target | Notes |
+|----------|-----|------------|-------|------|--------|------------|--------|-------|
+| **P0** | **W41-12** | §5 air-gap | Air-gap OpenSSL CVE patching runbook | docs | S | W9-01 | Week 1 | Docs-only; unblocks air-gap prospect questionnaire |
+| **P0** | **W41-15** | Q1–Q6 | Enterprise memorandum traceability matrix | docs | S | W38-19 | Week 1 | `docs/product/enterprise-memorandum-matrix.md` — concern → code/ADR → Tier P status → waiver |
+| **P1** | **W41-01** | Q6 | Memory lock (`mlock`) for master and unseal keys | security | M | W36-24 | Week 2–3 | Prospect Q6 hard requirement |
+| **P1** | **W41-02** | Q6 | Universal sensitive-buffer lifecycle audit | security | M | W41-01 | Week 3–4 | Pairs with Shamir/unseal POST bodies |
+| **P1** | **W41-13** | §2.A, §5 | Seccomp profile for OpenSSL child processes | security | M | W3-03 | Week 4 | Compensating control until **W41-09** removes subprocess |
+| **P2** | **W41-05** | Q4 | Shamir threshold unseal (unseal key only) | security | L | W41-01 | Week 5–7 | [ADR-0006](adr/0006-seal-unseal-strategies.md); not master key |
+| **P2** | **W31-01** | Q1 | OpenSSL engine / PKI backend abstraction | crypto | M | W3-03 | Week 5–6 | **Moved from Phase 5** — prerequisite for native PKI |
+| **P2** | **W41-08** | Q1 | Go-native `crypto/x509` read and verify fast path | crypto | M | W31-01 | Week 6–7 | Reduces OpenSSL fork surface on read paths |
+| **P2** | **W38-15** | §2.D TLS | API TLS bootstrap from vault PKI | crypto | M | W37-01 | Week 5–6 | Stub today; prospect needs ingress-ready TLS story |
+| **P2** | **W41-07** | §2.D OIDC | OIDC group and claim → policy mapping | auth | M | W37-02 | Week 6–7 | Enterprise IdP group arrays |
+| **P3** | **W41-09** | Q1 | Go-native full PKI issuance engine | crypto | XL | W41-08 | Week 8–12 | **Primary memorandum blocker** — removes OpenSSL fork on issue/CRL/OCSP |
+| **P3** | **W41-10** | Q1 | OpenSSL subprocess optional mode | crypto | M | W41-09 | Week 12+ | Distroless path; OpenSSL fallback flag |
+| **P3** | **W41-06** | §2.D tokens | Hierarchical tokens & cascade revocation | auth | L | W36-13 | Week 8–10 | Breach containment; parallel with **W41-09** |
+| — | **W41-14** | Q2 + Q4 | Dual-mode seal (KMS + Shamir) | security | M | W41-05, LT-14 | Post-prospect | After **LT-14**; not prospect gate |
+| — | **W41-11** | Q5 alt | K8s cluster JWKS direct validation | auth | M | W36-02 | Optional | TokenReview sufficient for prospect |
+
+> **Tier P sequencing:** **P0** docs in parallel (week 1). **P1** security hardening before Shamir (**W41-05**). **W31-01** must land before **W41-08** → **W41-09** chain. Prospect POC demo can use OpenSSL fallback until **W41-09** merges; **prospect authorization** requires **W41-09** acceptance tests green. **Tier H (W40)** and **LT-14** resume after Tier P exit.
 
 ---
 
@@ -198,7 +248,13 @@ Items below come from a **2026-06 codebase gap analysis**, a **secrets manager c
 
 ### Tier I — Enterprise security & compliance (v1.0–v1.2)
 
-Items from the **2026-07 enterprise architecture security review**. Addresses Shamir threshold unseal, native PKI, memory hardening, token hierarchy, OIDC claim mapping, and air-gap operational gaps. **Cloud KMS auto-unseal (AWS/GCP/Azure)** → [long-term](#long-term-future) (**LT-14**, **LT-15**). **Seal/unseal model:** [ADR-0006](adr/0006-seal-unseal-strategies.md) — Shamir splits **unseal key** only; master key via KMS/HSM/sealed Secret. **v1.0 GA blockers:** **W41-01**, **W41-02**. **v1.1:** **W41-05–W41-07**, **W41-12**, **W41-14**. **v1.2:** **W41-08–W41-11**, **W41-13**. **Phase 5:** **W31-03** (HSM master wrap). Customer-facing scope: [`docs/product/poc-evaluation-guide.md`](product/poc-evaluation-guide.md).
+Items from the **2026-07 enterprise architecture security review**. **Prospect POC immediate items** → [**Tier P**](#tier-p--prospect-poc-immediate-july-2026-enterprise-memorandum) (supersedes timing below). Remaining Tier I after Tier P exit: **W41-14**, **W41-11**, **W31-03**. **Cloud KMS (AWS/GCP/Azure)** → **LT-14**, **LT-15**. **Seal/unseal model:** [ADR-0006](adr/0006-seal-unseal-strategies.md). Customer-facing scope: [`docs/product/poc-evaluation-guide.md`](product/poc-evaluation-guide.md).
+
+| ID | Tier P priority | Notes |
+|----|-----------------|-------|
+| W41-01, W41-02, W41-05, W41-06, W41-07, W41-08, W41-09, W41-10, W41-12, W41-13, W41-15, W31-01, W38-15 | **P0–P3** | See Tier P sequence |
+| W41-14 | Post-prospect | Requires **LT-14** |
+| W41-11 | Optional | TokenReview enough for prospect |
 
 | ID | Title | Area | Effort | Depends on | Description | Acceptance criteria |
 |----|-------|------|--------|------------|-------------|---------------------|
@@ -213,7 +269,8 @@ Items from the **2026-07 enterprise architecture security review**. Addresses Sh
 | **W41-10** | OpenSSL subprocess deprecation and optional mode | crypto | M | W41-09, LT-12 | **Gap:** Even after native backend ships, Dockerfile and docs still require OpenSSL in image. **Hint:** When `KNXVAULT_PKI_BACKEND=native` and no HSM engine configured, skip OpenSSL binary check at startup (`internal/app/deps.go`). Provide `Dockerfile.distroless` (no OpenSSL) gated on **W41-09** parity. Deprecation notice in [ADR-0002](adr/0002-openssl-cli-crypto-backend.md) — status → "Superseded by native path". Migration guide in `docs/operations/pki-openssl-migration.md`. | Distroless image issues RSA leaf cert via native backend; `knxvault-cli doctor` warns if OpenSSL missing but native enabled. |
 | **W41-11** | Kubernetes cluster JWKS direct SA token validation | auth | M | W36-02 | **Gap:** Production path uses TokenReview API (`internal/infra/k8s/tokenreview.go`) — correct but requires live API server on every login. Some regulated environments want offline asymmetric validation against cluster JWKS (`https://<apiserver>/openid/v1/jwks` or `/.well-known/openid-configuration`). **Hint:** Add `KNXVAULT_K8S_AUTH_MODE=tokenreview` (default) \| `jwks`. JWKS mode: fetch and cache cluster JWKS (reuse `internal/auth/oidc.go` cache pattern), validate SA JWT signature + `iss` + `kubernetes.io/serviceaccount/*` claims locally. Config: `KNXVAULT_K8S_JWKS_URL`, `KNXVAULT_K8S_ISSUER`. Document trade-offs (TokenReview = authoritative revocation; JWKS = offline but no real-time revoke). Forbidden when `k8s_auth_insecure` set. | JWKS mode authenticates valid SA token without TokenReview call; expired token rejected; docs compare modes. |
 | **W41-12** | Air-gap OpenSSL CVE patching and image rebuild runbook | docs | S | W9-01, W1-02 | **Gap:** Enterprise air-gap customers need documented procedure for patching OpenSSL 3.x in immutable containers without runtime `apt-get`. **Hint:** Add `docs/operations/runbooks/air-gap-image-patching.md`: (1) monitor Debian security advisories for bookworm OpenSSL; (2) rebuild image `make docker-build` with updated base digest; (3) `make sbom` + `make scan` (Trivy); (4) sign and push to air-gap registry; (5) rolling StatefulSet update with `POST /sys/backup` pre-hook; (6) verify `knxvault-cli doctor` + `openssl version` via exec. Include CVE response SLA template and SBOM diff checklist. Link from [`poc-evaluation-guide.md`](product/poc-evaluation-guide.md). | Runbook steps reproducible in kind; SBOM documents OpenSSL version; linked from docs index. |
-| **W41-13** | Seccomp profile for OpenSSL child processes | security | M | W38-21, W3-03 | **Gap:** OpenSSL subprocess inherits container seccomp (`RuntimeDefault`) but no KNXVault-specific syscall allowlist; complements **LT-08** Falco detection with prevention. **Hint:** Generate seccomp profile via `docker run --rm seccomp/knxvault-openssl` or hand-write JSON allowing: `read`, `write`, `mmap`, `exit`, `exit_group`, `futex`, `clock_gettime`, `getrandom`, `rt_sigreturn` — deny `execve`, `socket`, `connect`, `chmod` outside tmp. Apply via `securityContext.seccompProfile.localhostProfile` on StatefulSet when `KNXVAULT_OPENSSL_SECCOMP=true`. Test: PKI issuance succeeds with profile; Falco silent. Extend **LT-08** rules to alert on profile bypass. | PKI issue works with custom seccomp; `execve` from OpenSSL child blocked; documented in `deployments/k8s/seccomp-openssl.json`. |
+| **W41-13** | Seccomp profile for OpenSSL child processes | security | M | W38-21, W3-03 | **Gap:** OpenSSL subprocess inherits container seccomp (`RuntimeDefault`) but no KNXVault-specific syscall allowlist; complements **LT-08** Falco detection with prevention. **Tier P:** **P1** compensating control until **W41-09**. **Hint:** Generate seccomp profile via `docker run --rm seccomp/knxvault-openssl` or hand-write JSON allowing: `read`, `write`, `mmap`, `exit`, `exit_group`, `futex`, `clock_gettime`, `getrandom`, `rt_sigreturn` — deny `execve`, `socket`, `connect`, `chmod` outside tmp. Apply via `securityContext.seccompProfile.localhostProfile` on StatefulSet when `KNXVAULT_OPENSSL_SECCOMP=true`. Test: PKI issuance succeeds with profile; Falco silent. Extend **LT-08** rules to alert on profile bypass. | PKI issue works with custom seccomp; `execve` from OpenSSL child blocked; documented in `deployments/k8s/seccomp-openssl.json`. |
+| **W41-15** | Enterprise memorandum traceability matrix | docs | S | W38-19 | **Gap:** Prospect security review (July 2026) needs single living doc mapping memorandum §/Q → implementation status → Tier P priority → compensating control or waiver. **Tier P:** **P0** week 1. **Hint:** `docs/product/enterprise-memorandum-matrix.md` — rows for §2.A–E, Q1–Q6, §5 compensating controls; link ADR-0002/0003/0006, code paths, Tier P IDs. Update on each Tier P ship. Export PDF appendix for prospect data room. Cross-link [`poc-evaluation-guide.md`](product/poc-evaluation-guide.md). | Matrix complete; no “shipped” without code cite; prospect waiver section for LT-14/13. |
 
 > **Tier I sequencing:** **W41-01** + **W41-02** before v1.0 GA (parallel with remaining W36). **W41-05** (Shamir on unseal key) before **W41-14** (dual-mode). **W41-14** depends on **LT-14** for KMS leg — design doc + config stubs can land in v1.1 before cloud SDKs. **W41-06** + **W41-07** are v1.1 auth priorities. **W41-08** → **W41-09** → **W41-10** is the native PKI migration chain (after **W31-01**). **W41-12** can ship immediately (docs-only). **W41-11** optional for air-gapped K8s API constraints. Master key: sealed Secrets near-term; cloud KMS **LT-14**, **LT-15**; HSM wrap **W31-03**. See [ADR-0006](adr/0006-seal-unseal-strategies.md).
 
@@ -312,7 +369,7 @@ High-level scope from LLD §9.4. Phase 3 is complete; Phase 4 hardening recommen
 |----|-------|------|--------|------------|-------------|---------------------|
 | **W30-01** | Kubernetes Operator scaffold | k8s | L | W29 | kubebuilder project, CRD types for CA and policy resources. | CRDs apply cleanly; scaffold compiles. |
 | **W30-02** | Operator reconciliation loop | k8s | L | W30-01 | Reconcile CRDs to KNXVault REST API with status conditions. | Create CA via CRD → visible in API; e2e test passes. |
-| **W31-01** | OpenSSL engine abstraction | crypto | M | W3-03 | **Gap:** PKI engine calls `openssl.Wrapper.SafeExec` directly — no pluggable backend for HSM or native `crypto/x509` ([ADR-0002](adr/0002-openssl-cli-crypto-backend.md) Phase 4). **Hint:** Define `internal/crypto/pki/backend.go` interface: `GenerateKey`, `CreateCSR`, `SignCertificate`, `GenerateCRL`, `SignOCSP` with implementations `opensslBackend` (wraps existing `SafeExec`), `nativeBackend` (stub until **W41-08**), `engineBackend` (PKCS#11 via **W31-02**). Inject via `pkiengine.NewEngine(backend, ...)` in `internal/app/deps.go`. Config: `KNXVAULT_PKI_BACKEND=openssl\|native\|pkcs11`. Unit tests with `mockBackend` recording calls; no subprocess in default unit tests. Prerequisite for **W41-08–W41-10** and **LT-07** FIPS engine path. | Mock backend passes full PKI integration suite; switching backend is config-only; OpenSSL remains default. |
+| **W31-01** | OpenSSL engine abstraction | crypto | M | W3-03 | **Tier P:** **P2** week 5–6 ([prospect gate](#tier-p--prospect-poc-immediate-july-2026-enterprise-memorandum)). **Gap:** PKI engine calls `openssl.Wrapper.SafeExec` directly — no pluggable backend for HSM or native `crypto/x509` ([ADR-0002](adr/0002-openssl-cli-crypto-backend.md) Phase 4). **Hint:** Define `internal/crypto/pki/backend.go` interface: `GenerateKey`, `CreateCSR`, `SignCertificate`, `GenerateCRL`, `SignOCSP` with implementations `opensslBackend` (wraps existing `SafeExec`), `nativeBackend` (stub until **W41-08**), `engineBackend` (PKCS#11 via **W31-02**). Inject via `pkiengine.NewEngine(backend, ...)` in `internal/app/deps.go`. Config: `KNXVAULT_PKI_BACKEND=openssl\|native\|pkcs11`. Unit tests with `mockBackend` recording calls; no subprocess in default unit tests. Prerequisite for **W41-08–W41-10** and **LT-07** FIPS engine path. | Mock backend passes full PKI integration suite; switching backend is config-only; OpenSSL remains default. |
 | **W31-02** | PKCS#11 HSM integration (PKI signing keys) | crypto | L | W31-01 | **Gap:** CA private keys are software-generated and envelope-encrypted in Raft — no HSM integration for signing operations. **Scope ([ADR-0006](adr/0006-seal-unseal-strategies.md)):** PKI keys only — distinct from **W31-03** master key wrap. **Hint:** Implement `engineBackend` using OpenSSL `-engine pkcs11` (or OpenSSL 3 `-provider` when **W31-01** abstraction supports it) with config `KNXVAULT_PKCS11_MODULE`, `KNXVAULT_PKCS11_SLOT`, `KNXVAULT_PKCS11_PIN` (pin from env, never in Raft). Root CA `CreateRoot` generates key on-token; only cert PEM stored in Raft. Add SoftHSM2 dev setup in `scripts/sofhsm-setup.sh` and CI optional job. Document in `docs/operations/hsm-pki.md`. | Root CA created on SoftHSM; issue leaf signs on HSM; key never in `PrivateKeyEnc`; audit `pki.hsm.sign`. |
 | **W31-03** | HSM-wrapped master key (envelope root) | crypto | L | W3-01, W31-01 | **Gap:** Master key is software-loaded from env/file ([ADR-0003](adr/0003-envelope-encryption.md) follow-up). **Decision ([ADR-0006](adr/0006-seal-unseal-strategies.md)):** Master key material wrapped on HSM or PKCS#11 token — separate from **W31-02** PKI signing. **Hint:** `internal/crypto/masterkey/hsm.go` — unwrap master key via PKCS#11 `C_Decrypt` or vendor KMS API at startup; plaintext master in mlocked buffer (**W41-01**) only for process lifetime. Config: `KNXVAULT_MASTER_KEY_SOURCE=hsm`, `KNXVAULT_PKCS11_MASTER_KEY_LABEL`. Never persist unwrapped master in Raft. Rotation: `POST /sys/rotate-master-key` re-wraps on HSM. Document vs cloud KMS (**LT-14**) choice matrix. | Cluster starts with HSM-wrapped master; no `KNXVAULT_MASTER_KEY` in env; unwrap failure fails closed. |
 | **W32-01** | Multi-tenancy policy model | auth | M | W13-01 | Namespace-scoped policy isolation. | Cross-tenant access denied in tests. |
@@ -339,7 +396,8 @@ Deferred packaging, cloud-provider integrations (AWS/GCP/Azure KMS, AWS IAM dyna
 | gRPC API, Web UI, OPA integration | api | **LT-04–LT-06** (LLD §10.3). |
 | FIPS OpenSSL, Falco rules | security | **LT-07–LT-08** (LLD §7.6–7.7); seccomp hardening **W41-13**. |
 | Cloud KMS auto-unseal (AWS/GCP/Azure) | crypto | **LT-14**, **LT-15**; near-term: sealed K8s Secrets. |
-| Shamir / dual-mode unseal, native PKI | crypto | **W41-05**, **W41-14**, **W41-08–W41-10**; [ADR-0006](adr/0006-seal-unseal-strategies.md). |
+| Prospect POC immediate (memorandum) | security | [**Tier P**](#tier-p--prospect-poc-immediate-july-2026-enterprise-memorandum) — supersedes until exit. |
+| Shamir / dual-mode unseal, native PKI | crypto | **Tier P** then **W41-14**; [ADR-0006](adr/0006-seal-unseal-strategies.md). |
 | HSM master key wrap | crypto | **W31-03** (Phase 5); PKI HSM **W31-02**. |
 | MkDocs / GitHub Pages publishing | docs | **LT-11** (LLD §12.1). |
 | Performance benchmarking suite | ci | **LT-12** (LLD §9.5); gates **W41-09** native PKI parity. |

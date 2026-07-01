@@ -11,7 +11,9 @@ This guide helps security architects, platform engineers, and procurement teams 
 | [Secrets manager checklist](secrets-manager-checklist.md) | Production readiness criteria |
 | [Security model](../architecture/security-model.md) | Threat model and crypto controls |
 | [Operator security](../operations/operator-security.md) | Bootstrap and credential hygiene |
-| [Backlog — Tier I](../backlog.md#tier-i--enterprise-security--compliance-v10v12) | Roadmap for enterprise gaps |
+| [Backlog — Tier P (immediate)](../backlog.md#tier-p--prospect-poc-immediate-july-2026-enterprise-memorandum) | Prospect POC delivery track |
+| [Enterprise memorandum matrix](enterprise-memorandum-matrix.md) | Memorandum §/Q → status → waiver |
+| [Backlog — Tier I](../backlog.md#tier-i--enterprise-security--compliance-v10v12) | Post-prospect enterprise gaps |
 | [Kubernetes deployment](../deploy/kubernetes.md) | 3-node Raft install |
 
 ---
@@ -47,7 +49,7 @@ KNXVault is a **Kubernetes-native secrets manager and internal PKI** platform:
 | OIDC AD group → policy mapping | **No** | **W41-07** — static role policies only |
 | OpenSSL-free / distroless PKI | **No** | **W41-09** — native `crypto/x509` planned v1.2 |
 
-**Recommendation:** Proceed with PoC when scope is **in-cluster K8s secrets + PKI pilot** under infrastructure compensating controls. Defer regulated multi-tenant production until v1.0 GA criteria (below) are met or explicitly waived.
+**Recommendation:** Proceed with PoC when scope is **in-cluster K8s secrets + PKI pilot** under infrastructure compensating controls. **Active prospect delivery:** [Tier P backlog](../backlog.md#tier-p--prospect-poc-immediate-july-2026-enterprise-memorandum) — memorandum authorization requires **W41-09** native PKI, **W41-05** Shamir, **W41-01/02** memory hardening (see [memorandum matrix](enterprise-memorandum-matrix.md)).
 
 ---
 
@@ -192,7 +194,9 @@ Capabilities requested in enterprise security reviews map to backlog items:
 | OpenSSL child seccomp profile | Gap | **W41-13** | v1.2 |
 | Helm chart | Gap | **LT-03** | Post-v1.0 |
 
-**v1.0 GA estimate:** Q3–Q4 2026 (remaining W36 tiers + W41-01/02 + W38-15 TLS bootstrap).
+**Prospect POC estimate:** ~12 weeks per [Tier P](../backlog.md#tier-p--prospect-poc-immediate-july-2026-enterprise-memorandum) (P0 docs → P1 hardening → P2 Shamir/native prereqs → P3 **W41-09**).
+
+**v1.0 GA estimate:** Q3–Q4 2026 after Tier P exit + remaining W36 tiers.
 
 ---
 
