@@ -56,7 +56,7 @@ A PR should pass all gates locally before submission.
 
 ## Manual testing
 
-For structured HA, network-partition, and secret-rotation latency exercises (BFSI POC / prospect evaluation), see **[Manual testing strategy](manual-testing-strategy.md)** — includes **MT-01** (network disruption & Raft recovery) and **MT-02** (rotation latency without pod restart).
+For structured HA, security stress, and PoC evaluation exercises, see **[Manual testing strategy](manual-testing-strategy.md)** — includes **MT-01** (network disruption), **MT-02** (rotation latency), and **MT-33–MT-37** (seal, isolation, revocation, audit tamper).
 
 ### Quick smoke (local)
 
