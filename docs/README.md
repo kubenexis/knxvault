@@ -72,6 +72,7 @@ Version-controlled documentation for architects, operators, developers, and inte
 |----------|----------|-------------|
 | [Development guide](engineering/development.md) | Contributors | Local setup, `make` targets, layout |
 | [Testing guide](engineering/testing.md) | Contributors | Unit, integration, and Raft tests |
+| [Manual testing strategy](engineering/manual-testing-strategy.md) | QA / SRE | Network disruption (MT-01), rotation latency (MT-02) |
 | [Contributing](engineering/contributing.md) | Contributors | PR workflow, licenses, code standards |
 | [Licensing policy](licensing.md) | Contributors | SPDX allow-list and exceptions |
 | [Backlog](backlog.md) | Maintainers | Phased work items (W1–W29 complete) |

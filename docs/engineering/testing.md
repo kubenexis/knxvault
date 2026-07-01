@@ -56,6 +56,10 @@ A PR should pass all gates locally before submission.
 
 ## Manual testing
 
+For structured HA, network-partition, and secret-rotation latency exercises (BFSI POC / prospect evaluation), see **[Manual testing strategy](manual-testing-strategy.md)** — includes **MT-01** (network disruption & Raft recovery) and **MT-02** (rotation latency without pod restart).
+
+### Quick smoke (local)
+
 ```bash
 export KNXVAULT_MASTER_KEY=$(openssl rand -base64 32)
 export KNXVAULT_ROOT_TOKEN=dev-root-token
@@ -88,5 +92,6 @@ export KNXVAULT_RAFT_INITIAL_MEMBERS=1=127.0.0.1:63001
 
 ## Related documents
 
+- [Manual testing strategy](manual-testing-strategy.md)
 - [Development guide](development.md)
 - [Contributing](contributing.md)
