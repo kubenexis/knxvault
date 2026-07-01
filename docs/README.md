@@ -67,6 +67,7 @@ Version-controlled documentation for architects, operators, developers, and inte
 
 | Document | Audience | Description |
 |----------|----------|-------------|
+| [Dummies guide](user/dummies-guide.md) | DevOps / platform engineers | Plain-language intro: K8s use cases, with/without KNXVault, security benefits |
 | [Getting started](user/getting-started.md) | Users | Core concepts and first workflows |
 | [CLI reference](cli/reference.md) | Users / operators | `knxvault-cli` commands |
 | [API reference](api/reference.md) | Integrators | REST endpoints and error codes |

@@ -151,6 +151,7 @@ Use `POST /inject/render` from an init container or sidecar. See [Secrets inject
 
 ## Next steps
 
+- [Dummies guide](dummies-guide.md) — concepts, Kubernetes use cases, and security overview
 - [Recipes index](../recipes/README.md) — step-by-step guides for production tasks
 - [CLI reference](../cli/reference.md)
 - [API reference](../api/reference.md)

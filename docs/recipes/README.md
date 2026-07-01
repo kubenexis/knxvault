@@ -122,6 +122,7 @@ openssl rand -base64 32
 
 ## Related documentation
 
+- [Dummies guide](../user/dummies-guide.md) — concepts and Kubernetes use cases (start here if you are new)
 - [Kubernetes deployment](../deploy/kubernetes.md)
 - [Configuration reference](../installation/configuration.md)
 - [Security model](../architecture/security-model.md)
