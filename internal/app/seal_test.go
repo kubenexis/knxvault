@@ -46,8 +46,8 @@ func TestSealStateDoubleSealAndIdempotentUnseal(t *testing.T) {
 	if !seal.Unseal(key) {
 		t.Fatal("expected valid unseal")
 	}
-	if seal.Unseal(key) {
-		// already unsealed; should still succeed
+	if !seal.Unseal(key) {
+		t.Fatal("expected idempotent unseal to succeed when already unsealed")
 	}
 	if seal.Sealed() {
 		t.Fatal("expected unsealed")
