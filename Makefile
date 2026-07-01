@@ -17,8 +17,8 @@ GOPATH_BIN      ?= $(HOME)/go/bin
 export PATH     := $(GOPATH_BIN):$(LOCAL_BIN):$(PATH)
 GO              := $(firstword $(shell command -v go 2>/dev/null))
 GO_TOOLCHAIN    ?= go1.26.4
-GOLANGCI_LINT   := $(firstword $(shell command -v golangci-lint 2>/dev/null) $(GOPATH_BIN)/golangci-lint)
-GOSEC           := $(firstword $(shell command -v gosec 2>/dev/null) $(GOPATH_BIN)/gosec)
+GOLANGCI_LINT   ?= $(GOPATH_BIN)/golangci-lint
+GOSEC           ?= $(GOPATH_BIN)/gosec
 TRIVY           := $(firstword $(shell command -v trivy 2>/dev/null) $(LOCAL_BIN)/trivy)
 DOCKER          := $(firstword $(shell command -v docker 2>/dev/null))
 VERSION         ?= 0.4.5
@@ -115,8 +115,12 @@ vet: ## Run go vet on all packages
 
 lint: ## Run golangci-lint
 	$(call log,Running golangci-lint)
-	$(call require_cmd,golangci-lint)
-	$(GOLANGCI_LINT) run ./...
+	@test -x "$(GOLANGCI_LINT)" || { \
+		printf "$(COLOR_RED)error: golangci-lint not found (expected at $(GOLANGCI_LINT))$(COLOR_RESET)\n" >&2; \
+		printf "Run: make install-tools  # builds with GOTOOLCHAIN=$(GO_TOOLCHAIN)\n" >&2; \
+		exit 1; \
+	}
+	GOTOOLCHAIN=$(GO_TOOLCHAIN) $(GOLANGCI_LINT) run ./...
 
 gosec: ## Run gosec security scanner (W11-02)
 	$(call log,Running gosec)
@@ -223,9 +227,9 @@ clean: ## Remove built binaries and generated artifacts
 install-tools: ## Install golangci-lint v2 and gosec (Go 1.26 toolchain)
 	$(call log,Installing golangci-lint v2 and gosec)
 	$(call require_cmd,go)
-	GOTOOLCHAIN=$(GO_TOOLCHAIN) $(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6
-	GOTOOLCHAIN=$(GO_TOOLCHAIN) $(GO) install github.com/securego/gosec/v2/cmd/gosec@v2.22.11
-	@printf "$(COLOR_GREEN)tools installed to $(GOPATH_BIN)$(COLOR_RESET)\n"
+	GOTOOLCHAIN=$(GO_TOOLCHAIN) $(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+	GOTOOLCHAIN=$(GO_TOOLCHAIN) $(GO) install github.com/securego/gosec/v2/cmd/gosec@latest
+	@printf "$(COLOR_GREEN)tools installed to $(GOPATH_BIN) (built with $(GO_TOOLCHAIN))$(COLOR_RESET)\n"
 
 # =============================================================================
 # Help
