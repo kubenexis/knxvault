@@ -14,12 +14,12 @@ import (
 
 // CertOptions configures an OpenSSH user certificate.
 type CertOptions struct {
-	KeyID             string
-	Principals        []string
-	ValidAfter        time.Time
-	ValidBefore       time.Time
-	Extensions        map[string]string
-	CriticalOptions   map[string]string
+	KeyID           string
+	Principals      []string
+	ValidAfter      time.Time
+	ValidBefore     time.Time
+	Extensions      map[string]string
+	CriticalOptions map[string]string
 }
 
 func parseCAPrivateKey(pemBytes []byte) (gossh.Signer, error) {

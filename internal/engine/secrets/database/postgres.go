@@ -11,10 +11,10 @@ import (
 )
 
 const (
-	dbTypePostgres    = "postgres"
-	dbTypePostgreSQL  = "postgresql"
-	dbTypeCNPG        = "cnpg"
-	privilegeReadonly = "readonly"
+	dbTypePostgres     = "postgres"
+	dbTypePostgreSQL   = "postgresql"
+	dbTypeCNPG         = "cnpg"
+	privilegeReadonly  = "readonly"
 	privilegeReadWrite = "readwrite"
 )
 
