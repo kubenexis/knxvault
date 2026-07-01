@@ -6,6 +6,17 @@ import (
 	"github.com/kubenexis/knxvault/internal/infra/leader"
 )
 
+func TestMonitorEnforceHealth(t *testing.T) {
+	m := leader.NewMonitor()
+	if m.EnforceHealth() {
+		t.Fatal("expected health not enforced before Activate")
+	}
+	m.Activate()
+	if !m.EnforceHealth() {
+		t.Fatal("expected health enforced after Activate")
+	}
+}
+
 func TestMonitorRunning(t *testing.T) {
 	m := leader.NewMonitor()
 	if m.Running() {

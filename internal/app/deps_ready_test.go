@@ -30,8 +30,8 @@ func TestReadyRequiresLeaderElectionLoop(t *testing.T) {
 	monitor := leader.NewMonitor()
 	deps := &Dependencies{cfg: cfg, LeaderMonitor: monitor}
 
-	if err := deps.Ready(context.Background()); err == nil {
-		t.Fatal("expected not ready before election starts")
+	if err := deps.Ready(context.Background()); err != nil {
+		t.Fatalf("Ready() before JobRunner.Start() = %v", err)
 	}
 
 	runner := NewJobRunner(&staticElectorForReady{leader: false}, monitor, nil, nil, nil, nil, nil, nil, cfg, zap.NewNop())

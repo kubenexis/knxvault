@@ -61,6 +61,7 @@ func (j *JobRunner) Start(ctx context.Context) {
 		return
 	}
 	if j.monitor != nil {
+		j.monitor.Activate()
 		j.monitor.SetRunning(true)
 	}
 	metrics.SetLeaderElectionRunning(true)

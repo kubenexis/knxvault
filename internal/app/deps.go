@@ -365,7 +365,7 @@ func (d *Dependencies) Ready(ctx context.Context) error {
 	if d == nil {
 		return nil
 	}
-	if d.requiresLeaderElectionHealth() && d.LeaderMonitor != nil && !d.LeaderMonitor.Running() {
+	if d.requiresLeaderElectionHealth() && d.LeaderMonitor != nil && d.LeaderMonitor.EnforceHealth() && !d.LeaderMonitor.Running() {
 		return fmt.Errorf("leader election not running")
 	}
 	if d.Raft != nil {

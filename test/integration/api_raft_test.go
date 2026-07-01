@@ -47,7 +47,15 @@ func raftHTTPTestRouter(t *testing.T) (*gin.Engine, string, func()) {
 	}
 	waitRaftReady(t, deps.Raft)
 
-	cleanup := func() { deps.Close() }
+	ctx, cancel := context.WithCancel(context.Background())
+	if deps.JobRunner != nil {
+		deps.JobRunner.Start(ctx)
+	}
+
+	cleanup := func() {
+		cancel()
+		deps.Close()
+	}
 	var raftMembership handlers.RaftMembership
 	if deps.Raft != nil {
 		raftMembership = deps.Raft.Client
