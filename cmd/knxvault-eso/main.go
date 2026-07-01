@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -43,7 +44,7 @@ func main() {
 			return
 		}
 		var req fetchRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
 			http.Error(w, "invalid request", http.StatusBadRequest)
 			return
 		}
@@ -74,16 +75,26 @@ func main() {
 		}
 		data := secret.Data
 		if req.Property != "" {
-			if value, ok := data[req.Property]; ok {
-				data = map[string]any{req.Property: value}
+			value, ok := data[req.Property]
+			if !ok {
+				http.Error(w, fmt.Sprintf("property %q not found in secret", req.Property), http.StatusNotFound)
+				return
 			}
+			data = map[string]any{req.Property: value}
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(fetchResponse{Data: data})
 	})
 
+	server := &http.Server{
+		Addr:              addr,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+	}
 	log.Printf("knxvault-eso listening on %s (vault=%s role=%s)", addr, vaultAddr, role)
-	if err := http.ListenAndServe(addr, mux); err != nil {
+	if err := server.ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}
 }

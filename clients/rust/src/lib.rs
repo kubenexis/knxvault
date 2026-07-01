@@ -32,10 +32,8 @@ impl Client {
 
     pub async fn kv_put(&self, path: &str, data: Value) -> Result<(), reqwest::Error> {
         let body = serde_json::json!({ "data": data });
-        let _: Value = self
-            .post_json(&format!("/secrets/kv/{}", path.trim_start_matches('/')), body)
-            .await?;
-        Ok(())
+        self.post_empty(&format!("/secrets/kv/{}", path.trim_start_matches('/')), body)
+            .await
     }
 
     pub async fn kv_get(&self, path: &str) -> Result<KVResponse, reqwest::Error> {
@@ -51,11 +49,7 @@ impl Client {
         req.send().await?.error_for_status()?.json().await
     }
 
-    async fn post_json<T: for<'de> Deserialize<'de>, B: Serialize>(
-        &self,
-        path: &str,
-        body: B,
-    ) -> Result<T, reqwest::Error> {
+    async fn post_empty<B: Serialize>(&self, path: &str, body: B) -> Result<(), reqwest::Error> {
         let mut req = self
             .http
             .post(format!("{}{}", self.base_url, path))
@@ -63,7 +57,8 @@ impl Client {
         if !self.token.is_empty() {
             req = req.header(AUTHORIZATION, format!("Bearer {}", self.token));
         }
-        req.json(&body).send().await?.error_for_status()?.json().await
+        req.json(&body).send().await?.error_for_status()?;
+        Ok(())
     }
 }
 

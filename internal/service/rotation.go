@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	auditsvc "github.com/kubenexis/knxvault/internal/audit"
@@ -74,22 +76,28 @@ func (s *RotationService) RunDue(ctx context.Context, now time.Time) (int, error
 		return 0, err
 	}
 	rotated := 0
+	var failures []string
 	for _, policy := range policies {
 		if !policy.Due(now) {
 			continue
 		}
 		if err := s.RotatePath(ctx, policy); err != nil {
+			failures = append(failures, fmt.Sprintf("%s: %v", policy.Path, err))
 			continue
 		}
 		rotated++
+	}
+	if len(failures) > 0 {
+		return rotated, fmt.Errorf("rotation failures: %s", strings.Join(failures, "; "))
 	}
 	return rotated, nil
 }
 
 // RunResult summarizes a manual rotation run.
 type RunResult struct {
-	KVRotated     int `json:"kv_rotated"`
-	LeasesRenewed int `json:"leases_renewed"`
+	KVRotated     int      `json:"kv_rotated"`
+	LeasesRenewed int      `json:"leases_renewed"`
+	Errors        []string `json:"errors,omitempty"`
 }
 
 // RunAll triggers due KV rotations and renews expiring database leases.
@@ -98,9 +106,11 @@ func (s *RotationService) RunAll(ctx context.Context, now time.Time, db *Databas
 	if s != nil {
 		kv, err := s.RunDue(ctx, now)
 		if err != nil {
-			return nil, err
+			result.KVRotated = kv
+			result.Errors = append(result.Errors, err.Error())
+		} else {
+			result.KVRotated = kv
 		}
-		result.KVRotated = kv
 	}
 	if db != nil {
 		renewed, err := db.RenewExpiring(ctx, leaseGrace, leaseLimit)
@@ -108,6 +118,12 @@ func (s *RotationService) RunAll(ctx context.Context, now time.Time, db *Databas
 			return nil, err
 		}
 		result.LeasesRenewed = renewed
+		if renewed > 0 && s != nil && s.webhook != nil {
+			_ = s.webhook.Send(ctx, notify.Event{
+				Event:   "database.lease.renew",
+				Details: map[string]any{"renewed": renewed},
+			})
+		}
 	}
 	return result, nil
 }
@@ -116,6 +132,9 @@ func (s *RotationService) RunAll(ctx context.Context, now time.Time, db *Databas
 func (s *RotationService) RotatePath(ctx context.Context, policy *domainsecrets.RotationPolicy) error {
 	if policy == nil {
 		return nil
+	}
+	if s == nil || s.secrets == nil {
+		return fmt.Errorf("rotation secrets service not configured")
 	}
 	data, err := secretsengine.GenerateRotationValue(policy.Generator)
 	if err != nil {

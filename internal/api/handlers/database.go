@@ -116,6 +116,10 @@ func (h *DatabaseHandler) Revoke(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
+	if result == nil {
+		c.JSON(http.StatusOK, dto.DatabaseRevokeResponse{LeaseID: c.Param("lease_id")})
+		return
+	}
 	c.JSON(http.StatusOK, dto.DatabaseRevokeResponse{
 		LeaseID:              result.LeaseID,
 		RevocationStatements: result.RevocationStatements,

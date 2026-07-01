@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -379,8 +380,9 @@ type DatabaseRevokeResponse struct {
 
 // RotationRunResponse is POST /sys/rotation/run.
 type RotationRunResponse struct {
-	KVRotated     int `json:"kv_rotated"`
-	LeasesRenewed int `json:"leases_renewed"`
+	KVRotated     int      `json:"kv_rotated"`
+	LeasesRenewed int      `json:"leases_renewed"`
+	Errors        []string `json:"errors,omitempty"`
 }
 
 // PutPolicy stores an RBAC policy.
@@ -587,5 +589,9 @@ func (c *Client) do(req *http.Request, auth bool, out any, expectStatus ...int) 
 }
 
 func trimPath(path string) string {
-	return strings.TrimPrefix(strings.TrimSpace(path), "/")
+	path = strings.TrimPrefix(strings.TrimSpace(path), "/")
+	if path == "" {
+		return ""
+	}
+	return url.PathEscape(path)
 }

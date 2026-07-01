@@ -333,13 +333,13 @@ func (e *Engine) RevokeLease(ctx context.Context, leaseID string) (*RevokeResult
 		}
 	}
 
-	if err := e.leases.Revoke(ctx, leaseID, now); err != nil {
-		return nil, err
-	}
 	if e.secrets != nil && e.crypto != nil {
 		if err := e.destroySecret(ctx, lease.Path); err != nil {
 			return nil, err
 		}
+	}
+	if err := e.leases.Revoke(ctx, leaseID, now); err != nil {
+		return nil, err
 	}
 	return &RevokeResult{
 		LeaseID:              leaseID,
@@ -457,14 +457,23 @@ func (e *Engine) storeSecret(
 }
 
 func (e *Engine) destroySecret(ctx context.Context, path string) error {
-	latest, err := e.secrets.GetLatest(ctx, path)
+	if e.secrets == nil {
+		return nil
+	}
+	versions, err := e.secrets.ListByPath(ctx, path)
 	if err != nil {
-		return nil
+		return err
 	}
-	if latest.Destroyed {
-		return nil
+	var firstErr error
+	for _, sv := range versions {
+		if sv == nil || sv.Path != path || sv.Destroyed {
+			continue
+		}
+		if err := e.secrets.DestroyVersion(ctx, path, sv.Version); err != nil && firstErr == nil {
+			firstErr = err
+		}
 	}
-	return e.secrets.DestroyVersion(ctx, path, latest.Version)
+	return firstErr
 }
 
 func (e *Engine) generateUsername(role *domainsecrets.DatabaseRole) (string, error) {

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/kubenexis/knxvault/internal/infra/leader"
+	"github.com/kubenexis/knxvault/internal/infra/metrics"
 )
 
 type leaderClient interface {
@@ -42,6 +43,7 @@ func (e *LeaderElector) Run(ctx context.Context, onLeadership func(ctx context.C
 		case <-ticker.C:
 			isLeader := e.client != nil && e.client.IsLeader()
 			SetRaftLeader(isLeader)
+			metrics.SetLeader(isLeader)
 			if isLeader {
 				if leadCancel == nil {
 					var leadCtx context.Context

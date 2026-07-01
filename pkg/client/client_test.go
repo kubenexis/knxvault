@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/kubenexis/knxvault/pkg/client"
@@ -195,6 +196,32 @@ func TestAPIError(t *testing.T) {
 	if apiErr.Status != http.StatusForbidden || apiErr.Code != "forbidden" {
 		t.Fatalf("apiErr = %+v", apiErr)
 	}
+}
+
+func TestKVGetEscapesPathSegments(t *testing.T) {
+	var gotURL string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{}})
+	}))
+	defer srv.Close()
+
+	c := client.New(srv.URL, "tok")
+	c.HTTP = &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		gotURL = req.URL.String()
+		return http.DefaultTransport.RoundTrip(req)
+	})}
+	if _, err := c.KVGet(context.Background(), "app/db creds"); err != nil {
+		t.Fatalf("KVGet() = %v", err)
+	}
+	if !strings.Contains(gotURL, "app%2Fdb%20creds") {
+		t.Fatalf("url = %q, want escaped path segment", gotURL)
+	}
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }
 
 func TestNewDefaults(t *testing.T) {

@@ -107,12 +107,14 @@ func (j *JobRunner) runOnLeader(ctx context.Context) {
 	defer kvRotTicker.Stop()
 	defer reencTicker.Stop()
 
-	j.runLeaseCleanup(ctx)
-	j.updateActiveLeasesMetric(ctx)
-	j.runCRLRefresh(ctx)
-	j.runCertRenewal(ctx)
-	j.runKVRotation(ctx)
-	j.runMasterKeyReencrypt(ctx)
+	if j.leader.IsLeader() {
+		j.runLeaseCleanup(ctx)
+		j.updateActiveLeasesMetric(ctx)
+		j.runCRLRefresh(ctx)
+		j.runCertRenewal(ctx)
+		j.runKVRotation(ctx)
+		j.runMasterKeyReencrypt(ctx)
+	}
 
 	for {
 		select {

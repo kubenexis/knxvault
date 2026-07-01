@@ -76,6 +76,10 @@ func TestEngineGenerateAndRevoke(t *testing.T) {
 	if lease.RevokedAt == nil {
 		t.Fatal("expected lease revoked")
 	}
+	_, err = secrets.GetLatest(ctx, "database/creds/readonly/"+result.LeaseID)
+	if err == nil {
+		t.Fatal("expected credential secret removed after revoke")
+	}
 }
 
 func TestEngineSaveRoleRejectsSecretConfig(t *testing.T) {

@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -48,10 +49,14 @@ func (h *VaultCompatHandler) LoginKubernetes(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
+	ttl := int(time.Until(record.ExpiresAt).Seconds())
+	if ttl < 0 {
+		ttl = 0
+	}
 	c.JSON(http.StatusOK, vaultAuthResponse{
 		Auth: vaultAuthData{
 			ClientToken:   token,
-			LeaseDuration: int(h.auth.ttl.Seconds()),
+			LeaseDuration: ttl,
 			Renewable:     true,
 			Policies:      record.Policies,
 		},

@@ -60,7 +60,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 12, "y": 8 },
       "id": 5,
       "targets": [{ "expr": "knxvault_active_leases", "refId": "A" }],
-      "title": "Active leases (last cleanup)",
+      "title": "Active leases",
       "type": "stat"
     },
     {
@@ -97,6 +97,15 @@
       "id": 9,
       "targets": [{ "expr": "knxvault_raft_commit_index", "refId": "A" }],
       "title": "Raft commit index",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 12 },
+      "id": 11,
+      "targets": [{ "expr": "knxvault_leader_election_running", "refId": "A" }],
+      "title": "Leader election loop",
       "type": "stat"
     },
     {

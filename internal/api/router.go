@@ -298,8 +298,9 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 	}
 	if vaultAuth != nil || vaultPKI != nil {
 		v1 := r.Group("/v1")
+		compat := handlers.NewVaultCompatHandler(vaultAuth, vaultPKI)
 		if vaultAuth != nil {
-			v1.POST("/auth/kubernetes", vaultAuth.LoginKubernetes)
+			v1.POST("/auth/kubernetes", compat.LoginKubernetes)
 		}
 		if vaultPKI != nil && deps.AuthService != nil {
 			v1PKI := v1.Group("/pki")
@@ -309,7 +310,6 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 			}
 			v1PKI.Use(middleware.RequirePermission(deps.AuthService, "pki", "write"))
 			v1PKI.Use(openSSLBreakerMiddleware(deps.OpenSSL))
-			compat := handlers.NewVaultCompatHandler(vaultAuth, vaultPKI)
 			v1PKI.POST("/sign/:role", compat.SignCertificate)
 		}
 	}
