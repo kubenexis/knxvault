@@ -50,6 +50,23 @@ func TestKeyRingRotateAndDecrypt(t *testing.T) {
 	}
 }
 
+func TestKeyRingDEKNeedsReencryptLegacyNoVersionCollision(t *testing.T) {
+	ring, err := crypto.NewKeyRing(testMasterKey())
+	if err != nil {
+		t.Fatalf("NewKeyRing() = %v", err)
+	}
+	if err := ring.AddKey(2, bytes.Repeat([]byte{0x99}, 32)); err != nil {
+		t.Fatalf("AddKey() = %v", err)
+	}
+
+	// Pre-versioning ciphertext can have any first byte, including the active version.
+	legacyLike := make([]byte, 46)
+	legacyLike[0] = 2
+	if !ring.DEKNeedsReencrypt(legacyLike) {
+		t.Fatal("unversioned DEK must need reencrypt even when first byte matches active version")
+	}
+}
+
 func TestKeyRingDecryptLegacyWithoutVersionCollision(t *testing.T) {
 	ring, err := crypto.NewKeyRing(testMasterKey())
 	if err != nil {

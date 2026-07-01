@@ -160,10 +160,35 @@ func (k *KeyRing) DEKNeedsReencrypt(enc []byte) bool {
 	if k.legacy && k.active == 1 {
 		return false
 	}
-	if len(enc) <= dekVersionPrefixSize {
-		return true
+	if version, ok := k.versionedDEKVersionLocked(enc); ok {
+		return version != k.active
 	}
-	return enc[0] != k.active
+	// Unversioned legacy ciphertext was sealed before key versioning was enabled.
+	return true
+}
+
+func (k *KeyRing) versionedDEKVersionLocked(enc []byte) (byte, bool) {
+	const minVersionedLen = dekVersionPrefixSize + 13 + dekSize
+	if len(enc) < minVersionedLen {
+		return 0, false
+	}
+	version := enc[0]
+	if version == 0 {
+		return 0, false
+	}
+	key, ok := k.keys[version]
+	if !ok {
+		return 0, false
+	}
+	env, err := NewEnvelope(key)
+	if err != nil {
+		return 0, false
+	}
+	dek, err := env.Decrypt(enc[1:])
+	if err != nil || len(dek) != dekSize {
+		return 0, false
+	}
+	return version, true
 }
 
 // ReencryptDEK decrypts and re-encrypts with the active key.
