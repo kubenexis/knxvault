@@ -31,6 +31,7 @@ func raftHTTPTestRouter(t *testing.T) (*gin.Engine, string, func()) {
 	t.Setenv("KNXVAULT_RAFT_DATA_DIR", filepath.Join(base, "raft"))
 	t.Setenv("KNXVAULT_RAFT_INITIAL_MEMBERS", "1="+addr)
 	t.Setenv("KNXVAULT_MASTER_KEY", testMasterKey())
+	t.Setenv("KNXVAULT_UNSEAL_KEY", testUnsealKey())
 	t.Setenv("KNXVAULT_ROOT_TOKEN", "raft-root")
 
 	cfg, err := config.Load()

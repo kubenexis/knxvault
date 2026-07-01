@@ -26,6 +26,11 @@ func testMasterKey() string {
 	return base64.StdEncoding.EncodeToString(key)
 }
 
+func testUnsealKey() string {
+	// Distinct from testMasterKey(); matches internal/config tests.
+	return "dGVzdC11bnNlYWwta2V5MTIzNDU2Nzg5MDEyMzQ1Ng=="
+}
+
 func newTestRouter(t *testing.T) (*gin.Engine, string) {
 	t.Helper()
 
