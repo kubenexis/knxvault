@@ -56,7 +56,7 @@ A PR should pass all gates locally before submission.
 
 ## Manual testing
 
-For structured HA, security stress, and PoC evaluation exercises, see **[Manual testing strategy](manual-testing-strategy.md)** — includes **MT-01** (network disruption), **MT-02** (rotation latency), and **MT-33–MT-37** (seal, isolation, revocation, audit tamper).
+For structured HA, security stress, and PoC evaluation exercises, see **[Manual testing strategy](manual-testing-strategy.md)** — includes **MT-01** (network disruption), **MT-02** (rotation latency + SLA), **MT-10** (RBAC/isolation), **MT-11** / **MT-19** (audit export + tamper), and **MT-33** / **MT-36** (emergency seal, token revocation).
 
 ### Quick smoke (local)
 

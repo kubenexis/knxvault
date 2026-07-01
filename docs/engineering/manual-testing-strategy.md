@@ -4,7 +4,7 @@ Structured manual test procedures for validating KNXVault behavior beyond automa
 
 | Field | Value |
 |-------|-------|
-| **Version** | 1.3 |
+| **Version** | 1.4 |
 | **Last updated** | 2026-07-01 |
 | **Audience** | QA, SRE, security engineers, prospect evaluators |
 | **Complements** | [`testing.md`](testing.md) (automated), [`../operations/runbooks/raft-failover.md`](../operations/runbooks/raft-failover.md) |
@@ -55,6 +55,21 @@ Each test defines **procedure**, **pass/fail criteria**, and **evidence to captu
 | Pass / Fail | Pass |
 | Attachments | logs, metrics scrape, audit export |
 
+### Deduplication map (v1.4)
+
+Overlapping scenarios were merged to avoid duplicate PoC execution. Superseded IDs are removed; content lives in the canonical test.
+
+| Canonical test | Absorbed (removed) | Rationale |
+|----------------|-------------------|-----------|
+| **MT-02** | ~~MT-35~~ | Rotation latency + 60s SLA + evidence table |
+| **MT-07** | ~~MT-23~~, ~~MT-24~~ | Basic + `include_audit` + negative restore |
+| **MT-10** | ~~MT-34~~ | RBAC + cross-namespace / VM isolation |
+| **MT-11** | ~~MT-20~~ | Export, verify, tamper, signing, SIEM forward |
+| **MT-19** | ~~MT-37~~ | Hash chain + host-storage tamper narrative |
+| **MT-33** | ~~MT-22~~ | Emergency seal supersedes basic seal/unseal gate |
+
+**Unique stress tests retained:** **MT-33** (seal/break-glass), **MT-36** (token revocation immediacy).
+
 ---
 
 ## 3. Test catalog (POC demonstration pack)
@@ -63,7 +78,7 @@ Each test defines **procedure**, **pass/fail criteria**, and **evidence to captu
 |----|------|----------|
 | **MT-00** | [Deploy 3-node cluster](#mt-00-deploy-3-node-cluster) | P0 |
 | **MT-01** | [Network disruption & Raft recovery](#mt-01-network-disruption--raft-recovery) | P0 |
-| **MT-02** | [Secret rotation latency (no pod restart)](#mt-02-secret-rotation-latency-without-workload-restart) | P0 |
+| **MT-02** | [Secret rotation & propagation SLA (no restart)](#mt-02-secret-rotation--propagation-sla-no-restart) | P0 |
 | **MT-03** | [KV store, update, version, retrieve](#mt-03-kv-store-update-version-retrieve) | P0 |
 | **MT-04** | [Master key rotation without data loss](#mt-04-master-key-rotation-without-data-loss) | P0 |
 | **MT-05** | [Leader node kill & automatic failover](#mt-05-leader-node-kill--automatic-failover) | P0 |
@@ -71,7 +86,7 @@ Each test defines **procedure**, **pass/fail criteria**, and **evidence to captu
 | **MT-07** | [Backup and restore](#mt-07-backup-and-restore) | P0 |
 | **MT-08** | [Kubernetes ServiceAccount authentication](#mt-08-kubernetes-serviceaccount-authentication) | P0 |
 | **MT-09** | [OIDC authentication](#mt-09-oidc-authentication) | P0 |
-| **MT-10** | [RBAC policy enforcement](#mt-10-rbac-policy-enforcement) | P0 |
+| **MT-10** | [RBAC & multi-tenant isolation](#mt-10-rbac--multi-tenant-isolation) | P0 |
 | **MT-11** | [Audit export & SIEM forwarding](#mt-11-audit-export--siem-forwarding) | P0 |
 | **MT-12** | [Secrets Store CSI Driver integration](#mt-12-secrets-store-csi-driver-integration) | P0 |
 | **MT-13** | [Certificate issuance and revocation](#mt-13-certificate-issuance-and-revocation) | P0 |
@@ -80,13 +95,12 @@ Each test defines **procedure**, **pass/fail criteria**, and **evidence to captu
 
 ### PoC security stress tests (operational incidents)
 
-| ID | Name | Priority |
-|----|------|----------|
-| **MT-33** | [Emergency seal & break-glass recovery](#mt-33-emergency-seal--break-glass-recovery) | P0 |
-| **MT-34** | [Multi-tenant & cross-namespace isolation](#mt-34-multi-tenant--cross-namespace-isolation) | P0 |
-| **MT-35** | [Manual secret rotation & propagation SLA](#mt-35-manual-secret-rotation--propagation-sla) | P0 |
-| **MT-36** | [Token revocation immediacy (air-gap)](#mt-36-token-revocation-immediacy-air-gap) | P0 |
-| **MT-37** | [Storage tamper & audit trail integrity](#mt-37-storage-tamper--audit-trail-integrity) | P0 |
+| ID | Name | Priority | Also covers |
+|----|------|----------|-------------|
+| **MT-33** | [Emergency seal & break-glass recovery](#mt-33-emergency-seal--break-glass-recovery) | P0 | Former MT-22 |
+| **MT-36** | [Token revocation immediacy (air-gap)](#mt-36-token-revocation-immediacy-air-gap) | P0 | — |
+
+> Cross-tenant isolation → **MT-10**. Rotation SLA → **MT-02**. Audit tamper → **MT-19** / **MT-11**.
 
 ---
 
@@ -189,26 +203,77 @@ spec:
 
 ---
 
-## MT-02: Secret rotation latency (without workload restart)
+## MT-02: Secret rotation & propagation SLA (no restart)
 
 ### Objective
 
-Measure time from KV rotation to updated secret visible in a running pod **without** restart.
+Measure time from manual KV rotation to updated secret visible in a running pod **without** rollout or pod deletion. PoC target: propagation within **60 seconds**.
 
 ### Procedure
 
-1. Install CSI with `enableSecretRotation=true` ([`csi-install.md`](../deploy/csi-install.md)).
-2. Deploy `SecretProviderClass` with `rotationPollInterval: 30s` and a log-loop pod (see [MT-02 setup](#mt-02-detail-csi-rotation-pod) in appendix).
-3. `kv put mt02/app-cred value=version-1` → confirm in pod logs.
-4. `kv put mt02/app-cred value=version-2` at **T_rotate**.
-5. Record **T_visible** when logs show `version-2`. Latency = `T_visible - T_rotate`.
+```bash
+# Profile C — CSI with rotation (see docs/deploy/csi-install.md)
+helm upgrade --install csi secrets-store-csi-driver/secrets-store-csi-driver \
+  --namespace kube-system --set syncSecret.enabled=true --set enableSecretRotation=true
+
+export KNXVAULT_ADDR=http://knxvault.knxvault.svc.cluster.local:8200
+export KNXVAULT_TOKEN=<admin-token>
+
+knxvault-cli kv put mt02/app-db password=v1-password username=appuser
+
+# SecretProviderClass with rotationPollInterval: 30s
+kubectl apply -f deployments/csi/secretproviderclass-example.yaml
+
+kubectl apply -f - <<'EOF'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mt02-rotation-sla
+spec:
+  serviceAccountName: demo-app
+  containers:
+    - name: watcher
+      image: busybox:1.36
+      command: ["sh", "-c", "while true; do echo \"=== $(date -Iseconds) ===\"; cat /mnt/secrets/db.env 2>/dev/null; sleep 5; done"]
+      volumeMounts:
+        - name: secrets
+          mountPath: /mnt/secrets
+          readOnly: true
+  volumes:
+    - name: secrets
+      csi:
+        driver: secrets-store.csi.k8s.io
+        readOnly: true
+        volumeAttributes:
+          secretProviderClass: knxvault-app-db
+EOF
+
+kubectl wait --for=condition=ready pod/mt02-rotation-sla --timeout=120s
+
+# T_rotate — manual rotation
+T_ROTATE=$(date +%s)
+knxvault-cli kv put mt02/app-db password=v2-rotated username=appuser
+
+# Watch until v2 appears (T_visible)
+kubectl logs mt02-rotation-sla -f
+```
 
 ### Pass criteria
 
 | # | Criterion |
 |---|-----------|
-| 1 | New value visible without pod restart |
-| 2 | Median latency ≤ `rotationPollInterval` + 15s |
+| 1 | New value visible without pod restart or `kubectl rollout` |
+| 2 | Median latency ≤ **60 seconds** (or ≤ `rotationPollInterval` + 15s — document which bound applies) |
+| 3 | Optional: application/DB probe succeeds with new password from mount |
+| 4 | Audit records rotation `secret.write` and subsequent provider reads |
+
+### Evidence table
+
+| Run | T_rotate | T_visible | Delta (s) | Pod restarted? |
+|-----|----------|-----------|-----------|----------------|
+| 1 | | | | No |
+| 2 | | | | No |
+| 3 | | | | No |
 
 ---
 
@@ -468,6 +533,19 @@ curl -s -X POST "$KNXVAULT_ADDR/audit/verify" \
   -d @<(curl -s "$KNXVAULT_ADDR/audit/export" -H "Authorization: Bearer $KNXVAULT_TOKEN")
 ```
 
+# Phase B — backup with audit history (formerly MT-23)
+curl -s -X POST "$KNXVAULT_ADDR/sys/backup" \
+  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"include_audit":true}' | jq -r '.data' | base64 -d > mt07-with-audit.json
+wc -c mt07-backup.json mt07-with-audit.json
+
+# Phase C — negative restore (formerly MT-24, staging only)
+WRONG_KEY=$(openssl rand -base64 32)
+KNXVAULT_MASTER_KEY=$WRONG_KEY knxvault-cli backup restore -f mt07-backup.json
+# Expect decrypt/validation error
+```
+
 ### Pass criteria
 
 | # | Criterion |
@@ -475,7 +553,8 @@ curl -s -X POST "$KNXVAULT_ADDR/audit/verify" \
 | 1 | Backup file created; non-empty; encrypted payload |
 | 2 | Restore completes without error |
 | 3 | KV, policies, and audit chain verify post-restore |
-| 4 | `ValidateSnapshot` path rejects tampered backup (optional negative test) |
+| 4 | `include_audit:true` backup larger than without audit |
+| 5 | Wrong master key or tampered archive rejected before import |
 
 ---
 
@@ -594,13 +673,13 @@ Negative tests: expired JWT, wrong `aud`, wrong `iss` → `401`/`403`.
 
 ---
 
-## MT-10: RBAC policy enforcement
+## MT-10: RBAC & multi-tenant isolation
 
 ### Objective
 
-Demonstrate allow and deny policies; verify least-privilege enforcement.
+Demonstrate allow/deny policies and confirm cross-tenant privilege escalation fails (Kubernetes namespace vs VM/legacy token).
 
-### Procedure
+### Procedure — Phase A: allow and deny
 
 ```bash
 # Reader policy
@@ -645,16 +724,52 @@ curl -s -o /dev/null -w "%{http_code}" -X POST "$KNXVAULT_ADDR/secrets/kv/mt10/a
 # Expect 403
 ```
 
-> **Note:** Path-level ACLs (e.g. `secrets/kv/team-a/*` only) require **W41-01**. Current enforcement is route-coarse (`secrets/kv` + action).
+### Procedure — Phase B: multi-tenant isolation (formerly MT-34)
+
+```bash
+curl -s -X PUT "$KNXVAULT_ADDR/sys/policies/alpha-reader" \
+  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"paths":{"secrets/kv/tenant/alpha/*":{"capabilities":["read"]}}}'
+curl -s -X PUT "$KNXVAULT_ADDR/sys/policies/beta-reader" \
+  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"paths":{"secrets/kv/tenant/beta/*":{"capabilities":["read"]}}}'
+
+curl -s -X PUT "$KNXVAULT_ADDR/sys/roles/alpha-app" \
+  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"policies":["alpha-reader","mt10-deny-admin"],"bound_service_account_names":["alpha-workload"],"bound_service_account_namespaces":["namespace-alpha"]}'
+curl -s -X PUT "$KNXVAULT_ADDR/sys/roles/vm-beta" \
+  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"policies":["beta-reader","mt10-deny-admin"]}'
+
+knxvault-cli kv put tenant/alpha/db password=alpha-secret
+knxvault-cli kv put tenant/beta/db password=beta-secret
+
+VM_TOKEN=$(curl -s -X POST "$KNXVAULT_ADDR/auth/token/create" \
+  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"role":"vm-beta","ttl":"24h"}' | jq -r '.client_token // .data.token')
+
+curl -s -o /dev/null -w "beta_cross=%{http_code}\n" \
+  "$KNXVAULT_ADDR/secrets/kv/tenant/alpha/db" -H "Authorization: Bearer $VM_TOKEN"
+# Expect 403
+```
+
+> **Note:** Path-level ACLs require **W41-01** for advanced simulation. VM workloads use scoped client tokens.
 
 ### Pass criteria
 
 | # | Criterion |
 |---|-----------|
-| 1 | Reader token can GET KV |
+| 1 | Reader token can GET KV on allowed paths |
 | 2 | Reader token cannot POST KV or sys admin APIs |
 | 3 | Deny policy blocks `sys/*` even with other allows |
-| 4 | `403` responses include request ID |
+| 4 | Cross-tenant read (beta → alpha) returns `403` |
+| 5 | Wrong-namespace SA cannot assume another tenant's role |
+| 6 | `403` responses include request ID |
 
 ---
 
@@ -685,20 +800,30 @@ curl -s -X POST "$KNXVAULT_ADDR/audit/verify" \
   -H 'Content-Type: application/json' \
   -d @mt11-audit-export.json | jq .
 
-# 5. Confirm SIEM sink received JSON lines (Splunk HEC, Loki, or mock server)
-# Each POST body matches audit.Entry schema per docs/observability/audit-forwarding.md
+# 5. Tamper test on export copy
+jq '(.entries[0].hash)="tampered"' mt11-audit-export.json > mt11-tampered.json
+curl -s -X POST "$KNXVAULT_ADDR/audit/verify" \
+  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d @mt11-tampered.json | jq .
+
+# 6. Mock SIEM sink + signing (formerly MT-20)
+# KNXVAULT_AUDIT_SIGNING_KEY + KNXVAULT_AUDIT_FORWARD_URL=http://audit-collector:8080/audit
+kubectl -n knxvault logs deployment/audit-collector --tail=20 2>/dev/null || true
+curl -s "$KNXVAULT_ADDR/audit/export?limit=5" \
+  -H "Authorization: Bearer $KNXVAULT_TOKEN" | jq '{signature, signed_at, head_hash}'
 ```
 
-SIEM compatibility: JSON over HTTP (Splunk HEC, Elastic ingest, Loki via Alloy/Promtail).
+SIEM compatibility: JSON over HTTP (Splunk HEC, Elastic ingest, Loki via Alloy/Promtail). Host-level Raft tamper resistance → **MT-19**.
 
 ### Pass criteria
 
 | # | Criterion |
 |---|-----------|
-| 1 | Export returns entries with `hash` and `signature` |
+| 1 | Export returns entries with `hash`; `signature` when signing key configured |
 | 2 | `audit/verify` returns success on unmodified export |
 | 3 | Tampered entry fails verify |
-| 4 | Forwarder receives events within 5s of API calls |
+| 4 | Forwarder receives events within 5s of API calls (when configured) |
 | 5 | Entries include `actor`, `action`, `resource`, `status`, `timestamp` |
 
 ---
@@ -1015,211 +1140,6 @@ kubectl -n production logs mt33-reader --tail=10
 
 ---
 
-## MT-34: Multi-tenant & cross-namespace isolation
-
-### Objective
-
-Confirm a compromised identity in one environment (Kubernetes namespace or VM/legacy host) cannot read secrets belonging to another — privilege escalation across tenant boundaries must fail.
-
-### Topology
-
-```
-  Namespace-Alpha (K8s)          VM-Beta (legacy / bare metal)
-  ┌─────────────────┐          ┌─────────────────┐
-  │ Pod + SA alpha  │          │ curl + token    │
-  │ role: alpha-app │          │ role: vm-beta   │
-  └────────┬────────┘          └────────┬────────┘
-           │                            │
-           └──────────┬─────────────────┘
-                      ▼
-               ┌─────────────┐
-               │  KNXVault   │
-               │  RBAC paths │
-               └─────────────┘
-```
-
-### Procedure
-
-```bash
-export KNXVAULT_ADDR=http://knxvault.knxvault.svc.cluster.local:8200
-export KNXVAULT_TOKEN=<admin-token>
-
-# 1. Policies — strict path isolation
-curl -s -X PUT "$KNXVAULT_ADDR/sys/policies/alpha-reader" \
-  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{"paths":{"secrets/kv/tenant/alpha/*":{"capabilities":["read"]}}}'
-
-curl -s -X PUT "$KNXVAULT_ADDR/sys/policies/beta-reader" \
-  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{"paths":{"secrets/kv/tenant/beta/*":{"capabilities":["read"]}}}'
-
-curl -s -X PUT "$KNXVAULT_ADDR/sys/policies/deny-cross" \
-  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{"paths":{"sys/*":{"capabilities":["deny"]}}}'
-
-# 2. Roles
-curl -s -X PUT "$KNXVAULT_ADDR/sys/roles/alpha-app" \
-  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "policies": ["alpha-reader", "deny-cross"],
-    "bound_service_account_names": ["alpha-workload"],
-    "bound_service_account_namespaces": ["namespace-alpha"]
-  }'
-
-curl -s -X PUT "$KNXVAULT_ADDR/sys/roles/vm-beta" \
-  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{"policies": ["beta-reader", "deny-cross"]}'
-
-# 3. Provision tenant secrets
-knxvault-cli kv put tenant/alpha/db password=alpha-secret
-knxvault-cli kv put tenant/beta/db password=beta-secret
-
-# 4. Namespace-Alpha pod (legitimate access)
-kubectl create namespace namespace-alpha --dry-run=client -o yaml | kubectl apply -f -
-kubectl -n namespace-alpha create serviceaccount alpha-workload
-
-kubectl -n namespace-alpha run mt34-alpha --image=curlimages/curl:8.5.0 --restart=Never \
-  --overrides='{"spec":{"serviceAccountName":"alpha-workload"}}' --command -- sleep 600
-
-kubectl -n namespace-alpha exec mt34-alpha -- sh -c '
-  JWT=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
-  T=$(curl -sf -X POST "$KNXVAULT_ADDR/auth/kubernetes" \
-    -H "Content-Type: application/json" \
-    -d "{\"role\":\"alpha-app\",\"jwt\":\"$JWT\"}" | jq -r ".client_token // .data.token")
-  curl -s -o /dev/null -w "alpha_own=%{http_code}\n" "$KNXVAULT_ADDR/secrets/kv/tenant/alpha/db" -H "Authorization: Bearer $T"
-  curl -s -o /dev/null -w "alpha_cross=%{http_code}\n" "$KNXVAULT_ADDR/secrets/kv/tenant/beta/db" -H "Authorization: Bearer $T"
-' --env KNXVAULT_ADDR=$KNXVAULT_ADDR
-
-# 5. VM-Beta — issue long-lived token (simulates harvested VM credential)
-VM_TOKEN=$(curl -s -X POST "$KNXVAULT_ADDR/auth/token/create" \
-  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{"role":"vm-beta","ttl":"24h"}' | jq -r '.client_token // .data.token')
-
-# Run from VM-Beta host or simulate locally:
-curl -s -o /dev/null -w "beta_own=%{http_code}\n" \
-  "$KNXVAULT_ADDR/secrets/kv/tenant/beta/db" -H "Authorization: Bearer $VM_TOKEN"
-curl -s -o /dev/null -w "beta_cross=%{http_code}\n" \
-  "$KNXVAULT_ADDR/secrets/kv/tenant/alpha/db" -H "Authorization: Bearer $VM_TOKEN"
-
-# 6. Negative — wrong namespace SA cannot assume alpha role
-kubectl -n default run mt34-wrong-ns --image=curlimages/curl:8.5.0 --restart=Never \
-  --overrides='{"spec":{"serviceAccountName":"alpha-workload"}}' --command -- sleep 120
-# (create SA in default or use different SA)
-```
-
-### Pass criteria
-
-| # | Criterion |
-|---|-----------|
-| 1 | Alpha identity reads `tenant/alpha/*` → `200` |
-| 2 | Beta identity reads `tenant/beta/*` → `200` |
-| 3 | Alpha token **cannot** read `tenant/beta/*` → `403` |
-| 4 | Beta token **cannot** read `tenant/alpha/*` → `403` |
-| 5 | Wrong-namespace Kubernetes JWT cannot login to `alpha-app` role → `403` |
-| 6 | Audit export shows denied cross-tenant attempts with actor identity |
-
-### Notes
-
-- VM workloads use **scoped client tokens** or future machine-identity bindings; they do not use Kubernetes TokenReview unless the VM presents a valid K8s SA JWT.
-- Path-level granularity depends on policy patterns — see backlog **W41-01** for advanced path ACL simulation.
-
----
-
-## MT-35: Manual secret rotation & propagation SLA
-
-### Objective
-
-Measure end-to-end propagation delay after manual secret update — workloads must receive the new credential **without** operator-triggered rollout or pod deletion.
-
-Extends **MT-02** with PoC SLA measurement and application-level authentication check.
-
-### Procedure
-
-```bash
-# Prerequisites: Profile C — CSI with enableSecretRotation=true
-# SecretProviderClass with rotationPollInterval: 30s (see MT-12)
-
-export KNXVAULT_ADDR=http://knxvault.knxvault.svc.cluster.local:8200
-export KNXVAULT_TOKEN=<admin-token>
-
-# 1. Seed secret v1
-knxvault-cli kv put mt35/app-db password=v1-password username=appuser
-
-# 2. Deploy app that tails mount AND probes DB (optional sidecar)
-kubectl apply -f deployments/csi/secretproviderclass-example.yaml   # adjust path to mt35/app-db
-kubectl apply -f - <<'EOF'
-apiVersion: v1
-kind: Pod
-metadata:
-  name: mt35-rotation-sla
-spec:
-  serviceAccountName: demo-app
-  containers:
-    - name: watcher
-      image: busybox:1.36
-      command:
-        - sh
-        - -c
-        - |
-          while true; do
-            echo "=== $(date -Iseconds) ==="
-            cat /mnt/secrets/db.env 2>/dev/null || echo "(no file)"
-            sleep 5
-          done
-      volumeMounts:
-        - name: secrets
-          mountPath: /mnt/secrets
-          readOnly: true
-  volumes:
-    - name: secrets
-      csi:
-        driver: secrets-store.csi.k8s.io
-        readOnly: true
-        volumeAttributes:
-          secretProviderClass: knxvault-app-db
-EOF
-
-kubectl wait --for=condition=ready pod/mt35-rotation-sla --timeout=120s
-kubectl logs mt35-rotation-sla --tail=3
-
-# 3. Manual rotation — start stopwatch
-T_ROTATE=$(date +%s)
-knxvault-cli kv put mt35/app-db password=v2-rotated-password username=appuser
-
-# 4. Watch until v2 appears in pod logs
-kubectl logs mt35-rotation-sla -f
-# Record T_VISIBLE when logs show v2-rotated-password
-
-# 5. Verification — app authenticates with NEW credential (if DB available)
-# psql or app-specific probe using password from /mnt/secrets/db.env
-```
-
-### Pass criteria
-
-| # | Criterion |
-|---|-----------|
-| 1 | New value appears in mount **without** `kubectl rollout restart` or pod delete |
-| 2 | Median propagation ≤ **60 seconds** (or ≤ `rotationPollInterval` + 15s — document which applies) |
-| 3 | Application probe succeeds with new password (when DB test harness present) |
-| 4 | Old password invalidated at source (only latest KV version active for CSI path) |
-| 5 | Audit records `secret.write` for rotation and subsequent `secret.read` from provider |
-
-### Evidence table
-
-| Run | T_rotate | T_visible | Delta (s) | Pod restarted? |
-|-----|----------|-----------|-----------|----------------|
-| 1 | | | | No |
-| 2 | | | | No |
-| 3 | | | | No |
-
----
-
 ## MT-36: Token revocation immediacy (air-gap)
 
 ### Objective
@@ -1283,93 +1203,6 @@ echo "revoke_to_test_ms=$(( (T_TEST - T_REVOKE) / 1000000 ))"
 
 ---
 
-## MT-37: Storage tamper & audit trail integrity
-
-### Objective
-
-Ensure an attacker with host root cannot silently erase evidence of sensitive actions — tamper attempts must be detectable via hash chain verification.
-
-### KNXVault baseline
-
-| Storage | Content |
-|---------|---------|
-| Raft state (PVC) | Audit entries in replicated state machine (`audit.append`) |
-| Export bundle | `GET /audit/export` — authoritative integrity check surface |
-| On-disk Dragonboat | Snapshot JSON includes audit; not designed for hand-editing |
-
-Direct `sed` on a flat log file is **not** the primary path — auditors use **export + verify**.
-
-### Procedure
-
-```bash
-export KNXVAULT_ADDR=http://knxvault.knxvault.svc.cluster.local:8200
-export KNXVAULT_TOKEN=<admin-token>
-
-# 1. Sensitive actions
-knxvault-cli kv put mt37/root-cred value=highly-sensitive
-knxvault-cli kv get mt37/root-cred --show-secrets
-curl -s -X POST "$KNXVAULT_ADDR/sys/policies/mt37-test" \
-  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{"paths":{"secrets/kv/mt37/*":{"capabilities":["read"]}}}'
-
-# 2. Export authoritative bundle
-curl -s "$KNXVAULT_ADDR/audit/export" \
-  -H "Authorization: Bearer $KNXVAULT_TOKEN" | jq . > mt37-audit-good.json
-
-curl -s -X POST "$KNXVAULT_ADDR/audit/verify" \
-  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d @mt37-audit-good.json | jq .
-
-# 3. Tamper export (simulates insider editing exported archive)
-jq '(.entries[] | select(.resource|test("mt37")) | .hash) = "tampered"' \
-  mt37-audit-good.json > mt37-audit-bad.json 2>/dev/null || \
-  python3 -c "
-import json
-d=json.load(open('mt37-audit-good.json'))
-for e in d.get('entries',[]):
-    if 'mt37' in e.get('resource',''):
-        e['hash']='tampered'
-json.dump(d,open('mt37-audit-bad.json','w'))
-"
-
-curl -s -X POST "$KNXVAULT_ADDR/audit/verify" \
-  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d @mt37-audit-bad.json | jq .
-# Expect verification failure
-
-# 4. Host-level tamper attempt (root on vault node)
-# Audit is NOT a plain text file — attempt to find grep-friendly logs
-kubectl -n knxvault exec knxvault-0 -- sh -c \
-  'find /var/lib/knxvault -type f 2>/dev/null | head -20'
-kubectl -n knxvault exec knxvault-0 -- sh -c \
-  'grep -r "mt37/root-cred" /var/lib/knxvault/raft 2>/dev/null | head -3 || echo "no plaintext path in raft dir"'
-
-# 5. Re-export from cluster — original chain intact server-side
-curl -s -X POST "$KNXVAULT_ADDR/audit/verify" \
-  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d "$(curl -s $KNXVAULT_ADDR/audit/export -H "Authorization: Bearer $KNXVAULT_TOKEN")" | jq .
-```
-
-### Pass criteria
-
-| # | Criterion |
-|---|-----------|
-| 1 | `audit/verify` succeeds on unmodified export |
-| 2 | Tampered export (modified `hash` or entry) fails verification |
-| 3 | Fresh export from server still verifies after local tamper of **copy** |
-| 4 | Secret **values** not present as plaintext in Raft data dir (cross-check MT-21) |
-| 5 | PoC report states process: periodic export to WORM storage + verify |
-
-### Expected result (PoC narrative)
-
-Tamper of an exported bundle is **glaringly obvious** at verify time. An attacker with node root who deletes Raft PVCs causes **availability** damage, not silent undetected audit erasure — recovery via backup (**MT-07**) and quorum diagnostics.
-
----
-
 ## 4. Test catalog (subsystem deep-dives)
 
 Engineering-focused tests that exercise internal components beyond the prospect demo pack. Run on **Profile B** (or **A** for Raft-only tests) after **MT-00** establishes a healthy cluster.
@@ -1384,24 +1217,23 @@ Engineering-focused tests that exercise internal components beyond the prospect 
 
 ### 4.2 Audit subsystem
 
-| ID | Name | Priority |
-|----|------|----------|
-| **MT-19** | [Audit hash chain integrity](#mt-19-audit-hash-chain-integrity) | P1 |
-| **MT-20** | [Audit signing & forwarder delivery](#mt-20-audit-signing--forwarder-delivery) | P1 |
+| ID | Name | Priority | Notes |
+|----|------|----------|-------|
+| **MT-19** | [Audit hash chain & storage tamper resistance](#mt-19-audit-hash-chain--storage-tamper-resistance) | P1 | Absorbed MT-37 |
+| **MT-11** | [Audit export & SIEM forwarding](#mt-11-audit-export--siem-forwarding) | P0 | Absorbed MT-20 |
 
 ### 4.3 Storage / repository layer
 
-| ID | Name | Priority |
-|----|------|----------|
-| **MT-21** | [Encrypt-before-replicate evidence](#mt-21-encrypt-before-replicate-evidence) | P1 |
-| **MT-22** | [Seal / unseal write gate](#mt-22-seal--unseal-write-gate) | P1 |
+| ID | Name | Priority | Notes |
+|----|------|----------|-------|
+| **MT-21** | [Encrypt-before-replicate evidence](#mt-21-encrypt-before-replicate-evidence) | P1 | — |
+| **MT-33** | [Emergency seal & break-glass](#mt-33-emergency-seal--break-glass-recovery) | P0 | Absorbed MT-22 |
 
-### 4.4 Backup and restore (advanced)
+### 4.4 Backup and restore
 
-| ID | Name | Priority |
-|----|------|----------|
-| **MT-23** | [Atomic backup with audit history](#mt-23-atomic-backup-with-audit-history) | P1 |
-| **MT-24** | [Restore validation & negative cases](#mt-24-restore-validation--negative-cases) | P1 |
+| ID | Name | Priority | Notes |
+|----|------|----------|-------|
+| **MT-07** | [Backup and restore](#mt-07-backup-and-restore) | P0 | Absorbed MT-23, MT-24 |
 
 ### 4.5 PKI internals
 
@@ -1578,11 +1410,11 @@ done
 
 ---
 
-## MT-19: Audit hash chain integrity
+## MT-19: Audit hash chain & storage tamper resistance
 
 ### Objective
 
-Prove the audit repository maintains a tamper-evident hash chain across Raft replication.
+Prove the audit repository maintains a tamper-evident hash chain across Raft replication, and that host-level tamper of exported copies or Raft storage is detectable (formerly MT-37).
 
 ### Procedure
 
@@ -1616,7 +1448,19 @@ curl -s -X POST "$KNXVAULT_ADDR/audit/verify" \
 # 5. Filter export
 curl -s "$KNXVAULT_ADDR/audit/export?since=$(date -u -d '5 minutes ago' +%Y-%m-%dT%H:%M:%SZ)" \
   -H "Authorization: Bearer $KNXVAULT_TOKEN" | jq '.entries | map(select(.resource|test("mt19")))'
+
+# 6. Host-level tamper attempt — audit is in Raft state, not a flat log file
+kubectl -n knxvault exec knxvault-0 -- sh -c \
+  'grep -r "mt19/chain" /var/lib/knxvault/raft 2>/dev/null | head -3 || echo "no grep-friendly audit plaintext"'
+
+# 7. Re-export after local tamper of a **copy** — server chain still verifies
+curl -s -X POST "$KNXVAULT_ADDR/audit/verify" \
+  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "$(curl -s $KNXVAULT_ADDR/audit/export -H "Authorization: Bearer $KNXVAULT_TOKEN")" | jq .
 ```
+
+> SIEM forwarding and signing-key verify → **MT-11**. Periodic export to WORM storage recommended for compliance.
 
 ### Pass criteria
 
@@ -1627,65 +1471,8 @@ curl -s "$KNXVAULT_ADDR/audit/export?since=$(date -u -d '5 minutes ago' +%Y-%m-%
 | 3 | Tampered entry or hash fails verification |
 | 4 | `head_hash` matches tip of exported chain |
 | 5 | Audit entries replicate — export identical from any cluster member |
-
----
-
-## MT-20: Audit signing & forwarder delivery
-
-### Objective
-
-Validate optional HMAC signing of export head and asynchronous HTTP forwarding to a SIEM sink.
-
-### Procedure
-
-```bash
-# 1. Deploy mock SIEM sink (Profile B)
-kubectl apply -f - <<'EOF'
-apiVersion: v1
-kind: Pod
-metadata:
-  name: mt20-siem-mock
-  namespace: knxvault
-spec:
-  containers:
-    - name: netcat
-      image: busybox:1.36
-      command: ["sh", "-c", "while true; do nc -l -p 8080 -e wc -c; done"]
-EOF
-
-# 2. Configure KNXVault (ConfigMap patch or env):
-# KNXVAULT_AUDIT_SIGNING_KEY=<random-32b>
-# KNXVAULT_AUDIT_FORWARD_URL=http://mt20-siem-mock.knxvault.svc:8080/audit
-# Rolling restart one pod at a time to pick up config.
-
-# 3. Generate events
-knxvault-cli kv put mt20/forward value=siem-test
-
-# 4. Export — expect signature + signed_at when signing key set
-curl -s "$KNXVAULT_ADDR/audit/export?limit=10" \
-  -H "Authorization: Bearer $KNXVAULT_TOKEN" | jq '{signature, signed_at, head_hash}'
-
-# 5. Verify with signature fields from export response body
-curl -s -X POST "$KNXVAULT_ADDR/audit/verify" \
-  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d "$(curl -s "$KNXVAULT_ADDR/audit/export?limit=5" -H "Authorization: Bearer $KNXVAULT_TOKEN")" | jq .
-
-# 6. Confirm forwarder received JSON (check mock pod logs or tcpdump sidecar)
-kubectl -n knxvault logs mt20-siem-mock --tail=20
-```
-
-See [`docs/observability/audit-forwarding.md`](../observability/audit-forwarding.md).
-
-### Pass criteria
-
-| # | Criterion |
-|---|-----------|
-| 1 | Export includes `signature` and `signed_at` when signing key configured |
-| 2 | `audit/verify` validates head signature |
-| 3 | Forwarder receives POST per auditable API call (within 5s) |
-| 4 | API requests succeed even if forwarder is down (async, non-blocking) |
-| 5 | Forwarded payload matches `audit.Entry` schema |
+| 6 | Fresh server export verifies after tamper of offline copy only |
+| 7 | No silent undetected erasure — PVC destruction is availability event, not stealth (recover via **MT-07**) |
 
 ---
 
@@ -1728,156 +1515,6 @@ knxvault-cli kv get mt21/canary --show-secrets
 | 2 | API read returns correct plaintext (decrypt at engine layer) |
 | 3 | Backup export contains encrypted secret fields, not canary string |
 | 4 | Document aligns with [ADR-0004](../adr/0004-encrypt-before-replication.md) |
-
----
-
-## MT-22: Seal / unseal write gate
-
-### Objective
-
-Verify manual seal blocks mutating API paths while liveness probes keep serving.
-
-### Procedure
-
-```bash
-# 1. Baseline write
-knxvault-cli kv put mt22/seal value=open
-
-# 2. Seal cluster (operator-initiated)
-curl -s -X POST "$KNXVAULT_ADDR/sys/seal" \
-  -H "Authorization: Bearer $KNXVAULT_TOKEN" -w "\n%{http_code}\n"
-
-# 3. Mutating request rejected
-curl -s -o /dev/null -w "%{http_code}" -X POST "$KNXVAULT_ADDR/secrets/kv/mt22/seal" \
-  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{"data":{"value":"sealed"}}'
-# Expect 503
-
-# 4. Liveness still OK
-curl -s "$KNXVAULT_ADDR/health" | jq .
-
-# 5. Unseal (multi-share if configured; single-key dev)
-curl -s -X POST "$KNXVAULT_ADDR/sys/unseal" \
-  -H 'Content-Type: application/json' \
-  -d '{"key":"'"$KNXVAULT_MASTER_KEY"'"}' | jq .
-
-# 6. Writes resume
-knxvault-cli kv put mt22/seal value=unsealed
-knxvault-cli kv get mt22/seal --show-secrets
-```
-
-> Run on a maintenance window — seal blocks all secret engine writes cluster-wide.
-
-### Pass criteria
-
-| # | Criterion |
-|---|-----------|
-| 1 | `POST /sys/seal` succeeds |
-| 2 | KV writes return 503 while sealed |
-| 3 | `GET /health` returns 200 while sealed |
-| 4 | Unseal restores write path; prior secrets intact |
-
----
-
-## MT-23: Atomic backup with audit history
-
-### Objective
-
-Validate linearizable `snapshot.export`, optional audit inclusion, and cross-replica consistency.
-
-### Procedure
-
-```bash
-# 1. Seed graph: KV + policy + PKI + audit events
-knxvault-cli kv put mt23/atomic value=graph-test
-curl -s -X POST "$KNXVAULT_ADDR/pki/root" \
-  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{"name":"mt23-root","common_name":"MT23 Root","ttl":"720h"}' | jq -r .id
-
-# 2. Backup without audit
-curl -s -X POST "$KNXVAULT_ADDR/sys/backup" \
-  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{"include_audit":false}' | jq -r '.data' | base64 -d > mt23-no-audit.json
-
-# 3. Backup with audit
-curl -s -X POST "$KNXVAULT_ADDR/sys/backup" \
-  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{"include_audit":true}' | jq -r '.data' | base64 -d > mt23-with-audit.json
-
-# 4. Compare sizes — audit variant larger
-wc -c mt23-no-audit.json mt23-with-audit.json
-
-# 5. Export twice in quick succession from different pods (port-forward) — CA + secret both present
-for i in 0 1 2; do
-  kubectl -n knxvault port-forward knxvault-$i 82$i:8200 &
-done
-sleep 2
-# Inspect decrypted snapshot sections contain mt23/atomic AND mt23-root CA (via jq after dev decrypt or CLI inspect)
-knxvault-cli backup create -o mt23-cli.json
-```
-
-### Pass criteria
-
-| # | Criterion |
-|---|-----------|
-| 1 | `include_audit:true` backup contains audit entries |
-| 2 | `include_audit:false` omits audit or ships empty audit section per format |
-| 3 | Backup triggered Dragonboat on-disk snapshot (leader logs) |
-| 4 | CA and KV secret appear together (no torn graph) |
-| 5 | Archive uses `format: knxvault-backup` with encrypted payload |
-
----
-
-## MT-24: Restore validation & negative cases
-
-### Objective
-
-Confirm `ValidateSnapshot` rejects corrupt archives before `snapshot.import` mutates state.
-
-### Procedure
-
-```bash
-# 1. Valid restore (staging namespace or disposable cluster)
-knxvault-cli backup create -o mt24-good.json
-# On fresh cluster with same KNXVAULT_MASTER_KEY:
-knxvault-cli backup restore -f mt24-good.json
-knxvault-cli kv get mt23/atomic --show-secrets || knxvault-cli doctor
-
-# 2. Wrong master key — must fail before import
-WRONG_KEY=$(openssl rand -base64 32)
-KNXVAULT_MASTER_KEY=$WRONG_KEY knxvault-cli backup restore -f mt24-good.json
-# Expect decrypt/validation error
-
-# 3. Tampered ciphertext — corrupt random byte in archive JSON
-cp mt24-good.json mt24-bad.json
-python3 -c "
-import json
-d=json.load(open('mt24-bad.json'))
-d['ciphertext']=d['ciphertext'][:-4]+'XXXX'
-json.dump(d,open('mt24-bad.json','w'))
-"
-knxvault-cli backup restore -f mt24-bad.json
-# Expect failure
-
-# 4. Broken audit chain in plaintext snapshot (lab only — craft invalid export)
-# Expect ValidateSnapshot error referencing audit hash chain
-```
-
-See [`docs/deploy/backup-restore.md`](../deploy/backup-restore.md).
-
-### Pass criteria
-
-| # | Criterion |
-|---|-----------|
-| 1 | Valid backup restores full KV + RBAC + PKI graph |
-| 2 | Wrong master key rejected |
-| 3 | Tampered archive rejected |
-| 4 | Post-restore RBAC cache reloaded (policies effective without restart) |
-| 5 | Raft `snapshot.import` replaces state atomically (no merge) |
 
 ---
 
@@ -2356,22 +1993,19 @@ flowchart TD
   mt03 --> mt08 --> mt09 --> mt10
   mt10 --> mt13 --> mt12 --> mt02 --> mt11
   mt11 --> mt04 --> mt05 --> mt06 --> mt01 --> mt07 --> mt15 --> report
-  report --> stress[MT-33–37 Security stress]
+  report --> stress[MT-33, MT-36 Security stress]
 ```
 
 Run disruptive tests (**MT-01**, **MT-05**, **MT-06**, **MT-15**, **MT-33**) after functional baselines. Take backup before **MT-04**, **MT-07**, **MT-15**.
 
-**PoC security stress pack** (after **MT-08**, **MT-10**, **MT-12** baselines):
+**PoC security stress pack** (after **MT-08**, **MT-10**, **MT-12** baselines). Isolation, rotation SLA, and audit tamper are covered in **MT-10**, **MT-02**, and **MT-19** / **MT-11** respectively (see deduplication map).
 
 ```mermaid
 flowchart LR
   mt33[MT-33 Seal]
-  mt34[MT-34 Isolation]
-  mt35[MT-35 Rotation SLA]
   mt36[MT-36 Token revoke]
-  mt37[MT-37 Audit tamper]
 
-  mt33 --> mt34 --> mt35 --> mt36 --> mt37
+  mt33 --> mt36
 ```
 
 Subsystem deep-dives (Section 4) run after **MT-03** / **MT-07** baselines. Suggested order:
@@ -2379,9 +2013,9 @@ Subsystem deep-dives (Section 4) run after **MT-03** / **MT-07** baselines. Sugg
 ```mermaid
 flowchart LR
   raft[MT-16–18 Raft]
-  audit[MT-19–20 Audit]
-  store[MT-21–22 Storage]
-  backup[MT-23–24 Backup]
+  audit[MT-19, MT-11 Audit]
+  store[MT-21, MT-33 Storage]
+  backup[MT-07 Backup]
   pki[MT-25–26 PKI]
   engines[MT-27–29 Engines]
   k8s[MT-30–32 K8s]
@@ -2419,19 +2053,18 @@ Use this single-page checklist for prospect demos:
 | # | Scenario | Test ID | Pass |
 |---|----------|---------|------|
 | 17 | Emergency seal & break-glass unseal | MT-33 | ☐ |
-| 18 | Multi-tenant / cross-namespace isolation | MT-34 | ☐ |
-| 19 | Manual rotation propagation ≤ 60s SLA | MT-35 | ☐ |
-| 20 | Token revocation immediacy (air-gap) | MT-36 | ☐ |
-| 21 | Audit tamper detection | MT-37 | ☐ |
+| 18 | Token revocation immediacy (air-gap) | MT-36 | ☐ |
+
+> Isolation → **MT-10** (row 9). Rotation SLA → **MT-02** (row 16). Audit tamper → **MT-11** (row 10) + **MT-19** (subsystem).
 
 ### Subsystem deep-dive checklist (engineering)
 
 | Area | Test IDs | Pass |
 |------|----------|------|
 | Dragonboat / Raft | MT-16, MT-17, MT-18 | ☐ |
-| Audit subsystem | MT-19, MT-20 | ☐ |
-| Storage / repository | MT-21, MT-22 | ☐ |
-| Backup and restore (advanced) | MT-23, MT-24 | ☐ |
+| Audit subsystem | MT-19, MT-11 | ☐ |
+| Storage / repository | MT-21, MT-33 | ☐ |
+| Backup and restore (advanced) | MT-07 | ☐ |
 | PKI internals | MT-25, MT-26 | ☐ |
 | Secret engines | MT-27, MT-28, MT-29 | ☐ |
 | K8s controllers / webhooks | MT-30, MT-31, MT-32 | ☐ |
@@ -2442,11 +2075,11 @@ Use this single-page checklist for prospect demos:
 
 Include in the test report:
 
-1. Completed checklist (Section 5) with pass/fail and timestamps
+1. Completed checklist (Section 6) with pass/fail and timestamps
 2. Environment diagram — nodes, CNI, CSI, IdP, SIEM
 3. Failover and upgrade error windows (seconds of write unavailability)
-4. Rotation latency table (MT-02, MT-35 SLA runs)
-5. Security stress results (MT-33–MT-37) including seal/read behavior and unseal model notes
+4. Rotation latency table (**MT-02** SLA runs)
+5. Security stress results (**MT-33**, **MT-36**) including seal/read behavior and unseal model notes
 6. Known limitations — path-level RBAC (W41-01), OIDC role API (W43-06), single-key unseal (no Shamir), admin revoke-by-ID
 7. Link to [`../audit/formal-code-audit-2026.md`](../audit/formal-code-audit-2026.md)
 8. Subsystem deep-dive checklist (Section 6) for engineering sign-off
@@ -2478,3 +2111,4 @@ Include in the test report:
 | 1.1 | 2026-07-01 | Full POC pack MT-00–MT-15; demonstration checklist |
 | 1.2 | 2026-07-01 | Subsystem deep-dives MT-16–MT-32 (Raft, audit, storage, backup, PKI, engines, K8s) |
 | 1.3 | 2026-07-01 | PoC security stress tests MT-33–MT-37 (seal, isolation, rotation SLA, revoke, audit tamper) |
+| 1.4 | 2026-07-01 | Deduplicated overlapping tests; merged MT-20/22/23/24/34/35/37 into canonical MT-02, MT-07, MT-10, MT-11, MT-19, MT-33 |
