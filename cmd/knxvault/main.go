@@ -3,7 +3,9 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -32,13 +34,20 @@ func runHealthcheck() int {
 	if addr == "" {
 		addr = ":8200"
 	}
-	host := addr
-	if strings.HasPrefix(host, ":") {
-		host = "127.0.0.1" + host
+	port, err := localHealthPort(addr)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "healthcheck:", err)
+		return 1
+	}
+
+	u := &url.URL{
+		Scheme: "http",
+		Host:   net.JoinHostPort("127.0.0.1", port),
+		Path:   "/health",
 	}
 
 	client := &http.Client{Timeout: 3 * time.Second}
-	resp, err := client.Get("http://" + host + "/health")
+	resp, err := client.Get(u.String())
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "healthcheck:", err)
 		return 1
@@ -49,4 +58,17 @@ func runHealthcheck() int {
 		return 1
 	}
 	return 0
+}
+
+// localHealthPort extracts the listen port from KNXVAULT_HTTP_ADDR for loopback probes.
+// The bind address host is ignored so a mis-set value cannot steer the healthcheck elsewhere.
+func localHealthPort(addr string) (string, error) {
+	if strings.HasPrefix(addr, ":") {
+		addr = "127.0.0.1" + addr
+	}
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return "", fmt.Errorf("invalid KNXVAULT_HTTP_ADDR %q: %w", addr, err)
+	}
+	return port, nil
 }

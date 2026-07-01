@@ -49,6 +49,16 @@ func TestLoadFromFile(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsTraversalPath(t *testing.T) {
+	t.Setenv("KNXVAULT_MASTER_KEY", "")
+	t.Setenv("KNXVAULT_MASTER_KEY_FILE", "/var/run/secrets/../../../etc/passwd")
+
+	_, err := masterkey.Load()
+	if err == nil {
+		t.Fatal("expected error for traversal path")
+	}
+}
+
 func TestLoadMissing(t *testing.T) {
 	t.Setenv("KNXVAULT_MASTER_KEY", "")
 	t.Setenv("KNXVAULT_MASTER_KEY_FILE", "")

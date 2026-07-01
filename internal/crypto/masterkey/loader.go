@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -24,11 +25,37 @@ func Load() ([]byte, error) {
 }
 
 func loadFromFile(path string) ([]byte, error) {
-	data, err := os.ReadFile(path)
+	clean, err := validateKeyFilePath(path)
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(clean)
 	if err != nil {
 		return nil, fmt.Errorf("read master key file: %w", err)
 	}
 	return decodeKey(strings.TrimSpace(string(data)))
+}
+
+func validateKeyFilePath(path string) (string, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return "", fmt.Errorf("read master key file: empty path")
+	}
+	if strings.Contains(path, "..") {
+		return "", fmt.Errorf("read master key file: invalid path")
+	}
+	clean := filepath.Clean(path)
+	if !filepath.IsAbs(clean) {
+		return "", fmt.Errorf("read master key file: path must be absolute")
+	}
+	info, err := os.Stat(clean)
+	if err != nil {
+		return "", fmt.Errorf("read master key file: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return "", fmt.Errorf("read master key file: not a regular file")
+	}
+	return clean, nil
 }
 
 func decodeKey(raw string) ([]byte, error) {
