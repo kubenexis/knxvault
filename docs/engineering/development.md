@@ -60,7 +60,7 @@ internal/
   crypto/               Master key, envelope crypto, OpenSSL
   domain/               Pure domain models
   engine/               PKI, KVv2, database engines
-  inject/               Secrets injection + CSI scaffolding
+  inject/               Secrets injection + CSI provider (`knxvault-csi`)
   raft/                 Dragonboat NodeHost + state machine
   repository/           Dragonboat, memory
   service/              Orchestration layer
@@ -96,6 +96,17 @@ See [LLD §3.1](../lld.md) for the full directory specification.
 5. **API** — handler + DTO in `internal/api/`, update `api/openapi.yaml`
 6. **Tests** — unit tests alongside code; integration test in `test/integration/`
 7. **Docs** — update relevant guide in `docs/`
+
+## CSI validation (optional)
+
+Requires Docker and `kind` on `PATH`:
+
+```bash
+scripts/test-csi-kind.sh   # installs CSI driver + provider RBAC (W39-07 partial)
+make test-integration      # includes test/integration/csi_test.go when Docker available
+```
+
+Full end-to-end KV mount assertion is tracked in backlog **W39-07**.
 
 ## Architecture decisions
 

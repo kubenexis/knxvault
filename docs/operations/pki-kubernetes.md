@@ -25,7 +25,7 @@ flowchart LR
     Ing[Ingress]
   end
   KV[KNXVault PKI API]
-  CM -.->|W40-02 planned| KV
+  CM -->|W40-02 shipped| KV
   CJ -->|POST /pki/issue| KV
   CJ --> Secret[TLS Secret]
   Secret --> Ing
@@ -249,19 +249,19 @@ security:
 
 Issue `client-ca.pem` from the same intermediate or a dedicated client-issuing CA.
 
-## cert-manager (planned — W40-02)
+## cert-manager (shipped — W40-02)
 
-Example manifests in `deployments/cert-manager/` target cert-manager's **Vault issuer**, which expects HashiCorp Vault HTTP paths:
+KNXVault exposes **Vault-compatible** paths for cert-manager's built-in Vault issuer (`internal/api/handlers/vaultcompat.go`):
 
-| Vault path (expected) | KNXVault equivalent (today) |
-|-----------------------|----------------------------|
-| `POST /v1/pki/sign/:role` | `POST /pki/issue` with `"role": "<ca-name>"` |
-| `POST /v1/auth/kubernetes` | `POST /auth/kubernetes` |
+| Vault path (expected) | KNXVault shim |
+|-----------------------|---------------|
+| `POST /v1/pki/sign/:role` | CSR signing via PKI engine |
+| `POST /v1/auth/kubernetes/login` | ServiceAccount JWT login |
 
-**When W40-02 ships**, a `ClusterIssuer` like this will work without custom operators:
+Apply the example `ClusterIssuer`:
 
 ```yaml
-# deployments/cert-manager/clusterissuer-knxvault.yaml (requires W40-02)
+# deployments/cert-manager/clusterissuer-knxvault.yaml
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:

@@ -6,7 +6,7 @@ Formal mapping of **BFSI POC must-have requirements** to KNXVault implementation
 |-------|-------|
 | **Product version** | v0.4.5 |
 | **Matrix version** | 1.0 |
-| **Last updated** | 2026-07-01 |
+| **Last updated** | 2026-07-01 (backlog audit) |
 | **Scope** | Prospect POC / regulated workload evaluation (BFSI) |
 | **Authoritative spec** | Prospect BFSI POC requirements document (18 sections) |
 
@@ -33,9 +33,9 @@ Formal mapping of **BFSI POC must-have requirements** to KNXVault implementation
 | 6 | Dynamic Secrets | 0 | 1 | 1 | **DB only** — no SSH |
 | 7 | PKI | 8 | 2 | 1 | **Strong core** |
 | 8 | Transit Encryption | 0 | 0 | 6 | **Not supported** |
-| 9 | Kubernetes Integration | 5 | 2 | 1 | **CSI-first viable** |
+| 9 | Kubernetes Integration | 7 | 1 | 0 | **Strong** — CSI, ESO, cert-manager shipped |
 | 10 | APIs & SDKs | 4 | 1 | 2 | **REST/Go only** |
-| 11 | Administrative CLI | 8 | 0 | 8 | **Partial** |
+| 11 | Administrative CLI | 10 | 4 | 4 | **Partial** — core Day-2 CLI shipped |
 | 12 | Audit | 4 | 3 | 2 | **Partial** — export formats |
 | 13 | Backup & DR | 4 | 4 | 1 | **Partial** |
 | 14 | Observability | 5 | 0 | 0 | **Met** |
@@ -76,7 +76,7 @@ Formal mapping of **BFSI POC must-have requirements** to KNXVault implementation
 | BFSI-2-04 | Envelope encryption | **Met** | Master-key-wrapped DEKs; `internal/crypto/keyring.go` | — | — | Must |
 | BFSI-2-05 | Master key rotation | **Met** | `POST /sys/rotate-master-key`; `internal/service/masterkey.go`; CLI `sys rotate-master-key` | — | — | Must |
 | BFSI-2-06 | Data encryption key rotation | **Met** | `KeyRing.ReencryptDEK`; leader job `runMasterKeyReencrypt` in `internal/app/jobs.go` | — | — | Must |
-| BFSI-2-07 | Automatic key rotation | **Partial** | KV rotation policies (`W37-05`); PKI renewal job; DB lease renewal | W37-06 | CronJob triggers `PUT /sys/kv-rotation` + documented PKI TTL | Should |
+| BFSI-2-07 | Automatic key rotation | **Met** | KV rotation (`W37-05`); `POST /sys/rotation/run` orchestration (`W37-06`); PKI renewal job; DB lease renewal | — | Webhook via `KNXVAULT_ROTATION_WEBHOOK_URL` | Should |
 | BFSI-2-08 | Secure secret deletion | **Partial** | `DestroyVersion`; soft delete; `internal/crypto/memzero/memzero.go` | — | Destroy + short TTL + audit; no forensic erase attestation | Should |
 | BFSI-2-09 | Memory protection for sensitive data | **Gap** | `memzero` only; no `mlock` / locked buffers | — | Run on dedicated nodes; restrict ptrace; sealed Secrets for keys; accept questionnaire waiver | Must |
 | BFSI-2-10 | No plaintext secret persistence | **Met** | Ciphertext + wrapped DEKs in Raft; ADR-0004/0005 | — | — | Must |
@@ -124,7 +124,7 @@ Formal mapping of **BFSI POC must-have requirements** to KNXVault implementation
 | BFSI-5-07 | Permanent delete | **Met** | `DestroyVersion`; metadata `destroyed: true` | — | — | Must |
 | BFSI-5-08 | Secret expiration | **Met** | TTL on versions; expiry enforcement in engine | — | — | Should |
 | BFSI-5-09 | Secret TTL | **Met** | `PutOptions.TTL` | — | — | Should |
-| BFSI-5-10 | Secret rotation | **Met** | `PUT /sys/kv-rotation`; `runKVRotation` job (`W37-05`) | W37-06 | Manual rotation trigger until W37-06 webhook orchestration | Must |
+| BFSI-5-10 | Secret rotation | **Met** | `PUT /sys/kv-rotation`; `POST /sys/rotation/run` (`W37-06`); `runKVRotation` job | — | Webhook notifier on rotation success | Must |
 | BFSI-5-11 | Secret renewal | **Partial** | Token renewal API; KV has no lease renewal | — | Re-read or re-put secret; DB leases use `POST /secrets/database/renew/:id` | Could |
 | BFSI-5-12 | Secret revocation | **Partial** | Destroy version; exposure auto-revoke (`W37-07`); token revoke | — | Destroy + rotation on exposure report | Should |
 
@@ -151,7 +151,7 @@ Formal mapping of **BFSI POC must-have requirements** to KNXVault implementation
 | BFSI-7-06 | CRL support | **Met** | `GET /pki/crl/:id` | — | — | Must |
 | BFSI-7-07 | OCSP support | **Met** | `POST /pki/ocsp/:id` | — | — | Should |
 | BFSI-7-08 | Short-lived certificates | **Met** | Role TTL validation; renewal grace window | — | — | Must |
-| BFSI-7-09 | Kubernetes certificate issuance | **Partial** | `POST /pki/issue` + CronJob patterns in `docs/operations/pki-kubernetes.md` | W40-02 | Manual/CronJob until cert-manager Issuer ships | Should |
+| BFSI-7-09 | Kubernetes certificate issuance | **Met** | cert-manager Vault shim (`W40-02`); `deployments/cert-manager/clusterissuer-knxvault.yaml` | — | CronJob pattern still valid for non-cert-manager workloads | Should |
 | BFSI-7-10 | ACME protocol support | **Gap** | — | — | Use cert-manager or internal PKI API; **waive ACME for POC** | Could |
 
 ---
@@ -176,7 +176,7 @@ Formal mapping of **BFSI POC must-have requirements** to KNXVault implementation
 | ID | Requirement | Status | Evidence | Backlog | Compensating control | POC gate |
 |----|-------------|--------|----------|---------|----------------------|----------|
 | BFSI-9-01 | Secrets Store CSI Driver | **Met** | `cmd/knxvault-csi/`; `deployments/csi/`; `docs/deploy/csi-install.md` | W39-07 | Run `scripts/test-csi-kind.sh` in POC validation | Must |
-| BFSI-9-02 | External Secrets Operator | **Partial** | Webhook `ClusterSecretStore` in `deployments/external-secrets/` | W40-01 | CSI `secretObjects` sync or webhook store for POC | Should |
+| BFSI-9-02 | External Secrets Operator | **Met** | `knxvault-eso` webhook adapter (`W40-01`); `deployments/external-secrets/` | — | CSI `secretObjects` as alternative | Should |
 | BFSI-9-03 | Kubernetes Authentication | **Met** | See BFSI-3-01 | — | — | Must |
 | BFSI-9-04 | Service Account integration | **Met** | SA bindings; CSI mount auth (`W39-02`) | — | — | Must |
 | BFSI-9-05 | Sidecar support | **Met** | `POST /inject/render`; `docs/deploy/secrets-injection.md` | — | Prefer CSI; sidecar as fallback | Could |
@@ -193,7 +193,7 @@ Formal mapping of **BFSI POC must-have requirements** to KNXVault implementation
 | BFSI-10-02 | gRPC API | **Gap** | — | LT-04 | REST + service mesh | Could |
 | BFSI-10-03 | OpenAPI Specification | **Met** | `api/openapi.yaml`; `/swagger` | — | — | Must |
 | BFSI-10-04 | Go SDK | **Met** | `pkg/client/` | — | — | Must |
-| BFSI-10-05 | CLI | **Met** | `cmd/knxvault-cli/`; `docs/cli/reference.md` | W36-21 | — | Must |
+| BFSI-10-05 | CLI | **Partial** | `cmd/knxvault-cli/` — policies, audit, database, doctor, sys ops | W36-21 | Residual: raft scaling, roles list/delete, full PKI | Must |
 | BFSI-10-06 | Idempotent APIs | **Partial** | KV CAS (`cas_version`); not all endpoints idempotent | — | Document idempotent patterns in POC integration guide | Should |
 
 ---
@@ -212,9 +212,9 @@ Formal mapping of **BFSI POC must-have requirements** to KNXVault implementation
 | BFSI-11-08 | Unseal | **Met** | `knxvault-cli sys unseal`; `POST /sys/unseal` | — | — | Must |
 | BFSI-11-09 | Key rotation | **Met** | `knxvault-cli sys rotate-master-key` | — | — | Must |
 | BFSI-11-10 | Certificate management | **Partial** | `knxvault-cli pki`; partial PKI surface | W36-21 | Full PKI via REST until CLI parity | Should |
-| BFSI-11-11 | Policy management | **Gap** | API ` /sys/policies` only | W36-21 | curl/OpenAPI for POC admin | Should |
+| BFSI-11-11 | Policy management | **Met** | `knxvault-cli sys policies` list/get/put/delete | W36-21 | — | Should |
 | BFSI-11-12 | User management | **Gap** | Token-based; no user entity | — | IdP + token create API | Should |
-| BFSI-11-13 | Authentication management | **Gap** | Role CRUD via API only | W36-21 | Document role binding procedures | Should |
+| BFSI-11-13 | Authentication management | **Partial** | `knxvault-cli sys roles` get/put; API for full CRUD | W36-21 | Document role binding procedures | Should |
 | BFSI-11-14 | Diagnostics | **Met** | `knxvault-cli doctor` | — | — | Must |
 | BFSI-11-15 | Cluster upgrade | **Gap** | — | LT-09 | Manual rolling upgrade + backup | Should |
 | BFSI-11-16 | Cluster scaling | **Gap** | API ` /sys/raft/add-node` only | W36-21 | `docs/operations/runbooks/scaling.md` + API | Should |
@@ -361,8 +361,8 @@ Use this checklist to sign off a **narrow BFSI POC** with documented waivers.
 
 | Priority | Backlog IDs | Closes |
 |----------|-------------|--------|
-| P0 | W40-01, W40-02, W36-21, W37-06 | ESO, cert-manager, CLI admin, rotation orchestration |
-| P1 | W36-14, W36-09, W36-15, audit schema enhancement | Namespace RBAC, leader status, lease metrics, audit fields |
+| P0 | ~~W40-01~~, ~~W40-02~~, ~~W37-06~~, W36-21 `[Partial]` | **Done** except residual CLI parity |
+| P1 | W36-14, W36-09, W36-15 `[Partial]`, audit schema enhancement | Namespace RBAC, leader status, metrics docs, audit fields |
 | P2 | W35-02, LT-12, `docs/operations/upgrade.md` | Compliance roadmap, benchmarks, upgrade guide |
 | P3 | W32-*, LT-04, transit engine (new) | Multi-tenancy, gRPC, §8 |
 

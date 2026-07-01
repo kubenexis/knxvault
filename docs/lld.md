@@ -916,7 +916,7 @@ helm install knxvault ./deployments/helm/knxvault \
 
 ### 7.2 Key Rotation & Management
 
-- **Master Key Rotation**: Supported via `/sys/rotate` endpoint. Old keys kept for decryption during transition.
+- **Master Key Rotation**: Supported via `POST /sys/rotate-master-key`. Old keys kept for decryption during transition (`internal/crypto/keyring.go`).
 - **CA Key Rotation**: New Root/Intermediate creation + re-issuance workflow.
 - **Certificate Renewal**: Automated via TTL-based jobs with grace periods.
 - **DEK Rotation**: Per-secret rotation on update (optional policy).

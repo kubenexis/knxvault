@@ -6,12 +6,12 @@ Threat assumptions, cryptographic controls, and operational security guidance fo
 
 | Threat | Impact | Mitigations |
 |--------|--------|-------------|
-| Master key compromise | All secrets and CA keys recoverable | K8s Secret sealing, short exposure window, backup key custody, future rotation API |
+| Master key compromise | All secrets and CA keys recoverable | K8s Secret sealing, short exposure window, backup key custody, `POST /sys/rotate-master-key` |
 | Raft quorum loss | Write unavailability | 3-node cluster, PVC backups, documented failover runbook |
 | Token theft | Unauthorized API access | Short TTL, RBAC least privilege, rate limiting, optional request signing |
 | OpenSSL sandbox escape | Host compromise | Argument validation, `0700` temp dirs, timeouts, non-root container |
 | Audit tampering | Compliance failure | Hash-chained log, HMAC export signatures, Raft replication |
-| Network eavesdropping | Credential exposure | TLS at ingress (operator responsibility); server TLS (**W37-01**) and Raft mTLS (**W38-14**) planned |
+| Network eavesdropping | Credential exposure | TLS at ingress (operator responsibility); server TLS (**W37-01**, shipped) and Raft peer mTLS (**W38-14**, shipped); broader route mTLS → Phase 5 **W34-01** |
 
 ## Cryptography
 

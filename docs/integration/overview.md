@@ -9,8 +9,8 @@ For the full Kubernetes-native surface (CSI, ESO, cert-manager, webhook, SDKs), 
 | Pattern | Auth | Use case |
 |---------|------|----------|
 | **Secrets Store CSI Driver** | Pod SA → TokenReview | **Primary** — volume-mounted secrets (**shipped**: `knxvault-csi`) |
-| **External Secrets Operator** | Controller SA | Sync to native `Secret` when needed (**W40-01**) |
-| **cert-manager Issuer** | Controller SA | TLS / PKI automation (**W40-02**) |
+| **External Secrets Operator** | Controller SA | Sync to native `Secret` when needed (**shipped**: `knxvault-eso`) |
+| **cert-manager Issuer** | Controller SA | TLS / PKI automation (**shipped**: Vault API shim) |
 | **K8s ServiceAccount JWT** | `POST /auth/kubernetes` | In-cluster API access (**shipped**: TokenReview) |
 | **Mutating webhook** | — | Optional CSI volume injection (**shipped**: `knxvault-webhook`) |
 | **SDKs** (Go, Python, Java, Rust, Node) | Bearer / K8s auth | Application integrations (**Go shipped**; others W40-04–07) |
@@ -54,7 +54,7 @@ KNXVault is designed as a **Kubernetes-native** secrets platform. The first-clas
 3. Create a `SecretProviderClass` referencing KV paths and a bound `Role`.
 4. Mount the CSI volume in application pods — secrets appear as files under the mount path.
 
-Pod identity uses `ServiceAccount` TokenReview (no long-lived vault token in the provider). Rotation and optional sync to native Kubernetes `Secret` are planned in backlog **W39-05** / **W39-06**. See [Secrets injection](../deploy/secrets-injection.md) for manifests and examples.
+Pod identity uses `ServiceAccount` TokenReview (no long-lived vault token in the provider). Rotation (**W39-05**) and optional `secretObjects` sync to native Kubernetes `Secret` (**W39-06**) are **shipped**. See [Secrets injection](../deploy/secrets-injection.md) and [CSI install](../deploy/csi-install.md).
 
 ### Render API (fallback)
 

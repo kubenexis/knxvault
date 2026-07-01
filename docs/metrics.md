@@ -33,6 +33,9 @@ prometheus.io/port: "8200"
 | `knxvault_raft_commit_index` | Gauge | — | Committed Raft log index |
 | `knxvault_raft_propose_duration_seconds` | Histogram | — | Vault command propose latency |
 | `knxvault_rate_limited_total` | Counter | — | Requests rejected by rate limiter |
+| `knxvault_active_leases` | Gauge | — | Cluster-wide active (non-expired, non-revoked) database leases on leader tick |
+| `knxvault_openssl_breaker_open` | Gauge | — | `1` when OpenSSL circuit breaker is open |
+| `knxvault_raft_tls_enabled` | Gauge | — | `1` when Raft peer mTLS is configured |
 
 Go runtime metrics are also exposed via the default Prometheus registry.
 

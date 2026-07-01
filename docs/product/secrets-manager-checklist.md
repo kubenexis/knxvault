@@ -9,10 +9,14 @@ Use this checklist before promoting KNXVault to production secrets management wo
 | Encryption in transit (TLS/mTLS) | ✅ Shipped | W37-01 | [tier0-production.md](tier0-production.md) |
 | OIDC / short-lived credentials | ✅ Shipped | W37-02 | [tier0-production.md](tier0-production.md) |
 | Machine identity (NHI) | ✅ Shipped | W37-03 | [tier0-production.md](tier0-production.md) |
+| AI agent delegation | 🔶 Partial | W37-04 | `parent_identity_id` only; delegate API pending |
 | Scheduled KV rotation | ✅ Shipped | W37-05 | [tier0-production.md](tier0-production.md) |
+| Rotation orchestration (KV/DB/PKI + webhook) | ✅ Shipped | W37-06 | [api/reference.md](../api/reference.md) (`POST /sys/rotation/run`) |
 | Exposure detection hooks | ✅ Shipped | W37-07 | [exposure-detection.md](../integration/exposure-detection.md) |
+| Multi-language SDKs | 🔶 Partial | W40-03–07 | Go `pkg/client` shipped; codegen script exists |
 | Raft peer mTLS | ✅ Shipped | W38-14 | [tier0-production.md](tier0-production.md) |
-| CSI secret rotation | ✅ Shipped | W39-05 | [secrets-injection.md](../deploy/secrets-injection.md) |
+| CSI provider + rotation | ✅ Shipped | W39-01, W39-05 | [csi-install.md](../deploy/csi-install.md) |
+| ESO + cert-manager integration | ✅ Shipped | W40-01, W40-02 | [kubernetes-native.md](../integration/kubernetes-native.md) |
 
 ## Core capabilities
 
@@ -34,7 +38,7 @@ Use this checklist before promoting KNXVault to production secrets management wo
 
 - [ ] Database roles use client execution mode with documented SQL templates
 - [ ] Lease TTLs aligned with application session lifetime
-- [ ] `knxvault_active_leases` metric reflects live leases (not cleanup batch size)
+- [ ] `knxvault_active_leases` metric reflects live leases (uses `LeaseRepository.CountActive` on leader tick)
 - [ ] Expired lease cleanup verified on leader failover
 
 ## Kubernetes integration
