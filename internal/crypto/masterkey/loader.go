@@ -25,37 +25,50 @@ func Load() ([]byte, error) {
 }
 
 func loadFromFile(path string) ([]byte, error) {
-	clean, err := validateKeyFilePath(path)
+	dir, name, err := keyFileLocation(path)
 	if err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(clean)
+
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return nil, fmt.Errorf("read master key file: %w", err)
+	}
+	defer func() { _ = root.Close() }()
+
+	info, err := root.Stat(name)
+	if err != nil {
+		return nil, fmt.Errorf("read master key file: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("read master key file: not a regular file")
+	}
+
+	data, err := root.ReadFile(name)
 	if err != nil {
 		return nil, fmt.Errorf("read master key file: %w", err)
 	}
 	return decodeKey(strings.TrimSpace(string(data)))
 }
 
-func validateKeyFilePath(path string) (string, error) {
+func keyFileLocation(path string) (dir, name string, err error) {
 	path = strings.TrimSpace(path)
 	if path == "" {
-		return "", fmt.Errorf("read master key file: empty path")
+		return "", "", fmt.Errorf("read master key file: empty path")
 	}
 	if strings.Contains(path, "..") {
-		return "", fmt.Errorf("read master key file: invalid path")
+		return "", "", fmt.Errorf("read master key file: invalid path")
 	}
 	clean := filepath.Clean(path)
 	if !filepath.IsAbs(clean) {
-		return "", fmt.Errorf("read master key file: path must be absolute")
+		return "", "", fmt.Errorf("read master key file: path must be absolute")
 	}
-	info, err := os.Stat(clean)
-	if err != nil {
-		return "", fmt.Errorf("read master key file: %w", err)
+	dir = filepath.Dir(clean)
+	name = filepath.Base(clean)
+	if name == "." || name == ".." || name == "" || strings.ContainsRune(name, filepath.Separator) {
+		return "", "", fmt.Errorf("read master key file: invalid path")
 	}
-	if !info.Mode().IsRegular() {
-		return "", fmt.Errorf("read master key file: not a regular file")
-	}
-	return clean, nil
+	return dir, name, nil
 }
 
 func decodeKey(raw string) ([]byte, error) {
