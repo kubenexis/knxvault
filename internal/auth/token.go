@@ -231,9 +231,9 @@ type RoleResolver interface {
 	PoliciesForRole(ctx context.Context, role string) []string
 }
 
-// RoleBindingResolver resolves full role records for SA binding checks.
+// RoleBindingResolver resolves persisted role records for authentication binding checks.
 type RoleBindingResolver interface {
-	GetRole(ctx context.Context, name string) (*domainauth.Role, error)
+	GetStoredRole(ctx context.Context, name string) (*domainauth.Role, error)
 }
 
 // NewService constructs an auth service.
@@ -290,20 +290,21 @@ func (s *Service) LoginKubernetes(ctx context.Context, role, jwtToken string) (s
 		return "", nil, err
 	}
 
-	if bindingResolver, ok := s.roles.(RoleBindingResolver); ok {
-		storedRole, err := bindingResolver.GetRole(ctx, role)
-		if err != nil {
-			return "", nil, common.Wrap(common.ErrCodeForbidden, "role not found", err)
-		}
-		if err := MatchServiceAccountBinding(storedRole, identity); err != nil {
-			return "", nil, err
-		}
+	bindingResolver, ok := s.roles.(RoleBindingResolver)
+	if !ok {
+		return "", nil, common.New(common.ErrCodeForbidden, "kubernetes login requires persisted roles")
 	}
-
-	policies := PoliciesForRole(role)
-	if s.roles != nil {
-		policies = s.roles.PoliciesForRole(ctx, role)
+	storedRole, err := bindingResolver.GetStoredRole(ctx, role)
+	if err != nil {
+		return "", nil, common.Wrap(common.ErrCodeForbidden, "role not found", err)
 	}
+	if err := MatchServiceAccountBinding(storedRole, identity); err != nil {
+		return "", nil, err
+	}
+	if len(storedRole.Policies) == 0 {
+		return "", nil, common.New(common.ErrCodeForbidden, "role has no policies")
+	}
+	policies := storedRole.Policies
 	nhiID := domainauth.NHIKey(domainauth.IdentityTypeK8sSA, identity.Namespace, identity.Name, subject)
 	if s.nhi != nil {
 		if revoked, err := s.nhi.IsRevoked(ctx, nhiID); err == nil && revoked {
@@ -333,7 +334,7 @@ func (s *Service) LoginOIDC(ctx context.Context, role, jwtToken string) (string,
 	}
 	var oidcCfg *domainauth.OIDCConfig
 	if bindingResolver, ok := s.roles.(RoleBindingResolver); ok {
-		storedRole, err := bindingResolver.GetRole(ctx, role)
+		storedRole, err := bindingResolver.GetStoredRole(ctx, role)
 		if err != nil {
 			return "", nil, common.Wrap(common.ErrCodeForbidden, "role not found", err)
 		}

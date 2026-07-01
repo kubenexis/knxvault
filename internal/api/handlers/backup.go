@@ -11,6 +11,9 @@ import (
 	"github.com/kubenexis/knxvault/internal/service"
 )
 
+// MaxBackupRestoreBytes limits POST /sys/restore payload size.
+const MaxBackupRestoreBytes = 64 << 20 // 64 MiB
+
 // BackupHandler serves backup and restore endpoints.
 type BackupHandler struct {
 	svc *service.BackupService
@@ -42,6 +45,7 @@ func (h *BackupHandler) Create(c *gin.Context) {
 
 // Restore handles POST /sys/restore.
 func (h *BackupHandler) Restore(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, MaxBackupRestoreBytes)
 	body, err := c.GetRawData()
 	if err != nil {
 		_ = c.Error(err)

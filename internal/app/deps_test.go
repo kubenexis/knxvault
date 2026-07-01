@@ -81,6 +81,7 @@ func TestNewDependenciesRequiresMasterKeyWithRaft(t *testing.T) {
 	t.Setenv("KNXVAULT_RAFT_INITIAL_MEMBERS", "1=127.0.0.1:63001")
 	t.Setenv("KNXVAULT_MASTER_KEY", "")
 	t.Setenv("KNXVAULT_MASTER_KEY_FILE", "")
+	t.Setenv("KNXVAULT_UNSEAL_KEY", "dGVzdC11bnNlYWwta2V5MTIzNDU2Nzg5MDEyMzQ1Ng==")
 
 	cfg, err := config.Load()
 	if err != nil {

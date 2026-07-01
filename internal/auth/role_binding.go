@@ -20,7 +20,7 @@ func MatchServiceAccountBinding(role *domainauth.Role, id ServiceAccountIdentity
 		return nil
 	}
 	if len(role.BoundServiceAccountNames) == 0 && len(role.BoundServiceAccountNamespaces) == 0 {
-		return nil
+		return common.New(common.ErrCodeForbidden, "kubernetes role requires service account bindings")
 	}
 	if id.Namespace == "" || id.Name == "" {
 		return common.New(common.ErrCodeForbidden, "service account identity required")

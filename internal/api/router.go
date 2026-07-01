@@ -252,7 +252,8 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 			deps.MasterKeyService, deps.Seal, deps.RaftMembership, deps.MasterKey,
 			deps.ExposureAutoRevoke, deps.ExposureWebhook,
 		)
-		r.POST("/sys/unseal", sysUnseal.Unseal)
+		unsealLimiter := middleware.NewRateLimiter(10, true)
+		r.POST("/sys/unseal", unsealLimiter.Middleware(), sysUnseal.Unseal)
 	}
 
 	if deps.ExposureSigningKey != "" {

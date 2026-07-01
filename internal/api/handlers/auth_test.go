@@ -15,7 +15,9 @@ import (
 	"github.com/kubenexis/knxvault/internal/api/handlers"
 	"github.com/kubenexis/knxvault/internal/api/middleware"
 	"github.com/kubenexis/knxvault/internal/auth"
+	domainauth "github.com/kubenexis/knxvault/internal/domain/auth"
 	"github.com/kubenexis/knxvault/internal/infra/k8s"
+	"github.com/kubenexis/knxvault/internal/repository/memory"
 )
 
 func TestAuthHandlerKubernetesFailsClosed(t *testing.T) {
@@ -102,7 +104,15 @@ func TestAuthHandlerKubernetesTokenReview(t *testing.T) {
 			ServiceAccountName: "my-app",
 		},
 	}
+	roleRepo := memory.NewRoleRepository()
+	_ = roleRepo.Save(context.Background(), &domainauth.Role{
+		Name:                          "app-sa",
+		Policies:                      []string{"secrets-reader"},
+		BoundServiceAccountNames:      []string{"my-app"},
+		BoundServiceAccountNamespaces: []string{"prod"},
+	})
 	authSvc := auth.NewService(auth.NewTokenStore(time.Hour), auth.NewRBAC(), "")
+	authSvc.SetRoleResolver(auth.NewRepositoryRoleResolver(roleRepo))
 	authSvc.SetK8sLoginOptions(auth.K8sLoginOptions{TokenReviewer: reviewer})
 	handler := handlers.NewAuthHandler(authSvc, time.Hour)
 
@@ -110,7 +120,7 @@ func TestAuthHandlerKubernetesTokenReview(t *testing.T) {
 	r.Use(middleware.ErrorHandler())
 	r.POST("/auth/kubernetes", handler.LoginKubernetes)
 
-	body, _ := json.Marshal(dto.K8sLoginRequest{Role: "admin", JWT: "real-sa-jwt"})
+	body, _ := json.Marshal(dto.K8sLoginRequest{Role: "app-sa", JWT: "real-sa-jwt"})
 	req := httptest.NewRequest(http.MethodPost, "/auth/kubernetes", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()

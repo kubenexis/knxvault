@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -157,7 +158,13 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 
 	if deps.Crypto != nil {
 		deps.MasterKeyService = service.NewMasterKeyService(deps.Crypto, deps.CARepo, deps.SecretRepo)
+		if cfg.Raft.Enabled && cfg.UnsealKey == "" {
+			return nil, fmt.Errorf("KNXVAULT_UNSEAL_KEY is required when raft is enabled")
+		}
 		unsealKey := resolveUnsealKey(cfg.UnsealKey, deps.MasterKey)
+		if cfg.UnsealKey != "" && bytes.Equal(unsealKey, deps.MasterKey) {
+			return nil, fmt.Errorf("unseal key must not equal master key")
+		}
 		deps.Seal = NewSealState(unsealKey)
 
 		deps.PKIEngine = pkiengine.NewEngine(deps.OpenSSL, deps.Crypto, deps.CARepo, deps.RevokeRepo)
@@ -249,6 +256,9 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 		log.Info("kubernetes TokenReview authentication enabled")
 	} else {
 		log.Warn("kubernetes TokenReview unavailable", zap.Error(err))
+	}
+	if cfg.Raft.Enabled && cfg.K8sAuthInsecure {
+		return nil, fmt.Errorf("k8s_auth_insecure is not allowed when raft is enabled")
 	}
 	deps.AuthService.SetK8sLoginOptions(auth.K8sLoginOptions{
 		RaftEnabled:   cfg.Raft.Enabled,

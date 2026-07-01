@@ -27,13 +27,23 @@ func (r *RepositoryRoleResolver) PoliciesForRole(ctx context.Context, role strin
 	return PoliciesForRole(role)
 }
 
+// GetStoredRole returns a role persisted in the repository.
+func (r *RepositoryRoleResolver) GetStoredRole(ctx context.Context, name string) (*domainauth.Role, error) {
+	if r.roles == nil {
+		return nil, fmt.Errorf("role not found")
+	}
+	stored, err := r.roles.Get(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	copy := *stored
+	return &copy, nil
+}
+
 // GetRole returns a stored role or a default mapping.
 func (r *RepositoryRoleResolver) GetRole(ctx context.Context, name string) (*domainauth.Role, error) {
-	if r.roles != nil {
-		if stored, err := r.roles.Get(ctx, name); err == nil {
-			copy := *stored
-			return &copy, nil
-		}
+	if stored, err := r.GetStoredRole(ctx, name); err == nil {
+		return stored, nil
 	}
 	policies := PoliciesForRole(name)
 	if len(policies) == 0 {

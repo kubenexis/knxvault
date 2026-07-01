@@ -32,10 +32,15 @@ func TestParseServiceAccountUsername(t *testing.T) {
 	}
 }
 
-func TestMatchServiceAccountBindingOpenRole(t *testing.T) {
+func TestMatchServiceAccountBindingRequiresBindings(t *testing.T) {
 	role := &domainauth.Role{Name: "open", Policies: []string{"admin"}}
-	if err := auth.MatchServiceAccountBinding(role, auth.ServiceAccountIdentity{}); err != nil {
-		t.Fatalf("open role should allow: %v", err)
+	err := auth.MatchServiceAccountBinding(role, auth.ServiceAccountIdentity{Namespace: "default", Name: "app"})
+	if err == nil {
+		t.Fatal("expected bindings required")
+	}
+	var kv *common.KNXVaultError
+	if !errorsAs(err, &kv) || kv.Code != common.ErrCodeForbidden {
+		t.Fatalf("got err %v", err)
 	}
 }
 

@@ -109,6 +109,7 @@ func TestLoadRaft(t *testing.T) {
 	t.Setenv("KNXVAULT_RAFT_INITIAL_MEMBERS", "1=10.0.0.1:63001,2=10.0.0.2:63001")
 	t.Setenv("KNXVAULT_RAFT_ELECTION_RTT", "12")
 	t.Setenv("KNXVAULT_RAFT_HEARTBEAT_RTT", "2")
+	t.Setenv("KNXVAULT_UNSEAL_KEY", "dGVzdC11bnNlYWwta2V5MTIzNDU2Nzg5MDEyMzQ1Ng==")
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -132,6 +133,7 @@ func TestLoadRaftNodeIDFromPodName(t *testing.T) {
 	t.Setenv("KNXVAULT_RAFT_ADDRESS", "127.0.0.1:63001")
 	t.Setenv("KNXVAULT_RAFT_DATA_DIR", "/tmp/raft")
 	t.Setenv("KNXVAULT_RAFT_INITIAL_MEMBERS", "1=127.0.0.1:63001,3=127.0.0.1:63003")
+	t.Setenv("KNXVAULT_UNSEAL_KEY", "dGVzdC11bnNlYWwta2V5MTIzNDU2Nzg5MDEyMzQ1Ng==")
 
 	cfg, err := config.Load()
 	if err != nil {

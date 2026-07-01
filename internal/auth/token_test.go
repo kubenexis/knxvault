@@ -26,9 +26,17 @@ func TestLoginKubernetesFailsClosedProduction(t *testing.T) {
 }
 
 func TestLoginKubernetesInsecureDevRequiresJWT(t *testing.T) {
+	roleRepo := memory.NewRoleRepository()
+	_ = roleRepo.Save(context.Background(), &domainauth.Role{
+		Name:                          "app-sa",
+		Policies:                      []string{"secrets-reader"},
+		BoundServiceAccountNames:      []string{"app"},
+		BoundServiceAccountNamespaces: []string{"default"},
+	})
 	svc := auth.NewService(auth.NewTokenStore(time.Hour), auth.NewRBAC(), "")
+	svc.SetRoleResolver(auth.NewRepositoryRoleResolver(roleRepo))
 	svc.SetK8sLoginOptions(auth.K8sLoginOptions{InsecureDev: true})
-	_, _, err := svc.LoginKubernetes(context.Background(), "admin", "not-a-jwt")
+	_, _, err := svc.LoginKubernetes(context.Background(), "app-sa", "not-a-jwt")
 	if err == nil {
 		t.Fatal("expected jwt parse error")
 	}
@@ -39,12 +47,31 @@ func TestLoginKubernetesInsecureDevRequiresJWT(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sign jwt: %v", err)
 	}
-	clientToken, rec, err := svc.LoginKubernetes(context.Background(), "admin", unsigned)
+	clientToken, rec, err := svc.LoginKubernetes(context.Background(), "app-sa", unsigned)
 	if err != nil {
 		t.Fatalf("LoginKubernetes() = %v", err)
 	}
 	if clientToken == "" || rec == nil {
 		t.Fatal("expected issued token")
+	}
+}
+
+func TestLoginKubernetesRequiresStoredRole(t *testing.T) {
+	roleRepo := memory.NewRoleRepository()
+	svc := auth.NewService(auth.NewTokenStore(time.Hour), auth.NewRBAC(), "")
+	svc.SetRoleResolver(auth.NewRepositoryRoleResolver(roleRepo))
+	svc.SetK8sLoginOptions(auth.K8sLoginOptions{InsecureDev: true})
+	token := jwt.NewWithClaims(jwt.SigningMethodNone, jwt.MapClaims{
+		"sub": "system:serviceaccount:default:app",
+	})
+	unsigned, err := token.SignedString(jwt.UnsafeAllowNoneSignatureType)
+	if err != nil {
+		t.Fatalf("sign jwt: %v", err)
+	}
+	_, _, err = svc.LoginKubernetes(context.Background(), "admin", unsigned)
+	var kv *common.KNXVaultError
+	if !errors.As(err, &kv) || kv.Code != common.ErrCodeForbidden {
+		t.Fatalf("expected forbidden, got %v", err)
 	}
 }
 
@@ -138,9 +165,17 @@ func TestLoginKubernetesHS256Dev(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sign jwt: %v", err)
 	}
+	roleRepo := memory.NewRoleRepository()
+	_ = roleRepo.Save(context.Background(), &domainauth.Role{
+		Name:                          "app-sa",
+		Policies:                      []string{"secrets-reader"},
+		BoundServiceAccountNames:      []string{"app"},
+		BoundServiceAccountNamespaces: []string{"default"},
+	})
 	svc := auth.NewService(auth.NewTokenStore(time.Hour), auth.NewRBAC(), string(secret))
+	svc.SetRoleResolver(auth.NewRepositoryRoleResolver(roleRepo))
 	svc.SetK8sLoginOptions(auth.K8sLoginOptions{})
-	clientToken, rec, err := svc.LoginKubernetes(context.Background(), "admin", signed)
+	clientToken, rec, err := svc.LoginKubernetes(context.Background(), "app-sa", signed)
 	if err != nil {
 		t.Fatalf("LoginKubernetes() = %v", err)
 	}

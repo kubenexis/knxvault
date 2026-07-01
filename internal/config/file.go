@@ -131,7 +131,14 @@ func LoadFile(path string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	return overlayEnv(cfg)
+	cfg, err = overlayEnv(cfg)
+	if err != nil {
+		return Config{}, err
+	}
+	if err := ValidateSecurity(cfg, path); err != nil {
+		return Config{}, err
+	}
+	return cfg, nil
 }
 
 func applyFile(cfg Config, file File) (Config, error) {

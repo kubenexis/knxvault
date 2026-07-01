@@ -225,6 +225,9 @@ func overlayEnv(cfg Config) (Config, error) {
 	if err := cfg.Raft.Validate(); err != nil {
 		return Config{}, err
 	}
+	if err := ValidateSecurity(cfg, ""); err != nil {
+		return Config{}, err
+	}
 	return cfg, nil
 }
 
