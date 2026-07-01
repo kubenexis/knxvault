@@ -40,10 +40,16 @@ var (
 			Help: "1 when this instance is the elected leader, 0 otherwise",
 		},
 	)
+	leaderElectionGauge = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "knxvault_leader_election_running",
+			Help: "1 while the leader election background loop is active",
+		},
+	)
 	activeLeasesGauge = promauto.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "knxvault_active_leases",
-			Help: "Number of leases processed in the most recent cleanup cycle",
+			Help: "Number of active (non-revoked, non-expired) leases cluster-wide",
 		},
 	)
 	rateLimitedTotal = promauto.NewCounter(
@@ -107,6 +113,15 @@ func SetLeader(isLeader bool) {
 		leaderGauge.Set(1)
 	} else {
 		leaderGauge.Set(0)
+	}
+}
+
+// SetLeaderElectionRunning records whether the leader election loop is active.
+func SetLeaderElectionRunning(running bool) {
+	if running {
+		leaderElectionGauge.Set(1)
+	} else {
+		leaderElectionGauge.Set(0)
 	}
 }
 

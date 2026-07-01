@@ -151,7 +151,7 @@ func (h *SysHandler) ReportExposure(c *gin.Context) {
 	actions := make([]string, 0, 2)
 	if h.exposureAuto {
 		if req.LeaseID != "" && h.database != nil {
-			if err := h.database.Revoke(c.Request.Context(), req.LeaseID); err == nil {
+			if _, err := h.database.Revoke(c.Request.Context(), req.LeaseID); err == nil {
 				actions = append(actions, "lease_revoked")
 			}
 		}
@@ -181,6 +181,20 @@ func (h *SysHandler) ReportExposure(c *gin.Context) {
 		"reported": true,
 		"actions":  actions,
 	})
+}
+
+// RunRotation handles POST /sys/rotation/run (W37-06).
+func (h *SysHandler) RunRotation(c *gin.Context) {
+	if h.rotation == nil {
+		_ = c.Error(common.New(common.ErrCodeInternal, "rotation not configured"))
+		return
+	}
+	result, err := h.rotation.RunAll(c.Request.Context(), time.Now().UTC(), h.database, 24*time.Hour, 50)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
 }
 
 // RotateMasterKey handles POST /sys/rotate-master-key.

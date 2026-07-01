@@ -56,9 +56,24 @@ var sysUnsealCmd = &cobra.Command{
 	},
 }
 
+var sysRotationRunCmd = &cobra.Command{
+	Use:   "rotation-run",
+	Short: "Trigger KV rotation and database lease renewal",
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		resp, err := apiClient().RunRotation(cmd.Context())
+		if err != nil {
+			return err
+		}
+		out, _ := json.MarshalIndent(resp, "", "  ")
+		fmt.Println(string(out))
+		return nil
+	},
+}
+
 func init() {
 	sysCmd.AddCommand(sysRotateMasterKeyCmd)
 	sysCmd.AddCommand(sysSealCmd)
 	sysCmd.AddCommand(sysUnsealCmd)
+	sysCmd.AddCommand(sysRotationRunCmd)
 	rootCmd.AddCommand(sysCmd)
 }

@@ -86,6 +86,32 @@ func (s *RotationService) RunDue(ctx context.Context, now time.Time) (int, error
 	return rotated, nil
 }
 
+// RunResult summarizes a manual rotation run.
+type RunResult struct {
+	KVRotated     int `json:"kv_rotated"`
+	LeasesRenewed int `json:"leases_renewed"`
+}
+
+// RunAll triggers due KV rotations and renews expiring database leases.
+func (s *RotationService) RunAll(ctx context.Context, now time.Time, db *DatabaseService, leaseGrace time.Duration, leaseLimit int) (*RunResult, error) {
+	result := &RunResult{}
+	if s != nil {
+		kv, err := s.RunDue(ctx, now)
+		if err != nil {
+			return nil, err
+		}
+		result.KVRotated = kv
+	}
+	if db != nil {
+		renewed, err := db.RenewExpiring(ctx, leaseGrace, leaseLimit)
+		if err != nil {
+			return nil, err
+		}
+		result.LeasesRenewed = renewed
+	}
+	return result, nil
+}
+
 // RotatePath rotates a single path per policy.
 func (s *RotationService) RotatePath(ctx context.Context, policy *domainsecrets.RotationPolicy) error {
 	if policy == nil {

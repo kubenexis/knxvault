@@ -8,15 +8,19 @@ import (
 	"github.com/kubenexis/knxvault/internal/infra/leader"
 )
 
+type leaderClient interface {
+	IsLeader() bool
+}
+
 // LeaderElector gates background jobs on Dragonboat leadership.
 type LeaderElector struct {
-	client *Client
+	client leaderClient
 	mu     sync.RWMutex
 	leader bool
 }
 
 // NewLeaderElector constructs a Raft-backed leader elector.
-func NewLeaderElector(client *Client) leader.Elector {
+func NewLeaderElector(client leaderClient) leader.Elector {
 	return &LeaderElector{client: client}
 }
 

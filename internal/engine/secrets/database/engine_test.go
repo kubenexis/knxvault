@@ -33,6 +33,9 @@ func TestEngineGenerateAndRevoke(t *testing.T) {
 		CreationStatements: []string{
 			"CREATE USER {{username}} PASSWORD '{{password}}';",
 		},
+		RevocationStatements: []string{
+			"DROP USER {{username}};",
+		},
 	}); err != nil {
 		t.Fatalf("SaveRole() = %v", err)
 	}
@@ -56,8 +59,15 @@ func TestEngineGenerateAndRevoke(t *testing.T) {
 		t.Fatalf("TTLSeconds = %d, want 60", renewed.TTLSeconds)
 	}
 
-	if err := engine.RevokeLease(ctx, result.LeaseID); err != nil {
+	revokeResult, err := engine.RevokeLease(ctx, result.LeaseID)
+	if err != nil {
 		t.Fatalf("RevokeLease() = %v", err)
+	}
+	if revokeResult.LeaseID != result.LeaseID {
+		t.Fatalf("LeaseID = %q, want %q", revokeResult.LeaseID, result.LeaseID)
+	}
+	if len(revokeResult.RevocationStatements) != 1 {
+		t.Fatalf("len(RevocationStatements) = %d, want 1", len(revokeResult.RevocationStatements))
 	}
 	lease, err := leases.Get(ctx, result.LeaseID)
 	if err != nil {

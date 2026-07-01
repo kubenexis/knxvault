@@ -54,7 +54,7 @@ func TestDatabaseServiceGenerateRenewRevoke(t *testing.T) {
 		t.Fatalf("TTLSeconds = %d, want 60", renewed.TTLSeconds)
 	}
 
-	if err := svc.Revoke(ctx, result.LeaseID); err != nil {
+	if _, err := svc.Revoke(ctx, result.LeaseID); err != nil {
 		t.Fatalf("Revoke() = %v", err)
 	}
 }

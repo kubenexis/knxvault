@@ -58,7 +58,7 @@ func TestEngineManagedModeExecutesSQL(t *testing.T) {
 		t.Fatal("expected lease")
 	}
 
-	if err := engine.RevokeLease(ctx, result.LeaseID); err != nil {
+	if _, err := engine.RevokeLease(ctx, result.LeaseID); err != nil {
 		t.Fatalf("RevokeLease() = %v", err)
 	}
 }

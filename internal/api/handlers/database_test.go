@@ -95,7 +95,7 @@ func TestDatabaseHandlerRoleAndCreds(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer root-token")
 	rec = httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
-	if rec.Code != http.StatusNoContent {
+	if rec.Code != http.StatusOK {
 		t.Fatalf("revoke status = %d body = %s", rec.Code, rec.Body.String())
 	}
 }

@@ -287,52 +287,64 @@ func (e *Engine) Renew(ctx context.Context, leaseID string, ttlSeconds int) (*Cr
 	}, nil
 }
 
+// RevokeResult summarizes a lease revocation.
+type RevokeResult struct {
+	LeaseID              string
+	RevocationStatements []string
+}
+
 // RevokeLease revokes a lease and its stored credentials.
-func (e *Engine) RevokeLease(ctx context.Context, leaseID string) error {
+func (e *Engine) RevokeLease(ctx context.Context, leaseID string) (*RevokeResult, error) {
 	if e.leases == nil {
-		return common.New(common.ErrCodeInternal, "lease repository not configured")
+		return nil, common.New(common.ErrCodeInternal, "lease repository not configured")
 	}
 	lease, err := e.leases.Get(ctx, leaseID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	now := e.now().UTC()
 	if lease.RevokedAt != nil {
-		return nil
+		return &RevokeResult{LeaseID: leaseID}, nil
 	}
-	if err := e.leases.Revoke(ctx, leaseID, now); err != nil {
-		return err
-	}
-	if role, roleErr := e.roles.Get(ctx, lease.RoleName); roleErr == nil && role.ExecutionMode == domainsecrets.ExecutionModeManaged {
+
+	var revocationStatements []string
+	if role, roleErr := e.roles.Get(ctx, lease.RoleName); roleErr == nil && e.secrets != nil && e.crypto != nil {
 		if latest, err := e.secrets.GetLatest(ctx, lease.Path); err == nil {
 			if plain, err := e.crypto.Open(latest.DataEnc, latest.DEKEnc); err == nil {
 				var data map[string]any
 				if json.Unmarshal(plain, &data) == nil {
 					username, _ := data["username"].(string)
 					password, _ := data["password"].(string)
-					statements := renderStatements(role.RevocationStatements, username, password)
-					if len(statements) > 0 {
+					revocationStatements = renderStatements(role.RevocationStatements, username, password)
+					if role.ExecutionMode == domainsecrets.ExecutionModeManaged && len(revocationStatements) > 0 {
 						connURL, err := e.adminConnectionURL(ctx, role)
 						if err != nil {
-							return common.Wrap(common.ErrCodeInternal, "managed revoke: admin credentials", err)
+							return nil, common.Wrap(common.ErrCodeInternal, "managed revoke: admin credentials", err)
 						}
 						if e.sql == nil {
-							return common.New(common.ErrCodeInternal, "sql runner not configured")
+							return nil, common.New(common.ErrCodeInternal, "sql runner not configured")
 						}
-						if err := e.sql.ExecStatements(ctx, connURL, statements); err != nil {
-							return common.Wrap(common.ErrCodeInternal, "managed revoke: execute revocation statements", err)
+						if err := e.sql.ExecStatements(ctx, connURL, revocationStatements); err != nil {
+							return nil, common.Wrap(common.ErrCodeInternal, "managed revoke: execute revocation statements", err)
 						}
 					}
 				}
 			}
 		}
 	}
+
+	if err := e.leases.Revoke(ctx, leaseID, now); err != nil {
+		return nil, err
+	}
 	if e.secrets != nil && e.crypto != nil {
 		if err := e.destroySecret(ctx, lease.Path); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return nil
+	return &RevokeResult{
+		LeaseID:              leaseID,
+		RevocationStatements: revocationStatements,
+	}, nil
 }
 
 func (e *Engine) adminConnectionURL(ctx context.Context, role *domainsecrets.DatabaseRole) (string, error) {
@@ -357,6 +369,39 @@ func (e *Engine) adminConnectionURL(ctx context.Context, role *domainsecrets.Dat
 	return "", common.New(common.ErrCodeValidation, "admin credentials must include connection_url")
 }
 
+// RenewExpiring extends leases expiring within the grace window.
+func (e *Engine) RenewExpiring(ctx context.Context, grace time.Duration, limit int) (int, error) {
+	if e.leases == nil {
+		return 0, common.New(common.ErrCodeInternal, "lease repository not configured")
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+	leases, err := e.leases.List(ctx)
+	if err != nil {
+		return 0, err
+	}
+	now := e.now().UTC()
+	cutoff := now.Add(grace)
+	renewed := 0
+	for _, lease := range leases {
+		if lease == nil || !lease.Active(now) || !lease.Renewable {
+			continue
+		}
+		if lease.ExpiresAt.After(cutoff) {
+			continue
+		}
+		if _, err := e.Renew(ctx, lease.ID, 0); err != nil {
+			continue
+		}
+		renewed++
+		if renewed >= limit {
+			break
+		}
+	}
+	return renewed, nil
+}
+
 // CleanupExpired revokes leases that have passed their expiration time.
 func (e *Engine) CleanupExpired(ctx context.Context, limit int) (int, error) {
 	if e.leases == nil {
@@ -370,7 +415,7 @@ func (e *Engine) CleanupExpired(ctx context.Context, limit int) (int, error) {
 	revoked := 0
 	var firstErr error
 	for _, lease := range expired {
-		if err := e.RevokeLease(ctx, lease.ID); err != nil {
+		if _, err := e.RevokeLease(ctx, lease.ID); err != nil {
 			if firstErr == nil {
 				firstErr = err
 			}

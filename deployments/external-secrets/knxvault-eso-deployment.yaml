@@ -1,0 +1,55 @@
+# KNXVault ESO webhook adapter (W40-01). Pair with clustersecretstore-knxvault.yaml.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: knxvault-eso
+  namespace: knxvault
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: knxvault-eso
+  template:
+    metadata:
+      labels:
+        app: knxvault-eso
+    spec:
+      serviceAccountName: knxvault-eso
+      containers:
+        - name: eso
+          image: knxvault:0.4.5
+          command: ["/usr/local/bin/knxvault-eso"]
+          env:
+            - name: KNXVAULT_ADDR
+              value: "https://knxvault.knxvault.svc.cluster.local:8200"
+            - name: KNXVAULT_ROLE
+              value: eso-reader
+          ports:
+            - containerPort: 8080
+              name: http
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: knxvault-eso
+  namespace: knxvault
+spec:
+  selector:
+    app: knxvault-eso
+  ports:
+    - port: 8080
+      targetPort: http
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: knxvault-eso
+  namespace: knxvault

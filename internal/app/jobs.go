@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
 	"go.uber.org/zap"
@@ -16,15 +17,17 @@ import (
 
 // JobRunner executes background maintenance tasks on the elected leader.
 type JobRunner struct {
-	leader    leader.Elector
-	database  *service.DatabaseService
-	pki       *service.PKIService
-	rotation  *service.RotationService
-	masterKey *service.MasterKeyService
-	cas       repository.CARepository
-	leases    repository.LeaseRepository
-	cfg       config.Config
-	log       *zap.Logger
+	leader            leader.Elector
+	database          *service.DatabaseService
+	pki               *service.PKIService
+	rotation          *service.RotationService
+	masterKey         *service.MasterKeyService
+	cas               repository.CARepository
+	leases            repository.LeaseRepository
+	cfg               config.Config
+	log               *zap.Logger
+	electionRunning   atomic.Bool
+	started           atomic.Bool
 }
 
 // NewJobRunner constructs a background job runner.
@@ -52,20 +55,45 @@ func NewJobRunner(
 	}
 }
 
+// ElectionRunning reports whether the leader election loop is active.
+func (j *JobRunner) ElectionRunning() bool {
+	if j == nil {
+		return true
+	}
+	if !j.started.Load() {
+		return true
+	}
+	return j.electionRunning.Load()
+}
+
+// Started reports whether Start has been invoked.
+func (j *JobRunner) Started() bool {
+	return j != nil && j.started.Load()
+}
+
 // Start launches leader election and periodic jobs.
 func (j *JobRunner) Start(ctx context.Context) {
 	if j == nil || j.leader == nil {
 		return
 	}
 	go func() {
+		j.started.Store(true)
+		j.electionRunning.Store(true)
+		metrics.SetLeaderElectionRunning(true)
 		if err := j.leader.Run(ctx, j.runOnLeader); err != nil && ctx.Err() == nil {
-			j.log.Warn("leader election stopped", zap.Error(err))
+			j.log.Error("leader election stopped", zap.Error(err))
 		}
+		j.electionRunning.Store(false)
+		metrics.SetLeaderElectionRunning(false)
+		metrics.SetLeader(false)
 	}()
 }
 
 func (j *JobRunner) runOnLeader(ctx context.Context) {
-	metrics.SetLeader(j.leader.IsLeader())
+	if !j.leader.IsLeader() {
+		return
+	}
+	metrics.SetLeader(true)
 	j.log.Info("became leader; starting background jobs")
 
 	leaseTicker := time.NewTicker(j.cfg.JobLeaseCleanupInterval)
@@ -92,15 +120,30 @@ func (j *JobRunner) runOnLeader(ctx context.Context) {
 			metrics.SetLeader(false)
 			return
 		case <-leaseTicker.C:
+			if !j.leader.IsLeader() {
+				continue
+			}
 			j.runLeaseCleanup(ctx)
 			j.updateActiveLeasesMetric(ctx)
 		case <-crlTicker.C:
+			if !j.leader.IsLeader() {
+				continue
+			}
 			j.runCRLRefresh(ctx)
 		case <-renewTicker.C:
+			if !j.leader.IsLeader() {
+				continue
+			}
 			j.runCertRenewal(ctx)
 		case <-kvRotTicker.C:
+			if !j.leader.IsLeader() {
+				continue
+			}
 			j.runKVRotation(ctx)
 		case <-reencTicker.C:
+			if !j.leader.IsLeader() {
+				continue
+			}
 			j.runMasterKeyReencrypt(ctx)
 		}
 	}

@@ -104,6 +104,12 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 			middleware.RequirePermission(deps.AuthService, "sys/rotate", "write"),
 			sys.RotateMasterKey,
 		)
+		if deps.RotationService != nil {
+			secured.POST("/sys/rotation/run",
+				middleware.RequirePermission(deps.AuthService, "sys/rotate", "write"),
+				sys.RunRotation,
+			)
+		}
 		secured.POST("/sys/seal",
 			middleware.RequirePermission(deps.AuthService, "sys/seal", "write"),
 			sys.Seal,
@@ -279,6 +285,32 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 		{
 			sysBackup.POST("/backup", backupHandler.Create)
 			sysBackup.POST("/restore", backupHandler.Restore)
+		}
+	}
+
+	var vaultAuth *handlers.AuthHandler
+	var vaultPKI *handlers.PKIHandler
+	if deps.AuthService != nil {
+		vaultAuth = handlers.NewAuthHandler(deps.AuthService, deps.TokenTTL)
+	}
+	if deps.PKIService != nil {
+		vaultPKI = handlers.NewPKIHandler(deps.PKIService)
+	}
+	if vaultAuth != nil || vaultPKI != nil {
+		v1 := r.Group("/v1")
+		if vaultAuth != nil {
+			v1.POST("/auth/kubernetes", vaultAuth.LoginKubernetes)
+		}
+		if vaultPKI != nil && deps.AuthService != nil {
+			v1PKI := v1.Group("/pki")
+			v1PKI.Use(middleware.Auth(deps.AuthService))
+			if deps.Seal != nil {
+				v1PKI.Use(middleware.SealGuard(deps.Seal))
+			}
+			v1PKI.Use(middleware.RequirePermission(deps.AuthService, "pki", "write"))
+			v1PKI.Use(openSSLBreakerMiddleware(deps.OpenSSL))
+			compat := handlers.NewVaultCompatHandler(vaultAuth, vaultPKI)
+			v1PKI.POST("/sign/:role", compat.SignCertificate)
 		}
 	}
 

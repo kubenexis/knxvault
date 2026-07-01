@@ -367,6 +367,9 @@ func (d *Dependencies) Ready(ctx context.Context) error {
 	if d == nil {
 		return nil
 	}
+	if d.JobRunner != nil && d.JobRunner.Started() && d.HAEnabled() && !d.JobRunner.ElectionRunning() {
+		return fmt.Errorf("leader election loop not running")
+	}
 	if d.Raft != nil {
 		if !d.Raft.Ready() {
 			return fmt.Errorf("raft cluster has no leader")
@@ -404,7 +407,13 @@ func (d *Dependencies) Sealed() bool {
 
 // IsLeader reports whether this instance is the elected leader.
 func (d *Dependencies) IsLeader() bool {
-	if d == nil || d.Leader == nil {
+	if d == nil {
+		return true
+	}
+	if d.Raft != nil && d.Raft.Client != nil {
+		return d.Raft.Client.IsLeader()
+	}
+	if d.Leader == nil {
 		return true
 	}
 	return d.Leader.IsLeader()
