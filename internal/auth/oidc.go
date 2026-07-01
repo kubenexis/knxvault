@@ -59,7 +59,7 @@ func fetchJWKS(ctx context.Context, url string) (map[string]any, error) {
 	if err != nil {
 		return nil, fmt.Errorf("fetch jwks: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("jwks status %d", resp.StatusCode)
 	}

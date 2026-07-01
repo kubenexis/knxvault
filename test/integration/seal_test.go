@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
@@ -26,7 +27,7 @@ func TestIntegrationSealBlocksKVWrite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("config.Load() = %v", err)
 	}
-	deps, err := app.NewDependencies(nil, cfg, zap.NewNop())
+	deps, err := app.NewDependencies(context.Background(), cfg, zap.NewNop())
 	if err != nil {
 		t.Fatalf("NewDependencies() = %v", err)
 	}

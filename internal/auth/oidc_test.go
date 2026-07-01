@@ -28,8 +28,8 @@ func TestOIDCValidatorRejectsWrongAudience(t *testing.T) {
 			"keys": []map[string]any{{
 				"kty": "RSA",
 				"kid": "test",
-				"n":   base64.RawURLEncoding.EncodeToString(key.PublicKey.N.Bytes()),
-				"e":   base64.RawURLEncoding.EncodeToString(big.NewInt(int64(key.PublicKey.E)).Bytes()),
+				"n":   base64.RawURLEncoding.EncodeToString(key.N.Bytes()),
+				"e":   base64.RawURLEncoding.EncodeToString(big.NewInt(int64(key.E)).Bytes()),
 			}},
 		})
 	}))

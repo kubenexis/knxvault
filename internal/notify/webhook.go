@@ -57,7 +57,7 @@ func (w *Webhook) Send(ctx context.Context, event Event) error {
 	if err != nil {
 		return fmt.Errorf("webhook post: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 300 {
 		return fmt.Errorf("webhook status %d", resp.StatusCode)
 	}

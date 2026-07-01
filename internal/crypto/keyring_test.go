@@ -38,8 +38,8 @@ func TestKeyRingRotateAndDecrypt(t *testing.T) {
 	if newEnc[0] != 2 {
 		t.Fatalf("version prefix = %d, want 2", newEnc[0])
 	}
-	if ring.DEKNeedsReencrypt(legacyEnc) {
-		// after rotation, legacy should need reencrypt
+	if !ring.DEKNeedsReencrypt(legacyEnc) {
+		t.Fatal("legacy DEK should need reencrypt after rotation")
 	}
 	reenc, err := ring.ReencryptDEK(legacyEnc)
 	if err != nil {

@@ -72,10 +72,7 @@ func certFingerprint(cert *x509.Certificate) string {
 	if len(raw) == 0 {
 		return ""
 	}
-	h := make([]byte, 0, 64)
-	for _, b := range raw[:mtlsMin(8, len(raw))] {
-		h = append(h, b)
-	}
+	h := append([]byte(nil), raw[:mtlsMin(8, len(raw))]...)
 	return string(h)
 }
 
