@@ -914,14 +914,16 @@ helm install knxvault ./deployments/helm/knxvault \
 - Raft peer communication (restrict port 63001 to cluster nodes via NetworkPolicy).
 - API endpoints (auth middleware chain).
 
-### 7.2 Key Rotation & Management
+> **§7 implementation status (2026-07):** Items below are tagged **Implemented**, **Dev-only**, or **Planned** where they differ from production behavior. See [`docs/product/lld-alignment.md`](product/lld-alignment.md) for code paths.
+
+### 7.2 Key Rotation & Management _(Implemented)_
 
 - **Master Key Rotation**: Supported via `POST /sys/rotate-master-key`. Old keys kept for decryption during transition (`internal/crypto/keyring.go`).
 - **CA Key Rotation**: New Root/Intermediate creation + re-issuance workflow.
 - **Certificate Renewal**: Automated via TTL-based jobs with grace periods.
 - **DEK Rotation**: Per-secret rotation on update (optional policy).
 
-### 7.3 Audit Logging
+### 7.3 Audit Logging _(Implemented)_
 
 ```go
 type AuditEvent struct {
@@ -942,20 +944,20 @@ type AuditEvent struct {
 - **Export**: Support for streaming to SIEM (future Loki integration).
 - **Sensitive Data Redaction**: Automatic masking of secrets in logs.
 
-### 7.4 mTLS & Encryption in Transit
+### 7.4 mTLS & Encryption in Transit _(Implemented — server TLS + Raft peer mTLS; route-level mTLS Planned W34-01)_
 
 - All internal and external communication supports (and can enforce) mTLS.
 - Configurable CA for client cert validation.
 - Automatic TLS certificate issuance via KNXVault's own PKI (bootstrapping).
 
-### 7.5 Secret Zero Approach
+### 7.5 Secret Zero Approach _(Implemented)_
 
 - Master key bootstrapped from Kubernetes Secret (sealed with age/sealed-secrets recommended) or external KMS.
 - No hardcoded credentials.
 - Runtime key unwrapping only in memory.
 - Pod identity-based authentication wherever possible.
 
-### 7.6 Compliance Features
+### 7.6 Compliance Features _(Implemented — FIPS mode Planned)_
 
 - **Data Residency**: Self-hosted, full control.
 - **Audit Readiness**: SOC2, ISO 27001-friendly logging and RBAC.

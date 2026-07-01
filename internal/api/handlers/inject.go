@@ -40,3 +40,23 @@ func (h *InjectHandler) Render(c *gin.Context) {
 		Env:   result.Env,
 	})
 }
+
+// RecordCSIMount handles POST /inject/csi/mount-audit.
+func (h *InjectHandler) RecordCSIMount(c *gin.Context) {
+	var req dto.CSIMountAuditRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	if err := h.svc.RecordCSIMount(c.Request.Context(), service.CSIMountAuditRequest{
+		Role:           req.Role,
+		Namespace:      req.Namespace,
+		ServiceAccount: req.ServiceAccount,
+		PodName:        req.PodName,
+		Paths:          req.Paths,
+	}); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}

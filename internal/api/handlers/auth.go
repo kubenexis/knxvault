@@ -9,6 +9,7 @@ import (
 
 	"github.com/kubenexis/knxvault/internal/api/dto"
 	"github.com/kubenexis/knxvault/internal/auth"
+	"github.com/kubenexis/knxvault/internal/domain/common"
 	"github.com/kubenexis/knxvault/internal/utils"
 )
 
@@ -137,6 +138,42 @@ func (h *AuthHandler) RenewToken(c *gin.Context) {
 	}
 	token := bearerToken(c)
 	record, err := h.auth.RenewToken(c.Request.Context(), token, increment)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, dto.LoginResponse{
+		ClientToken: token,
+		TTL:         int(time.Until(record.ExpiresAt).Seconds()),
+		Policies:    record.Policies,
+		Renewable:   record.Renewable,
+	})
+}
+
+// DelegateAgent handles POST /auth/agent/delegate.
+func (h *AuthHandler) DelegateAgent(c *gin.Context) {
+	var req dto.AgentDelegateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	principal, ok := auth.PrincipalFromContext(c.Request.Context())
+	if !ok {
+		_ = c.Error(common.New(common.ErrCodeUnauthorized, "unauthenticated"))
+		return
+	}
+	ttl, err := auth.ParseAgentDelegateTTL(req.TTL)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	token, record, err := h.auth.DelegateAgent(c.Request.Context(), principal, auth.AgentDelegateRequest{
+		AgentID:        req.AgentID,
+		PathPrefix:     req.PathPrefix,
+		AllowedActions: req.AllowedActions,
+		Policies:       req.Policies,
+		TTL:            ttl,
+	})
 	if err != nil {
 		_ = c.Error(err)
 		return

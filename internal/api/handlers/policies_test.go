@@ -37,7 +37,9 @@ func TestPolicyHandlerCRUD(t *testing.T) {
 	r.GET("/sys/policies", middleware.RequirePermission(authSvc, "sys/policies", "read"), handler.ListPolicies)
 	r.DELETE("/sys/policies/:name", middleware.RequirePermission(authSvc, "sys/policies", "write"), handler.DeletePolicy)
 	r.PUT("/sys/roles/:name", middleware.RequirePermission(authSvc, "sys/policies", "write"), handler.PutRole)
+	r.GET("/sys/roles", middleware.RequirePermission(authSvc, "sys/roles", "read"), handler.ListRoles)
 	r.GET("/sys/roles/:name", middleware.RequirePermission(authSvc, "sys/roles", "read"), handler.GetRole)
+	r.DELETE("/sys/roles/:name", middleware.RequirePermission(authSvc, "sys/policies", "write"), handler.DeleteRole)
 
 	policyBody, _ := json.Marshal(dto.PolicyRequest{
 		Effect:    "allow",
@@ -90,12 +92,28 @@ func TestPolicyHandlerCRUD(t *testing.T) {
 		t.Fatalf("put role status = %d body = %s", rec.Code, rec.Body.String())
 	}
 
+	req = httptest.NewRequest(http.MethodGet, "/sys/roles", nil)
+	req.Header.Set("Authorization", "Bearer root-token")
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list roles status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
 	req = httptest.NewRequest(http.MethodGet, "/sys/roles/app", nil)
 	req.Header.Set("Authorization", "Bearer root-token")
 	rec = httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("get role status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodDelete, "/sys/roles/app", nil)
+	req.Header.Set("Authorization", "Bearer root-token")
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("delete role status = %d body = %s", rec.Code, rec.Body.String())
 	}
 
 	req = httptest.NewRequest(http.MethodDelete, "/sys/policies/office-read", nil)

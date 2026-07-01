@@ -4,16 +4,16 @@ Use this checklist before promoting KNXVault to production secrets management wo
 
 **Implementation status** (code complete — operator validation still required):
 
-| Criterion | Status | Backlog | Doc |
-|-----------|--------|---------|-----|
-| Encryption in transit (TLS/mTLS) | ✅ Shipped | W37-01 | [tier0-production.md](tier0-production.md) |
-| OIDC / short-lived credentials | ✅ Shipped | W37-02 | [tier0-production.md](tier0-production.md) |
-| Machine identity (NHI) | ✅ Shipped | W37-03 | [tier0-production.md](tier0-production.md) |
-| AI agent delegation | 🔶 Partial | W37-04 | `parent_identity_id` only; delegate API pending |
-| Scheduled KV rotation | ✅ Shipped | W37-05 | [tier0-production.md](tier0-production.md) |
+| Criterion | Status | Backlog | Doc / code |
+|-----------|--------|---------|------------|
+| Encryption in transit (TLS/mTLS) | ✅ Shipped | W37-01 | [tier0-production.md](tier0-production.md), `internal/crypto/tlsconfig/` |
+| OIDC / short-lived credentials | ✅ Shipped | W37-02 | [tier0-production.md](tier0-production.md), `POST /auth/oidc/:role` |
+| Machine identity (NHI) | ✅ Shipped | W37-03 | `GET /sys/machine-identities`, `internal/service/machine_identity.go` |
+| AI agent delegation | ✅ Shipped | W37-04 | `POST /auth/agent/delegate`, `internal/auth/agent.go` |
+| Scheduled KV rotation | ✅ Shipped | W37-05 | `runKVRotation` job, `PUT /sys/kv-rotation` |
 | Rotation orchestration (KV/DB/PKI + webhook) | ✅ Shipped | W37-06 | [api/reference.md](../api/reference.md) (`POST /sys/rotation/run`) |
 | Exposure detection hooks | ✅ Shipped | W37-07 | [exposure-detection.md](../integration/exposure-detection.md) |
-| Multi-language SDKs | 🔶 Partial | W40-03–07 | Go `pkg/client` shipped; codegen script exists |
+| Multi-language SDKs | ✅ Pipeline | W40-03–07 | Go `pkg/client` shipped; `make generate-clients` + `clients/*` |
 | Raft peer mTLS | ✅ Shipped | W38-14 | [tier0-production.md](tier0-production.md) |
 | CSI provider + rotation | ✅ Shipped | W39-01, W39-05 | [csi-install.md](../deploy/csi-install.md) |
 | ESO + cert-manager integration | ✅ Shipped | W40-01, W40-02 | [kubernetes-native.md](../integration/kubernetes-native.md) |
@@ -52,7 +52,7 @@ Use this checklist before promoting KNXVault to production secrets management wo
 ## Operations
 
 - [ ] `/health`, `/ready`, and `/metrics` monitored
-- [ ] Raft leader and term metrics alerted
+- [ ] Raft leader and term metrics alerted (`/health` `leader` aligned with `knxvault_raft_leader`)
 - [ ] Runbooks: [Raft failover](../operations/runbooks/raft-failover.md), [CA compromise](../operations/runbooks/ca-compromise.md)
 - [ ] Integration test suite passes: `make test-integration`
 - [ ] Exposure report signing key configured if using scanner integration

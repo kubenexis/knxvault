@@ -33,5 +33,8 @@ See [Kubernetes-native integrations](../docs/integration/kubernetes-native.md).
 ## Smoke tests
 
 ```bash
-make test-clients   # after generate-clients
+make test-clients        # verify client trees and .generated markers
+make check-client-drift  # fail when api/openapi.yaml changed without regenerating
 ```
+
+After API changes: `make generate-clients` then commit `clients/` and `clients/.openapi-sha256`.

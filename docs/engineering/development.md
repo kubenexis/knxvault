@@ -102,11 +102,11 @@ See [LLD §3.1](../lld.md) for the full directory specification.
 Requires Docker and `kind` on `PATH`:
 
 ```bash
-scripts/test-csi-kind.sh   # installs CSI driver + provider RBAC (W39-07 partial)
-make test-integration      # includes test/integration/csi_test.go when Docker available
+scripts/test-csi-kind.sh   # kind cluster: CSI driver + RBAC + provider DaemonSet (W39-07)
+make test-integration      # TestCSIProviderMountIntegration: KV content + csi.mount audit
 ```
 
-Full end-to-end KV mount assertion is tracked in backlog **W39-07**.
+The kind script deploys `deployments/csi/k8s-provider.yaml` and waits for the provider DaemonSet. KV mount and audit behavior are asserted in `test/integration/csi_test.go` without requiring a live cluster.
 
 ## Architecture decisions
 

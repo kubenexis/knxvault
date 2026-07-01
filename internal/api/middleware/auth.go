@@ -32,12 +32,17 @@ func Auth(svc *auth.Service) gin.HandlerFunc {
 		}
 
 		ctx := auth.WithPrincipal(c.Request.Context(), auth.Principal{
-			Subject:  record.Subject,
-			Policies: record.Policies,
-			TokenID:  record.ID,
+			Subject:          record.Subject,
+			Policies:         record.Policies,
+			TokenID:          record.ID,
+			ParentIdentityID: record.ParentIdentityID,
+			AgentID:          record.AgentID,
+			AllowedActions:   record.AllowedActions,
+			PathPrefix:       record.PathPrefix,
 		})
 		ctx = auth.WithRequestContext(ctx, auth.RequestContext{
 			ClientIP: c.ClientIP(),
+			AgentID:  record.AgentID,
 		})
 		c.Request = c.Request.WithContext(ctx)
 		c.Next()

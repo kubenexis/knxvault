@@ -14,6 +14,7 @@ type RequestContext struct {
 	Namespace string
 	Resource  string
 	Action    string
+	AgentID   string
 	Now       time.Time
 }
 
@@ -50,6 +51,11 @@ func ConditionsMatch(conditions map[string]any, req RequestContext) bool {
 	}
 	if ns, ok := conditions["namespace"].(string); ok && ns != "" {
 		if req.Namespace != ns {
+			return false
+		}
+	}
+	if agentID, ok := conditions["agent_id"].(string); ok && agentID != "" {
+		if req.AgentID != agentID {
 			return false
 		}
 	}

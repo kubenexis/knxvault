@@ -49,6 +49,20 @@ func (v *VaultClient) LoginKubernetes(ctx context.Context, addr, role, jwt strin
 	return out.ClientToken, nil
 }
 
+// CSIMountAuditRequest is POST /inject/csi/mount-audit.
+type CSIMountAuditRequest struct {
+	Role           string   `json:"role"`
+	Namespace      string   `json:"namespace,omitempty"`
+	ServiceAccount string   `json:"service_account,omitempty"`
+	PodName        string   `json:"pod_name,omitempty"`
+	Paths          []string `json:"paths"`
+}
+
+// RecordCSIMount reports a successful CSI mount for audit.
+func (v *VaultClient) RecordCSIMount(ctx context.Context, addr, token string, req CSIMountAuditRequest) error {
+	return v.postJSON(ctx, addr, "/inject/csi/mount-audit", true, token, req, nil)
+}
+
 // ReadKV fetches the latest version of a KV secret path.
 func (v *VaultClient) ReadKV(ctx context.Context, addr, token, path string) (map[string]any, int, error) {
 	var out kvReadResponse

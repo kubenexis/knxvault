@@ -132,3 +132,37 @@ func TestAuthHandlerKubernetesTokenReview(t *testing.T) {
 		t.Fatalf("TokenReview last = %q", reviewer.Last)
 	}
 }
+
+func TestAuthHandlerDelegateAgent(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tokenStore := auth.NewTokenStore(time.Hour)
+	_ = tokenStore.RegisterRootToken(context.Background(), "root-token", []string{"secrets-admin"})
+	authSvc := auth.NewService(tokenStore, auth.NewRBAC(), "")
+	handler := handlers.NewAuthHandler(authSvc, time.Hour)
+
+	r := gin.New()
+	r.Use(middleware.Auth(authSvc), middleware.ErrorHandler())
+	r.POST("/auth/agent/delegate", handler.DelegateAgent)
+
+	body, _ := json.Marshal(dto.AgentDelegateRequest{
+		AgentID:        "bot-1",
+		PathPrefix:     "agent/bot-1",
+		AllowedActions: []string{"read"},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/auth/agent/delegate", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer root-token")
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("delegate status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var resp dto.LoginResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.ClientToken == "" || resp.Renewable {
+		t.Fatalf("unexpected response: %+v", resp)
+	}
+}

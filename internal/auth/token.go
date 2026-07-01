@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -213,6 +214,11 @@ type MachineIdentityRecorder interface {
 	IsRevoked(ctx context.Context, id string) (bool, error)
 }
 
+// AuditRecorder appends audit events for authentication flows.
+type AuditRecorder interface {
+	Record(ctx context.Context, actor, action, resource, status string, details map[string]any) error
+}
+
 // Service coordinates authentication flows.
 type Service struct {
 	tokens    *TokenStore
@@ -224,6 +230,7 @@ type Service struct {
 	oidc      *OIDCValidator
 	oidcTTL   time.Duration
 	nhi       MachineIdentityRecorder
+	audit     AuditRecorder
 }
 
 // RoleResolver resolves role names to policy names.
@@ -269,6 +276,11 @@ func (s *Service) SetOIDCValidator(v *OIDCValidator, defaultTTL time.Duration) {
 // SetMachineIdentityRecorder configures NHI upsert on login.
 func (s *Service) SetMachineIdentityRecorder(recorder MachineIdentityRecorder) {
 	s.nhi = recorder
+}
+
+// SetAuditRecorder configures authentication audit events.
+func (s *Service) SetAuditRecorder(recorder AuditRecorder) {
+	s.audit = recorder
 }
 
 // LoginWithToken authenticates an opaque token.
@@ -455,15 +467,22 @@ func identityFromJWTClaims(claims jwt.MapClaims, role string) (ServiceAccountIde
 
 // Authorize checks RBAC for a principal.
 func (s *Service) Authorize(ctx context.Context, principal Principal, resource, action string) error {
+	if !ActionAllowedForPrincipal(principal, action) {
+		return common.New(common.ErrCodeForbidden, "action not allowed for agent token")
+	}
+	if strings.HasPrefix(resource, "secrets/kv/") && !KVPathAllowedForPrincipal(principal, resource) {
+		return common.New(common.ErrCodeForbidden, "path outside agent prefix")
+	}
 	if s.rbacSync != nil {
 		_ = s.rbacSync.SyncRBAC(ctx)
 	}
-	req := RequestContext{Resource: resource, Action: action}
+	req := RequestContext{Resource: resource, Action: action, AgentID: principal.AgentID}
 	if existing, ok := RequestContextFromContext(ctx); ok {
 		req = existing
 	}
 	req.Resource = resource
 	req.Action = action
+	req.AgentID = principal.AgentID
 	if !s.rbac.Authorize(principal.Policies, resource, action, req) {
 		return common.New(common.ErrCodeForbidden, "access denied")
 	}

@@ -91,6 +91,29 @@ var rolesGetCmd = &cobra.Command{
 	},
 }
 
+var rolesListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List roles",
+	RunE: func(_ *cobra.Command, _ []string) error {
+		items, err := apiClient().ListRoles(context.Background())
+		if err != nil {
+			return err
+		}
+		out, _ := json.MarshalIndent(items, "", "  ")
+		fmt.Println(string(out))
+		return nil
+	},
+}
+
+var rolesDeleteCmd = &cobra.Command{
+	Use:   "delete <name>",
+	Short: "Delete a role",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(_ *cobra.Command, args []string) error {
+		return apiClient().DeleteRole(context.Background(), args[0])
+	},
+}
+
 var rolesPutCmd = &cobra.Command{
 	Use:   "put <name> <json-file>",
 	Short: "Create or update a role from JSON file",
@@ -113,8 +136,10 @@ func init() {
 	policiesCmd.AddCommand(policiesGetCmd)
 	policiesCmd.AddCommand(policiesPutCmd)
 	policiesCmd.AddCommand(policiesDeleteCmd)
+	rolesCmd.AddCommand(rolesListCmd)
 	rolesCmd.AddCommand(rolesGetCmd)
 	rolesCmd.AddCommand(rolesPutCmd)
+	rolesCmd.AddCommand(rolesDeleteCmd)
 	sysCmd.AddCommand(policiesCmd)
 	sysCmd.AddCommand(rolesCmd)
 }

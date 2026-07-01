@@ -24,12 +24,13 @@ type ObjectSpec struct {
 
 // MountConfig is parsed SecretProviderClass parameters for a mount request.
 type MountConfig struct {
-	VaultAddr string
-	Role      string
-	Objects   []ObjectSpec
-	PodName   string
-	Namespace string
-	SAToken   string
+	VaultAddr      string
+	Role           string
+	Objects        []ObjectSpec
+	PodName        string
+	Namespace      string
+	ServiceAccount string
+	SAToken        string
 }
 
 // ParseMountConfig parses CSI driver attributes and optional secrets payload.
@@ -39,10 +40,11 @@ func ParseMountConfig(attributesJSON, secretsJSON string) (MountConfig, error) {
 		return MountConfig{}, fmt.Errorf("parse attributes: %w", err)
 	}
 	cfg := MountConfig{
-		VaultAddr: strings.TrimSpace(attrs["vaultAddr"]),
-		Role:      strings.TrimSpace(attrs["role"]),
-		PodName:   strings.TrimSpace(attrs[attrPodName]),
-		Namespace: strings.TrimSpace(attrs[attrPodNamespace]),
+		VaultAddr:      strings.TrimSpace(attrs["vaultAddr"]),
+		Role:           strings.TrimSpace(attrs["role"]),
+		PodName:        strings.TrimSpace(attrs[attrPodName]),
+		Namespace:      strings.TrimSpace(attrs[attrPodNamespace]),
+		ServiceAccount: strings.TrimSpace(attrs[attrPodSA]),
 	}
 	if cfg.Role == "" {
 		return MountConfig{}, fmt.Errorf("role parameter is required")

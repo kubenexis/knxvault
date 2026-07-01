@@ -266,6 +266,7 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 	deps.AuthService.SetRoleResolver(auth.NewRepositoryRoleResolver(deps.RoleRepo))
 	deps.AuthService.SetOIDCValidator(auth.NewOIDCValidator(), cfg.OIDCDefaultTTL)
 	deps.AuthService.SetMachineIdentityRecorder(deps.MachineIdentityService)
+	deps.AuthService.SetAuditRecorder(deps.AuditService)
 	var tokenReviewer k8s.TokenReviewer
 	if reviewer, err := k8s.NewInClusterTokenReviewer(); err == nil {
 		tokenReviewer = reviewer

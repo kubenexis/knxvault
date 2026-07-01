@@ -8,9 +8,14 @@ import (
 	"github.com/kubenexis/knxvault/internal/infra/leader"
 )
 
+// raftLeaderProbe reports live Raft leadership (used by health and metrics).
+type raftLeaderProbe interface {
+	IsLeader() bool
+}
+
 // LeaderElector gates background jobs on Dragonboat leadership.
 type LeaderElector struct {
-	client *Client
+	client raftLeaderProbe
 	mu     sync.RWMutex
 	leader bool
 }
@@ -57,7 +62,11 @@ func (e *LeaderElector) Run(ctx context.Context, onLeadership func(ctx context.C
 }
 
 // IsLeader reports whether this node is the Raft leader.
+// Uses the live Dragonboat probe when available so /health leader matches knxvault_raft_leader.
 func (e *LeaderElector) IsLeader() bool {
+	if e.client != nil {
+		return e.client.IsLeader()
+	}
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	return e.leader

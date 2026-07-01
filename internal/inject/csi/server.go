@@ -117,6 +117,19 @@ func (s *Server) Mount(ctx context.Context, req *provider.MountRequest) (*provid
 			Contents: []byte(flattenSecret(data)),
 		})
 	}
+
+	paths := make([]string, 0, len(cfg.Objects))
+	for _, obj := range cfg.Objects {
+		paths = append(paths, obj.Path)
+	}
+	_ = s.vault.RecordCSIMount(ctx, cfg.VaultAddr, clientToken, CSIMountAuditRequest{
+		Role:           cfg.Role,
+		Namespace:      cfg.Namespace,
+		ServiceAccount: cfg.ServiceAccount,
+		PodName:        cfg.PodName,
+		Paths:          paths,
+	})
+
 	return &provider.MountResponse{
 		ObjectVersion: versions,
 		Files:         files,

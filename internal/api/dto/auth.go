@@ -36,3 +36,12 @@ type TokenCreateRequest struct {
 type TokenRenewRequest struct {
 	Increment string `json:"increment,omitempty"`
 }
+
+// AgentDelegateRequest is POST /auth/agent/delegate.
+type AgentDelegateRequest struct {
+	AgentID        string   `json:"agent_id" binding:"required"`
+	PathPrefix     string   `json:"path_prefix" binding:"required"`
+	AllowedActions []string `json:"allowed_actions" binding:"required"`
+	Policies       []string `json:"policies,omitempty"`
+	TTL            string   `json:"ttl,omitempty"`
+}

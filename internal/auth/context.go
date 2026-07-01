@@ -11,9 +11,13 @@ const (
 
 // Principal holds authenticated caller metadata.
 type Principal struct {
-	Subject  string
-	Policies []string
-	TokenID  string
+	Subject          string
+	Policies         []string
+	TokenID          string
+	ParentIdentityID string
+	AgentID          string
+	AllowedActions   []string
+	PathPrefix       string
 }
 
 // WithPrincipal stores principal on context.

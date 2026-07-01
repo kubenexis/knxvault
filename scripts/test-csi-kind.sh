@@ -22,9 +22,11 @@ kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/secrets-store
 
 kubectl create namespace knxvault --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f "$ROOT/deployments/csi/rbac.yaml"
+kubectl apply -f "$ROOT/deployments/csi/k8s-provider.yaml"
 
-# Smoke: provider binary starts and binds unix socket in a pod
-kubectl run knxvault-csi-smoke -n knxvault --image=busybox:1.36 --restart=Never --command -- sleep 3600
-kubectl delete pod knxvault-csi-smoke -n knxvault --ignore-not-found
+echo "Waiting for knxvault-csi provider pod"
+kubectl -n knxvault rollout status daemonset/knxvault-csi-provider --timeout=120s || true
 
-echo "CSI kind smoke prerequisites applied. Run integration tests with: make test-integration"
+echo "CSI kind E2E prerequisites applied."
+echo "  - Driver + RBAC + provider daemonset"
+echo "  - KV mount assertion: make test-integration (TestCSIProviderMountIntegration)"

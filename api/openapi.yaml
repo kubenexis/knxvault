@@ -200,6 +200,25 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LoginResponse"
+  /auth/agent/delegate:
+    post:
+      tags: [auth]
+      summary: Delegate a scoped AI agent token from the caller
+      operationId: delegateAgent
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentDelegateRequest"
+      responses:
+        "200":
+          description: Agent token issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
   /pki/root:
     post:
       tags: [pki]
@@ -385,6 +404,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/InjectRenderResponse"
+  /inject/csi/mount-audit:
+    post:
+      tags: [inject]
+      summary: Record a successful CSI provider mount (pod identity audit)
+      operationId: recordCSIMount
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CSIMountAuditRequest"
+      responses:
+        "204": { description: Audit recorded }
   /secrets/kv/{path}:
     post:
       tags: [secrets]
@@ -596,6 +629,24 @@ paths:
           schema: { type: string }
       responses:
         "204": { description: Policy deleted }
+  /sys/roles:
+    get:
+      tags: [sys]
+      summary: List role bindings
+      operationId: listRoles
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Roles
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  roles:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/RoleResponse"
   /sys/roles/{name}:
     put:
       tags: [sys]
@@ -632,6 +683,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RoleResponse"
+    delete:
+      tags: [sys]
+      summary: Delete role binding
+      operationId: deleteRole
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: Role deleted }
   /sys/backup:
     post:
       tags: [sys]
@@ -798,6 +861,24 @@ components:
       properties:
         token:
           type: string
+    AgentDelegateRequest:
+      type: object
+      required: [agent_id, path_prefix, allowed_actions]
+      properties:
+        agent_id:
+          type: string
+        path_prefix:
+          type: string
+        allowed_actions:
+          type: array
+          items:
+            type: string
+        policies:
+          type: array
+          items:
+            type: string
+        ttl:
+          type: string
     LoginResponse:
       type: object
       properties:
@@ -926,6 +1007,22 @@ components:
       properties:
         crl_pem:
           type: string
+    CSIMountAuditRequest:
+      type: object
+      required: [role, paths]
+      properties:
+        role:
+          type: string
+        namespace:
+          type: string
+        service_account:
+          type: string
+        pod_name:
+          type: string
+        paths:
+          type: array
+          items:
+            type: string
     InjectRenderRequest:
       type: object
       required: [secrets]

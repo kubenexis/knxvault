@@ -94,7 +94,11 @@ Policies grant capabilities on path prefixes:
 | `delete` | `secrets/kv/*` |
 | `sudo` | `sys/*`, `audit/*` |
 
-Conditions restrict by source IP, time window, K8s namespace, or path prefix. Evaluated in `internal/auth/evaluator.go` before handler execution.
+Conditions restrict by source IP, time window, K8s namespace, path prefix, or `agent_id`. Evaluated in `internal/auth/evaluator.go` before handler execution.
+
+**AI agent delegation (W37-04):** Parent principals call `POST /auth/agent/delegate` to mint a non-renewable 15-minute token scoped by `path_prefix` (`agent/{id}/*` under `secrets/kv/`) and `allowed_actions`. Delegation is audited (`auth.agent.delegate`) with `parent_identity_id` → `agent_id` linkage on `MachineIdentity`.
+
+**CSI mount audit (W39-02):** The CSI provider authenticates each mount with the workload ServiceAccount JWT (TokenReview on the API). After a successful read, the provider calls `POST /inject/csi/mount-audit` with the short-lived session token; audit action `csi.mount` records role, namespace, service account, and paths.
 
 Default bootstrap policy `admin` grants full access. Production clusters should define scoped policies per workload.
 

@@ -106,6 +106,34 @@ func (h *PolicyHandler) PutRole(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// ListRoles handles GET /sys/roles.
+func (h *PolicyHandler) ListRoles(c *gin.Context) {
+	roles, err := h.svc.ListRoles(c.Request.Context())
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	out := make([]dto.RoleResponse, 0, len(roles))
+	for _, role := range roles {
+		out = append(out, dto.RoleResponse{
+			Name:                          role.Name,
+			Policies:                      role.Policies,
+			BoundServiceAccountNames:      role.BoundServiceAccountNames,
+			BoundServiceAccountNamespaces: role.BoundServiceAccountNamespaces,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{"roles": out})
+}
+
+// DeleteRole handles DELETE /sys/roles/:name.
+func (h *PolicyHandler) DeleteRole(c *gin.Context) {
+	if err := h.svc.DeleteRole(c.Request.Context(), c.Param("name")); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 // GetRole handles GET /sys/roles/:name.
 func (h *PolicyHandler) GetRole(c *gin.Context) {
 	role, err := h.svc.GetRole(c.Request.Context(), c.Param("name"))

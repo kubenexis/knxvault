@@ -10,6 +10,7 @@ const (
 	IdentityTypeK8sSA  = "k8s_sa"
 	IdentityTypeOIDC   = "oidc"
 	IdentityTypeAPIKey = "api_key"
+	IdentityTypeAgent  = "agent"
 )
 
 // MachineIdentity is a first-class non-human identity (NHI).
@@ -34,7 +35,7 @@ func (m *MachineIdentity) Validate() error {
 		return fmt.Errorf("machine identity type is required")
 	}
 	switch m.Type {
-	case IdentityTypeK8sSA, IdentityTypeOIDC, IdentityTypeAPIKey:
+	case IdentityTypeK8sSA, IdentityTypeOIDC, IdentityTypeAPIKey, IdentityTypeAgent:
 	default:
 		return fmt.Errorf("invalid machine identity type %q", m.Type)
 	}

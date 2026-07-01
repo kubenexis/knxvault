@@ -13,3 +13,12 @@ type InjectRenderResponse struct {
 	Files []inject.FileEntry `json:"files,omitempty"`
 	Env   []inject.EnvEntry  `json:"env,omitempty"`
 }
+
+// CSIMountAuditRequest is POST /inject/csi/mount-audit.
+type CSIMountAuditRequest struct {
+	Role           string   `json:"role" binding:"required"`
+	Namespace      string   `json:"namespace,omitempty"`
+	ServiceAccount string   `json:"service_account,omitempty"`
+	PodName        string   `json:"pod_name,omitempty"`
+	Paths          []string `json:"paths" binding:"required"`
+}

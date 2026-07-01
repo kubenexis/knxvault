@@ -61,6 +61,7 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 			)
 			securedAuth.POST("/token/renew", authHandler.RenewToken)
 			securedAuth.DELETE("/token/self", authHandler.RevokeSelfToken)
+			securedAuth.POST("/agent/delegate", authHandler.DelegateAgent)
 		}
 	}
 
@@ -219,6 +220,7 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 			policyGroup.PUT("/policies/:name", policyHandler.PutPolicy)
 			policyGroup.DELETE("/policies/:name", policyHandler.DeletePolicy)
 			policyGroup.PUT("/roles/:name", policyHandler.PutRole)
+			policyGroup.DELETE("/roles/:name", policyHandler.DeleteRole)
 		}
 		secured.GET("/sys/policies",
 			middleware.RequirePermission(deps.AuthService, "sys/policies", "read"),
@@ -227,6 +229,10 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 		secured.GET("/sys/policies/:name",
 			middleware.RequirePermission(deps.AuthService, "sys/policies", "read"),
 			policyHandler.GetPolicy,
+		)
+		secured.GET("/sys/roles",
+			middleware.RequirePermission(deps.AuthService, "sys/roles", "read"),
+			policyHandler.ListRoles,
 		)
 		secured.GET("/sys/roles/:name",
 			middleware.RequirePermission(deps.AuthService, "sys/roles", "read"),
@@ -239,6 +245,10 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 		secured.POST("/inject/render",
 			middleware.RequirePermission(deps.AuthService, "inject/render", "read"),
 			injectHandler.Render,
+		)
+		secured.POST("/inject/csi/mount-audit",
+			middleware.RequirePermission(deps.AuthService, "inject/csi", "read"),
+			injectHandler.RecordCSIMount,
 		)
 	}
 

@@ -41,5 +41,10 @@ gen java java \
 gen rust rust \
   "--additional-properties=packageName=knxvault-client"
 
+for lang in python typescript java rust; do
+  date -u +"%Y-%m-%dT%H:%M:%SZ" > "${OUT}/${lang}/.generated"
+done
+sha256sum "${SPEC}" | awk '{print $1}' > "${OUT}/.openapi-sha256"
+
 echo "Go client: maintain pkg/client manually (reference implementation)."
 echo "Done. Review clients/ before commit."

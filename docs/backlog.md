@@ -2,7 +2,7 @@
 
 Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topologically sorted by dependency** — implement in listed order within each phase.
 
-**Current focus:** [Tier H SDKs](#tier-h--kubernetes-ecosystem-eso-cert-manager-sdks) (W40-03–07) → [Tier B–D hardening](#tier-b--raft-correctness--ha-confidence) (W36-09, W36-14–16, W36-19). **Tier 0, Tier A, Tier F, Tier G, Tier H (ESO/cert-manager), webhook (W38-07)** are **shipped** or **partial** — see status column below. **Helm, Terraform, AWS IAM** → [long-term](#long-term-future) (LT-*).
+**Current focus:** [Tier H SDKs](#tier-h--kubernetes-ecosystem-eso-cert-manager-sdks) (W40-04–07) → [Tier B–D hardening](#tier-b--raft-correctness--ha-confidence) (W36-14–16, W36-19). **Tier 0, Tier A, Tier F, Tier G, Tier H (ESO/cert-manager), webhook (W38-07)** are **shipped** or **partial** — see status column below. **Helm, Terraform, AWS IAM** → [long-term](#long-term-future) (LT-*).
 
 **Legend**
 
@@ -18,9 +18,9 @@ Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topological
 
 | Status | Count | IDs |
 |--------|-------|-----|
-| Complete | 19 | W37-06, W38-15, W39-01/03/04/06/08, W40-01/02/08, W36-10, W36-15, W36-20 |
-| Partial | 10 | W37-04, W37-09, W39-02, W39-07, W40-03, W36-09, W36-21, W36-22 |
-| Not started | 7 | W36-14, W36-16, W36-19, W40-04, W40-05, W40-06, W40-07 |
+| Complete | 27 | W37-04, W37-06, W37-09, W38-15, W39-01/02/03/04/05/06/07/08, W40-01/02/03/08, W36-09, W36-10, W36-15, W36-20, W36-21, W36-22 |
+| Partial | 2 | W36-14, W36-16 |
+| Not started | 7 | W36-19, W40-04, W40-05, W40-06, W40-07 |
 
 ## Storage backend (architecture pivot)
 
@@ -162,28 +162,28 @@ Items below come from a **2026-06 codebase gap analysis**, a **secrets manager c
 | ~~**W37-01**~~ | Encryption in transit | ~~Server TLS and optional mTLS~~ | security | M | W36-04 | Done — `internal/crypto/tlsconfig/`, `KNXVAULT_TLS_*`, mTLS on KV writes, `internal/api/middleware/mtls.go`. | HTTPS + mTLS gate; tests in `tlsconfig_test.go`. |
 | ~~**W37-02**~~ | Short-lived credentials | ~~OIDC/JWT auth method~~ | auth | L | W36-01, W36-13 | Done — `POST /auth/oidc/:role`, `internal/auth/oidc.go`, role `OIDC` config. | Wrong `aud`/`iss` rejected; `oidc_test.go`. |
 | ~~**W37-03**~~ | NHI — machine identities | ~~Machine identity registry (NHI)~~ | auth | L | W36-02, W36-03, W36-13 | Done — `MachineIdentity` domain, Raft ops, `GET /sys/machine-identities`, login upsert + revoke. | NHI lifecycle + audit `nhi.login`. |
-| **W37-04** `[Partial]` | NHI / AI agents | AI agent scoped auth & delegation | auth | M | W37-02, W37-03 | **Partial:** `parent_identity_id` on `MachineIdentity` (`internal/domain/auth/machine_identity.go`). **Remaining:** `POST /auth/agent/delegate`, `allowed_actions[]`, `agent_id` policy condition, path-prefix middleware. | Parent CI token delegates 15m agent token; agent cannot access paths outside prefix. Delegation audited with parent→child link. |
+| ~~**W37-04**~~ | NHI / AI agents | ~~AI agent scoped auth & delegation~~ | auth | M | W37-02, W37-03 | Done — `POST /auth/agent/delegate`, `allowed_actions[]`, `agent_id` RBAC condition, path-prefix enforcement in `internal/auth/agent.go` + `Authorize`. | Parent CI token delegates 15m agent token; agent cannot access paths outside prefix. Delegation audited with parent→child link. |
 | ~~**W37-05**~~ | Automated rotation | ~~Scheduled KV secret rotation~~ | crypto | M | W36-05, W36-17 | Done — `RotationPolicy` Raft entity, `runKVRotation` job, `PUT /sys/kv-rotation`, `random_password` generator. | Leader-only rotation + `secret.rotate` audit. |
 | ~~**W37-06**~~ | Automated rotation | ~~End-to-end rotation orchestration~~ | crypto | L | W37-05, W36-18 | Done — `POST /sys/rotation/run`, `internal/service/orchestration.go` (KV + DB + PKI), `internal/notify/webhook.go`, CLI `sys rotation-run`. | DB lease auto-renewed before TTL; KV rotated per W37-05; webhook receives event; audit trail links old→new version/lease. |
 | ~~**W37-07**~~ | Exposure detection | ~~Secret exposure webhook & auto-remediation hooks~~ | security | L | W37-05, W36-17 | Done — `POST /sys/exposure/report` HMAC-signed, auto-revoke/rotate, `docs/integration/exposure-detection.md`. | Unsigned report rejected; webhook + remediation. |
 | ~~**W37-08**~~ | Integrations | ~~Multi-language SDK via OpenAPI codegen~~ | docs | M | W40-03 | Superseded by Tier H [**W40-03–W40-07**](#tier-h--kubernetes-ecosystem-eso-cert-manager-sdks). Go reference: `pkg/client`. | — |
-| **W37-09** `[Partial]` | Checklist / docs | Secrets manager capability matrix | docs | S | W37-01–W37-07 | **Partial:** `docs/product/secrets-manager-checklist.md` exists; **remaining:** full criterion coverage (rotation orchestration, SDKs, AI agents) and ongoing reconciliation. | Matrix covers all 10 checklist items; no “implemented” without code or ADR reference. |
+| ~~**W37-09**~~ | Checklist / docs | ~~Secrets manager capability matrix~~ | docs | S | W37-01–W37-07 | Done — `docs/product/secrets-manager-checklist.md` covers all criteria with code/doc references. | Matrix covers all 10 checklist items; no “implemented” without code or ADR reference. |
 
 > **Tier 0 sequencing:** **W37-01** (TLS) + **W37-02** (OIDC) unblock most NHI/dynamic-cred work. **W37-07** (exposure) can start after rotation hooks (**W37-05**). **W37-08** (SDKs) after Tier A auth blockers (**W36-01–W36-04**). **At rest encryption** is already implemented (envelope + Raft); maintain via **W36-04**. Near-term K8s deploy: raw manifests (`deployments/k8s/`). **Helm** (**LT-03**), **Terraform** (**LT-01**), **AWS IAM** (**LT-02**) → [long-term future](#long-term-future).
 
 ### Tier G — Kubernetes-native consumption (CSI first) — **mostly shipped**
 
-**Product direction:** KNXVault is a Kubernetes-native secrets platform — [**Secrets Store CSI Driver**](https://secrets-store-csi-driver.sigs.k8s.io/) integration is **first-class**. **Status (2026-07):** W39-01/03/04/05/06/08 **complete**; W39-02/07 **partial**. Workloads mount secrets via `SecretProviderClass`; sidecar/init (**W18**) remain fallbacks. **Helm packaging** → LT-03; manifests in `deployments/csi/`.
+**Product direction:** KNXVault is a Kubernetes-native secrets platform — [**Secrets Store CSI Driver**](https://secrets-store-csi-driver.sigs.k8s.io/) integration is **first-class**. **Status (2026-07):** W39-01–W39-08 **complete**. Workloads mount secrets via `SecretProviderClass`; sidecar/init (**W18**) remain fallbacks. **Helm packaging** → LT-03; manifests in `deployments/csi/`.
 
 | ID | LLD § | Title | Area | Effort | Depends on | Description | Acceptance criteria |
 |----|-------|-------|------|--------|------------|-------------|---------------------|
 | ~~**W39-01**~~ | §6.4 | ~~CSI provider gRPC server (`knxvault-csi`)~~ | k8s | L | W18-02, W36-02 | Done — `cmd/knxvault-csi/main.go`, gRPC in `internal/inject/csi/server.go`, `make build-csi`. | Provider registers with driver; `Mount` returns file objects for configured KV paths. |
-| **W39-02** `[Partial]` | §6.4, §4.C.1 | Pod identity auth on CSI mount (no static tokens) | auth | M | W39-01, W36-02, W36-03 | **Partial:** SA JWT + TokenReview per mount in `internal/inject/csi/server.go`. **Remaining:** `csi.mount` audit event. | Pod with bound SA mounts secret; wrong SA → mount fails; no long-lived token in provider pod. |
+| ~~**W39-02**~~ | §6.4, §4.C.1 | ~~Pod identity auth on CSI mount (no static tokens)~~ | auth | M | W39-01, W36-02, W36-03 | Done — SA JWT + TokenReview per mount; `csi.mount` audit via `POST /inject/csi/mount-audit` from provider. | Pod with bound SA mounts secret; wrong SA → mount fails; no long-lived token in provider pod. |
 | ~~**W39-03**~~ | §6.4 | ~~`SecretProviderClass` schema and reference manifests~~ | k8s | S | W39-01 | Done — `deployments/csi/secretproviderclass-example.yaml`, `pod-example.yaml`; schema in `docs/deploy/secrets-injection.md`. | `kubectl apply` + example pod reads mounted file in kind cluster. |
 | ~~**W39-04**~~ | §6.4 | ~~CSI provider DaemonSet, RBAC, and install runbook~~ | k8s | M | W39-01, W38-05 | Done — `deployments/csi/k8s-provider.yaml`, `rbac.yaml`, `docs/deploy/csi-install.md`. | Fresh kind cluster: driver + provider + example pod end-to-end per runbook. |
 | ~~**W39-05**~~ | §6.4, §7.2 | ~~CSI secret rotation and driver reload~~ | k8s | M | W39-01, W37-05 | Done — `knxvault_csi_mount_rotations_total`, SPC rotation docs, Mount version detection. | KV version bump detected on remount. |
 | ~~**W39-06**~~ | §6.4 | ~~Optional sync to native Kubernetes `Secret`~~ | k8s | S | W39-03 | Done — `secretObjects` in `deployments/csi/secretproviderclass-example.yaml`; etcd trade-off in `docs/deploy/csi-install.md`. | `secretObjects` creates synced Secret; envFrom works; doc warns about duplicate plaintext in etcd. |
-| **W39-07** `[Partial]` | §6.4, §9.5 | CSI end-to-end integration test (kind) | ci | M | W39-04 | **Partial:** `scripts/test-csi-kind.sh` + `test/integration/csi_test.go` install driver/RBAC. **Remaining:** full provider deploy + KV content assert; document in `docs/engineering/development.md`. | Script passes locally; documented in `docs/engineering/development.md`. |
+| ~~**W39-07**~~ | §6.4, §9.5 | ~~CSI end-to-end integration test (kind)~~ | ci | M | W39-04 | Done — `scripts/test-csi-kind.sh` deploys driver/RBAC/provider; `test/integration/csi_test.go` asserts KV content + mount audit. | Script passes locally; documented in `docs/engineering/development.md`. |
 | ~~**W39-08**~~ | §6.4, §12 | ~~Product docs — CSI as primary K8s integration~~ | docs | S | W39-03 | Done — CSI-first in `docs/deploy/secrets-injection.md`, `docs/integration/overview.md`, `docs/integration/kubernetes-native.md`. | New operator onboarding path leads with CSI; sidecar labeled fallback. |
 
 > **Tier G sequencing:** **W39-01** after **W36-02** (TokenReview). **W37-01** (TLS) recommended before production in-cluster `vaultAddr`. **W39-03–W39-04** parallel once **W39-01** skeleton mounts. **W39-05** after **W37-05**. **W38-07** (mutating webhook) **defers** until Tier G baseline ships — webhook is convenience, not primary.
@@ -196,11 +196,11 @@ Items below come from a **2026-06 codebase gap analysis**, a **secrets manager c
 |----|-------------|-------|------|--------|------------|-------------|---------------------|
 | ~~**W40-01**~~ | External Secrets Operator | ~~Native ESO `knxvault` provider~~ | k8s | L | W39-02, W36-03 | Done — `cmd/knxvault-eso`, `internal/eso/server.go`, `deployments/external-secrets/knxvault-eso-deployment.yaml`. | `ExternalSecret` creates/updates K8s `Secret`; refresh picks up new KV version. |
 | ~~**W40-02**~~ | cert-manager | ~~cert-manager Issuer for KNXVault PKI~~ | crypto | L | W38-03, W36-02 | Done — Vault shim `internal/api/handlers/vaultcompat.go`; `deployments/cert-manager/clusterissuer-knxvault.yaml`. | `Certificate` resource becomes Ready; TLS Secret contains issued leaf + key. |
-| **W40-03** `[Partial]` | SDKs | OpenAPI client generation pipeline | docs | S | W8-03 | **Partial:** `scripts/generate-clients.sh`, `make generate-clients`, `clients/README.md`. **Remaining:** `make test-clients`, CI drift check on OpenAPI change. | `make generate-clients` produces Python/TS/Java/Rust trees. |
-| **W40-04** | SDKs | Python client (`clients/python`) | docs | M | W40-03 | **Not started** — no generated `clients/python/` tree. | `pip install` + 3-line example works against dev server. |
-| **W40-05** | SDKs | Node.js / TypeScript client (`clients/typescript`) | docs | M | W40-03 | **Not started** — no generated `clients/typescript/` tree. | `npm install` + health/kv smoke passes. |
-| **W40-06** | SDKs | Java client (`clients/java`) | docs | M | W40-03 | **Not started** — no generated `clients/java/` tree. | Maven dependency resolves; integration test passes. |
-| **W40-07** | SDKs | Rust client (`clients/rust`) | docs | M | W40-03 | **Not started** — no generated `clients/rust/` tree. | `cargo add` + example compiles and calls health. |
+| ~~**W40-03**~~ | SDKs | ~~OpenAPI client generation pipeline~~ | docs | S | W8-03 | Done — `make generate-clients`, `make test-clients`, `make check-client-drift`, `clients/.openapi-sha256`. | `make generate-clients` produces Python/TS/Java/Rust trees. |
+| **W40-04** | SDKs | Python client (`clients/python`) | docs | M | W40-03 | **Partial** — pipeline + stub tree; run `make generate-clients` for full codegen. | `pip install` + 3-line example works against dev server. |
+| **W40-05** | SDKs | Node.js / TypeScript client (`clients/typescript`) | docs | M | W40-03 | **Partial** — pipeline + stub tree; run `make generate-clients` for full codegen. | `npm install` + health/kv smoke passes. |
+| **W40-06** | SDKs | Java client (`clients/java`) | docs | M | W40-03 | **Partial** — pipeline + stub tree; run `make generate-clients` for full codegen. | Maven dependency resolves; integration test passes. |
+| **W40-07** | SDKs | Rust client (`clients/rust`) | docs | M | W40-03 | **Partial** — pipeline + stub tree; run `make generate-clients` for full codegen. | `cargo add` + example compiles and calls health. |
 | ~~**W40-08**~~ | Docs | ~~Kubernetes-native integration matrix~~ | docs | S | W40-01 | Done — `docs/integration/kubernetes-native.md` lists six integrations with status and code paths. | All six integrations listed with code path or backlog ID. |
 
 > **Tier H sequencing:** **W40-03** first (finish pipeline + CI). **W40-04–07** parallel after W40-03 generates client trees.
@@ -256,7 +256,7 @@ Gaps between **`docs/lld.md`** and the codebase not fully covered by Tier 0 or W
 | ~~**W36-06**~~ | ~~Include audit log in Dragonboat snapshots~~ | storage | M | W25-01 | Done — `ExportSnapshot(true)` in `statemachine.go`; unit + 3-node integration tests; `docs/storage/dragonboat.md`. | SaveSnapshot → RecoverFromSnapshot preserves audit entries. |
 | ~~**W36-07**~~ | ~~Validate snapshot before `snapshot.import`~~ | storage | S | W27-01 | Done — `ValidateSnapshot` in `BackupService.Restore` and `Store.ImportSnapshot`; extended CA/PKI/RBAC/issued-cert/audit-chain checks. | Unit tests in `internal/backup/validate_test.go`. |
 | ~~**W36-08**~~ | ~~Consistent backup export (single Raft read)~~ | storage | M | W27-01 | Done — `OpExportSnapshot`, `Client.ExportSnapshot`, `BackupService` atomic path; `TestExportSnapshotConsistentGraph`. | Atomic export self-consistent across entity types. |
-| **W36-09** `[Partial]` | Align leader status with live Raft role | k8s | S | W26-02 | **Partial:** `LeaderElector` polls `IsLeader()` every 500ms; metrics updated separately in `internal/raft/events.go`. **Remaining:** unify `/health` `leader` with `knxvault_raft_leader`; add `internal/raft/leader_test.go`. | After forced leader step-down, `/health` `leader` and Prometheus gauge agree within one heartbeat RTT. |
+| ~~**W36-09**~~ | ~~Align leader status with live Raft role~~ | k8s | S | W26-02 | Done — `LeaderElector.IsLeader()` uses live Dragonboat probe; `internal/raft/leader_test.go`. | After forced leader step-down, `/health` `leader` and Prometheus gauge agree within one heartbeat RTT. |
 | ~~**W36-10**~~ | ~~Dragonboat repository adapter tests~~ | ci | M | W26-01 | Done — `internal/repository/dragonboat/repo_test.go` with mock Raft client (CA, secret, lease, audit, PKI repos). | `go test ./internal/repository/dragonboat/...` passes; covers save/get/list for CA and secret repos. |
 | ~~**W36-11**~~ | ~~Raft leader failover integration test~~ | ci | M | W28-01 | Done — `TestRaftLeaderFailover` in `test/integration/raft_test.go` (30s window). | Failover test in `make test-integration`. |
 | ~~**W36-12**~~ | ~~HTTP API integration tests with Raft enabled~~ | ci | M | W26-01, W36-11 | Done — `api_raft_test.go`: KV, backup, PKI, `/ready` with Raft deps. | PKI + KV round-trip with `RAFT_ENABLED=true`. |
@@ -278,8 +278,8 @@ Gaps between **`docs/lld.md`** and the codebase not fully covered by Tier 0 or W
 | ~~**W36-18**~~ | ~~Managed database credentials execution mode~~ | crypto | L | W12-01 | Done — `execution_mode: managed`, KV `connection_url`, SQLite executor + unit test; `docs/deploy/database-credentials.md`. | Managed role executes creation/revocation SQL. |
 | **W36-19** | Return revocation SQL on lease revoke (client mode) | api | S | W12-01 | **Not started:** `Revoke` handler returns `204`; engine does not surface `RevocationStatements` in revoke response DTO. | `PUT /secrets/database/revoke/:id` returns SQL strings when role defines them. |
 | ~~**W36-20**~~ | ~~Wire `EngineRegistry` at startup~~ | api | S | W6-01 | Done — KV + database engines registered in `internal/app/deps.go`; `TestNewDependenciesEngineRegistry` in `deps_test.go`. | Registry lists 2 engines; no behavior change for existing API. |
-| **W36-21** `[Partial]` | CLI parity for Day-2 operations | docs | M | W20-01 | **Partial:** `sys policies` CRUD, `sys roles` get/put, `audit export`, `secrets database`, `sys rotate-master-key`, `sys rotation-run`, `sys issue-listener-tls`, `doctor`. **Remaining:** roles list/delete, raft scaling CLI, full PKI surface per LLD §11. | Each documented CLI command in LLD §11 has working cobra subcommand. |
-| **W36-22** `[Partial]` | LLD / security-model doc reconciliation | docs | S | W36-01, W36-02, W36-04 | **Partial:** `docs/product/lld-alignment.md`; 2026-07 audit fixed `docs/lld.md` rotate path, `security-model.md` TLS labels, integration/backlog drift. **Remaining:** full `docs/lld.md` §7 pass with implemented/planned/dev-only tags. | No doc claims production feature that code lacks without "planned" tag. |
+| ~~**W36-21**~~ | ~~CLI parity for Day-2 operations~~ | docs | M | W20-01 | Done — `sys roles list/delete`, `sys raft-add-node`/`raft-remove-node`, `pki revoke`/`renew`; API `GET/DELETE /sys/roles`. | Each documented CLI command in LLD §11 has working cobra subcommand. |
+| ~~**W36-22**~~ | ~~LLD / security-model doc reconciliation~~ | docs | S | W36-01, W36-02, W36-04 | Done — `docs/lld.md` §7 status tags, `docs/architecture/security-model.md` agent/CSI auth, `docs/product/lld-alignment.md`. | No doc claims production feature that code lacks without "planned" tag. |
 
 ### Tier E — Deferred alongside Phase 5
 

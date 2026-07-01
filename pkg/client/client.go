@@ -576,6 +576,78 @@ func (c *Client) GetRole(ctx context.Context, name string) (*RoleResponse, error
 	return &out, nil
 }
 
+// ListRoles returns all roles.
+func (c *Client) ListRoles(ctx context.Context) ([]RoleResponse, error) {
+	var out struct {
+		Roles []RoleResponse `json:"roles"`
+	}
+	if err := c.getJSON(ctx, "/sys/roles", true, &out); err != nil {
+		return nil, err
+	}
+	return out.Roles, nil
+}
+
+// DeleteRole removes a role.
+func (c *Client) DeleteRole(ctx context.Context, name string) error {
+	return c.deleteJSON(ctx, "/sys/roles/"+trimPath(name), true, nil, http.StatusNoContent)
+}
+
+// RevokeCertRequest is POST /pki/revoke.
+type RevokeCertRequest struct {
+	CAID   string `json:"ca_id"`
+	Serial string `json:"serial"`
+	Reason string `json:"reason,omitempty"`
+}
+
+// RenewCertRequest is POST /pki/renew.
+type RenewCertRequest struct {
+	CAID   string `json:"ca_id"`
+	Serial string `json:"serial"`
+	TTL    string `json:"ttl,omitempty"`
+}
+
+// RenewCertResponse is returned for certificate renewal.
+type RenewCertResponse struct {
+	PreviousSerial string `json:"previous_serial"`
+	CertPEM        string `json:"cert_pem"`
+	PrivateKeyPEM  string `json:"private_key_pem"`
+	Serial         string `json:"serial"`
+	ExpiresAt      string `json:"expires_at"`
+}
+
+// PKIRevoke revokes a certificate serial.
+func (c *Client) PKIRevoke(ctx context.Context, req RevokeCertRequest) error {
+	return c.postJSON(ctx, "/pki/revoke", true, req, nil)
+}
+
+// PKIRenew renews a leaf certificate.
+func (c *Client) PKIRenew(ctx context.Context, req RenewCertRequest) (*RenewCertResponse, error) {
+	var out RenewCertResponse
+	if err := c.postJSON(ctx, "/pki/renew", true, req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AgentDelegateRequest is POST /auth/agent/delegate.
+type AgentDelegateRequest struct {
+	AgentID        string   `json:"agent_id"`
+	PathPrefix     string   `json:"path_prefix"`
+	AllowedActions []string `json:"allowed_actions"`
+	Policies       []string `json:"policies,omitempty"`
+	TTL            string   `json:"ttl,omitempty"`
+}
+
+// DelegateAgent issues a scoped agent token from the caller's credentials.
+func (c *Client) DelegateAgent(ctx context.Context, req AgentDelegateRequest) (*LoginResponse, error) {
+	var out LoginResponse
+	if err := c.postJSON(ctx, "/auth/agent/delegate", true, req, &out); err != nil {
+		return nil, err
+	}
+	c.Token = out.ClientToken
+	return &out, nil
+}
+
 // AuditExport exports audit entries.
 func (c *Client) AuditExport(ctx context.Context, limit int) (*AuditExportResponse, error) {
 	path := "/audit/export"

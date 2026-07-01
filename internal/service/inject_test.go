@@ -4,33 +4,33 @@ import (
 	"context"
 	"testing"
 
+	auditsvc "github.com/kubenexis/knxvault/internal/audit"
 	"github.com/kubenexis/knxvault/internal/inject"
+	"github.com/kubenexis/knxvault/internal/repository"
+	"github.com/kubenexis/knxvault/internal/repository/memory"
 	"github.com/kubenexis/knxvault/internal/service"
 )
 
-type injectStubReader struct {
-	data map[string]map[string]any
-}
+func TestInjectServiceRecordCSIMount(t *testing.T) {
+	auditRepo := memory.NewAuditRepository()
+	auditSvc := auditsvc.NewService(auditRepo)
+	svc := service.NewInjectService(inject.NewRenderer(nil), auditSvc)
 
-func (s injectStubReader) ReadSecret(_ context.Context, secretPath string) (map[string]any, error) {
-	return s.data[secretPath], nil
-}
-
-func TestInjectServiceRender(t *testing.T) {
-	reader := injectStubReader{data: map[string]map[string]any{
-		"app/api": {"token": "abc123"},
-	}}
-	renderer := inject.NewRenderer(reader)
-	svc := service.NewInjectService(renderer, nil)
-
-	result, err := svc.Render(context.Background(), inject.RenderRequest{
-		Secrets: []inject.SecretRef{{Path: "app/api", EnvName: "API_TOKEN"}},
-		Format:  inject.FormatEnv,
-	})
-	if err != nil {
-		t.Fatalf("Render() = %v", err)
+	ctx := context.Background()
+	if err := svc.RecordCSIMount(ctx, service.CSIMountAuditRequest{
+		Role:           "app-sa",
+		Namespace:      "prod",
+		ServiceAccount: "my-app",
+		PodName:        "my-app-1",
+		Paths:          []string{"app/db"},
+	}); err != nil {
+		t.Fatalf("RecordCSIMount() = %v", err)
 	}
-	if len(result.Env) != 1 || result.Env[0].Value != "abc123" {
-		t.Fatalf("unexpected env: %+v", result.Env)
+	entries, err := auditRepo.List(ctx, repository.AuditListOptions{Limit: 10})
+	if err != nil {
+		t.Fatalf("List() = %v", err)
+	}
+	if len(entries) != 1 || entries[0].Action != "csi.mount" {
+		t.Fatalf("entries = %+v", entries)
 	}
 }

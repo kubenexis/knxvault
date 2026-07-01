@@ -38,12 +38,16 @@ token: dev-root-token
 | `kv put <path> key=value...` | Write a KV secret |
 | `pki root --name --common-name [--ttl] [--key-bits]` | Create a self-signed root CA |
 | `pki issue --role --common-name [--dns] [--ttl] [--auto-renew]` | Issue a leaf certificate |
+| `pki revoke --ca-id --serial [--reason]` | `POST /pki/revoke` |
+| `pki renew --ca-id --serial [--ttl]` | `POST /pki/renew` |
 | `sys policies list` | `GET /sys/policies` |
 | `sys policies get <name>` | `GET /sys/policies/:name` |
 | `sys policies put <name> <json-file>` | `PUT /sys/policies/:name` |
 | `sys policies delete <name>` | `DELETE /sys/policies/:name` |
+| `sys roles list` | `GET /sys/roles` |
 | `sys roles get <name>` | `GET /sys/roles/:name` |
 | `sys roles put <name> <json-file>` | `PUT /sys/roles/:name` |
+| `sys roles delete <name>` | `DELETE /sys/roles/:name` |
 | `sys rotate-master-key <base64-key>` | `POST /sys/rotate-master-key` |
 | `sys rotation-run [--db-grace] [--pki-grace]` | `POST /sys/rotation/run` |
 | `sys raft-add-node <id> <address>` | `POST /sys/raft/add-node` |

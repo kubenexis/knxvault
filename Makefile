@@ -98,7 +98,7 @@ all: ## Run fmt, vet, lint, gosec, licenses, scan, test, test-integration, build
 # Go quality
 # =============================================================================
 
-.PHONY: fmt vet lint gosec semgrep licenses test test-integration build build-cli build-csi build-webhook build-eso generate-clients sbom scan tidy install-tools docker-build clean
+.PHONY: fmt vet lint gosec semgrep licenses test test-integration build build-cli build-csi build-webhook build-eso generate-clients test-clients check-client-drift sbom scan tidy install-tools docker-build clean
 
 fmt: ## Check Go formatting (gofmt)
 	$(call log,Checking gofmt)
@@ -198,6 +198,16 @@ generate-clients: ## Generate Python, TypeScript, Java, Rust SDKs from OpenAPI
 	$(call log,Generating client SDKs)
 	$(call require_cmd,bash)
 	@bash scripts/generate-clients.sh
+
+test-clients: ## Verify generated client SDK trees exist
+	$(call log,Testing client SDK artifacts)
+	$(call require_cmd,bash)
+	@bash scripts/test-clients.sh
+
+check-client-drift: ## Fail when OpenAPI changed without regenerating clients
+	$(call log,Checking OpenAPI client drift)
+	$(call require_cmd,bash)
+	@bash scripts/check-client-drift.sh
 
 sbom: ## Generate CycloneDX SBOM (modules + release binary)
 	@test -f $(BINARY) || $(MAKE) --no-print-directory build
