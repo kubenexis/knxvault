@@ -2,7 +2,7 @@
 
 Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topologically sorted by dependency** — implement in listed order within each phase.
 
-**Current focus:** [Tier H SDKs](#tier-h--kubernetes-ecosystem-eso-cert-manager-sdks) (W40-04–07) → [Tier D](#tier-d--features-documented-but-missing) (W36-19) → [Tier I policy engine](#tier-i--policy-engine-vaultopenbao-parity) (W41-01+) → [Tier J advanced leasing](#tier-j--advanced-secret-leasing) (W42-01+). **Tier 0, Tier A, Tier F, Tier G, Tier H (ESO/cert-manager), webhook (W38-07)** are **shipped** or **partial** — see status column below. **Helm, Terraform, AWS IAM** → [long-term](#long-term-future) (LT-*).
+**Current focus:** [Tier H SDKs](#tier-h--kubernetes-ecosystem-eso-cert-manager-sdks) (W40-04–07) → [Tier D](#tier-d--features-documented-but-missing) (W36-19) → [Tier I policy engine](#tier-i--policy-engine-vaultopenbao-parity) (W41-01+) → [Tier K BFSI prospect gaps](#tier-k--bfsi-prospect-gaps-auth-audit-lockout-tenant-depth) (W43-01+) → [Tier J advanced leasing](#tier-j--advanced-secret-leasing) (W42-01+). **Tier 0, Tier A, Tier F, Tier G, Tier H (ESO/cert-manager), webhook (W38-07)** are **shipped** or **partial** — see status column below. **Helm, Terraform, AWS IAM, SAML/ABAC DSL** → [long-term](#long-term-future) (LT-*).
 
 **Legend**
 
@@ -20,7 +20,7 @@ Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topological
 |--------|-------|-----|
 | Complete | 29 | W37-04, W37-06, W37-09, W38-15, W39-01/02/03/04/05/06/07/08, W40-01/02/03/08, W36-09, W36-10, W36-14, W36-15, W36-16, W36-20, W36-21, W36-22 |
 | Partial | 0 | — |
-| Not started | 23 | W36-19, W40-04–07, W41-01–W41-08, W42-01–W42-08 |
+| Not started | 42 | W36-19, W40-04–07, W41-01–W41-10, W42-01–W42-08, W43-01–W43-08, W44-01–W44-04 |
 
 ## Storage backend (architecture pivot)
 
@@ -207,7 +207,9 @@ Items below come from a **2026-06 codebase gap analysis**, a **secrets manager c
 
 ### Tier I — Policy engine (Vault/OpenBao parity)
 
-**Gap:** RBAC today is **route-level** (`secrets/kv` + read/write), not **path-capability** ACLs like Vault/OpenBao (`path "secret/data/team-a/*" { capabilities = ["read"] }`). Agent delegation has path prefix; normal tokens do not. See conversation / `internal/api/router.go` vs `internal/auth/rbac.go`.
+**Gap:** RBAC today is **route-level** (`secrets/kv` + read/write), not **path-capability** ACLs like Vault/OpenBao (`path "secret/data/team-a/*" { capabilities = ["read"] }`). Agent delegation has path prefix; normal tokens do not. See `internal/api/router.go` vs `internal/auth/rbac.go`.
+
+**Prospect feedback (BFSI eval, 2026-07):** model is **allow-primary** at the HTTP layer; mature engines need **explicit deny precedence**, **glob path capabilities**, **policy composition**, and **default deny** — not only coarse allow lists. `internal/auth/rbac.go` evaluates `EffectDeny` before allow **within the policy loop**, but route-level resources and bootstrap allow policies do not yet match Vault/OpenBao ACL semantics (**W41-01–03**).
 
 **Best-practice target:** default deny, path-aware least privilege, explicit capabilities, policy simulation before rollout, auditable denials, tenant boundaries — then optional OPA/HCL (LT-06 / W41-08).
 
@@ -221,8 +223,51 @@ Items below come from a **2026-06 codebase gap analysis**, a **secrets manager c
 | **W41-06** | Authorization denial audit | security | S | W41-01 | **Not started:** Log `authz.denied` audit events (actor, resource, action, matched deny) at middleware — without leaking token. Rate-limit repeated denials. | Failed `Authorize` produces audit row; success unchanged. |
 | **W41-07** | Policy operator guide & examples | docs | S | W41-02 | **Not started:** `docs/architecture/policy-engine.md` — resource naming, capabilities, conditions, K8s role binding, migration from coarse `secrets-reader`. | Examples cover team-scoped KV, PKI read-only, break-glass admin; linked from security-model. |
 | **W41-08** | HCL policy import (Vault migration) | auth | L | W41-02 | **Not started:** Subset HCL → JSON policy compiler (`path` + `capabilities`); `knxvault-cli sys policy import -f policy.hcl`. Full Sentinel out of scope. | Sample Vault KV policy imports and enforces correctly on path-aware API. |
+| **W41-09** | Glob path patterns (`*`, `**`, `?`) | auth | M | W41-01 | **Not started:** Extend `MatchResource` / policy docs for Vault-style globs on path-aware resources; reject ambiguous patterns at `PUT /sys/policies`. Prospect: declarative policy language needs glob semantics beyond single-segment `/*`. | Policy `secrets/kv/team-?/app-*` matches `team-a/app-config` and denies `team-b/other`; unit tests in `rbac_test.go`. |
+| **W41-10** | Policy composition and reusable modules | auth | L | W41-02 | **Not started:** Named policy **includes** (`policies: ["base-readonly", "team-a-kv"]`) or `policy_groups` on roles; flatten at eval time. Prospect: reusable policy modules for least-privilege composition. Defer full DSL → **LT-14**. | Role composes two policies; deny in one module overrides allow in another (**W41-03**); migration guide from flat policy lists. |
 
-> **Tier I sequencing:** **W41-01** unblocks all path ACL work (highest ROI). **W41-02** then **W41-03–05** in parallel. **W41-04** before production policy rollouts. **W32-**\* (multi-tenancy) should follow **W41-01** + **W36-14**. **LT-06** (OPA) after **W41-04** and **W32-01**.
+> **Tier I sequencing:** **W41-01** unblocks all path ACL work (highest ROI). **W41-02** then **W41-03–05** in parallel. **W41-04** before production policy rollouts. **W41-09–10** after **W41-02**. **W32-**\* (multi-tenancy) should follow **W41-01** + **W36-14**. **LT-06** (OPA) after **W41-04** and **W32-01**.
+
+### Tier K — BFSI prospect gaps (auth audit, lockout, tenant depth)
+
+**Source:** External BFSI prospect evaluation (2026-07). Confirms **controlled POC viability** (Raft, audit chain, PKI, K8s integrations) while flagging **production gaps** in policy engine maturity, authentication audit, and brute-force controls. Maps to [`docs/audit/formal-code-audit-2026.md`](audit/formal-code-audit-2026.md) and [`docs/product/bfsi-poc-traceability.md`](product/bfsi-poc-traceability.md).
+
+**Gap summary**
+
+| Prospect concern | Current state | Backlog |
+|------------------|---------------|---------|
+| Explicit deny precedence | Partial (`EffectDeny` in `rbac.go`; route-coarse resources) | **W41-03**, **W41-01** |
+| Declarative policy / globs / composition | JSON policies; no includes | **W41-08–10** |
+| Tenant isolation end-to-end | `namespace` condition in evaluator only | **W32-03–05** |
+| Authentication audit trail | Operation audit; login lacks auth_method/IP/reason | **W43-01–02** |
+| Login lockout / throttling | Per-token/IP limiter on secured routes (**W19-01**); not on `/auth/*` | **W43-03–05** |
+| ABAC / MFA / SAML | Conditions only; OIDC+K8s shipped | **W44-***, **LT-13–14** |
+
+| ID | Title | Area | Effort | Depends on | Description | Acceptance criteria |
+|----|-------|------|--------|------------|-------------|---------------------|
+| **W43-01** | Authentication audit events (login success/failure) | auth | M | W7-04 | **Not started:** Emit `auth.login` / `auth.login.failed` on `POST /auth/kubernetes`, `/auth/oidc/:role`, `/auth/token` from `internal/auth/token.go` and handlers — **independent of token issuance success path**. | Failed K8s login (wrong SA) produces audit row with `status=failure`; success produces `status=success`; no token material in details. |
+| **W43-02** | Audit schema enrichment for authn/authz | auth | M | W43-01 | **Not started:** Extend `audit.Entry` (+ export JSON) with optional `auth_method`, `source_ip`, `client_identity`, `failure_reason`, `request_id`, `namespace`. Populate from `RequestContext` and auth handlers. Prospect checklist: correlation ID + failure reason. | Export row includes `request_id` matching `X-Request-ID`; SIEM forwarder sample updated in `docs/observability/audit-forwarding.md`. |
+| **W43-03** | Login endpoint throttling and brute-force protection | security | M | W19-01 | **Not started:** Dedicated rate limiter on **unauthenticated** auth routes (`/auth/kubernetes`, `/auth/oidc/*`, `/sys/unseal`); per-IP and per-identity sliding window; metric `knxvault_auth_login_throttled_total`. Distinct from secured-route limiter. | 429 after N failures/min/IP; legitimate SA login unaffected after window; unit + integration test. |
+| **W43-04** | Identity lockout after repeated failed logins | security | M | W43-03 | **Not started:** Track failed attempts by `(auth_method, subject_or_ip)` in memory or Raft; temporary lockout (configurable TTL) after threshold; audit `auth.lockout`. | Lockout blocks further login for 15m; admin clear via API or TTL expiry; documented break-glass. |
+| **W43-05** | Token issuance rate limits | security | S | W19-01 | **Not started:** Stricter limits on `POST /auth/token/create` and `POST /auth/agent/delegate` per parent token / IP — prospect: token minting abuse controls. | Exceeding limit returns 429; metric `knxvault_token_create_throttled_total`. |
+| **W43-06** | OIDC config on `PUT /sys/roles` API | auth | S | W37-02 | **Not started:** Expose `auth_method` and `oidc` block (`issuer`, `audience`, `jwks_url`, `max_ttl_seconds`) in `dto.RoleRequest` / `RoleResponse`; persist to Raft. Audit finding AUTH-01. | `PUT /sys/roles/oidc-app` with OIDC config round-trips; `POST /auth/oidc/oidc-app` works without manual Raft seeding. |
+| **W43-07** | JWKS cache keyed by URL | auth | S | W37-02 | **Not started:** Fix `jwksCache` in `internal/auth/oidc.go` to cache per `jwks_url` (LRU/TTL map), not single global entry. Audit finding AUTH-02. | Two roles with different IdPs validate against correct keys; unit test in `oidc_test.go`. |
+| **W43-08** | BFSI prospect evaluation response pack | docs | S | W43-01, W41-03 | **Not started:** `docs/product/bfsi-prospect-response.md` — maps prospect feedback to Met/Partial/Gap, backlog IDs, POC waivers, and competitive positioning vs Vault/OpenBao (honest scope). | Document linked from traceability matrix; includes Go/No-Go for POC vs production. |
+
+> **Tier K sequencing:** **W43-06–07** (quick auth fixes) parallel with **W41-01**. **W43-01–02** before POC audit sign-off. **W43-03–05** before internet-facing or enterprise IdP deployments. **W43-08** after first prospect review cycle.
+
+### Tier L — P2 enterprise authz (ABAC, MFA, federation)
+
+**Source:** Prospect P2 enhancements. Builds on **W13-01** conditions and **W37-02** OIDC — not POC blockers.
+
+| ID | Title | Area | Effort | Depends on | Description | Acceptance criteria |
+|----|-------|------|--------|------------|-------------|---------------------|
+| **W44-01** | ABAC — resource labels and ownership | auth | L | W41-01, W38-01 | **Not started:** Optional labels on KV metadata (`owner`, `team`, `env`); policy conditions `resource_label`, `owner_match`. Prospect: attribute-based control beyond path prefix. | Policy `owner: team-a` denies read when secret metadata owner is `team-b`; list filtered when `list` + label condition. |
+| **W44-02** | ABAC — environment and request attributes | auth | M | W13-01, W41-02 | **Not started:** Extend evaluator with `cluster`, `environment`, `request_path` conditions; document attribute catalog. | Integration test: `environment: prod` policy denies when header/context says `staging`. |
+| **W44-03** | Admin MFA enforcement via OIDC | auth | M | W37-02, W43-06 | **Not started:** Role flag `require_mfa` checks OIDC `acr` / `amr` claims (or `auth_time` recency) on login for administrative roles. Prospect: MFA for break-glass/admin paths. | Admin role without `mfa` claim → `403`; documented Keycloak/Azure AD mapper setup. |
+| **W44-04** | Enterprise federation guide (SAML/LDAP → OIDC) | docs | S | W37-02 | **Not started:** Operator doc for SAML/LDAP via OIDC brokers (Keycloak, Azure AD, Okta) — no native SAML in KNXVault. Prospect: identity federation roadmap. | `docs/integration/enterprise-identity.md` with architecture diagram and IdP config examples. |
+
+> **Tier L sequencing:** **W44-04** (docs) anytime. **W44-01–02** after **W41-01**. **W44-03** after **W43-06**. Native SAML → **LT-13**; full ABAC DSL → **LT-14**.
 
 ### Tier J — Advanced secret leasing
 
@@ -342,6 +387,9 @@ High-level scope from LLD §9.4. Phase 3 is complete; Phase 4 hardening recommen
 | **W31-02** | PKCS#11 HSM integration | crypto | L | W31-01 | HSM-backed CA key generation via OpenSSL engine. | Root CA created on SoftHSM; documented config. |
 | **W32-01** | Multi-tenancy policy model | auth | M | W41-01, W36-14 | Namespace-scoped policy isolation on path-aware resources. | Cross-tenant access denied in tests. |
 | **W32-02** | Tenant-aware API enforcement | api | M | W32-01 | Mandatory `X-KNX-Namespace` (or K8s SA namespace) on mutating routes when tenant mode enabled. | Integration tests for tenant boundaries. |
+| **W32-03** | Tenant-scoped repository isolation | storage | L | W32-01 | **Not started:** Enforce namespace/tenant prefix on secret paths at repository layer (`List`, `Get`, `PutAtomic`) when `KNXVAULT_TENANT_MODE=true` — prospect: isolation in **repositories**, not only policy eval. | Cross-tenant `Get` returns `404` even if policy misconfigured; Raft ops carry tenant key. |
+| **W32-04** | Tenant isolation across services and engines | api | L | W32-03 | **Not started:** Propagate tenant context through `service/*` and engines (KV, DB, SSH, PKI, inject, CSI mount audit); reject cross-tenant path conventions at handler boundary. | Integration test: tenant A token cannot read tenant B KV path via any API surface. |
+| **W32-05** | Multi-tenant isolation test matrix | ci | M | W32-04 | **Not started:** Automated matrix: policy deny, repo scoping, API enforcement, CSI mount, backup export per tenant — prospect verification artifact. | `make test-integration` tenant suite; CSV report for compliance packs (**W35-02**). |
 | **W33-01** | Redis read cache | storage | M | W26 | Cache public CA material, CRLs, policies. | Cache hit metrics; fallback on miss. |
 | **W33-02** | Cache invalidation on write | storage | S | W33-01 | Invalidate cache entries on Raft commit. | Write → read sees fresh data. |
 | **W34-01** | Server mTLS | security | M | W5-03 | TLS with client certificate requirement on secured routes. | mTLS handshake test; opt-in flag. |
@@ -382,3 +430,5 @@ Deferred packaging and ecosystem work — not scheduled for Tier 0 / Phase 4–5
 | **LT-10** | Multi-region CA federation | crypto | XL | W35-01 | **Gap:** LLD §10.3 multi-region hierarchy. **Hint:** Cross-cluster CA trust bundle replication via encrypted backup sync; design doc only initially. | Design doc + PoC two-cluster trust. |
 | **LT-11** | MkDocs / GitHub Pages documentation site | docs | M | W38-19 | **Gap:** LLD §12.1 version-controlled docs published via MkDocs or GitHub Pages; repo is Markdown-only with no site build. **Hint:** `mkdocs.yml` + Material theme; CI deploy to GitHub Pages on release tag; OpenAPI + CLI refs linked. Defer until **W38-19** traceability matrix stabilizes. | `mkdocs serve` renders `/docs/`; release tag publishes public site. |
 | **LT-12** | Performance benchmarking suite | ci | M | W29-02 | **Gap:** LLD §9.5 “performance benchmarking” cross-cutting activity; no `bench/` or SLO targets. **Hint:** `test/bench/` with `testing.B` for KV put/get, Raft propose, OpenSSL issue; optional `ghz` for HTTP; record baselines in `docs/engineering/performance.md`. Not blocking HA correctness. | CI stores bench results; regression &gt;20% fails advisory gate. |
+| **LT-13** | Native SAML authentication method | auth | XL | W37-02, W43-06 | **Gap:** Prospect P2 identity federation; today OIDC+K8s only. **Hint:** SAML SP or broker integration in `internal/auth/saml.go`; prefer **W44-04** (IdP broker via OIDC) for near-term. | SAML assertion login mints client token; metadata endpoint documented. |
+| **LT-14** | Declarative ABAC policy language (DSL) | auth | XL | W44-01, W41-10, LT-06 | **Gap:** Prospect declarative policy evolution beyond JSON+HCL subset. **Hint:** CEL or Rego bundle authoring; policy modules with versioned schema. After **W41-10** composition and **LT-06** OPA baseline. | Policy DSL compiles to internal JSON; simulation API (**W41-04**) validates DSL policies. |
