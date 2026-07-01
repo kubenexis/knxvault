@@ -11,8 +11,8 @@ func ValidateSecurity(cfg Config, configPath string) error {
 		if cfg.K8sAuthInsecure {
 			return fmt.Errorf("k8s_auth_insecure is not allowed when raft is enabled")
 		}
-		if cfg.UnsealKey == "" {
-			return fmt.Errorf("unseal key is required when raft is enabled (set KNXVAULT_UNSEAL_KEY)")
+		if cfg.UnsealKey == "" && !cfg.Seal.ShamirEnabled() && !cfg.Seal.AutoUnsealEnabled() {
+			return fmt.Errorf("unseal key, shamir scheme, or auto-unseal is required when raft is enabled")
 		}
 		if configPath != "" && (cfg.RootToken != "" || cfg.JWTSecret != "") {
 			return fmt.Errorf("root_token and jwt_secret must be supplied via environment when raft is enabled, not config file")
@@ -22,6 +22,11 @@ func ValidateSecurity(cfg Config, configPath string) error {
 		if err := checkConfigFilePermissions(configPath); err != nil {
 			return err
 		}
+	}
+	switch cfg.PKIBackend {
+	case "", "openssl", "native":
+	default:
+		return fmt.Errorf("invalid pki_backend %q: must be openssl or native", cfg.PKIBackend)
 	}
 	return nil
 }

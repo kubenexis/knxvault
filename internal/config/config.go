@@ -12,6 +12,7 @@ const (
 	defaultShutdownGrace                 = 10 * time.Second
 	defaultOpenSSLTimeout                = 60 * time.Second
 	defaultOpenSSLBinary                 = "openssl"
+	defaultPKIBackend                    = "openssl"
 	defaultTokenTTL                      = 24 * time.Hour
 	defaultHANamespace                   = "knxvault"
 	defaultHALeaseName                   = "knxvault-leader"
@@ -33,6 +34,7 @@ type Config struct {
 	Version         string
 	OpenSSLTimeout  time.Duration
 	OpenSSLBinary   string
+	PKIBackend      string
 	JWTSecret       string
 	K8sAuthInsecure bool
 	RootToken       string
@@ -73,6 +75,10 @@ type Config struct {
 	TracingEnabled     bool
 	OTLPEndpoint       string
 	TracingSampleRatio float64
+
+	Seal            SealConfig
+	OpenSSLSeccomp  bool
+	ListenerTLSRole string
 
 	Raft RaftConfig
 }

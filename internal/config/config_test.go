@@ -40,6 +40,27 @@ func TestLoadOpenSSL(t *testing.T) {
 	}
 }
 
+func TestLoadPKIBackend(t *testing.T) {
+	t.Setenv("KNXVAULT_PKI_BACKEND", "native")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() = %v", err)
+	}
+	if cfg.PKIBackend != "native" {
+		t.Errorf("PKIBackend = %q, want native", cfg.PKIBackend)
+	}
+}
+
+func TestLoadInvalidPKIBackend(t *testing.T) {
+	t.Setenv("KNXVAULT_PKI_BACKEND", "pkcs11")
+
+	_, err := config.Load()
+	if err == nil {
+		t.Fatal("expected error for invalid KNXVAULT_PKI_BACKEND")
+	}
+}
+
 func TestLoadInvalidShutdownGrace(t *testing.T) {
 	t.Setenv("KNXVAULT_SHUTDOWN_GRACE", "not-a-duration")
 

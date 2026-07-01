@@ -16,6 +16,7 @@ import (
 	domainauth "github.com/kubenexis/knxvault/internal/domain/auth"
 	"github.com/kubenexis/knxvault/internal/domain/common"
 	"github.com/kubenexis/knxvault/internal/infra/k8s"
+	"github.com/kubenexis/knxvault/internal/infra/metrics"
 	"github.com/kubenexis/knxvault/internal/repository"
 )
 
@@ -51,8 +52,20 @@ func (s *TokenStore) Issue(ctx context.Context, subject string, policies []strin
 	return s.Create(ctx, subject, policies, s.ttl, true)
 }
 
+// CreateOptions configures delegated token issuance.
+type CreateOptions struct {
+	ParentID string
+	Path     string
+	Orphan   bool
+}
+
 // Create issues a token with explicit TTL and renewability.
 func (s *TokenStore) Create(ctx context.Context, subject string, policies []string, ttl time.Duration, renewable bool) (string, *TokenRecord, error) {
+	return s.CreateWithOptions(ctx, subject, policies, ttl, renewable, CreateOptions{})
+}
+
+// CreateWithOptions issues a token with parent linkage for cascade revocation.
+func (s *TokenStore) CreateWithOptions(ctx context.Context, subject string, policies []string, ttl time.Duration, renewable bool, opts CreateOptions) (string, *TokenRecord, error) {
 	if ttl <= 0 {
 		ttl = s.ttl
 	}
@@ -63,10 +76,13 @@ func (s *TokenStore) Create(ctx context.Context, subject string, policies []stri
 	token := "knxv_" + base64.RawURLEncoding.EncodeToString(raw)
 	record := TokenRecord{
 		ID:        hashToken(token),
+		ParentID:  opts.ParentID,
+		Path:      opts.Path,
 		Subject:   subject,
 		Policies:  policies,
 		ExpiresAt: time.Now().UTC().Add(ttl),
 		Renewable: renewable,
+		Orphan:    opts.Orphan,
 	}
 	if err := s.save(ctx, record); err != nil {
 		return "", nil, err
@@ -101,10 +117,52 @@ func (s *TokenStore) Renew(ctx context.Context, token string, increment time.Dur
 	return &copy, nil
 }
 
-// Revoke invalidates a token immediately.
+// Revoke invalidates a token immediately and cascades to non-orphan children.
 func (s *TokenStore) Revoke(ctx context.Context, token string) error {
-	id := hashToken(token)
+	return s.RevokeID(ctx, hashToken(token))
+}
+
+// RevokeID invalidates a token by ID and cascades to descendants.
+func (s *TokenStore) RevokeID(ctx context.Context, id string) error {
 	now := time.Now().UTC()
+	record, err := s.get(ctx, id)
+	if err != nil {
+		return common.New(common.ErrCodeUnauthorized, "invalid token")
+	}
+	cascade, err := s.revokeCascade(ctx, id, now)
+	if err != nil {
+		return err
+	}
+	if cascade > 0 {
+		metrics.IncTokensRevokedCascade(cascade)
+	}
+	_ = record
+	return nil
+}
+
+func (s *TokenStore) revokeCascade(ctx context.Context, id string, now time.Time) (int, error) {
+	if err := s.revokeOne(ctx, id, now); err != nil {
+		return 0, err
+	}
+	children, err := s.childrenOf(ctx, id)
+	if err != nil {
+		return 0, err
+	}
+	total := 0
+	for _, child := range children {
+		if child.Orphan {
+			continue
+		}
+		n, err := s.revokeCascade(ctx, child.ID, now)
+		if err != nil {
+			return total, err
+		}
+		total += n + 1
+	}
+	return total, nil
+}
+
+func (s *TokenStore) revokeOne(ctx context.Context, id string, now time.Time) error {
 	if s.repo != nil {
 		if err := s.repo.Revoke(ctx, id, now); err != nil {
 			var kv *common.KNXVaultError
@@ -128,6 +186,30 @@ func (s *TokenStore) Revoke(ctx context.Context, token string) error {
 	record.ExpiresAt = now
 	s.tokens[id] = record
 	return nil
+}
+
+func (s *TokenStore) childrenOf(ctx context.Context, parentID string) ([]TokenRecord, error) {
+	var records []TokenRecord
+	if s.repo != nil {
+		list, err := s.repo.List(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range list {
+			if item != nil && item.ParentID == parentID && !item.Revoked {
+				records = append(records, *item)
+			}
+		}
+		return records, nil
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, item := range s.tokens {
+		if item.ParentID == parentID && !item.Revoked {
+			records = append(records, item)
+		}
+	}
+	return records, nil
 }
 
 // Authenticate validates an opaque client token.
@@ -346,13 +428,17 @@ func (s *Service) LoginOIDC(ctx context.Context, role, jwtToken string) (string,
 	if oidcCfg == nil {
 		return "", nil, common.New(common.ErrCodeValidation, "oidc not configured for role")
 	}
-	subject, _, err := s.oidc.Validate(ctx, oidcCfg, jwtToken)
+	subject, claims, err := s.oidc.Validate(ctx, oidcCfg, jwtToken)
 	if err != nil {
 		return "", nil, err
 	}
 	policies := PoliciesForRole(role)
 	if s.roles != nil {
 		policies = s.roles.PoliciesForRole(ctx, role)
+	}
+	policies, err = PoliciesFromClaims(oidcCfg, claims, policies)
+	if err != nil {
+		return "", nil, err
 	}
 	ttl := OIDCTTL(oidcCfg, s.oidcTTL)
 	nhiID := domainauth.NHIKey(domainauth.IdentityTypeOIDC, "", "", subject)
@@ -481,14 +567,14 @@ func (s *Service) Capabilities(principal Principal) []string {
 }
 
 // CreateToken issues a scoped client token (admin).
-func (s *Service) CreateToken(ctx context.Context, subject string, policies []string, ttl time.Duration, renewable bool) (string, *TokenRecord, error) {
+func (s *Service) CreateToken(ctx context.Context, subject string, policies []string, ttl time.Duration, renewable bool, opts CreateOptions) (string, *TokenRecord, error) {
 	if subject == "" {
 		subject = "token"
 	}
 	if len(policies) == 0 {
 		return "", nil, common.New(common.ErrCodeValidation, "policies are required")
 	}
-	return s.tokens.Create(ctx, subject, policies, ttl, renewable)
+	return s.tokens.CreateWithOptions(ctx, subject, policies, ttl, renewable, opts)
 }
 
 // RenewToken extends the caller token TTL.

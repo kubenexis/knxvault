@@ -8,15 +8,12 @@ import (
 
 	"github.com/kubenexis/knxvault/internal/crypto"
 	"github.com/kubenexis/knxvault/internal/crypto/openssl"
+	pkibackend "github.com/kubenexis/knxvault/internal/crypto/pki"
 	pkiengine "github.com/kubenexis/knxvault/internal/engine/pki"
 	"github.com/kubenexis/knxvault/internal/repository/memory"
 )
 
 func TestEngineCreateRootAndIssue(t *testing.T) {
-	if _, err := exec.LookPath("openssl"); err != nil {
-		t.Skip("openssl not installed")
-	}
-
 	key := make([]byte, 32)
 	for i := range key {
 		key[i] = byte(i)
@@ -32,6 +29,9 @@ func TestEngineCreateRootAndIssue(t *testing.T) {
 		memory.NewCARepository(),
 		memory.NewRevocationRepository(),
 	)
+	if _, err := exec.LookPath("openssl"); err != nil {
+		engine.SetBackend(pkibackend.NewNativeBackend())
+	}
 
 	ctx := context.Background()
 	root, err := engine.CreateRoot(ctx, pkiengine.CreateRootRequest{

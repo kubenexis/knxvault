@@ -15,6 +15,7 @@ func TestNewDependenciesInMemory(t *testing.T) {
 	t.Setenv("KNXVAULT_RAFT_ENABLED", "false")
 	t.Setenv("KNXVAULT_MASTER_KEY", "")
 	t.Setenv("KNXVAULT_MASTER_KEY_FILE", "")
+	t.Setenv("KNXVAULT_PKI_BACKEND", "native")
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -40,6 +41,7 @@ func TestNewDependenciesEngineRegistry(t *testing.T) {
 	t.Setenv("KNXVAULT_RAFT_ENABLED", "false")
 	t.Setenv("KNXVAULT_MASTER_KEY", testMasterKeyB64())
 	t.Setenv("KNXVAULT_MASTER_KEY_FILE", "")
+	t.Setenv("KNXVAULT_PKI_BACKEND", "native")
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -97,6 +99,7 @@ func TestNewDependenciesServicesWired(t *testing.T) {
 	t.Setenv("KNXVAULT_RAFT_ENABLED", "false")
 	t.Setenv("KNXVAULT_MASTER_KEY", testMasterKeyB64())
 	t.Setenv("KNXVAULT_MASTER_KEY_FILE", "")
+	t.Setenv("KNXVAULT_PKI_BACKEND", "native")
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -121,6 +124,7 @@ func TestDependenciesHelpers(t *testing.T) {
 	t.Setenv("KNXVAULT_RAFT_ENABLED", "false")
 	t.Setenv("KNXVAULT_MASTER_KEY", testMasterKeyB64())
 	t.Setenv("KNXVAULT_MASTER_KEY_FILE", "")
+	t.Setenv("KNXVAULT_PKI_BACKEND", "native")
 
 	cfg, err := config.Load()
 	if err != nil {

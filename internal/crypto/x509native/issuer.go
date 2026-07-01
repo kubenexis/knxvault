@@ -1,0 +1,185 @@
+package x509native
+
+import (
+	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"fmt"
+	"math/big"
+	"net"
+	"strings"
+	"time"
+)
+
+const organization = "KNXVault"
+
+// CreateRoot generates a self-signed RSA SHA-256 root CA.
+func CreateRoot(commonName string, ttl time.Duration, keyBits int) (certPEM, keyPEM []byte, err error) {
+	if keyBits == 0 {
+		keyBits = 2048
+	}
+	priv, err := rsa.GenerateKey(rand.Reader, keyBits)
+	if err != nil {
+		return nil, nil, fmt.Errorf("generate root key: %w", err)
+	}
+
+	serial, err := randomSerial()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	now := time.Now().UTC()
+	template := &x509.Certificate{
+		SerialNumber: serial,
+		Subject: pkix.Name{
+			CommonName:   commonName,
+			Organization: []string{organization},
+		},
+		NotBefore:             now,
+		NotAfter:              now.Add(ttl),
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign | x509.KeyUsageDigitalSignature,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+		MaxPathLen:            1,
+		SignatureAlgorithm:    x509.SHA256WithRSA,
+	}
+
+	return signCertificate(template, template, &priv.PublicKey, priv, priv)
+}
+
+// CreateIntermediate signs an intermediate CA certificate with the parent CA.
+func CreateIntermediate(parentCertPEM, parentKeyPEM []byte, commonName string, ttl time.Duration, keyBits int) (certPEM, keyPEM []byte, err error) {
+	parentCert, err := ParseCertificate(parentCertPEM)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse parent certificate: %w", err)
+	}
+	parentKey, err := parsePrivateKey(parentKeyPEM)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse parent key: %w", err)
+	}
+
+	if keyBits == 0 {
+		keyBits = 2048
+	}
+	priv, err := rsa.GenerateKey(rand.Reader, keyBits)
+	if err != nil {
+		return nil, nil, fmt.Errorf("generate intermediate key: %w", err)
+	}
+
+	serial, err := randomSerial()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	now := time.Now().UTC()
+	template := &x509.Certificate{
+		SerialNumber: serial,
+		Subject: pkix.Name{
+			CommonName:   commonName,
+			Organization: []string{organization},
+		},
+		NotBefore:             now,
+		NotAfter:              now.Add(ttl),
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign | x509.KeyUsageDigitalSignature,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+		MaxPathLen:            0,
+		SignatureAlgorithm:    x509.SHA256WithRSA,
+	}
+
+	return signCertificate(template, parentCert, &priv.PublicKey, parentKey, priv)
+}
+
+// IssueCertificate signs a leaf certificate with DNS SAN support.
+func IssueCertificate(caCertPEM, caKeyPEM []byte, commonName string, dnsNames, ipAddresses []string, ttl time.Duration, keyBits int) (certPEM, keyPEM []byte, err error) {
+	caCert, err := ParseCertificate(caCertPEM)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse ca certificate: %w", err)
+	}
+	caKey, err := parsePrivateKey(caKeyPEM)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse ca key: %w", err)
+	}
+
+	if keyBits == 0 {
+		keyBits = 2048
+	}
+	priv, err := rsa.GenerateKey(rand.Reader, keyBits)
+	if err != nil {
+		return nil, nil, fmt.Errorf("generate leaf key: %w", err)
+	}
+
+	serial, err := randomSerial()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	now := time.Now().UTC()
+	template := &x509.Certificate{
+		SerialNumber: serial,
+		Subject: pkix.Name{
+			CommonName:   commonName,
+			Organization: []string{organization},
+		},
+		NotBefore:          now,
+		NotAfter:           now.Add(ttl),
+		KeyUsage:           x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage:        []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+		DNSNames:           append([]string(nil), dnsNames...),
+		IPAddresses:        parseIPAddresses(ipAddresses),
+		SignatureAlgorithm: x509.SHA256WithRSA,
+	}
+
+	return signCertificate(template, caCert, &priv.PublicKey, caKey, priv)
+}
+
+func signCertificate(template, parent *x509.Certificate, pub crypto.PublicKey, signer crypto.Signer, keyOut *rsa.PrivateKey) (certPEM, keyPEM []byte, err error) {
+	der, err := x509.CreateCertificate(rand.Reader, template, parent, pub, signer)
+	if err != nil {
+		return nil, nil, fmt.Errorf("create certificate: %w", err)
+	}
+	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
+	keyDER := x509.MarshalPKCS1PrivateKey(keyOut)
+	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: keyDER})
+	return certPEM, keyPEM, nil
+}
+
+func randomSerial() (*big.Int, error) {
+	limit := new(big.Int).Lsh(big.NewInt(1), 128)
+	return rand.Int(rand.Reader, limit)
+}
+
+func parsePrivateKey(pemBytes []byte) (*rsa.PrivateKey, error) {
+	block, _ := pem.Decode(pemBytes)
+	if block == nil {
+		return nil, fmt.Errorf("decode private key pem")
+	}
+	if key, err := x509.ParsePKCS8PrivateKey(block.Bytes); err == nil {
+		rsaKey, ok := key.(*rsa.PrivateKey)
+		if !ok {
+			return nil, fmt.Errorf("pkcs8 key is not rsa")
+		}
+		return rsaKey, nil
+	}
+	return x509.ParsePKCS1PrivateKey(block.Bytes)
+}
+
+func parseIPAddresses(raw []string) []net.IP {
+	if len(raw) == 0 {
+		return nil
+	}
+	out := make([]net.IP, 0, len(raw))
+	for _, addr := range raw {
+		addr = strings.TrimSpace(addr)
+		if addr == "" {
+			continue
+		}
+		if ip := net.ParseIP(addr); ip != nil {
+			out = append(out, ip)
+		}
+	}
+	return out
+}

@@ -29,6 +29,8 @@ spec:
         fsGroup: 65532
         seccompProfile:
           type: RuntimeDefault
+          # Optional OpenSSL child hardening (W41-13): set KNXVAULT_OPENSSL_SECCOMP=true and mount
+          # deployments/k8s/seccomp-openssl.json via localhostProfile on the container securityContext.
       containers:
         - name: knxvault
           image: knxvault:0.4.5

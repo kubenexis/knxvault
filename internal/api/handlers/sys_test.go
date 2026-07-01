@@ -64,7 +64,7 @@ func TestSysHandlerCapabilitiesUnauthenticated(t *testing.T) {
 	}
 }
 
-func TestSysHandlerIssueListenerTLSNotImplemented(t *testing.T) {
+func TestSysHandlerIssueListenerTLSRequiresPKI(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	authSvc := testAuthService("admin")
@@ -78,7 +78,7 @@ func TestSysHandlerIssueListenerTLSNotImplemented(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
-	if rec.Code != http.StatusNotImplemented {
+	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d body = %s", rec.Code, rec.Body.String())
 	}
 }

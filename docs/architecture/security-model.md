@@ -25,10 +25,17 @@ Threat assumptions, cryptographic controls, and operational security guidance fo
 
 ### Unseal key (operational seal)
 
-- `KNXVAULT_UNSEAL_KEY` — required when Raft enabled; must differ from master key
-- Gates sealed → unsealed state; does not decrypt Raft payload without master key
-- Future: Shamir k-of-n on unseal key (**W41-05**), KMS auto-unseal + Shamir break-glass (**W41-14**, **LT-14**)
-- See [ADR-0006](../adr/0006-seal-unseal-strategies.md)
+- `KNXVAULT_UNSEAL_KEY` — single-key mode; must differ from master key
+- Shamir k-of-n: `KNXVAULT_UNSEAL_SCHEME=shamir` with threshold/shares; progressive `POST /sys/unseal`
+- Auto-unseal stub: `KNXVAULT_AUTO_UNSEAL_PROVIDER=file` + break-glass Shamir (**W41-14**); cloud KMS in **LT-14**
+- Master and unseal key buffers are `mlock`ed where supported (`internal/crypto/memlock/`)
+- See [ADR-0006](../adr/0006-seal-unseal-strategies.md), [shamir-unseal](../operations/shamir-unseal.md)
+
+### Sensitive buffer lifecycle
+
+- `internal/crypto/sensitive.Buffer` wraps secret bytes with optional mlock and mandatory zero on `Close()`
+- Unseal request bodies and `crypto.Service.OpenSensitive` use sensitive buffers
+- Residual risk: Go GC may retain copies of interned strings; run `make audit-sensitive` in CI
 
 ### Encrypt before replication
 
@@ -59,11 +66,14 @@ CA private keys and secret payloads use the same pattern.
 
 ### PKI operations
 
-All X.509 operations execute via the OpenSSL CLI in an isolated temporary directory:
+PKI uses a pluggable backend (`KNXVAULT_PKI_BACKEND`):
 
-- Configurable binary path and timeout
-- No user-controlled OpenSSL config paths
-- See [ADR-0002](../adr/0002-openssl-cli-crypto-backend.md)
+| Backend | Path | Notes |
+|---------|------|-------|
+| `native` (recommended) | `internal/crypto/x509native/` | RSA SHA-256 issuance; no OpenSSL subprocess |
+| `openssl` (fallback) | OpenSSL CLI in `0700` temp dir | Legacy; optional seccomp profile **W41-13** |
+
+See [ADR-0002](../adr/0002-openssl-cli-crypto-backend.md), [PKI migration](../operations/pki-openssl-migration.md)
 
 ## Authentication
 
@@ -86,6 +96,10 @@ When KNXVault runs in a Kubernetes cluster, `POST /auth/kubernetes` validates th
 **Dev-only paths:** `KNXVAULT_JWT_SECRET` enables HS256 validation for local testing. `KNXVAULT_K8S_AUTH_INSECURE=true` parses JWT structure without signature verification when Raft is disabled — still requires a `system:serviceaccount:…` subject for SA binding checks; never enable in production.
 
 **HA client tokens:** When Raft is enabled, opaque client tokens (root, `POST /auth/token/create`, K8s login) are replicated via `token.save` / `token.get` / `token.revoke` Raft commands. Tokens survive node restarts and authenticate on any cluster member.
+
+**Hierarchical tokens:** `POST /auth/token/create` sets `ParentID` to the caller token. Revoking a parent cascades to non-orphan children (`knxvault_tokens_revoked_cascade_total`).
+
+**OIDC claim mapping:** Roles may map IdP claims (e.g. `groups`) to policies via `claim_mappings`; see [OIDC claim mapping](../integration/oidc-claim-mapping.md).
 
 **RBAC cluster sync:** Each node reloads persisted policies from Raft before `Authorize` when the policy set hash changes, so policy writes on the leader are visible on followers without restart.
 

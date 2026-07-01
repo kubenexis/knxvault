@@ -4,6 +4,8 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
+
+	"github.com/kubenexis/knxvault/internal/crypto/sensitive"
 )
 
 const dekSize = 32
@@ -144,4 +146,13 @@ func (s *Service) Open(ciphertext, dekEnc []byte) ([]byte, error) {
 		return nil, err
 	}
 	return s.DecryptWithDEK(dek, ciphertext)
+}
+
+// OpenSensitive decrypts ciphertext and returns a zero-on-close buffer.
+func (s *Service) OpenSensitive(ciphertext, dekEnc []byte) (*sensitive.Buffer, error) {
+	plain, err := s.Open(ciphertext, dekEnc)
+	if err != nil {
+		return nil, err
+	}
+	return sensitive.New(plain)
 }

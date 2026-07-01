@@ -23,10 +23,20 @@ See [`config/knxvault.example.yaml`](../../config/knxvault.example.yaml) for the
 |----------|---------|----------|-------------|
 | `KNXVAULT_MASTER_KEY` | — | **Yes** (prod) | Base64-encoded 32-byte master key |
 | `KNXVAULT_MASTER_KEY_FILE` | — | Alt. to above | Path to base64 key file (takes priority) |
-| `KNXVAULT_UNSEAL_KEY` | _(master key)_ | No | Base64 unseal key for `POST /sys/unseal` |
+| `KNXVAULT_UNSEAL_KEY` | _(master key)_ | No | Base64 unseal key for `POST /sys/unseal` (single-key mode) |
+| `KNXVAULT_UNSEAL_SCHEME` | `single` | No | `shamir` for k-of-n threshold unseal on the unseal key only |
+| `KNXVAULT_UNSEAL_THRESHOLD` | — | Shamir | Minimum shares to unseal (e.g. `3`) |
+| `KNXVAULT_UNSEAL_SHARES` | — | Shamir | Total shares at init ceremony (e.g. `5`) |
+| `KNXVAULT_AUTO_UNSEAL_PROVIDER` | — | No | `file` stub for startup auto-unseal (**LT-14** for cloud KMS) |
+| `KNXVAULT_AUTO_UNSEAL_KEY_FILE` | — | Auto-unseal | Path to base64 unseal key file |
+| `KNXVAULT_BREAK_GLASS_SHAMIR` | `false` | No | Allow Shamir shares when auto-unseal fails |
+| `KNXVAULT_PKI_BACKEND` | `openssl` | No | `native` for Go `crypto/x509` issuance (no OpenSSL subprocess) |
+| `KNXVAULT_OPENSSL_SECCOMP` | `false` | No | Opt-in OpenSSL child seccomp profile (`deployments/k8s/seccomp-openssl.json`) |
 | `KNXVAULT_JOB_MASTER_KEY_REENCRYPT_INTERVAL` | `1m` | No | Leader job interval for DEK re-encryption after rotation |
-| `KNXVAULT_OPENSSL_BINARY` | `openssl` | No | OpenSSL executable path |
+| `KNXVAULT_OPENSSL_BINARY` | `openssl` | No | OpenSSL executable path (skipped when `PKI_BACKEND=native`) |
 | `KNXVAULT_OPENSSL_TIMEOUT` | `60s` | No | Max OpenSSL command duration |
+
+Master and unseal key buffers are memory-locked (`mlock`) on Linux where permitted. Containers may require `capabilities.add: [IPC_LOCK]` or sufficient `RLIMIT_MEMLOCK` for non-root UIDs.
 
 ## Authentication
 

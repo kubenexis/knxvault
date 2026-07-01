@@ -6,10 +6,13 @@ import "time"
 // Only the SHA-256 hash of the raw token is stored; the raw value is returned once at issuance.
 type ClientToken struct {
 	ID        string    `json:"id"`
+	ParentID  string    `json:"parent_id,omitempty"`
+	Path      string    `json:"path,omitempty"`
 	Subject   string    `json:"subject"`
 	Policies  []string  `json:"policies"`
 	ExpiresAt time.Time `json:"expires_at"`
 	Renewable bool      `json:"renewable"`
+	Orphan    bool      `json:"orphan,omitempty"`
 	Revoked   bool      `json:"revoked"`
 }
 

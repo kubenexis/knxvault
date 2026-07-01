@@ -31,6 +31,9 @@ func overlayEnv(cfg Config) (Config, error) {
 	if v := os.Getenv("KNXVAULT_OPENSSL_BINARY"); v != "" {
 		cfg.OpenSSLBinary = v
 	}
+	if v := os.Getenv("KNXVAULT_PKI_BACKEND"); v != "" {
+		cfg.PKIBackend = strings.TrimSpace(strings.ToLower(v))
+	}
 	if v := os.Getenv("KNXVAULT_JWT_SECRET"); v != "" {
 		cfg.JWTSecret = strings.TrimSpace(v)
 	}
@@ -188,6 +191,46 @@ func overlayEnv(cfg Config) (Config, error) {
 	if v := os.Getenv("KNXVAULT_UNSEAL_KEY"); v != "" {
 		cfg.UnsealKey = strings.TrimSpace(v)
 	}
+	if v := os.Getenv("KNXVAULT_UNSEAL_SCHEME"); v != "" {
+		cfg.Seal.Scheme = strings.TrimSpace(strings.ToLower(v))
+	}
+	if v := os.Getenv("KNXVAULT_UNSEAL_THRESHOLD"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_UNSEAL_THRESHOLD: %w", err)
+		}
+		cfg.Seal.Threshold = n
+	}
+	if v := os.Getenv("KNXVAULT_UNSEAL_SHARES"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_UNSEAL_SHARES: %w", err)
+		}
+		cfg.Seal.Shares = n
+	}
+	if v := os.Getenv("KNXVAULT_AUTO_UNSEAL_PROVIDER"); v != "" {
+		cfg.Seal.AutoUnsealProvider = strings.TrimSpace(strings.ToLower(v))
+	}
+	if v := os.Getenv("KNXVAULT_AUTO_UNSEAL_KEY_FILE"); v != "" {
+		cfg.Seal.AutoUnsealKeyFile = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("KNXVAULT_BREAK_GLASS_SHAMIR"); v != "" {
+		enabled, err := strconv.ParseBool(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_BREAK_GLASS_SHAMIR: %w", err)
+		}
+		cfg.Seal.BreakGlassShamir = enabled
+	}
+	if v := os.Getenv("KNXVAULT_OPENSSL_SECCOMP"); v != "" {
+		enabled, err := strconv.ParseBool(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_OPENSSL_SECCOMP: %w", err)
+		}
+		cfg.OpenSSLSeccomp = enabled
+	}
+	if v := os.Getenv("KNXVAULT_LISTENER_TLS_ROLE"); v != "" {
+		cfg.ListenerTLSRole = strings.TrimSpace(v)
+	}
 	if v := os.Getenv("KNXVAULT_JOB_MASTER_KEY_REENCRYPT_INTERVAL"); v != "" {
 		d, err := time.ParseDuration(v)
 		if err != nil {
@@ -223,6 +266,9 @@ func overlayEnv(cfg Config) (Config, error) {
 	}
 	cfg.Raft = raft
 	if err := cfg.Raft.Validate(); err != nil {
+		return Config{}, err
+	}
+	if err := cfg.Seal.Validate(); err != nil {
 		return Config{}, err
 	}
 	if err := ValidateSecurity(cfg, ""); err != nil {

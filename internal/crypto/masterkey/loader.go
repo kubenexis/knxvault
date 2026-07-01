@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/kubenexis/knxvault/internal/crypto/memlock"
 )
 
 const keySize = 32
@@ -39,5 +41,9 @@ func decodeKey(raw string) ([]byte, error) {
 	if len(key) != keySize {
 		return nil, fmt.Errorf("master key must be %d bytes, got %d", keySize, len(key))
 	}
-	return key, nil
+	locked, err := memlock.Locked(key)
+	if err != nil {
+		return key, nil
+	}
+	return locked, nil
 }

@@ -5,6 +5,9 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"time"
 
 	"go.uber.org/zap"
@@ -15,8 +18,11 @@ import (
 	"github.com/kubenexis/knxvault/internal/backup"
 	"github.com/kubenexis/knxvault/internal/config"
 	"github.com/kubenexis/knxvault/internal/crypto"
+	"github.com/kubenexis/knxvault/internal/crypto/autounseal"
 	"github.com/kubenexis/knxvault/internal/crypto/masterkey"
+	"github.com/kubenexis/knxvault/internal/crypto/memlock"
 	"github.com/kubenexis/knxvault/internal/crypto/openssl"
+	pkibackend "github.com/kubenexis/knxvault/internal/crypto/pki"
 	"github.com/kubenexis/knxvault/internal/engine"
 	pkiengine "github.com/kubenexis/knxvault/internal/engine/pki"
 	secretsengine "github.com/kubenexis/knxvault/internal/engine/secrets"
@@ -83,6 +89,10 @@ type Dependencies struct {
 
 // NewDependencies initializes crypto, storage, engines, and services from config.
 func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*Dependencies, error) {
+	if err := CheckOpenSSL(cfg); err != nil {
+		return nil, err
+	}
+
 	breaker := openssl.NewBreaker(3, 30*time.Second)
 	breaker.SetOnStateChange(metrics.SetOpenSSLBreakerOpen)
 	ossl := openssl.New(cfg.OpenSSLBinary, cfg.OpenSSLTimeout)
@@ -158,16 +168,31 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 
 	if deps.Crypto != nil {
 		deps.MasterKeyService = service.NewMasterKeyService(deps.Crypto, deps.CARepo, deps.SecretRepo)
-		if cfg.Raft.Enabled && cfg.UnsealKey == "" {
-			return nil, fmt.Errorf("KNXVAULT_UNSEAL_KEY is required when raft is enabled")
+		if cfg.Raft.Enabled && cfg.UnsealKey == "" && !cfg.Seal.ShamirEnabled() && !cfg.Seal.AutoUnsealEnabled() {
+			return nil, fmt.Errorf("unseal key, shamir scheme, or auto-unseal is required when raft is enabled")
 		}
 		unsealKey := resolveUnsealKey(cfg.UnsealKey, deps.MasterKey)
 		if cfg.UnsealKey != "" && bytes.Equal(unsealKey, deps.MasterKey) {
 			return nil, fmt.Errorf("unseal key must not equal master key")
 		}
-		deps.Seal = NewSealState(unsealKey)
+		autoProvider, err := autounseal.NewProvider(cfg.Seal.AutoUnsealProvider, cfg.Seal.AutoUnsealKeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("auto-unseal: %w", err)
+		}
+		if cfg.Seal.Scheme == "" {
+			cfg.Seal.Scheme = config.UnsealSchemeSingle
+		}
+		deps.Seal = NewSealStateFromConfig(cfg.Seal, unsealKey, autoProvider)
+		if deps.Seal.TryAutoUnseal() {
+			log.Info("vault auto-unsealed at startup")
+		} else if cfg.Seal.ShamirEnabled() {
+			log.Info("vault sealed; awaiting shamir unseal shares",
+				zap.Int("threshold", cfg.Seal.Threshold),
+			)
+		}
 
 		deps.PKIEngine = pkiengine.NewEngine(deps.OpenSSL, deps.Crypto, deps.CARepo, deps.RevokeRepo)
+		deps.PKIEngine.SetBackend(selectPKIBackend(cfg, deps.OpenSSL))
 		deps.PKIEngine.SetIssuedCertRepository(deps.IssuedCertRepo)
 		deps.PKIEngine.SetPKIRoleRepository(deps.PKIRoleRepo)
 		deps.SecretsEngine = secretsengine.NewKVV2Engine(deps.SecretRepo, deps.Crypto)
@@ -325,6 +350,13 @@ func (d *Dependencies) Close() {
 	if d == nil {
 		return
 	}
+	if d.Seal != nil {
+		d.Seal.Close()
+	}
+	if len(d.MasterKey) > 0 {
+		_ = memlock.Unlock(d.MasterKey)
+		d.MasterKey = nil
+	}
 	if d.Raft != nil {
 		d.Raft.Stop()
 	}
@@ -376,6 +408,36 @@ func (d *Dependencies) IsLeader() bool {
 		return true
 	}
 	return d.Leader.IsLeader()
+}
+
+// CheckOpenSSL verifies the OpenSSL binary is available when required by configuration.
+func CheckOpenSSL(cfg config.Config) error {
+	if cfg.PKIBackend == "native" {
+		return nil
+	}
+	binary := cfg.OpenSSLBinary
+	if binary == "" {
+		binary = "openssl"
+	}
+	if filepath.IsAbs(binary) {
+		if _, err := os.Stat(binary); err != nil {
+			return fmt.Errorf("openssl binary not found at %s: %w", binary, err)
+		}
+		return nil
+	}
+	if _, err := exec.LookPath(binary); err != nil {
+		return fmt.Errorf("openssl binary %q not found in PATH: %w", binary, err)
+	}
+	return nil
+}
+
+func selectPKIBackend(cfg config.Config, ossl *openssl.Wrapper) pkibackend.Backend {
+	switch cfg.PKIBackend {
+	case "native":
+		return pkibackend.NewNativeBackend()
+	default:
+		return pkibackend.NewOpenSSLBackend(ossl)
+	}
 }
 
 func resolveUnsealKey(configured string, masterKey []byte) []byte {

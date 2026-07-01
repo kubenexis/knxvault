@@ -45,12 +45,22 @@ const (
 	AuthMethodOIDC       = "oidc"
 )
 
+// ClaimMapping maps an OIDC claim value to policies.
+type ClaimMapping struct {
+	Claim    string   `json:"claim"`
+	Match    string   `json:"match"`
+	Regex    bool     `json:"regex,omitempty"`
+	Policies []string `json:"policies"`
+}
+
 // OIDCConfig configures OIDC/JWT login for a role.
 type OIDCConfig struct {
-	Issuer   string `json:"issuer"`
-	Audience string `json:"audience"`
-	JWKSURL  string `json:"jwks_url"`
-	MaxTTL   int64  `json:"max_ttl_seconds"`
+	Issuer        string            `json:"issuer"`
+	Audience      string            `json:"audience"`
+	JWKSURL       string            `json:"jwks_url"`
+	MaxTTL        int64             `json:"max_ttl_seconds"`
+	ClaimMappings []ClaimMapping    `json:"claim_mappings,omitempty"`
+	BoundClaims   map[string]string `json:"bound_claims,omitempty"`
 }
 
 // Role binds policy names to a role identifier and optional Kubernetes ServiceAccount constraints.

@@ -9,7 +9,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,6 +16,7 @@ import (
 	kvncrypto "github.com/kubenexis/knxvault/internal/crypto"
 	"github.com/kubenexis/knxvault/internal/crypto/memzero"
 	"github.com/kubenexis/knxvault/internal/crypto/openssl"
+	pkibackend "github.com/kubenexis/knxvault/internal/crypto/pki"
 	"github.com/kubenexis/knxvault/internal/domain/common"
 	domainpki "github.com/kubenexis/knxvault/internal/domain/pki"
 	"github.com/kubenexis/knxvault/internal/repository"
@@ -68,9 +68,9 @@ type IssueResult struct {
 	ExpiresAt     time.Time
 }
 
-// Engine performs PKI operations via OpenSSL.
+// Engine performs PKI operations via a pluggable backend.
 type Engine struct {
-	openssl  *openssl.Wrapper
+	backend  pkibackend.Backend
 	crypto   *kvncrypto.Service
 	caRepo   repository.CARepository
 	roleRepo repository.PKIRoleRepository
@@ -85,12 +85,20 @@ func NewEngine(
 	caRepo repository.CARepository,
 	revoked repository.RevocationRepository,
 ) *Engine {
-	return &Engine{
-		openssl: ossl,
+	e := &Engine{
 		crypto:  cryptoSvc,
 		caRepo:  caRepo,
 		revoked: revoked,
 	}
+	if ossl != nil {
+		e.backend = pkibackend.NewOpenSSLBackend(ossl)
+	}
+	return e
+}
+
+// SetBackend configures the PKI issuance backend.
+func (e *Engine) SetBackend(backend pkibackend.Backend) {
+	e.backend = backend
 }
 
 // SetIssuedCertRepository configures issued certificate tracking for renewal.
@@ -105,7 +113,7 @@ func (e *Engine) SetPKIRoleRepository(repo repository.PKIRoleRepository) {
 
 // CreateRoot creates and stores a self-signed root CA.
 func (e *Engine) CreateRoot(ctx context.Context, req CreateRootRequest) (*CAResult, error) {
-	if e.crypto == nil || e.caRepo == nil {
+	if e.crypto == nil || e.caRepo == nil || e.backend == nil {
 		return nil, common.New(common.ErrCodeInternal, "pki engine not fully configured")
 	}
 
@@ -113,48 +121,14 @@ func (e *Engine) CreateRoot(ctx context.Context, req CreateRootRequest) (*CAResu
 	if err != nil {
 		return nil, common.Wrap(common.ErrCodeValidation, "invalid ttl", err)
 	}
-	keyBits := req.KeyBits
-	if keyBits == 0 {
-		keyBits = 2048
-	}
 
-	ws, err := newWorkspace()
+	certPEM, keyPEM, err := e.backend.CreateRoot(ctx, pkibackend.RootRequest{
+		CommonName: req.CommonName,
+		TTL:        ttl,
+		KeyBits:    req.KeyBits,
+	})
 	if err != nil {
-		return nil, err
-	}
-	defer ws.cleanup()
-
-	subject := subjectDN(req.CommonName)
-	days := int(ttl.Hours() / 24)
-	if days < 1 {
-		days = 1
-	}
-
-	if _, err := e.openssl.SafeExec(ctx, []string{
-		"genrsa", "-out", ws.path("ca.key"), fmt.Sprintf("%d", keyBits),
-	}, nil); err != nil {
-		return nil, common.Wrap(common.ErrCodeInternal, "generate root key", err)
-	}
-
-	res, err := e.openssl.SafeExec(ctx, []string{
-		"req", "-new", "-x509",
-		"-key", ws.path("ca.key"),
-		"-out", ws.path("ca.crt"),
-		"-days", fmt.Sprintf("%d", days),
-		"-subj", subject,
-		"-sha256",
-	}, nil)
-	if err != nil || res.ExitCode != 0 {
-		return nil, common.Wrap(common.ErrCodeInternal, "create root certificate", fmt.Errorf("%s", res.Stderr))
-	}
-
-	certPEM, err := ws.read("ca.crt")
-	if err != nil {
-		return nil, err
-	}
-	keyPEM, err := ws.read("ca.key")
-	if err != nil {
-		return nil, err
+		return nil, common.Wrap(common.ErrCodeInternal, "create root certificate", err)
 	}
 
 	serial, expiresAt, err := parseCertMetadata(certPEM)
@@ -195,7 +169,7 @@ func (e *Engine) CreateRoot(ctx context.Context, req CreateRootRequest) (*CAResu
 
 // CreateIntermediate creates and signs an intermediate CA.
 func (e *Engine) CreateIntermediate(ctx context.Context, req CreateIntermediateRequest) (*CAResult, error) {
-	if e.crypto == nil || e.caRepo == nil {
+	if e.crypto == nil || e.caRepo == nil || e.backend == nil {
 		return nil, common.New(common.ErrCodeInternal, "pki engine not fully configured")
 	}
 
@@ -208,16 +182,6 @@ func (e *Engine) CreateIntermediate(ctx context.Context, req CreateIntermediateR
 	if err != nil {
 		return nil, common.Wrap(common.ErrCodeValidation, "invalid ttl", err)
 	}
-	keyBits := req.KeyBits
-	if keyBits == 0 {
-		keyBits = 2048
-	}
-
-	ws, err := newWorkspace()
-	if err != nil {
-		return nil, err
-	}
-	defer ws.cleanup()
 
 	parentKey, err := e.decryptKey(parent.PrivateKeyEnc, parent.DEKEnc)
 	if err != nil {
@@ -225,55 +189,15 @@ func (e *Engine) CreateIntermediate(ctx context.Context, req CreateIntermediateR
 	}
 	defer memzero.Bytes(parentKey)
 
-	if err := ws.write("parent.crt", []byte(parent.CertPEM)); err != nil {
-		return nil, err
-	}
-	if err := ws.write("parent.key", parentKey); err != nil {
-		return nil, err
-	}
-
-	if _, err := e.openssl.SafeExec(ctx, []string{
-		"genrsa", "-out", ws.path("int.key"), fmt.Sprintf("%d", keyBits),
-	}, nil); err != nil {
-		return nil, common.Wrap(common.ErrCodeInternal, "generate intermediate key", err)
-	}
-
-	subject := subjectDN(req.CommonName)
-	if _, err := e.openssl.SafeExec(ctx, []string{
-		"req", "-new",
-		"-key", ws.path("int.key"),
-		"-out", ws.path("int.csr"),
-		"-subj", subject,
-		"-sha256",
-	}, nil); err != nil {
-		return nil, common.Wrap(common.ErrCodeInternal, "create intermediate csr", err)
-	}
-
-	days := int(ttl.Hours() / 24)
-	if days < 1 {
-		days = 1
-	}
-	res, err := e.openssl.SafeExec(ctx, []string{
-		"x509", "-req",
-		"-in", ws.path("int.csr"),
-		"-CA", ws.path("parent.crt"),
-		"-CAkey", ws.path("parent.key"),
-		"-CAcreateserial",
-		"-out", ws.path("int.crt"),
-		"-days", fmt.Sprintf("%d", days),
-		"-sha256",
-	}, nil)
-	if err != nil || res.ExitCode != 0 {
-		return nil, common.Wrap(common.ErrCodeInternal, "sign intermediate certificate", fmt.Errorf("%s", res.Stderr))
-	}
-
-	certPEM, err := ws.read("int.crt")
+	certPEM, keyPEM, err := e.backend.CreateIntermediate(ctx, pkibackend.IntermediateRequest{
+		ParentCertPEM: []byte(parent.CertPEM),
+		ParentKeyPEM:  parentKey,
+		CommonName:    req.CommonName,
+		TTL:           ttl,
+		KeyBits:       req.KeyBits,
+	})
 	if err != nil {
-		return nil, err
-	}
-	keyPEM, err := ws.read("int.key")
-	if err != nil {
-		return nil, err
+		return nil, common.Wrap(common.ErrCodeInternal, "sign intermediate certificate", err)
 	}
 
 	serial, expiresAt, err := parseCertMetadata(certPEM)
@@ -316,7 +240,7 @@ func (e *Engine) CreateIntermediate(ctx context.Context, req CreateIntermediateR
 
 // IssueCertificate issues a leaf certificate signed by the named CA role.
 func (e *Engine) IssueCertificate(ctx context.Context, req IssueRequest) (*IssueResult, error) {
-	if e.crypto == nil || e.caRepo == nil {
+	if e.crypto == nil || e.caRepo == nil || e.backend == nil {
 		return nil, common.New(common.ErrCodeInternal, "pki engine not fully configured")
 	}
 
@@ -348,82 +272,23 @@ func (e *Engine) IssueCertificate(ctx context.Context, req IssueRequest) (*Issue
 			return nil, common.Wrap(common.ErrCodeValidation, "invalid ttl", err)
 		}
 	}
-	keyBits := req.KeyBits
-	if keyBits == 0 {
-		keyBits = 2048
-	}
-
-	ws, err := newWorkspace()
-	if err != nil {
-		return nil, err
-	}
-	defer ws.cleanup()
-
 	caKey, err := e.decryptKey(ca.PrivateKeyEnc, ca.DEKEnc)
 	if err != nil {
 		return nil, err
 	}
 	defer memzero.Bytes(caKey)
 
-	if err := ws.write("ca.crt", []byte(ca.CertPEM)); err != nil {
-		return nil, err
-	}
-	if err := ws.write("ca.key", caKey); err != nil {
-		return nil, err
-	}
-
-	if _, err := e.openssl.SafeExec(ctx, []string{
-		"genrsa", "-out", ws.path("leaf.key"), fmt.Sprintf("%d", keyBits),
-	}, nil); err != nil {
-		return nil, common.Wrap(common.ErrCodeInternal, "generate leaf key", err)
-	}
-
-	subject := subjectDN(req.CommonName)
-	if _, err := e.openssl.SafeExec(ctx, []string{
-		"req", "-new",
-		"-key", ws.path("leaf.key"),
-		"-out", ws.path("leaf.csr"),
-		"-subj", subject,
-		"-sha256",
-	}, nil); err != nil {
-		return nil, common.Wrap(common.ErrCodeInternal, "create leaf csr", err)
-	}
-
-	days := int(ttl.Hours() / 24)
-	if days < 1 {
-		days = 1
-	}
-	args := []string{
-		"x509", "-req",
-		"-in", ws.path("leaf.csr"),
-		"-CA", ws.path("ca.crt"),
-		"-CAkey", ws.path("ca.key"),
-		"-CAcreateserial",
-		"-out", ws.path("leaf.crt"),
-		"-days", fmt.Sprintf("%d", days),
-	}
-	if len(req.DNSNames) > 0 {
-		ext := "[v3_ext]\nsubjectAltName=DNS:" + strings.Join(req.DNSNames, ",DNS:") + "\n"
-		if err := ws.write("ext.cnf", []byte(ext)); err != nil {
-			return nil, err
-		}
-		args = append(args, "-extfile", ws.path("ext.cnf"), "-extensions", "v3_ext")
-	} else {
-		args = append(args, "-sha256")
-	}
-
-	res, err := e.openssl.SafeExec(ctx, args, nil)
-	if err != nil || res.ExitCode != 0 {
-		return nil, common.Wrap(common.ErrCodeInternal, "sign leaf certificate", fmt.Errorf("%s", res.Stderr))
-	}
-
-	certPEM, err := ws.read("leaf.crt")
+	certPEM, keyPEM, err := e.backend.IssueCertificate(ctx, pkibackend.IssueRequest{
+		CACertPEM:   []byte(ca.CertPEM),
+		CAKeyPEM:    caKey,
+		CommonName:  req.CommonName,
+		DNSNames:    req.DNSNames,
+		IPAddresses: req.IPAddresses,
+		TTL:         ttl,
+		KeyBits:     req.KeyBits,
+	})
 	if err != nil {
-		return nil, err
-	}
-	keyPEM, err := ws.read("leaf.key")
-	if err != nil {
-		return nil, err
+		return nil, common.Wrap(common.ErrCodeInternal, "sign leaf certificate", err)
 	}
 
 	serial, expiresAt, err := parseCertMetadata(certPEM)
@@ -561,10 +426,6 @@ func (e *Engine) decryptKey(keyEnc, dekEnc []byte) ([]byte, error) {
 		return nil, common.Wrap(common.ErrCodeInternal, "decrypt private key", err)
 	}
 	return plain, nil
-}
-
-func subjectDN(commonName string) string {
-	return "/CN=" + commonName + "/O=KNXVault"
 }
 
 func parseCertMetadata(certPEM []byte) (serial string, expiresAt time.Time, err error) {

@@ -96,7 +96,11 @@ all: ## Run fmt, vet, lint, gosec, licenses, scan, test, test-integration, build
 # Go quality
 # =============================================================================
 
-.PHONY: fmt vet lint gosec semgrep licenses test test-integration build build-cli build-csi build-webhook generate-clients sbom scan tidy install-tools docker-build clean
+.PHONY: fmt vet lint gosec semgrep licenses audit-sensitive test test-integration build build-cli build-csi build-webhook generate-clients sbom scan tidy install-tools docker-build clean
+
+audit-sensitive: ## Audit sensitive-buffer usage on secret byte paths (W41-02)
+	$(call log,Auditing sensitive buffer usage)
+	@bash scripts/audit-sensitive.sh
 
 fmt: ## Check Go formatting (gofmt)
 	$(call log,Checking gofmt)

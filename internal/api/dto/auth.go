@@ -30,6 +30,8 @@ type TokenCreateRequest struct {
 	TTL       string   `json:"ttl,omitempty"`
 	Subject   string   `json:"subject,omitempty"`
 	Renewable *bool    `json:"renewable,omitempty"`
+	Orphan    bool     `json:"orphan,omitempty"`
+	Path      string   `json:"path,omitempty"`
 }
 
 // TokenRenewRequest is POST /auth/token/renew.

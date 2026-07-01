@@ -10,6 +10,7 @@ func defaults() Config {
 		Version:                       version.Version,
 		OpenSSLTimeout:                defaultOpenSSLTimeout,
 		OpenSSLBinary:                 defaultOpenSSLBinary,
+		PKIBackend:                    defaultPKIBackend,
 		TokenTTL:                      defaultTokenTTL,
 		HANamespace:                   defaultHANamespace,
 		HALeaseName:                   defaultHALeaseName,

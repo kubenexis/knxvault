@@ -32,7 +32,7 @@ Phases 1–2 below cover application-layer work (engines, API, auth). **Phase 3*
 
 **Trigger:** Regulated prospect requires POC authorization; memorandum blocks sign-off while OpenSSL subprocess wraps core PKI, plaintext bootstrap keys lack SoD, and memory hardening gaps remain.
 
-**Exit criteria (prospect POC gate):** P0 docs shipped · **W41-01** + **W41-02** + **W41-13** · **W41-05** Shamir · **W41-09** native PKI issuance (RSA SHA-256 parity) · **W41-06** cascade revoke · compensating-controls checklist signed · `make all` + integration tests green.
+**Exit criteria (prospect POC gate):** ✅ P0 docs shipped · ✅ **W41-01** + **W41-02** + **W41-13** · ✅ **W41-05** Shamir · ✅ **W41-09** native PKI · ✅ **W41-06** cascade revoke · compensating-controls checklist signed · `make all` + integration tests green.
 
 **Already satisfied (no Tier P implementation):**
 
@@ -58,20 +58,20 @@ Implement **top to bottom**. Full specs remain in linked IDs (Tier I / Phase 5);
 
 | Priority | ID | Memo § / Q | Title | Area | Effort | Depends on | Target | Notes |
 |----------|-----|------------|-------|------|--------|------------|--------|-------|
-| **P0** | **W41-12** | §5 air-gap | Air-gap OpenSSL CVE patching runbook | docs | S | W9-01 | Week 1 | Docs-only; unblocks air-gap prospect questionnaire |
-| **P0** | **W41-15** | Q1–Q6 | Enterprise memorandum traceability matrix | docs | S | W38-19 | Week 1 | `docs/product/enterprise-memorandum-matrix.md` — concern → code/ADR → Tier P status → waiver |
-| **P1** | **W41-01** | Q6 | Memory lock (`mlock`) for master and unseal keys | security | M | W36-24 | Week 2–3 | Prospect Q6 hard requirement |
-| **P1** | **W41-02** | Q6 | Universal sensitive-buffer lifecycle audit | security | M | W41-01 | Week 3–4 | Pairs with Shamir/unseal POST bodies |
-| **P1** | **W41-13** | §2.A, §5 | Seccomp profile for OpenSSL child processes | security | M | W3-03 | Week 4 | Compensating control until **W41-09** removes subprocess |
-| **P2** | **W41-05** | Q4 | Shamir threshold unseal (unseal key only) | security | L | W41-01 | Week 5–7 | [ADR-0006](adr/0006-seal-unseal-strategies.md); not master key |
-| **P2** | **W31-01** | Q1 | OpenSSL engine / PKI backend abstraction | crypto | M | W3-03 | Week 5–6 | **Moved from Phase 5** — prerequisite for native PKI |
-| **P2** | **W41-08** | Q1 | Go-native `crypto/x509` read and verify fast path | crypto | M | W31-01 | Week 6–7 | Reduces OpenSSL fork surface on read paths |
-| **P2** | **W38-15** | §2.D TLS | API TLS bootstrap from vault PKI | crypto | M | W37-01 | Week 5–6 | Stub today; prospect needs ingress-ready TLS story |
-| **P2** | **W41-07** | §2.D OIDC | OIDC group and claim → policy mapping | auth | M | W37-02 | Week 6–7 | Enterprise IdP group arrays |
-| **P3** | **W41-09** | Q1 | Go-native full PKI issuance engine | crypto | XL | W41-08 | Week 8–12 | **Primary memorandum blocker** — removes OpenSSL fork on issue/CRL/OCSP |
-| **P3** | **W41-10** | Q1 | OpenSSL subprocess optional mode | crypto | M | W41-09 | Week 12+ | Distroless path; OpenSSL fallback flag |
-| **P3** | **W41-06** | §2.D tokens | Hierarchical tokens & cascade revocation | auth | L | W36-13 | Week 8–10 | Breach containment; parallel with **W41-09** |
-| — | **W41-14** | Q2 + Q4 | Dual-mode seal (KMS + Shamir) | security | M | W41-05, LT-14 | Post-prospect | After **LT-14**; not prospect gate |
+| ~~**P0**~~ | ~~**W41-12**~~ | §5 air-gap | ~~Air-gap OpenSSL CVE patching runbook~~ | docs | S | W9-01 | Week 1 | Done — `docs/operations/runbooks/air-gap-image-patching.md` |
+| ~~**P0**~~ | ~~**W41-15**~~ | Q1–Q6 | ~~Enterprise memorandum traceability matrix~~ | docs | S | W38-19 | Week 1 | Done — `docs/product/enterprise-memorandum-matrix.md` |
+| ~~**P1**~~ | ~~**W41-01**~~ | Q6 | ~~Memory lock (`mlock`) for master and unseal keys~~ | security | M | W36-24 | Week 2–3 | Done — `internal/crypto/memlock/`, wired in loader + seal |
+| ~~**P1**~~ | ~~**W41-02**~~ | Q6 | ~~Universal sensitive-buffer lifecycle audit~~ | security | M | W41-01 | Week 3–4 | Done — `internal/crypto/sensitive/`, `make audit-sensitive` |
+| ~~**P1**~~ | ~~**W41-13**~~ | §2.A, §5 | ~~Seccomp profile for OpenSSL child processes~~ | security | M | W3-03 | Week 4 | Done — `deployments/k8s/seccomp-openssl.json` |
+| ~~**P2**~~ | ~~**W41-05**~~ | Q4 | ~~Shamir threshold unseal (unseal key only)~~ | security | L | W41-01 | Week 5–7 | Done — `internal/crypto/shamir/`, progressive `POST /sys/unseal` |
+| ~~**P2**~~ | ~~**W31-01**~~ | Q1 | ~~OpenSSL engine / PKI backend abstraction~~ | crypto | M | W3-03 | Week 5–6 | Done — `internal/crypto/pki/backend.go` |
+| ~~**P2**~~ | ~~**W41-08**~~ | Q1 | ~~Go-native `crypto/x509` read and verify fast path~~ | crypto | M | W31-01 | Week 6–7 | Done — `internal/crypto/x509native/reader.go` |
+| ~~**P2**~~ | ~~**W38-15**~~ | §2.D TLS | ~~API TLS bootstrap from vault PKI~~ | crypto | M | W37-01 | Week 5–6 | Done — `POST /sys/tls/issue-listener` |
+| ~~**P2**~~ | ~~**W41-07**~~ | §2.D OIDC | ~~OIDC group and claim → policy mapping~~ | auth | M | W37-02 | Week 6–7 | Done — `internal/auth/claimmapping.go` |
+| ~~**P3**~~ | ~~**W41-09**~~ | Q1 | ~~Go-native full PKI issuance engine~~ | crypto | XL | W41-08 | Week 8–12 | Done — `internal/crypto/x509native/issuer.go` |
+| ~~**P3**~~ | ~~**W41-10**~~ | Q1 | ~~OpenSSL subprocess optional mode~~ | crypto | M | W41-09 | Week 12+ | Done — `KNXVAULT_PKI_BACKEND=native`, `Dockerfile.distroless` |
+| ~~**P3**~~ | ~~**W41-06**~~ | §2.D tokens | ~~Hierarchical tokens & cascade revocation~~ | auth | L | W36-13 | Week 8–10 | Done — `ParentID`, cascade revoke, metrics |
+| ~~—~~ | ~~**W41-14**~~ | Q2 + Q4 | ~~Dual-mode seal (KMS + Shamir)~~ | security | M | W41-05, LT-14 | Post-prospect | Done (stub) — `internal/crypto/autounseal/`, **LT-14** for cloud KMS |
 | — | **W41-11** | Q5 alt | K8s cluster JWKS direct validation | auth | M | W36-02 | Optional | TokenReview sufficient for prospect |
 
 > **Tier P sequencing:** **P0** docs in parallel (week 1). **P1** security hardening before Shamir (**W41-05**). **W31-01** must land before **W41-08** → **W41-09** chain. Prospect POC demo can use OpenSSL fallback until **W41-09** merges; **prospect authorization** requires **W41-09** acceptance tests green. **Tier H (W40)** and **LT-14** resume after Tier P exit.
