@@ -75,6 +75,7 @@ Version-controlled documentation for architects, operators, developers, and inte
 | [Backlog](backlog.md) | Maintainers | Phased work items (W1–W29 complete) |
 | [LLD alignment matrix](product/lld-alignment.md) | Maintainers | LLD § → code traceability |
 | [Secrets manager checklist](product/secrets-manager-checklist.md) | Architects | Capability matrix vs evaluation criteria |
+| [PoC evaluation guide](product/poc-evaluation-guide.md) | Architects / procurement | Scoped PoC path, success criteria, known gaps |
 
 ## Quick links
 

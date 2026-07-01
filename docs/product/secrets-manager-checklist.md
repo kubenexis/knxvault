@@ -14,6 +14,18 @@ Use this checklist before promoting KNXVault to production secrets management wo
 | Raft peer mTLS | ✅ Shipped | W38-14 | [tier0-production.md](tier0-production.md) |
 | CSI secret rotation | ✅ Shipped | W39-05 | [secrets-injection.md](../deploy/secrets-injection.md) |
 
+### Enterprise security (Tier I — planned)
+
+| Criterion | Status | Backlog | Doc |
+|-----------|--------|---------|-----|
+| Memory lock (`mlock`) for root keys | ⏳ Planned | W41-01 | [poc-evaluation-guide.md](poc-evaluation-guide.md) |
+| Cloud KMS auto-unseal | ⏳ Planned | W41-03, W41-04 | [poc-evaluation-guide.md](poc-evaluation-guide.md) |
+| Shamir threshold unseal | ⏳ Planned | W41-05 | [backlog.md](../backlog.md) |
+| Hierarchical token cascade revoke | ⏳ Planned | W41-06 | [backlog.md](../backlog.md) |
+| OIDC group/claim → policy mapping | ⏳ Planned | W41-07 | [backlog.md](../backlog.md) |
+| Go-native PKI (no OpenSSL subprocess) | ⏳ Planned | W41-08–W41-10 | [ADR-0002](../adr/0002-openssl-cli-crypto-backend.md) |
+| Air-gap OpenSSL patching runbook | ⏳ Planned | W41-12 | [poc-evaluation-guide.md](poc-evaluation-guide.md) |
+
 ## Core capabilities
 
 - [ ] Master key configured (`KNXVAULT_MASTER_KEY` or file) and rotation procedure documented
