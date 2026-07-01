@@ -28,6 +28,7 @@ prometheus.io/port: "8200"
 | `knxvault_http_request_duration_seconds` | Histogram | `method`, `route` | Request latency |
 | `knxvault_build_info` | Gauge | `version` | Build version (always 1) |
 | `knxvault_leader` | Gauge | — | `1` when this instance is the HA leader |
+| `knxvault_leader_election_running` | Gauge | — | `1` while the leader election goroutine is active; `0` after unexpected exit (`/ready` returns 503 when HA/Raft enabled) |
 | `knxvault_raft_leader` | Gauge | — | `1` when this node is the Raft leader |
 | `knxvault_raft_term` | Gauge | — | Current Raft term |
 | `knxvault_raft_commit_index` | Gauge | — | Committed Raft log index |

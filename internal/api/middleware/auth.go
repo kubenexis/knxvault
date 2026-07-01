@@ -41,8 +41,9 @@ func Auth(svc *auth.Service) gin.HandlerFunc {
 			PathPrefix:       record.PathPrefix,
 		})
 		ctx = auth.WithRequestContext(ctx, auth.RequestContext{
-			ClientIP: c.ClientIP(),
-			AgentID:  record.AgentID,
+			ClientIP:  c.ClientIP(),
+			AgentID:   record.AgentID,
+			Namespace: auth.RequestNamespace(c.GetHeader(auth.NamespaceHeader), record.Subject),
 		})
 		c.Request = c.Request.WithContext(ctx)
 		c.Next()

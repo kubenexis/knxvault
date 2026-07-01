@@ -17,6 +17,7 @@ import (
 // JobRunner executes background maintenance tasks on the elected leader.
 type JobRunner struct {
 	leader    leader.Elector
+	monitor   *leader.Monitor
 	database  *service.DatabaseService
 	pki       *service.PKIService
 	rotation  *service.RotationService
@@ -30,6 +31,7 @@ type JobRunner struct {
 // NewJobRunner constructs a background job runner.
 func NewJobRunner(
 	elector leader.Elector,
+	monitor *leader.Monitor,
 	database *service.DatabaseService,
 	pki *service.PKIService,
 	rotation *service.RotationService,
@@ -41,6 +43,7 @@ func NewJobRunner(
 ) *JobRunner {
 	return &JobRunner{
 		leader:    elector,
+		monitor:   monitor,
 		database:  database,
 		pki:       pki,
 		rotation:  rotation,
@@ -57,7 +60,18 @@ func (j *JobRunner) Start(ctx context.Context) {
 	if j == nil || j.leader == nil {
 		return
 	}
+	if j.monitor != nil {
+		j.monitor.SetRunning(true)
+	}
+	metrics.SetLeaderElectionRunning(true)
 	go func() {
+		defer func() {
+			if j.monitor != nil {
+				j.monitor.SetRunning(false)
+			}
+			metrics.SetLeaderElectionRunning(false)
+			metrics.SetLeader(false)
+		}()
 		if err := j.leader.Run(ctx, j.runOnLeader); err != nil && ctx.Err() == nil {
 			j.log.Warn("leader election stopped", zap.Error(err))
 		}

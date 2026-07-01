@@ -2,7 +2,7 @@
 
 Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topologically sorted by dependency** — implement in listed order within each phase.
 
-**Current focus:** [Tier H SDKs](#tier-h--kubernetes-ecosystem-eso-cert-manager-sdks) (W40-04–07) → [Tier B–D hardening](#tier-b--raft-correctness--ha-confidence) (W36-14–16, W36-19). **Tier 0, Tier A, Tier F, Tier G, Tier H (ESO/cert-manager), webhook (W38-07)** are **shipped** or **partial** — see status column below. **Helm, Terraform, AWS IAM** → [long-term](#long-term-future) (LT-*).
+**Current focus:** [Tier H SDKs](#tier-h--kubernetes-ecosystem-eso-cert-manager-sdks) (W40-04–07) → [Tier D](#tier-d--features-documented-but-missing) (W36-19). **Tier 0, Tier A, Tier F, Tier G, Tier H (ESO/cert-manager), webhook (W38-07)** are **shipped** or **partial** — see status column below. **Helm, Terraform, AWS IAM** → [long-term](#long-term-future) (LT-*).
 
 **Legend**
 
@@ -18,8 +18,8 @@ Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topological
 
 | Status | Count | IDs |
 |--------|-------|-----|
-| Complete | 27 | W37-04, W37-06, W37-09, W38-15, W39-01/02/03/04/05/06/07/08, W40-01/02/03/08, W36-09, W36-10, W36-15, W36-20, W36-21, W36-22 |
-| Partial | 2 | W36-14, W36-16 |
+| Complete | 29 | W37-04, W37-06, W37-09, W38-15, W39-01/02/03/04/05/06/07/08, W40-01/02/03/08, W36-09, W36-10, W36-14, W36-15, W36-16, W36-20, W36-21, W36-22 |
+| Partial | 0 | — |
 | Not started | 7 | W36-19, W40-04, W40-05, W40-06, W40-07 |
 
 ## Storage backend (architecture pivot)
@@ -266,9 +266,9 @@ Gaps between **`docs/lld.md`** and the codebase not fully covered by Tier 0 or W
 | ID | Title | Area | Effort | Depends on | Description | Acceptance criteria |
 |----|-------|------|--------|------------|-------------|---------------------|
 | ~~**W36-13**~~ | ~~Persist client tokens in Raft~~ | auth | L | W25-02, W36-02 | Done — `token.save/get/revoke/list` Raft commands; `TokenRepository` + `TokenStore.SetRepository`; wired in `deps.go`. TTL cleanup job deferred. | `TestTokenStoreReplicated` + memory/dragonboat repos. |
-| **W36-14** | Wire `namespace` RBAC condition | auth | S | W13-01 | **Not started:** `namespace` condition evaluated in `internal/auth/evaluator.go` but `RequestContext.Namespace` never set in `internal/api/middleware/auth.go`. Populate from `X-KNX-Namespace` or TokenReview SA namespace. | Policy with `namespace: prod` denies request without header; allows with `X-KNX-Namespace: prod`. |
+| ~~**W36-14**~~ | ~~Wire `namespace` RBAC condition~~ | auth | S | W13-01 | Done — `RequestContext.Namespace` from `X-KNX-Namespace` header or K8s SA subject in `internal/api/middleware/auth.go`. | Policy with `namespace: prod` denies request without header; allows with `X-KNX-Namespace: prod`. |
 | ~~**W36-15**~~ | ~~Fix `knxvault_active_leases` metric semantics~~ | docs | S | W15-02 | Done — `LeaseRepository.CountActive`, `updateActiveLeasesMetric` in `internal/app/jobs.go`; documented in `docs/metrics.md`; Grafana panel in `deployments/grafana/knxvault-overview.json`. | Metric reflects active leases; increments on creds generate, decrements on expire/revoke. |
-| **W36-16** | Leader election loop health & job gating | k8s | S | W26-02 | **Not started:** leader-election loop exit only logs warn; no `knxvault_leader_election_running` metric or `/ready` 503 on failure. | Kill leader election goroutine in test → `/ready` not ready; jobs do not run on follower. |
+| ~~**W36-16**~~ | ~~Leader election loop health & job gating~~ | k8s | S | W26-02 | Done — `knxvault_leader_election_running` metric, `leader.Monitor`, `/ready` 503 when election loop stops; jobs gated on leadership. | Kill leader election goroutine in test → `/ready` not ready; jobs do not run on follower. |
 
 ### Tier D — Features documented but missing
 

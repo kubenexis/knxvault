@@ -80,6 +80,7 @@ type Dependencies struct {
 	RequestSigning *middleware.RequestSigning
 
 	Leader           leader.Elector
+	LeaderMonitor    *leader.Monitor
 	JobRunner        *JobRunner
 	Seal             *SealState
 	MasterKeyService *service.MasterKeyService
@@ -332,7 +333,19 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 	deps.RateLimiter = middleware.NewRateLimiter(cfg.RateLimitRPM, cfg.RateLimitEnabled)
 	deps.RequestSigning = middleware.NewRequestSigning(cfg.RequestSigningKey, cfg.RequestSigningRequired)
 
-	deps.JobRunner = NewJobRunner(deps.Leader, deps.DatabaseService, deps.PKIService, deps.RotationService, deps.MasterKeyService, deps.CARepo, deps.LeaseRepo, cfg, log)
+	deps.LeaderMonitor = leader.NewMonitor()
+	deps.JobRunner = NewJobRunner(
+		deps.Leader,
+		deps.LeaderMonitor,
+		deps.DatabaseService,
+		deps.PKIService,
+		deps.RotationService,
+		deps.MasterKeyService,
+		deps.CARepo,
+		deps.LeaseRepo,
+		cfg,
+		log,
+	)
 
 	return deps, nil
 }
@@ -352,6 +365,9 @@ func (d *Dependencies) Ready(ctx context.Context) error {
 	if d == nil {
 		return nil
 	}
+	if d.requiresLeaderElectionHealth() && d.LeaderMonitor != nil && !d.LeaderMonitor.Running() {
+		return fmt.Errorf("leader election not running")
+	}
 	if d.Raft != nil {
 		if !d.Raft.Ready() {
 			return fmt.Errorf("raft cluster has no leader")
@@ -359,6 +375,13 @@ func (d *Dependencies) Ready(ctx context.Context) error {
 		return nil
 	}
 	return nil
+}
+
+func (d *Dependencies) requiresLeaderElectionHealth() bool {
+	if d == nil {
+		return false
+	}
+	return d.cfg.Raft.Enabled || d.cfg.HAEnabled
 }
 
 // HAEnabled reports whether HA mode is configured.

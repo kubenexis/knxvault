@@ -1,6 +1,9 @@
 package auth
 
-import "context"
+import (
+	"context"
+	"strings"
+)
 
 type contextKey string
 
@@ -40,4 +43,18 @@ func WithRequestContext(ctx context.Context, req RequestContext) context.Context
 func RequestContextFromContext(ctx context.Context) (RequestContext, bool) {
 	req, ok := ctx.Value(requestContextKey).(RequestContext)
 	return req, ok
+}
+
+// NamespaceHeader is the optional caller namespace for RBAC condition evaluation.
+const NamespaceHeader = "X-KNX-Namespace"
+
+// RequestNamespace resolves the namespace for policy conditions from the header or K8s SA subject.
+func RequestNamespace(header, subject string) string {
+	if ns := strings.TrimSpace(header); ns != "" {
+		return ns
+	}
+	if id, ok := ParseServiceAccountUsername(subject); ok {
+		return id.Namespace
+	}
+	return ""
 }

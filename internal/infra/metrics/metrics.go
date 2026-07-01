@@ -40,6 +40,12 @@ var (
 			Help: "1 when this instance is the elected leader, 0 otherwise",
 		},
 	)
+	leaderElectionRunningGauge = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "knxvault_leader_election_running",
+			Help: "1 while the leader election goroutine is active, 0 after unexpected exit",
+		},
+	)
 	activeLeasesGauge = promauto.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "knxvault_active_leases",
@@ -83,6 +89,15 @@ func SetLeader(isLeader bool) {
 		leaderGauge.Set(1)
 	} else {
 		leaderGauge.Set(0)
+	}
+}
+
+// SetLeaderElectionRunning records whether the leader election loop is active.
+func SetLeaderElectionRunning(running bool) {
+	if running {
+		leaderElectionRunningGauge.Set(1)
+	} else {
+		leaderElectionRunningGauge.Set(0)
 	}
 }
 
