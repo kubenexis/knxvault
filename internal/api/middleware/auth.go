@@ -37,8 +37,7 @@ func Auth(svc *auth.Service) gin.HandlerFunc {
 			TokenID:  record.ID,
 		})
 		ctx = auth.WithRequestContext(ctx, auth.RequestContext{
-			ClientIP:  c.ClientIP(),
-			Namespace: strings.TrimSpace(c.GetHeader("X-KNX-Namespace")),
+			ClientIP: c.ClientIP(),
 		})
 		c.Request = c.Request.WithContext(ctx)
 		c.Next()

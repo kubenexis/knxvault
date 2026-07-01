@@ -134,7 +134,7 @@ func TestCreateRenewRevokeToken(t *testing.T) {
 	store := auth.NewTokenStore(time.Hour)
 	svc := auth.NewService(store, auth.NewRBAC(), "")
 	ctx := context.Background()
-	token, record, err := svc.CreateToken(ctx, "ci-bot", []string{"secrets-admin"}, 30*time.Minute, true, auth.CreateOptions{})
+	token, record, err := svc.CreateToken(ctx, "ci-bot", []string{"secrets-admin"}, 30*time.Minute, true)
 	if err != nil {
 		t.Fatalf("CreateToken() = %v", err)
 	}

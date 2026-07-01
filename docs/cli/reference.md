@@ -38,20 +38,9 @@ token: dev-root-token
 | `kv put <path> key=value...` | Write a KV secret |
 | `pki root --name --common-name [--ttl] [--key-bits]` | Create a self-signed root CA |
 | `pki issue --role --common-name [--dns] [--ttl] [--auto-renew]` | Issue a leaf certificate |
-| `sys policies list` | `GET /sys/policies` |
-| `sys policies get <name>` | `GET /sys/policies/:name` |
-| `sys policies put <name> --effect --resource --action` | `PUT /sys/policies/:name` |
-| `sys policies delete <name>` | `DELETE /sys/policies/:name` |
-| `sys roles get <name>` | `GET /sys/roles/:name` |
-| `sys roles put <name> --policy ...` | `PUT /sys/roles/:name` |
-| `sys rotation-run` | `POST /sys/rotation/run` |
 | `sys rotate-master-key <base64-key>` | `POST /sys/rotate-master-key` |
 | `sys seal` | `POST /sys/seal` |
 | `sys unseal <base64-key>` | `POST /sys/unseal` |
-| `audit export [--limit]` | `GET /audit/export` |
-| `secrets database role-put <name>` | `PUT /secrets/database/roles/:name` |
-| `secrets database creds <role>` | `POST /secrets/database/creds/:role` |
-| `secrets database revoke <lease-id>` | `PUT /secrets/database/revoke/:id` |
 | `backup create [-o file] [--include-audit]` | Export encrypted backup |
 | `backup restore -f file` | Restore encrypted backup |
 | `completion [bash\|zsh\|fish]` | Generate shell completion scripts |

@@ -43,10 +43,9 @@ Backup archives encrypt the full snapshot payload with the same master key.
 
 ### Follow-up
 
-- ~~`sys/rotate-master-key` API~~ — shipped (**W36-17**)
-- External KMS integration for master key unwrap — **LT-14**, **LT-15**, **LT-16**
-- HSM-wrapped master key — **W31-03** (envelope root; distinct from **W31-02** PKI HSM)
-- Seal/unseal strategy (Shamir on unseal key only) — [ADR-0006](0006-seal-unseal-strategies.md), **W41-05**, **W41-14**
+- `sys/rotate-master-key` API (Phase 4)
+- External KMS integration for master key unwrap
+- HSM-backed master key via OpenSSL engine
 
 ## References
 

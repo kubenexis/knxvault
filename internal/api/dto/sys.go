@@ -24,31 +24,7 @@ type RotateMasterKeyResponse struct {
 
 // UnsealRequest is POST /sys/unseal.
 type UnsealRequest struct {
-	Key     string `json:"key"`
-	ShareID int    `json:"share_id,omitempty"`
-}
-
-// UnsealResponse is returned by POST /sys/unseal.
-type UnsealResponse struct {
-	Sealed    bool `json:"sealed"`
-	Progress  int  `json:"progress,omitempty"`
-	Threshold int  `json:"threshold,omitempty"`
-}
-
-// IssueListenerTLSRequest is POST /sys/tls/issue-listener.
-type IssueListenerTLSRequest struct {
-	Role       string   `json:"role,omitempty"`
-	CommonName string   `json:"common_name,omitempty"`
-	DNSNames   []string `json:"dns_names,omitempty"`
-	TTL        string   `json:"ttl,omitempty"`
-}
-
-// IssueListenerTLSResponse is returned by POST /sys/tls/issue-listener.
-type IssueListenerTLSResponse struct {
-	CertPEM   string `json:"cert_pem"`
-	KeyPEM    string `json:"key_pem"`
-	Serial    string `json:"serial"`
-	ExpiresAt string `json:"expires_at"`
+	Key string `json:"key"`
 }
 
 // RaftAddNodeRequest is POST /sys/raft/add-node.

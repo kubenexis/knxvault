@@ -40,16 +40,10 @@ var (
 			Help: "1 when this instance is the elected leader, 0 otherwise",
 		},
 	)
-	leaderElectionGauge = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "knxvault_leader_election_running",
-			Help: "1 while the leader election background loop is active",
-		},
-	)
 	activeLeasesGauge = promauto.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "knxvault_active_leases",
-			Help: "Number of active (non-revoked, non-expired) leases cluster-wide",
+			Help: "Number of leases processed in the most recent cleanup cycle",
 		},
 	)
 	rateLimitedTotal = promauto.NewCounter(
@@ -76,30 +70,6 @@ var (
 			Help: "1 when Raft peer mutual TLS is enabled",
 		},
 	)
-	autoUnsealSuccessTotal = promauto.NewCounter(
-		prometheus.CounterOpts{
-			Name: "knxvault_auto_unseal_success_total",
-			Help: "Successful auto-unseal operations at startup",
-		},
-	)
-	shamirUnsealShareTotal = promauto.NewCounter(
-		prometheus.CounterOpts{
-			Name: "knxvault_shamir_unseal_share_total",
-			Help: "Shamir unseal shares accepted",
-		},
-	)
-	shamirUnsealSuccessTotal = promauto.NewCounter(
-		prometheus.CounterOpts{
-			Name: "knxvault_shamir_unseal_total",
-			Help: "Successful Shamir threshold unseals",
-		},
-	)
-	tokensRevokedCascadeTotal = promauto.NewCounter(
-		prometheus.CounterOpts{
-			Name: "knxvault_tokens_revoked_cascade_total",
-			Help: "Child tokens revoked via cascade",
-		},
-	)
 )
 
 // SetBuildInfo records the running application build metadata.
@@ -113,15 +83,6 @@ func SetLeader(isLeader bool) {
 		leaderGauge.Set(1)
 	} else {
 		leaderGauge.Set(0)
-	}
-}
-
-// SetLeaderElectionRunning records whether the leader election loop is active.
-func SetLeaderElectionRunning(running bool) {
-	if running {
-		leaderElectionGauge.Set(1)
-	} else {
-		leaderElectionGauge.Set(0)
 	}
 }
 
@@ -147,22 +108,6 @@ func SetRaftTLSEnabled(enabled bool) {
 // IncRateLimited increments the rate-limited request counter.
 func IncRateLimited() {
 	rateLimitedTotal.Inc()
-}
-
-// IncAutoUnsealSuccess increments auto-unseal success counter.
-func IncAutoUnsealSuccess() { autoUnsealSuccessTotal.Inc() }
-
-// IncShamirUnsealShare increments accepted Shamir share counter.
-func IncShamirUnsealShare() { shamirUnsealShareTotal.Inc() }
-
-// IncShamirUnsealSuccess increments successful Shamir unseal counter.
-func IncShamirUnsealSuccess() { shamirUnsealSuccessTotal.Inc() }
-
-// IncTokensRevokedCascade increments cascade revocation counter.
-func IncTokensRevokedCascade(n int) {
-	if n > 0 {
-		tokensRevokedCascadeTotal.Add(float64(n))
-	}
 }
 
 // SetOpenSSLBreakerOpen records OpenSSL circuit breaker state.

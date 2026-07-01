@@ -21,8 +21,7 @@ RUN ldflags="-s -w \
     -X github.com/kubenexis/knxvault/internal/version.BuildID=${BUILD_ID}" \
     && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="${ldflags}" -o /out/knxvault ./cmd/knxvault \
     && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="${ldflags}" -o /out/knxvault-csi ./cmd/knxvault-csi \
-    && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="${ldflags}" -o /out/knxvault-webhook ./cmd/knxvault-webhook \
-    && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="${ldflags}" -o /out/knxvault-eso ./cmd/knxvault-eso
+    && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="${ldflags}" -o /out/knxvault-webhook ./cmd/knxvault-webhook
 
 FROM debian:bookworm-slim AS runtime
 
@@ -34,7 +33,6 @@ RUN apt-get update \
 COPY --from=builder /out/knxvault /usr/local/bin/knxvault
 COPY --from=builder /out/knxvault-csi /usr/local/bin/knxvault-csi
 COPY --from=builder /out/knxvault-webhook /usr/local/bin/knxvault-webhook
-COPY --from=builder /out/knxvault-eso /usr/local/bin/knxvault-eso
 
 USER 65532:65532
 EXPOSE 8200

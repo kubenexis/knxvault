@@ -109,11 +109,7 @@ func (h *AuthHandler) CreateToken(c *gin.Context) {
 	if req.Renewable != nil {
 		renewable = *req.Renewable
 	}
-	opts := auth.CreateOptions{Path: req.Path, Orphan: req.Orphan}
-	if principal, ok := auth.PrincipalFromContext(c.Request.Context()); ok {
-		opts.ParentID = principal.TokenID
-	}
-	token, record, err := h.auth.CreateToken(c.Request.Context(), req.Subject, req.Policies, ttl, renewable, opts)
+	token, record, err := h.auth.CreateToken(c.Request.Context(), req.Subject, req.Policies, ttl, renewable)
 	if err != nil {
 		_ = c.Error(err)
 		return

@@ -13,7 +13,6 @@ import (
 
 	"github.com/kubenexis/knxvault/internal/api/dto"
 	"github.com/kubenexis/knxvault/internal/auth"
-	"github.com/kubenexis/knxvault/internal/crypto/sensitive"
 	"github.com/kubenexis/knxvault/internal/domain/common"
 	pkiengine "github.com/kubenexis/knxvault/internal/engine/pki"
 	"github.com/kubenexis/knxvault/internal/notify"
@@ -26,8 +25,6 @@ type SealController interface {
 	Sealed() bool
 	Seal()
 	Unseal(key []byte) bool
-	SubmitShare(shareID int, share []byte) (ok bool, progress, threshold int)
-	UnsealProgress() (progress, threshold int)
 }
 
 // RaftMembership controls cluster membership changes.
@@ -151,7 +148,7 @@ func (h *SysHandler) ReportExposure(c *gin.Context) {
 	actions := make([]string, 0, 2)
 	if h.exposureAuto {
 		if req.LeaseID != "" && h.database != nil {
-			if _, err := h.database.Revoke(c.Request.Context(), req.LeaseID); err == nil {
+			if err := h.database.Revoke(c.Request.Context(), req.LeaseID); err == nil {
 				actions = append(actions, "lease_revoked")
 			}
 		}
@@ -181,20 +178,6 @@ func (h *SysHandler) ReportExposure(c *gin.Context) {
 		"reported": true,
 		"actions":  actions,
 	})
-}
-
-// RunRotation handles POST /sys/rotation/run (W37-06).
-func (h *SysHandler) RunRotation(c *gin.Context) {
-	if h.rotation == nil {
-		_ = c.Error(common.New(common.ErrCodeInternal, "rotation not configured"))
-		return
-	}
-	result, err := h.rotation.RunAll(c.Request.Context(), time.Now().UTC(), h.database, 24*time.Hour, 50)
-	if err != nil {
-		_ = c.Error(err)
-		return
-	}
-	c.JSON(http.StatusOK, result)
 }
 
 // RotateMasterKey handles POST /sys/rotate-master-key.
@@ -246,35 +229,11 @@ func (h *SysHandler) Unseal(c *gin.Context) {
 		_ = c.Error(common.Wrap(common.ErrCodeValidation, "invalid base64 unseal key", err))
 		return
 	}
-	buf, err := sensitive.New(raw)
-	if err == nil {
-		defer buf.Close()
-	}
-
-	if req.ShareID > 0 {
-		ok, progress, threshold := h.seal.SubmitShare(req.ShareID, raw)
-		resp := dto.UnsealResponse{
-			Sealed:    !ok,
-			Progress:  progress,
-			Threshold: threshold,
-		}
-		if !ok && progress > 0 && progress < threshold {
-			c.JSON(http.StatusOK, resp)
-			return
-		}
-		if !ok {
-			_ = c.Error(common.New(common.ErrCodeValidation, "invalid unseal share"))
-			return
-		}
-		c.JSON(http.StatusOK, resp)
-		return
-	}
-
 	if !h.seal.Unseal(raw) {
 		_ = c.Error(common.New(common.ErrCodeValidation, "invalid unseal key"))
 		return
 	}
-	c.JSON(http.StatusOK, dto.UnsealResponse{Sealed: false})
+	c.JSON(http.StatusOK, gin.H{"sealed": false})
 }
 
 func (h *SysHandler) requireRaftLeader(c *gin.Context) bool {
@@ -323,44 +282,11 @@ func (h *SysHandler) RaftRemoveNode(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"removed": true, "node_id": req.NodeID})
 }
 
-// IssueListenerTLS issues a listener TLS certificate from vault PKI.
+// IssueListenerTLS is a placeholder for automatic listener certificate issuance.
 func (h *SysHandler) IssueListenerTLS(c *gin.Context) {
-	if h.pki == nil {
-		_ = c.Error(common.New(common.ErrCodeInternal, "pki service not configured"))
-		return
-	}
-	var req dto.IssueListenerTLSRequest
-	if err := c.ShouldBindJSON(&req); err != nil && err.Error() != "EOF" {
-		_ = c.Error(err)
-		return
-	}
-	role := req.Role
-	if role == "" {
-		role = "listener"
-	}
-	cn := req.CommonName
-	if cn == "" {
-		cn = "knxvault"
-	}
-	ttl := req.TTL
-	if ttl == "" {
-		ttl = "720h"
-	}
-	result, err := h.pki.IssueCertificate(c.Request.Context(), pkiengine.IssueRequest{
-		Role:       role,
-		CommonName: cn,
-		DNSNames:   req.DNSNames,
-		TTL:        ttl,
-		AutoRenew:  true,
-	})
-	if err != nil {
-		_ = c.Error(err)
-		return
-	}
-	c.JSON(http.StatusOK, dto.IssueListenerTLSResponse{
-		CertPEM:   result.CertPEM,
-		KeyPEM:    result.PrivateKeyPEM,
-		Serial:    result.Serial,
-		ExpiresAt: result.ExpiresAt.Format(time.RFC3339),
+	c.JSON(http.StatusNotImplemented, dto.ErrorResponse{
+		ErrorCode: "not_implemented",
+		Message:   "automatic listener TLS issuance is not yet implemented",
+		Timestamp: time.Now().UTC(),
 	})
 }

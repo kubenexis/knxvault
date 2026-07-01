@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"time"
 
 	auditsvc "github.com/kubenexis/knxvault/internal/audit"
 	domainsecrets "github.com/kubenexis/knxvault/internal/domain/secrets"
@@ -52,19 +51,10 @@ func (s *DatabaseService) Renew(ctx context.Context, leaseID string, ttlSeconds 
 }
 
 // Revoke revokes a lease.
-func (s *DatabaseService) Revoke(ctx context.Context, leaseID string) (*databaseengine.RevokeResult, error) {
-	result, err := s.engine.RevokeLease(ctx, leaseID)
+func (s *DatabaseService) Revoke(ctx context.Context, leaseID string) error {
+	err := s.engine.RevokeLease(ctx, leaseID)
 	audithelper.Record(s.audit, ctx, "database.lease.revoke", "secrets/database/leases/"+leaseID, err, map[string]any{"lease_id": leaseID})
-	return result, err
-}
-
-// RenewExpiring extends database leases expiring within grace.
-func (s *DatabaseService) RenewExpiring(ctx context.Context, grace time.Duration, limit int) (int, error) {
-	count, err := s.engine.RenewExpiring(ctx, grace, limit)
-	if err == nil && count > 0 {
-		audithelper.Record(s.audit, ctx, "database.lease.renew_expiring", "secrets/database/leases", nil, map[string]any{"renewed": count})
-	}
-	return count, err
+	return err
 }
 
 // CleanupExpired revokes expired leases (background job).

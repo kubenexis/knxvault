@@ -111,17 +111,9 @@ func (h *DatabaseHandler) Renew(c *gin.Context) {
 
 // Revoke handles PUT /secrets/database/revoke/:lease_id.
 func (h *DatabaseHandler) Revoke(c *gin.Context) {
-	result, err := h.svc.Revoke(c.Request.Context(), c.Param("lease_id"))
-	if err != nil {
+	if err := h.svc.Revoke(c.Request.Context(), c.Param("lease_id")); err != nil {
 		_ = c.Error(err)
 		return
 	}
-	if result == nil {
-		c.JSON(http.StatusOK, dto.DatabaseRevokeResponse{LeaseID: c.Param("lease_id")})
-		return
-	}
-	c.JSON(http.StatusOK, dto.DatabaseRevokeResponse{
-		LeaseID:              result.LeaseID,
-		RevocationStatements: result.RevocationStatements,
-	})
+	c.Status(http.StatusNoContent)
 }

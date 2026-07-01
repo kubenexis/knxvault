@@ -76,10 +76,6 @@ type Config struct {
 	OTLPEndpoint       string
 	TracingSampleRatio float64
 
-	Seal            SealConfig
-	OpenSSLSeccomp  bool
-	ListenerTLSRole string
-
 	Raft RaftConfig
 }
 

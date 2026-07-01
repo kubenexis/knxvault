@@ -14,29 +14,6 @@ Use this checklist before promoting KNXVault to production secrets management wo
 | Raft peer mTLS | ✅ Shipped | W38-14 | [tier0-production.md](tier0-production.md) |
 | CSI secret rotation | ✅ Shipped | W39-05 | [secrets-injection.md](../deploy/secrets-injection.md) |
 
-### Prospect POC immediate (Tier P — memorandum)
-
-| Criterion | Status | Backlog | Doc |
-|-----------|--------|---------|-----|
-| Memorandum traceability matrix | ⏳ P0 | W41-15 | [enterprise-memorandum-matrix.md](enterprise-memorandum-matrix.md) |
-| Native PKI (remove OpenSSL fork) | ⏳ P3 gate | W31-01, W41-08–W41-10 | [Tier P](../backlog.md#tier-p--prospect-poc-immediate-july-2026-enterprise-memorandum) |
-| OpenSSL seccomp (interim) | ⏳ P1 | W41-13 | [enterprise-memorandum-matrix.md](enterprise-memorandum-matrix.md) |
-| API TLS from PKI | ⏳ P2 | W38-15 | [backlog.md](../backlog.md) |
-
-### Enterprise security (Tier I — post-prospect)
-
-| Criterion | Status | Backlog | Doc |
-|-----------|--------|---------|-----|
-| Memory lock (`mlock`) for root keys | ⏳ Planned | W41-01 | [poc-evaluation-guide.md](poc-evaluation-guide.md) |
-| Cloud KMS auto-unseal (AWS/GCP/Azure) | ⏳ Long-term | LT-14, LT-15 | [backlog.md](../backlog.md) |
-| Shamir threshold unseal (unseal key only) | ⏳ Planned | W41-05 | [ADR-0006](../adr/0006-seal-unseal-strategies.md) |
-| Dual-mode unseal (KMS + Shamir break-glass) | ⏳ Planned | W41-14, LT-14 | [ADR-0006](../adr/0006-seal-unseal-strategies.md) |
-| HSM-wrapped master key | ⏳ Planned | W31-03 | [ADR-0006](../adr/0006-seal-unseal-strategies.md) |
-| Hierarchical token cascade revoke | ⏳ Planned | W41-06 | [backlog.md](../backlog.md) |
-| OIDC group/claim → policy mapping | ⏳ Planned | W41-07 | [backlog.md](../backlog.md) |
-| Go-native PKI (no OpenSSL subprocess) | ⏳ Planned | W41-08–W41-10 | [ADR-0002](../adr/0002-openssl-cli-crypto-backend.md) |
-| Air-gap OpenSSL patching runbook | ⏳ Planned | W41-12 | [poc-evaluation-guide.md](poc-evaluation-guide.md) |
-
 ## Core capabilities
 
 - [ ] Master key configured (`KNXVAULT_MASTER_KEY` or file) and rotation procedure documented

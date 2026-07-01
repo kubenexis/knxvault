@@ -47,9 +47,3 @@ type DatabaseCredsResponse struct {
 type DatabaseRenewRequest struct {
 	TTLSeconds int `json:"ttl_seconds"`
 }
-
-// DatabaseRevokeResponse returns revocation details for client-mode roles.
-type DatabaseRevokeResponse struct {
-	LeaseID              string   `json:"lease_id"`
-	RevocationStatements []string `json:"revocation_statements,omitempty"`
-}

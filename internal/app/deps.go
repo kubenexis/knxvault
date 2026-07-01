@@ -18,11 +18,9 @@ import (
 	"github.com/kubenexis/knxvault/internal/backup"
 	"github.com/kubenexis/knxvault/internal/config"
 	"github.com/kubenexis/knxvault/internal/crypto"
-	"github.com/kubenexis/knxvault/internal/crypto/autounseal"
 	"github.com/kubenexis/knxvault/internal/crypto/masterkey"
-	"github.com/kubenexis/knxvault/internal/crypto/memlock"
-	"github.com/kubenexis/knxvault/internal/crypto/openssl"
 	pkibackend "github.com/kubenexis/knxvault/internal/crypto/pki"
+	"github.com/kubenexis/knxvault/internal/crypto/openssl"
 	"github.com/kubenexis/knxvault/internal/engine"
 	pkiengine "github.com/kubenexis/knxvault/internal/engine/pki"
 	secretsengine "github.com/kubenexis/knxvault/internal/engine/secrets"
@@ -168,28 +166,14 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 
 	if deps.Crypto != nil {
 		deps.MasterKeyService = service.NewMasterKeyService(deps.Crypto, deps.CARepo, deps.SecretRepo)
-		if cfg.Raft.Enabled && cfg.UnsealKey == "" && !cfg.Seal.ShamirEnabled() && !cfg.Seal.AutoUnsealEnabled() {
-			return nil, fmt.Errorf("unseal key, shamir scheme, or auto-unseal is required when raft is enabled")
+		if cfg.Raft.Enabled && cfg.UnsealKey == "" {
+			return nil, fmt.Errorf("KNXVAULT_UNSEAL_KEY is required when raft is enabled")
 		}
 		unsealKey := resolveUnsealKey(cfg.UnsealKey, deps.MasterKey)
 		if cfg.UnsealKey != "" && bytes.Equal(unsealKey, deps.MasterKey) {
 			return nil, fmt.Errorf("unseal key must not equal master key")
 		}
-		autoProvider, err := autounseal.NewProvider(cfg.Seal.AutoUnsealProvider, cfg.Seal.AutoUnsealKeyFile)
-		if err != nil {
-			return nil, fmt.Errorf("auto-unseal: %w", err)
-		}
-		if cfg.Seal.Scheme == "" {
-			cfg.Seal.Scheme = config.UnsealSchemeSingle
-		}
-		deps.Seal = NewSealStateFromConfig(cfg.Seal, unsealKey, autoProvider)
-		if deps.Seal.TryAutoUnseal() {
-			log.Info("vault auto-unsealed at startup")
-		} else if cfg.Seal.ShamirEnabled() {
-			log.Info("vault sealed; awaiting shamir unseal shares",
-				zap.Int("threshold", cfg.Seal.Threshold),
-			)
-		}
+		deps.Seal = NewSealState(unsealKey)
 
 		deps.PKIEngine = pkiengine.NewEngine(deps.OpenSSL, deps.Crypto, deps.CARepo, deps.RevokeRepo)
 		deps.PKIEngine.SetBackend(selectPKIBackend(cfg, deps.OpenSSL))
@@ -350,13 +334,6 @@ func (d *Dependencies) Close() {
 	if d == nil {
 		return
 	}
-	if d.Seal != nil {
-		d.Seal.Close()
-	}
-	if len(d.MasterKey) > 0 {
-		_ = memlock.Unlock(d.MasterKey)
-		d.MasterKey = nil
-	}
 	if d.Raft != nil {
 		d.Raft.Stop()
 	}
@@ -366,9 +343,6 @@ func (d *Dependencies) Close() {
 func (d *Dependencies) Ready(ctx context.Context) error {
 	if d == nil {
 		return nil
-	}
-	if d.JobRunner != nil && d.JobRunner.Started() && d.HAEnabled() && !d.JobRunner.ElectionRunning() {
-		return fmt.Errorf("leader election loop not running")
 	}
 	if d.Raft != nil {
 		if !d.Raft.Ready() {
@@ -407,13 +381,7 @@ func (d *Dependencies) Sealed() bool {
 
 // IsLeader reports whether this instance is the elected leader.
 func (d *Dependencies) IsLeader() bool {
-	if d == nil {
-		return true
-	}
-	if d.Raft != nil && d.Raft.Client != nil {
-		return d.Raft.Client.IsLeader()
-	}
-	if d.Leader == nil {
+	if d == nil || d.Leader == nil {
 		return true
 	}
 	return d.Leader.IsLeader()

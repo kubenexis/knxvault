@@ -26,14 +26,6 @@ func testMasterKey() string {
 	return base64.StdEncoding.EncodeToString(key)
 }
 
-func testUnsealKey() string {
-	key := make([]byte, 32)
-	for i := range key {
-		key[i] = byte(0xA0 + i)
-	}
-	return base64.StdEncoding.EncodeToString(key)
-}
-
 func newTestRouter(t *testing.T) (*gin.Engine, string) {
 	t.Helper()
 

@@ -6,22 +6,17 @@ import (
 	"time"
 
 	"github.com/kubenexis/knxvault/internal/infra/leader"
-	"github.com/kubenexis/knxvault/internal/infra/metrics"
 )
-
-type leaderClient interface {
-	IsLeader() bool
-}
 
 // LeaderElector gates background jobs on Dragonboat leadership.
 type LeaderElector struct {
-	client leaderClient
+	client *Client
 	mu     sync.RWMutex
 	leader bool
 }
 
 // NewLeaderElector constructs a Raft-backed leader elector.
-func NewLeaderElector(client leaderClient) leader.Elector {
+func NewLeaderElector(client *Client) leader.Elector {
 	return &LeaderElector{client: client}
 }
 
@@ -43,7 +38,6 @@ func (e *LeaderElector) Run(ctx context.Context, onLeadership func(ctx context.C
 		case <-ticker.C:
 			isLeader := e.client != nil && e.client.IsLeader()
 			SetRaftLeader(isLeader)
-			metrics.SetLeader(isLeader)
 			if isLeader {
 				if leadCancel == nil {
 					var leadCtx context.Context

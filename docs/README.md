@@ -13,7 +13,7 @@ Version-controlled documentation for architects, operators, developers, and inte
 | [Security model](architecture/security-model.md) | Security / SRE | Threat model, crypto, auth, audit |
 | [Dragonboat storage](storage/dragonboat.md) | Engineers | Raft topology, command catalog, snapshots |
 | [Phase 4 design](design/phase4-ecosystem.md) | Engineers | Ecosystem roadmap and wave breakdown |
-| [ADRs](adr/README.md) | Engineers | Architecture decision records (incl. [seal/unseal ADR-0006](adr/0006-seal-unseal-strategies.md)) |
+| [ADRs](adr/README.md) | Engineers | Architecture decision records |
 
 ## Installation & configuration
 
@@ -75,9 +75,6 @@ Version-controlled documentation for architects, operators, developers, and inte
 | [Backlog](backlog.md) | Maintainers | Phased work items (W1–W29 complete) |
 | [LLD alignment matrix](product/lld-alignment.md) | Maintainers | LLD § → code traceability |
 | [Secrets manager checklist](product/secrets-manager-checklist.md) | Architects | Capability matrix vs evaluation criteria |
-| [PoC evaluation guide](product/poc-evaluation-guide.md) | Architects / procurement | Scoped PoC path, success criteria, known gaps |
-| [Enterprise memorandum matrix](product/enterprise-memorandum-matrix.md) | Security / sales | July 2026 review → Tier P status and waivers |
-| [Backlog — Tier P](backlog.md#tier-p--prospect-poc-immediate-july-2026-enterprise-memorandum) | Engineering | Immediate prospect POC delivery sequence |
 
 ## Quick links
 

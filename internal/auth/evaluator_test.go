@@ -34,26 +34,6 @@ func TestConditionsMatchIPCIDR(t *testing.T) {
 	}
 }
 
-func TestConditionsMatchNamespace(t *testing.T) {
-	policy := domainauth.Policy{
-		Name:      "prod-only",
-		Effect:    domainauth.EffectAllow,
-		Resources: []string{"secrets/kv/*"},
-		Actions:   []string{"read"},
-		Conditions: map[string]any{
-			"namespace": "prod",
-		},
-	}
-	if auth.PolicyMatches(policy, "secrets/kv/app", "read", auth.RequestContext{Namespace: "prod"}) {
-		// ok
-	} else {
-		t.Fatal("expected prod namespace to match")
-	}
-	if auth.PolicyMatches(policy, "secrets/kv/app", "read", auth.RequestContext{Namespace: "dev"}) {
-		t.Fatal("expected dev namespace to fail")
-	}
-}
-
 func TestConditionsMatchTimeWindow(t *testing.T) {
 	policy := domainauth.Policy{
 		Name:      "business-hours",

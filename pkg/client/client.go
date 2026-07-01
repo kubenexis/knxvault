@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 )
@@ -298,182 +297,6 @@ func (c *Client) Unseal(keyBase64 string) (*UnsealResponse, error) {
 	return &out, nil
 }
 
-// PolicyRequest is PUT /sys/policies/:name.
-type PolicyRequest struct {
-	Effect     string         `json:"effect"`
-	Resources  []string       `json:"resources"`
-	Actions    []string       `json:"actions"`
-	Conditions map[string]any `json:"conditions,omitempty"`
-}
-
-// PolicyResponse is GET /sys/policies/:name.
-type PolicyResponse struct {
-	Name       string         `json:"name"`
-	Effect     string         `json:"effect"`
-	Resources  []string       `json:"resources"`
-	Actions    []string       `json:"actions"`
-	Conditions map[string]any `json:"conditions,omitempty"`
-}
-
-// RoleRequest is PUT /sys/roles/:name.
-type RoleRequest struct {
-	Policies                      []string `json:"policies"`
-	BoundServiceAccountNames      []string `json:"bound_service_account_names,omitempty"`
-	BoundServiceAccountNamespaces []string `json:"bound_service_account_namespaces,omitempty"`
-}
-
-// RoleResponse is GET /sys/roles/:name.
-type RoleResponse struct {
-	Name                          string   `json:"name"`
-	Policies                      []string `json:"policies"`
-	BoundServiceAccountNames      []string `json:"bound_service_account_names,omitempty"`
-	BoundServiceAccountNamespaces []string `json:"bound_service_account_namespaces,omitempty"`
-}
-
-// AuditEntry is a single audit log record.
-type AuditEntry struct {
-	ID        string         `json:"id"`
-	Timestamp string         `json:"timestamp"`
-	Actor     string         `json:"actor"`
-	Action    string         `json:"action"`
-	Resource  string         `json:"resource"`
-	Status    string         `json:"status"`
-	Details   map[string]any `json:"details,omitempty"`
-	Hash      string         `json:"hash,omitempty"`
-}
-
-// AuditExportResponse is GET /audit/export.
-type AuditExportResponse struct {
-	Entries   []AuditEntry `json:"entries"`
-	HeadHash  string       `json:"head_hash,omitempty"`
-	Signature string       `json:"signature,omitempty"`
-	SignedAt  string       `json:"signed_at,omitempty"`
-}
-
-// DatabaseRoleRequest is PUT /secrets/database/roles/:name.
-type DatabaseRoleRequest struct {
-	TTLSeconds           int            `json:"ttl_seconds"`
-	UsernamePrefix       string         `json:"username_prefix,omitempty"`
-	CreationStatements   []string       `json:"creation_statements,omitempty"`
-	RevocationStatements []string       `json:"revocation_statements,omitempty"`
-	ExecutionMode        string         `json:"execution_mode,omitempty"`
-	AdminCredentialsPath string         `json:"admin_credentials_path,omitempty"`
-	Config               map[string]any `json:"config,omitempty"`
-}
-
-// DatabaseCredsResponse is POST /secrets/database/creds/:role.
-type DatabaseCredsResponse struct {
-	LeaseID    string   `json:"lease_id"`
-	Username   string   `json:"username"`
-	Password   string   `json:"password"`
-	Role       string   `json:"role"`
-	TTLSeconds int      `json:"ttl_seconds"`
-	ExpiresAt  string   `json:"expires_at"`
-	Statements []string `json:"creation_statements,omitempty"`
-}
-
-// DatabaseRevokeResponse is PUT /secrets/database/revoke/:id.
-type DatabaseRevokeResponse struct {
-	LeaseID              string   `json:"lease_id"`
-	RevocationStatements []string `json:"revocation_statements,omitempty"`
-}
-
-// RotationRunResponse is POST /sys/rotation/run.
-type RotationRunResponse struct {
-	KVRotated     int      `json:"kv_rotated"`
-	LeasesRenewed int      `json:"leases_renewed"`
-	Errors        []string `json:"errors,omitempty"`
-}
-
-// PutPolicy stores an RBAC policy.
-func (c *Client) PutPolicy(ctx context.Context, name string, req PolicyRequest) error {
-	return c.putJSON(ctx, "/sys/policies/"+trimPath(name), true, req, nil, http.StatusNoContent)
-}
-
-// GetPolicy returns an RBAC policy.
-func (c *Client) GetPolicy(ctx context.Context, name string) (*PolicyResponse, error) {
-	var out PolicyResponse
-	if err := c.getJSON(ctx, "/sys/policies/"+trimPath(name), true, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListPolicies returns all RBAC policies.
-func (c *Client) ListPolicies(ctx context.Context) ([]PolicyResponse, error) {
-	var out struct {
-		Policies []PolicyResponse `json:"policies"`
-	}
-	if err := c.getJSON(ctx, "/sys/policies", true, &out); err != nil {
-		return nil, err
-	}
-	return out.Policies, nil
-}
-
-// DeletePolicy removes an RBAC policy.
-func (c *Client) DeletePolicy(ctx context.Context, name string) error {
-	return c.deleteJSON(ctx, "/sys/policies/"+trimPath(name), true, http.StatusNoContent)
-}
-
-// PutRole stores an auth role binding.
-func (c *Client) PutRole(ctx context.Context, name string, req RoleRequest) error {
-	return c.putJSON(ctx, "/sys/roles/"+trimPath(name), true, req, nil, http.StatusNoContent)
-}
-
-// GetRole returns an auth role binding.
-func (c *Client) GetRole(ctx context.Context, name string) (*RoleResponse, error) {
-	var out RoleResponse
-	if err := c.getJSON(ctx, "/sys/roles/"+trimPath(name), true, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ExportAudit downloads audit log entries.
-func (c *Client) ExportAudit(ctx context.Context, limit int) (*AuditExportResponse, error) {
-	path := "/audit/export"
-	if limit > 0 {
-		path += fmt.Sprintf("?limit=%d", limit)
-	}
-	var out AuditExportResponse
-	if err := c.getJSON(ctx, path, true, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PutDatabaseRole stores a database credentials role.
-func (c *Client) PutDatabaseRole(ctx context.Context, name string, req DatabaseRoleRequest) error {
-	return c.putJSON(ctx, "/secrets/database/roles/"+trimPath(name), true, req, nil, http.StatusNoContent)
-}
-
-// GenerateDatabaseCreds issues short-lived database credentials.
-func (c *Client) GenerateDatabaseCreds(ctx context.Context, role string) (*DatabaseCredsResponse, error) {
-	var out DatabaseCredsResponse
-	if err := c.postJSON(ctx, "/secrets/database/creds/"+trimPath(role), true, map[string]any{}, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RevokeDatabaseLease revokes a database lease.
-func (c *Client) RevokeDatabaseLease(ctx context.Context, leaseID string) (*DatabaseRevokeResponse, error) {
-	var out DatabaseRevokeResponse
-	if err := c.putJSON(ctx, "/secrets/database/revoke/"+trimPath(leaseID), true, map[string]any{}, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RunRotation triggers KV rotation and database lease renewal.
-func (c *Client) RunRotation(ctx context.Context) (*RotationRunResponse, error) {
-	var out RotationRunResponse
-	if err := c.postJSON(ctx, "/sys/rotation/run", true, map[string]any{}, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
 // BackupRestore imports an encrypted backup archive.
 func (c *Client) BackupRestore(ctx context.Context, archive []byte) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/sys/restore", bytes.NewReader(archive))
@@ -521,32 +344,16 @@ func (c *Client) probeJSON(ctx context.Context, path string, auth bool) (*ReadyR
 }
 
 func (c *Client) postJSON(ctx context.Context, path string, auth bool, body any, out any) error {
-	return c.jsonRequest(ctx, http.MethodPost, path, auth, body, out)
-}
-
-func (c *Client) putJSON(ctx context.Context, path string, auth bool, body any, out any, expectStatus ...int) error {
-	return c.jsonRequest(ctx, http.MethodPut, path, auth, body, out, expectStatus...)
-}
-
-func (c *Client) deleteJSON(ctx context.Context, path string, auth bool, expectStatus ...int) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.BaseURL+path, nil)
-	if err != nil {
-		return err
-	}
-	return c.do(req, auth, nil, expectStatus...)
-}
-
-func (c *Client) jsonRequest(ctx context.Context, method, path string, auth bool, body any, out any, expectStatus ...int) error {
 	raw, err := json.Marshal(body)
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, method, c.BaseURL+path, bytes.NewReader(raw))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+path, bytes.NewReader(raw))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	return c.do(req, auth, out, expectStatus...)
+	return c.do(req, auth, out)
 }
 
 func (c *Client) do(req *http.Request, auth bool, out any, expectStatus ...int) error {
@@ -589,9 +396,5 @@ func (c *Client) do(req *http.Request, auth bool, out any, expectStatus ...int) 
 }
 
 func trimPath(path string) string {
-	path = strings.TrimPrefix(strings.TrimSpace(path), "/")
-	if path == "" {
-		return ""
-	}
-	return url.PathEscape(path)
+	return strings.TrimPrefix(strings.TrimSpace(path), "/")
 }
