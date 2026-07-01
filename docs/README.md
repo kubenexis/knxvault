@@ -57,6 +57,12 @@ Version-controlled documentation for architects, operators, developers, and inte
 | [Distributed tracing](observability/tracing.md) | SRE | OpenTelemetry setup |
 | [Audit forwarding](observability/audit-forwarding.md) | SRE | SIEM HTTP sink configuration |
 
+## Recipes (step-by-step guides)
+
+| Document | Audience | Description |
+|----------|----------|-------------|
+| [Recipes index](recipes/README.md) | Users / operators | Copy-paste guides: cluster deploy, KV, auth, CSI, dynamic secrets, audit, and more |
+
 ## User & API reference
 
 | Document | Audience | Description |
