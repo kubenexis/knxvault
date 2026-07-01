@@ -34,12 +34,21 @@ type IssueRequest struct {
 	KeyBits     int
 }
 
+// SignCSRRequest configures signing an existing CSR with a CA.
+type SignCSRRequest struct {
+	CSRPEM    []byte
+	CACertPEM []byte
+	CAKeyPEM  []byte
+	TTL       time.Duration
+}
+
 // Backend performs PKI certificate operations.
 type Backend interface {
 	Name() string
 	CreateRoot(ctx context.Context, req RootRequest) (certPEM, keyPEM []byte, err error)
 	CreateIntermediate(ctx context.Context, req IntermediateRequest) (certPEM, keyPEM []byte, err error)
 	IssueCertificate(ctx context.Context, req IssueRequest) (certPEM, keyPEM []byte, err error)
+	SignCSR(ctx context.Context, req SignCSRRequest) (certPEM []byte, err error)
 	ParseCertificate(pem []byte) (*x509.Certificate, error)
 	VerifyChain(leafPEM []byte, intermediatesPEM [][]byte) error
 }

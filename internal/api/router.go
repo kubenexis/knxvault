@@ -84,6 +84,7 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 			deps.PKIService,
 			deps.DatabaseService,
 			deps.RotationService,
+			deps.OrchestrationService,
 			deps.MasterKeyService,
 			deps.Seal,
 			deps.RaftMembership,
@@ -99,6 +100,10 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 		secured.POST("/sys/tls/issue-listener",
 			middleware.RequirePermission(deps.AuthService, "sys/tls", "write"),
 			sys.IssueListenerTLS,
+		)
+		secured.POST("/sys/rotation/run",
+			middleware.RequirePermission(deps.AuthService, "sys/rotate", "write"),
+			sys.RunRotation,
 		)
 		secured.POST("/sys/rotate-master-key",
 			middleware.RequirePermission(deps.AuthService, "sys/rotate", "write"),
@@ -119,6 +124,21 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 				sys.RaftRemoveNode,
 			)
 		}
+	}
+
+	if deps.AuthService != nil {
+		vaultCompat := handlers.NewVaultCompatHandler(deps.AuthService, deps.PKIService, deps.TokenTTL)
+		v1 := r.Group("/v1")
+		v1.POST("/auth/kubernetes/login", vaultCompat.LoginKubernetes)
+		v1Auth := v1.Group("/")
+		v1Auth.Use(middleware.Auth(deps.AuthService))
+		if deps.Seal != nil {
+			v1Auth.Use(middleware.SealGuard(deps.Seal))
+		}
+		v1Auth.POST("/pki/sign/:role",
+			middleware.RequirePermission(deps.AuthService, "pki", "write"),
+			vaultCompat.SignPKI,
+		)
 	}
 
 	if deps.PKIService != nil {
@@ -249,7 +269,7 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 	if deps.Seal != nil {
 		sysUnseal := handlers.NewSysHandler(
 			deps.AuthService, deps.PKIService, deps.DatabaseService, deps.RotationService,
-			deps.MasterKeyService, deps.Seal, deps.RaftMembership, deps.MasterKey,
+			deps.OrchestrationService, deps.MasterKeyService, deps.Seal, deps.RaftMembership, deps.MasterKey,
 			deps.ExposureAutoRevoke, deps.ExposureWebhook,
 		)
 		unsealLimiter := middleware.NewRateLimiter(10, true)
@@ -265,7 +285,7 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 			}
 			sysHandler := handlers.NewSysHandler(
 				deps.AuthService, deps.PKIService, deps.DatabaseService, deps.RotationService,
-				deps.MasterKeyService, deps.Seal, deps.RaftMembership, deps.MasterKey,
+				deps.OrchestrationService, deps.MasterKeyService, deps.Seal, deps.RaftMembership, deps.MasterKey,
 				deps.ExposureAutoRevoke, deps.ExposureWebhook,
 			)
 			sysHandler.ReportExposure(c)

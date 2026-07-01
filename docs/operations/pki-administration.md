@@ -260,7 +260,7 @@ security:
 
 Or environment variables: `KNXVAULT_TLS_CERT`, `KNXVAULT_TLS_KEY`.
 
-> `POST /sys/tls/issue-listener` is reserved for future automatic listener issuance and currently returns `501 not_implemented`.
+> `POST /sys/tls/issue-listener` issues listener TLS material from a PKI role. Optional `cert_file` / `key_file` write PEMs to disk. CLI: `knxvault-cli sys issue-listener-tls`.
 
 ## Renewal
 

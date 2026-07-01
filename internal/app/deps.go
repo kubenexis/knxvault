@@ -70,6 +70,7 @@ type Dependencies struct {
 	InjectService          *service.InjectService
 	BackupService          *service.BackupService
 	RotationService        *service.RotationService
+	OrchestrationService   *service.OrchestrationService
 	MachineIdentityService *service.MachineIdentityService
 	ExposureWebhook        *notify.Webhook
 	EngineRegistry         *engine.Registry
@@ -252,6 +253,12 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 			cfg.RotationWebhookURL,
 		)
 	}
+	deps.OrchestrationService = service.NewOrchestrationService(
+		deps.RotationService,
+		deps.DatabaseService,
+		deps.PKIService,
+		cfg.RotationWebhookURL,
+	)
 	deps.ExposureWebhook = notify.NewWebhook(cfg.ExposureWebhookURL)
 
 	deps.AuthService = auth.NewService(tokenStore, rbac, cfg.JWTSecret)

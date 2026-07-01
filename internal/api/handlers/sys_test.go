@@ -19,7 +19,7 @@ func TestSysHandlerCapabilities(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	authSvc := testAuthService("admin")
-	handler := handlers.NewSysHandler(authSvc, nil, nil, nil, nil, nil, nil, testCryptoKey(), false, nil)
+	handler := handlers.NewSysHandler(authSvc, nil, nil, nil, nil, nil, nil, nil, testCryptoKey(), false, nil)
 
 	r := gin.New()
 	r.Use(middleware.Auth(authSvc), middleware.ErrorHandler())
@@ -44,7 +44,7 @@ func TestSysHandlerCapabilities(t *testing.T) {
 func TestSysHandlerCapabilitiesUnauthenticated(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	handler := handlers.NewSysHandler(testAuthService("admin"), nil, nil, nil, nil, nil, nil, nil, false, nil)
+	handler := handlers.NewSysHandler(testAuthService("admin"), nil, nil, nil, nil, nil, nil, nil, nil, false, nil)
 	r := gin.New()
 	r.Use(middleware.ErrorHandler())
 	r.GET("/sys/capabilities", handler.Capabilities)
@@ -64,21 +64,21 @@ func TestSysHandlerCapabilitiesUnauthenticated(t *testing.T) {
 	}
 }
 
-func TestSysHandlerIssueListenerTLSNotImplemented(t *testing.T) {
+func TestSysHandlerIssueListenerTLSRequiresPKI(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	authSvc := testAuthService("admin")
-	handler := handlers.NewSysHandler(authSvc, nil, nil, nil, nil, nil, nil, nil, false, nil)
+	handler := handlers.NewSysHandler(authSvc, nil, nil, nil, nil, nil, nil, nil, nil, false, nil)
 	r := gin.New()
 	r.Use(middleware.Auth(authSvc), middleware.ErrorHandler())
 	r.POST("/sys/tls/issue-listener", middleware.RequirePermission(authSvc, "sys/tls", "write"), handler.IssueListenerTLS)
 
-	req := httptest.NewRequest(http.MethodPost, "/sys/tls/issue-listener", bytes.NewReader([]byte(`{}`)))
+	req := httptest.NewRequest(http.MethodPost, "/sys/tls/issue-listener", bytes.NewReader([]byte(`{"role":"listener","common_name":"vault.local"}`)))
 	req.Header.Set("Authorization", "Bearer root-token")
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
-	if rec.Code != http.StatusNotImplemented {
+	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d body = %s", rec.Code, rec.Body.String())
 	}
 }
@@ -90,7 +90,7 @@ func TestSysHandlerInit(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	authSvc := testAuthService("admin")
-	handler := handlers.NewSysHandler(authSvc, nil, nil, nil, nil, nil, nil, testCryptoKey(), false, nil)
+	handler := handlers.NewSysHandler(authSvc, nil, nil, nil, nil, nil, nil, nil, testCryptoKey(), false, nil)
 	r := gin.New()
 	r.Use(middleware.Auth(authSvc), middleware.ErrorHandler())
 	r.POST("/sys/init", middleware.RequirePermission(authSvc, "sys/init", "write"), handler.Init)

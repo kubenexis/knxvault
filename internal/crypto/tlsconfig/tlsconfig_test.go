@@ -37,6 +37,9 @@ func TestLoadServerTLSWithMTLS(t *testing.T) {
 	if cfg == nil || cfg.ClientAuth != tls.RequireAndVerifyClientCert {
 		t.Fatalf("unexpected tls config: %+v", cfg)
 	}
+	if cfg.MinVersion != tls.VersionTLS13 {
+		t.Fatalf("MinVersion = %x, want TLS 1.3", cfg.MinVersion)
+	}
 }
 
 func generateCA(t *testing.T) (*rsa.PrivateKey, []byte) {

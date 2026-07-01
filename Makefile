@@ -35,10 +35,12 @@ BINARY          ?= bin/knxvault
 CLI_BINARY      ?= bin/knxvault-cli
 CSI_BINARY      ?= bin/knxvault-csi
 WEBHOOK_BINARY  ?= bin/knxvault-webhook
+ESO_BINARY      ?= bin/knxvault-eso
 MAIN_PKG        ?= ./cmd/knxvault
 CLI_PKG         ?= ./cmd/knxvault-cli
 CSI_PKG         ?= ./cmd/knxvault-csi
 WEBHOOK_PKG     ?= ./cmd/knxvault-webhook
+ESO_PKG         ?= ./cmd/knxvault-eso
 SBOM_FILE       ?= sbom.json
 TRIVY_CACHE_DIR ?= $(HOME)/.cache/trivy
 LDFLAGS         ?= -s -w \
@@ -96,7 +98,7 @@ all: ## Run fmt, vet, lint, gosec, licenses, scan, test, test-integration, build
 # Go quality
 # =============================================================================
 
-.PHONY: fmt vet lint gosec semgrep licenses test test-integration build build-cli build-csi build-webhook generate-clients sbom scan tidy install-tools docker-build clean
+.PHONY: fmt vet lint gosec semgrep licenses test test-integration build build-cli build-csi build-webhook build-eso generate-clients sbom scan tidy install-tools docker-build clean
 
 fmt: ## Check Go formatting (gofmt)
 	$(call log,Checking gofmt)
@@ -185,6 +187,12 @@ build-webhook: ## Build mutating admission webhook binary
 	$(call require_cmd,go)
 	@mkdir -p bin
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags="$(LDFLAGS)" -o $(WEBHOOK_BINARY) $(WEBHOOK_PKG)
+
+build-eso: ## Build External Secrets Operator webhook adapter
+	$(call log,Building ESO adapter $(ESO_BINARY))
+	$(call require_cmd,go)
+	@mkdir -p bin
+	CGO_ENABLED=0 $(GO) build -trimpath -ldflags="$(LDFLAGS)" -o $(ESO_BINARY) $(ESO_PKG)
 
 generate-clients: ## Generate Python, TypeScript, Java, Rust SDKs from OpenAPI
 	$(call log,Generating client SDKs)

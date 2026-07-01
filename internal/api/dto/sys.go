@@ -37,3 +37,29 @@ type RaftAddNodeRequest struct {
 type RaftRemoveNodeRequest struct {
 	NodeID uint64 `json:"node_id"`
 }
+
+// IssueListenerTLSRequest is POST /sys/tls/issue-listener.
+type IssueListenerTLSRequest struct {
+	Role       string   `json:"role" binding:"required"`
+	CommonName string   `json:"common_name" binding:"required"`
+	DNSNames   []string `json:"dns_names,omitempty"`
+	CertFile   string   `json:"cert_file,omitempty"`
+	KeyFile    string   `json:"key_file,omitempty"`
+	TTL        string   `json:"ttl,omitempty"`
+}
+
+// IssueListenerTLSResponse is returned after listener TLS issuance.
+type IssueListenerTLSResponse struct {
+	CertPEM       string `json:"cert_pem"`
+	PrivateKeyPEM string `json:"private_key_pem"`
+	Serial        string `json:"serial"`
+	ExpiresAt     string `json:"expires_at"`
+	CertFile      string `json:"cert_file,omitempty"`
+	KeyFile       string `json:"key_file,omitempty"`
+}
+
+// RotationRunRequest is POST /sys/rotation/run.
+type RotationRunRequest struct {
+	DBGrace  string `json:"db_grace,omitempty"`
+	PKIGrace string `json:"pki_grace,omitempty"`
+}

@@ -136,6 +136,58 @@ func IssueCertificate(caCertPEM, caKeyPEM []byte, commonName string, dnsNames, i
 	return signCertificate(template, caCert, &priv.PublicKey, caKey, priv)
 }
 
+// SignCSR signs an existing PEM CSR with the given CA certificate and key.
+func SignCSR(csrPEM, caCertPEM, caKeyPEM []byte, ttl time.Duration) (certPEM []byte, err error) {
+	csrBlock, _ := pem.Decode(csrPEM)
+	if csrBlock == nil {
+		return nil, fmt.Errorf("decode csr pem")
+	}
+	csr, err := x509.ParseCertificateRequest(csrBlock.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("parse csr: %w", err)
+	}
+	if err := csr.CheckSignature(); err != nil {
+		return nil, fmt.Errorf("invalid csr signature: %w", err)
+	}
+
+	caCert, err := ParseCertificate(caCertPEM)
+	if err != nil {
+		return nil, fmt.Errorf("parse ca certificate: %w", err)
+	}
+	caKey, err := parsePrivateKey(caKeyPEM)
+	if err != nil {
+		return nil, fmt.Errorf("parse ca key: %w", err)
+	}
+
+	serial, err := randomSerial()
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now().UTC()
+	template := &x509.Certificate{
+		SerialNumber:          serial,
+		Subject:               csr.Subject,
+		NotBefore:             now,
+		NotAfter:              now.Add(ttl),
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+		DNSNames:              csr.DNSNames,
+		IPAddresses:           csr.IPAddresses,
+		EmailAddresses:        csr.EmailAddresses,
+		URIs:                  csr.URIs,
+		SignatureAlgorithm:    x509.SHA256WithRSA,
+		BasicConstraintsValid: true,
+		IsCA:                  false,
+	}
+
+	der, err := x509.CreateCertificate(rand.Reader, template, caCert, csr.PublicKey, caKey)
+	if err != nil {
+		return nil, fmt.Errorf("sign csr: %w", err)
+	}
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), nil
+}
+
 func signCertificate(template, parent *x509.Certificate, pub crypto.PublicKey, signer crypto.Signer, keyOut *rsa.PrivateKey) (certPEM, keyPEM []byte, err error) {
 	der, err := x509.CreateCertificate(rand.Reader, template, parent, pub, signer)
 	if err != nil {

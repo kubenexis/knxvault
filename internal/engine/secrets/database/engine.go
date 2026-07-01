@@ -357,6 +357,39 @@ func (e *Engine) adminConnectionURL(ctx context.Context, role *domainsecrets.Dat
 	return "", common.New(common.ErrCodeValidation, "admin credentials must include connection_url")
 }
 
+// RenewExpiring renews active leases expiring within the grace window.
+func (e *Engine) RenewExpiring(ctx context.Context, grace time.Duration, limit int) (int, error) {
+	if e.leases == nil {
+		return 0, common.New(common.ErrCodeInternal, "lease repository not configured")
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+	now := e.now().UTC()
+	deadline := now.Add(grace)
+	leases, err := e.leases.List(ctx)
+	if err != nil {
+		return 0, err
+	}
+	renewed := 0
+	for _, lease := range leases {
+		if renewed >= limit {
+			break
+		}
+		if !lease.Active(now) || !lease.Renewable {
+			continue
+		}
+		if lease.ExpiresAt.After(deadline) {
+			continue
+		}
+		if _, err := e.Renew(ctx, lease.ID, lease.TTLSeconds); err != nil {
+			continue
+		}
+		renewed++
+	}
+	return renewed, nil
+}
+
 // CleanupExpired revokes leases that have passed their expiration time.
 func (e *Engine) CleanupExpired(ctx context.Context, limit int) (int, error) {
 	if e.leases == nil {

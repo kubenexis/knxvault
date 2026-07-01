@@ -45,6 +45,13 @@ func (s *PKIService) IssueCertificate(ctx context.Context, req pkiengine.IssueRe
 	return result, err
 }
 
+// SignCSR signs a PEM CSR for a PKI role.
+func (s *PKIService) SignCSR(ctx context.Context, req pkiengine.SignCSRRequest) (*pkiengine.SignCSRResult, error) {
+	result, err := s.engine.SignCSR(ctx, req)
+	audithelper.Record(s.audit, ctx, "pki.sign", "pki/"+req.Role, err, nil)
+	return result, err
+}
+
 // GetCA returns a CA by ID.
 func (s *PKIService) GetCA(ctx context.Context, id uuid.UUID) (*domainpki.CA, error) {
 	return s.engine.GetCA(ctx, id)

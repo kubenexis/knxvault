@@ -28,7 +28,7 @@ Maps [`docs/lld.md`](../lld.md) sections to code paths and backlog status. Updat
 | §7.3 | Audit hash chain | `internal/audit/service.go` | W7-04 | ✅ Shipped |
 | §7.3 | Per-entry signatures | `domain/audit/entry.go` `Signature` | W38-09 | ✅ Shipped |
 | §7.3 | Audit SIEM forward | `internal/audit/forward.go` | W38-08 | ✅ Shipped |
-| §7.4 | API TLS from PKI | `POST /sys/tls/issue-listener` | W38-15 | 🔶 Placeholder |
+| §7.4 | API TLS from PKI | `POST /sys/tls/issue-listener` | W38-15 | ✅ Shipped |
 | §7.7 | semgrep CI gate | `.semgrep/knxvault.yml`, `make semgrep` | W38-16 | ✅ Shipped |
 | §8.4 | Prometheus alert rules | `deployments/prometheus/knxvault-alerts.yaml` | W38-22 | ✅ Shipped |
 | §9.5 | Chaos raft pod-kill | `test/chaos/raft-pod-kill.sh` | W38-18 | ✅ Script |

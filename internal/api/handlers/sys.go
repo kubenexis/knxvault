@@ -6,6 +6,8 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -18,6 +20,7 @@ import (
 	"github.com/kubenexis/knxvault/internal/notify"
 	"github.com/kubenexis/knxvault/internal/service"
 	"github.com/kubenexis/knxvault/internal/sys"
+	"github.com/kubenexis/knxvault/internal/utils"
 )
 
 // SealController controls operational seal state.
@@ -40,6 +43,7 @@ type SysHandler struct {
 	pki             *service.PKIService
 	database        *service.DatabaseService
 	rotation        *service.RotationService
+	orchestration   *service.OrchestrationService
 	masterKey       *service.MasterKeyService
 	seal            SealController
 	raft            RaftMembership
@@ -54,6 +58,7 @@ func NewSysHandler(
 	pki *service.PKIService,
 	database *service.DatabaseService,
 	rotation *service.RotationService,
+	orchestration *service.OrchestrationService,
 	masterKey *service.MasterKeyService,
 	seal SealController,
 	raft RaftMembership,
@@ -66,6 +71,7 @@ func NewSysHandler(
 		pki:             pki,
 		database:        database,
 		rotation:        rotation,
+		orchestration:   orchestration,
 		masterKey:       masterKey,
 		seal:            seal,
 		raft:            raft,
@@ -282,11 +288,95 @@ func (h *SysHandler) RaftRemoveNode(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"removed": true, "node_id": req.NodeID})
 }
 
-// IssueListenerTLS is a placeholder for automatic listener certificate issuance.
+// RunRotation handles POST /sys/rotation/run.
+func (h *SysHandler) RunRotation(c *gin.Context) {
+	if h.orchestration == nil {
+		_ = c.Error(common.New(common.ErrCodeInternal, "rotation orchestration not configured"))
+		return
+	}
+	var req dto.RotationRunRequest
+	_ = c.ShouldBindJSON(&req)
+
+	dbGrace := 24 * time.Hour
+	if req.DBGrace != "" {
+		parsed, err := utils.ParseTTL(req.DBGrace)
+		if err != nil {
+			_ = c.Error(common.Wrap(common.ErrCodeValidation, "invalid db_grace", err))
+			return
+		}
+		dbGrace = parsed
+	}
+	pkiGrace := 72 * time.Hour
+	if req.PKIGrace != "" {
+		parsed, err := utils.ParseTTL(req.PKIGrace)
+		if err != nil {
+			_ = c.Error(common.Wrap(common.ErrCodeValidation, "invalid pki_grace", err))
+			return
+		}
+		pkiGrace = parsed
+	}
+
+	result, err := h.orchestration.Run(c.Request.Context(), dbGrace, pkiGrace)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+// IssueListenerTLS issues a listener certificate and optionally writes PEM files.
 func (h *SysHandler) IssueListenerTLS(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, dto.ErrorResponse{
-		ErrorCode: "not_implemented",
-		Message:   "automatic listener TLS issuance is not yet implemented",
-		Timestamp: time.Now().UTC(),
+	if h.pki == nil {
+		_ = c.Error(common.New(common.ErrCodeInternal, "pki not configured"))
+		return
+	}
+	var req dto.IssueListenerTLSRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	ttl := req.TTL
+	if ttl == "" {
+		ttl = "8760h"
+	}
+	result, err := h.pki.IssueCertificate(c.Request.Context(), pkiengine.IssueRequest{
+		Role:       req.Role,
+		CommonName: req.CommonName,
+		DNSNames:   req.DNSNames,
+		TTL:        ttl,
+		AutoRenew:  true,
 	})
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	resp := dto.IssueListenerTLSResponse{
+		CertPEM:       result.CertPEM,
+		PrivateKeyPEM: result.PrivateKeyPEM,
+		Serial:        result.Serial,
+		ExpiresAt:     result.ExpiresAt.Format(time.RFC3339),
+	}
+	if req.CertFile != "" && req.KeyFile != "" {
+		if err := writeListenerPEM(req.CertFile, req.KeyFile, result.CertPEM, result.PrivateKeyPEM); err != nil {
+			_ = c.Error(common.Wrap(common.ErrCodeInternal, "write listener tls files", err))
+			return
+		}
+		resp.CertFile = req.CertFile
+		resp.KeyFile = req.KeyFile
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+func writeListenerPEM(certFile, keyFile, certPEM, keyPEM string) error {
+	for _, path := range []string{certFile, keyFile} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			return err
+		}
+	}
+	if err := os.WriteFile(certFile, []byte(certPEM), 0o600); err != nil {
+		return err
+	}
+	return os.WriteFile(keyFile, []byte(keyPEM), 0o600)
 }

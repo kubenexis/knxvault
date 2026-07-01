@@ -2,6 +2,7 @@ package x509native_test
 
 import (
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/pem"
 	"testing"
 	"time"
@@ -48,10 +49,41 @@ func TestCreateIntermediateAndIssueLeaf(t *testing.T) {
 	if len(cert.DNSNames) != 2 {
 		t.Fatalf("DNSNames = %v, want 2 entries", cert.DNSNames)
 	}
-
 	if err := x509native.VerifyChain(leafCert, [][]byte{intCert, rootCert}); err != nil {
 		t.Fatalf("VerifyChain() = %v", err)
 	}
+
+	leafCSR := createCSR(t, leafKey, "signed.example.com")
+	signed, err := x509native.SignCSR(leafCSR, intCert, intKey, 6*time.Hour)
+	if err != nil {
+		t.Fatalf("SignCSR() = %v", err)
+	}
+	assertCertificateStructure(t, signed, nil, false)
+}
+
+func createCSR(t *testing.T, keyPEM []byte, cn string) []byte {
+	t.Helper()
+	block, _ := pem.Decode(keyPEM)
+	if block == nil {
+		t.Fatal("decode key")
+	}
+	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	template := x509.CertificateRequest{
+		Subject:  pkixName(cn),
+		DNSNames: []string{cn},
+	}
+	csrDER, err := x509.CreateCertificateRequest(nil, &template, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrDER})
+}
+
+func pkixName(cn string) pkix.Name {
+	return pkix.Name{CommonName: cn, Organization: []string{"KNXVault"}}
 }
 
 func assertCertificateStructure(t *testing.T, certPEM, keyPEM []byte, wantCA bool) {
@@ -75,8 +107,10 @@ func assertCertificateStructure(t *testing.T, certPEM, keyPEM []byte, wantCA boo
 		t.Fatalf("signature = %v, want SHA256WithRSA", cert.SignatureAlgorithm)
 	}
 
-	keyBlock, _ := pem.Decode(keyPEM)
-	if keyBlock == nil || keyBlock.Type != "RSA PRIVATE KEY" {
-		t.Fatal("expected RSA PRIVATE KEY pem block")
+	if len(keyPEM) > 0 {
+		keyBlock, _ := pem.Decode(keyPEM)
+		if keyBlock == nil || keyBlock.Type != "RSA PRIVATE KEY" {
+			t.Fatal("expected RSA PRIVATE KEY pem block")
+		}
 	}
 }

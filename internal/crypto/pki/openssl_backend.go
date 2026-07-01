@@ -205,6 +205,40 @@ func (b *OpenSSLBackend) IssueCertificate(ctx context.Context, req IssueRequest)
 	return certPEM, keyPEM, nil
 }
 
+// SignCSR signs a PEM CSR with the given CA certificate and key.
+func (b *OpenSSLBackend) SignCSR(ctx context.Context, req SignCSRRequest) (certPEM []byte, err error) {
+	ws, err := newWorkspace()
+	if err != nil {
+		return nil, err
+	}
+	defer ws.cleanup()
+
+	if err := ws.write("ca.crt", req.CACertPEM); err != nil {
+		return nil, err
+	}
+	if err := ws.write("ca.key", req.CAKeyPEM); err != nil {
+		return nil, err
+	}
+	if err := ws.write("req.csr", req.CSRPEM); err != nil {
+		return nil, err
+	}
+
+	res, err := b.openssl.SafeExec(ctx, []string{
+		"x509", "-req",
+		"-in", ws.path("req.csr"),
+		"-CA", ws.path("ca.crt"),
+		"-CAkey", ws.path("ca.key"),
+		"-CAcreateserial",
+		"-out", ws.path("leaf.crt"),
+		"-days", fmt.Sprintf("%d", ttlDays(req.TTL)),
+		"-sha256",
+	}, nil)
+	if err != nil || res.ExitCode != 0 {
+		return nil, fmt.Errorf("sign csr: %s", strings.TrimSpace(res.Stderr))
+	}
+	return ws.read("leaf.crt")
+}
+
 // ParseCertificate decodes a PEM certificate via the native fast path.
 func (b *OpenSSLBackend) ParseCertificate(pem []byte) (*x509.Certificate, error) {
 	return x509native.ParseCertificate(pem)

@@ -38,9 +38,23 @@ token: dev-root-token
 | `kv put <path> key=value...` | Write a KV secret |
 | `pki root --name --common-name [--ttl] [--key-bits]` | Create a self-signed root CA |
 | `pki issue --role --common-name [--dns] [--ttl] [--auto-renew]` | Issue a leaf certificate |
+| `sys policies list` | `GET /sys/policies` |
+| `sys policies get <name>` | `GET /sys/policies/:name` |
+| `sys policies put <name> <json-file>` | `PUT /sys/policies/:name` |
+| `sys policies delete <name>` | `DELETE /sys/policies/:name` |
+| `sys roles get <name>` | `GET /sys/roles/:name` |
+| `sys roles put <name> <json-file>` | `PUT /sys/roles/:name` |
 | `sys rotate-master-key <base64-key>` | `POST /sys/rotate-master-key` |
+| `sys rotation-run [--db-grace] [--pki-grace]` | `POST /sys/rotation/run` |
+| `sys raft-add-node <id> <address>` | `POST /sys/raft/add-node` |
+| `sys raft-remove-node <id>` | `POST /sys/raft/remove-node` |
+| `sys issue-listener-tls` | `POST /sys/tls/issue-listener` |
 | `sys seal` | `POST /sys/seal` |
 | `sys unseal <base64-key>` | `POST /sys/unseal` |
+| `audit export [--limit]` | `GET /audit/export` |
+| `database roles put <name> <json-file>` | `PUT /secrets/database/roles/:name` |
+| `database roles get <name>` | `GET /secrets/database/roles/:name` |
+| `database creds <role> [--ttl]` | `POST /secrets/database/creds/:role` |
 | `backup create [-o file] [--include-audit]` | Export encrypted backup |
 | `backup restore -f file` | Restore encrypted backup |
 | `completion [bash\|zsh\|fish]` | Generate shell completion scripts |

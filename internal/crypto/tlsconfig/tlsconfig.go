@@ -27,7 +27,7 @@ func LoadServerTLS(cfg ServerConfig) (*tls.Config, error) {
 	}
 	tlsCfg := &tls.Config{
 		Certificates: []tls.Certificate{cert},
-		MinVersion:   tls.VersionTLS12,
+		MinVersion:   tls.VersionTLS13,
 	}
 	if cfg.MTLSRequired {
 		if cfg.CAFile == "" {

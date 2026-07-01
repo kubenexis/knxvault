@@ -7,8 +7,8 @@ KNXVault is designed as a **Kubernetes-native** secrets and PKI platform. These 
 | Integration | Purpose | Status | Backlog / docs |
 |-------------|---------|--------|----------------|
 | **Secrets Store CSI provider** | Mount KV secrets as pod volumes (secret zero in env) | **Shipped** — `knxvault-csi` | [CSI install](../deploy/csi-install.md), Tier G (W39) |
-| **External Secrets Operator** | Sync KNXVault secrets into native `Secret` objects when apps need `envFrom` / controllers | Planned — native provider | Tier H (W40-01) |
-| **cert-manager Issuer** | Automate TLS certificates from KNXVault PKI | Planned — Vault API shim or native issuer | Tier H (W40-02) |
+| **External Secrets Operator** | Sync KNXVault secrets into native `Secret` objects when apps need `envFrom` / controllers | **Shipped** — `knxvault-eso` webhook adapter | [ESO deploy](../deploy/external-secrets/) (W40-01) |
+| **cert-manager Issuer** | Automate TLS certificates from KNXVault PKI | **Shipped** — Vault API shim (`/v1/pki/sign/:role`) | `deployments/cert-manager/` (W40-02) |
 | **Kubernetes auth method** | `POST /auth/kubernetes` + TokenReview + SA role bindings | **Shipped** | [Integration overview](overview.md#kubernetes-serviceaccount-authentication) |
 | **Mutating admission webhook** | Optional: inject CSI volumes from pod annotations | **Shipped** — `knxvault-webhook` | `deployments/k8s/webhook/` |
 | **Multi-language SDKs** | Go, Python, Java, Rust, Node.js clients from OpenAPI | Go **shipped** (`pkg/client`); others planned | Tier H (W40-03–07) |
@@ -60,19 +60,24 @@ See [CSI install runbook](../deploy/csi-install.md).
 
 Use when workloads or platforms require a native Kubernetes `Secret` (e.g. Helm charts with `existingSecret`, operators that only read `Secret`).
 
-**Near-term:** webhook-based `ClusterSecretStore` example in `deployments/external-secrets/` (calls KNXVault REST).
+Deploy the **`knxvault-eso`** webhook adapter (`cmd/knxvault-eso`, `deployments/external-secrets/knxvault-eso-deployment.yaml`). It authenticates with the pod ServiceAccount (or `X-KNXVault-Token`), maps ESO `remoteRef.key` → KV path, and returns secret data for the ESO webhook provider.
 
-**Target:** native ESO provider (`provider: knxvault`) with Kubernetes auth, KV path mapping, and refresh intervals — **W40-01**.
+```bash
+make build-eso
+kubectl apply -f deployments/external-secrets/knxvault-eso-deployment.yaml
+kubectl apply -f deployments/external-secrets/clustersecretstore-webhook.yaml
+```
 
 ## cert-manager Issuer
 
 Use for automated certificate lifecycle (Ingress TLS, internal mTLS, workload certs).
 
-**Target:** `ClusterIssuer` with `spec.knxvault` or **Vault-compatible PKI paths** so cert-manager's existing Vault issuer works against KNXVault — **W40-02**.
+KNXVault exposes **Vault-compatible** paths for cert-manager's built-in Vault issuer:
 
-Example manifests (require W40-02 API shim): `deployments/cert-manager/`.
+- `POST /v1/auth/kubernetes/login` — ServiceAccount JWT login
+- `POST /v1/pki/sign/:role` — CSR signing (cert-manager flow)
 
-**Until W40-02 ships:** use the CronJob / operator patterns in [PKI Kubernetes integration](../operations/pki-kubernetes.md) to issue via `POST /pki/issue` and write `kubernetes.io/tls` Secrets.
+Example: `deployments/cert-manager/clusterissuer-knxvault.yaml`
 
 ## Kubernetes authentication method
 

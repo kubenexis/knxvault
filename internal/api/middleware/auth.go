@@ -75,5 +75,8 @@ func extractToken(c *gin.Context) string {
 	if token := c.GetHeader("X-KNXVault-Token"); token != "" {
 		return token
 	}
+	if token := c.GetHeader("X-Vault-Token"); token != "" {
+		return token
+	}
 	return ""
 }

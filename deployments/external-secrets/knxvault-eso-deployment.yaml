@@ -1,0 +1,74 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: knxvault-eso
+  namespace: knxvault
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: knxvault-eso
+rules:
+  - apiGroups: [""]
+    resources: ["serviceaccounts/token"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: knxvault-eso
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: knxvault-eso
+subjects:
+  - kind: ServiceAccount
+    name: knxvault-eso
+    namespace: knxvault
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: knxvault-eso
+  namespace: knxvault
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: knxvault-eso
+  template:
+    metadata:
+      labels:
+        app: knxvault-eso
+    spec:
+      serviceAccountName: knxvault-eso
+      containers:
+        - name: knxvault-eso
+          image: knxvault:0.4.5
+          command: ["/usr/local/bin/knxvault-eso"]
+          env:
+            - name: KNXVAULT_ESO_ADDR
+              value: ":8080"
+            - name: KNXVAULT_ADDR
+              value: "http://knxvault.knxvault.svc.cluster.local:8200"
+            - name: KNXVAULT_ESO_ROLE
+              value: "eso-reader"
+          ports:
+            - containerPort: 8080
+              name: http
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: knxvault-eso
+  namespace: knxvault
+spec:
+  selector:
+    app: knxvault-eso
+  ports:
+    - port: 8080
+      targetPort: http

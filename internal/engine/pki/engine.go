@@ -9,6 +9,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -595,6 +596,88 @@ func (e *Engine) RotateCA(ctx context.Context, id uuid.UUID) (*CAResult, error) 
 		CommonName: old.Subject.CommonName + " Successor",
 		TTL:        "4380h",
 	})
+}
+
+// SignCSRRequest configures CSR signing for a PKI role.
+type SignCSRRequest struct {
+	Role   string
+	CSRPEM string
+	TTL    string
+}
+
+// SignCSRResult is returned when signing a CSR.
+type SignCSRResult struct {
+	CertPEM   string
+	Serial    string
+	ExpiresAt time.Time
+	CAChain   []string
+}
+
+// SignCSR signs a PEM CSR using the CA bound to a PKI role.
+func (e *Engine) SignCSR(ctx context.Context, req SignCSRRequest) (*SignCSRResult, error) {
+	if e.crypto == nil || e.caRepo == nil || e.backend == nil {
+		return nil, common.New(common.ErrCodeInternal, "pki engine not fully configured")
+	}
+	if strings.TrimSpace(req.CSRPEM) == "" {
+		return nil, common.New(common.ErrCodeValidation, "csr is required")
+	}
+
+	caName := "root"
+	if e.roleRepo != nil && req.Role != "" {
+		role, err := e.roleRepo.Get(ctx, req.Role)
+		if err != nil {
+			return nil, err
+		}
+		caName = role.CAName
+	}
+
+	ca, err := e.caRepo.GetByName(ctx, caName)
+	if err != nil {
+		return nil, err
+	}
+
+	ttl := 720 * time.Hour
+	if req.TTL != "" {
+		ttl, err = utils.ParseTTL(req.TTL)
+		if err != nil {
+			return nil, common.Wrap(common.ErrCodeValidation, "invalid ttl", err)
+		}
+	}
+
+	caKey, err := e.decryptKey(ca.PrivateKeyEnc, ca.DEKEnc)
+	if err != nil {
+		return nil, err
+	}
+	defer memzero.Bytes(caKey)
+
+	certPEM, err := e.backend.SignCSR(ctx, pkibackend.SignCSRRequest{
+		CSRPEM:    []byte(req.CSRPEM),
+		CACertPEM: []byte(ca.CertPEM),
+		CAKeyPEM:  caKey,
+		TTL:       ttl,
+	})
+	if err != nil {
+		return nil, common.Wrap(common.ErrCodeInternal, "sign csr", err)
+	}
+
+	serial, expiresAt, err := parseCertMetadata(certPEM)
+	if err != nil {
+		return nil, err
+	}
+
+	chain := []string{ca.CertPEM}
+	if ca.ParentID != nil {
+		if parent, parentErr := e.caRepo.GetByID(ctx, *ca.ParentID); parentErr == nil {
+			chain = append([]string{parent.CertPEM}, chain...)
+		}
+	}
+
+	return &SignCSRResult{
+		CertPEM:   string(certPEM),
+		Serial:    serial,
+		ExpiresAt: expiresAt,
+		CAChain:   chain,
+	}, nil
 }
 
 func validateIssueAgainstRole(role *domainpki.Role, req IssueRequest) error {

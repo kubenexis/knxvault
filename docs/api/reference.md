@@ -78,6 +78,7 @@ Errors:
 | GET | `/sys/capabilities` | Yes | Token capabilities |
 | POST | `/sys/init` | Yes | Bootstrap initialization |
 | POST | `/sys/tls/issue-listener` | Yes | Issue listener TLS certificate |
+| POST | `/sys/rotation/run` | Yes | Orchestrate KV rotation, DB lease renewal, PKI renewal |
 | POST | `/sys/rotate-master-key` | Yes | Rotate envelope master key |
 | POST | `/sys/seal` | Yes | Seal vault (block mutating operations) |
 | POST | `/sys/unseal` | No | Unseal vault (`{"key":"<base64>"}`) |
@@ -154,6 +155,15 @@ Errors:
 | POST | `/inject/render` | Yes | Render secrets for injection |
 | GET | `/audit/export` | Yes | Export audit log + chain head |
 | POST | `/audit/verify` | Yes | Verify audit hash chain |
+
+### Vault compatibility (cert-manager)
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/v1/auth/kubernetes/login` | No | Vault-format Kubernetes login |
+| POST | `/v1/pki/sign/:role` | Yes | Vault-format CSR signing for cert-manager |
+
+Accepts `X-Vault-Token` or `Authorization: Bearer` for authenticated routes.
 
 ## Go client
 

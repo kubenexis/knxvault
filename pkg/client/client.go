@@ -398,3 +398,269 @@ func (c *Client) do(req *http.Request, auth bool, out any, expectStatus ...int) 
 func trimPath(path string) string {
 	return strings.TrimPrefix(strings.TrimSpace(path), "/")
 }
+
+// PolicyRequest creates or updates a policy.
+type PolicyRequest struct {
+	Effect     string         `json:"effect"`
+	Resources  []string       `json:"resources"`
+	Actions    []string       `json:"actions"`
+	Conditions map[string]any `json:"conditions,omitempty"`
+}
+
+// PolicyResponse returns a policy.
+type PolicyResponse struct {
+	Name       string         `json:"name"`
+	Effect     string         `json:"effect"`
+	Resources  []string       `json:"resources"`
+	Actions    []string       `json:"actions"`
+	Conditions map[string]any `json:"conditions,omitempty"`
+}
+
+// RoleRequest creates or updates a role.
+type RoleRequest struct {
+	Policies                      []string `json:"policies"`
+	BoundServiceAccountNames      []string `json:"bound_service_account_names,omitempty"`
+	BoundServiceAccountNamespaces []string `json:"bound_service_account_namespaces,omitempty"`
+}
+
+// RoleResponse returns a role.
+type RoleResponse struct {
+	Name                          string   `json:"name"`
+	Policies                      []string `json:"policies"`
+	BoundServiceAccountNames      []string `json:"bound_service_account_names,omitempty"`
+	BoundServiceAccountNamespaces []string `json:"bound_service_account_namespaces,omitempty"`
+}
+
+// AuditEntry is an exported audit record.
+type AuditEntry struct {
+	ID        int64          `json:"id"`
+	Timestamp time.Time      `json:"timestamp"`
+	Actor     string         `json:"actor"`
+	Action    string         `json:"action"`
+	Resource  string         `json:"resource"`
+	Status    string         `json:"status"`
+	Details   map[string]any `json:"details,omitempty"`
+	Hash      string         `json:"hash"`
+}
+
+// AuditExportResponse is returned by GET /audit/export.
+type AuditExportResponse struct {
+	Entries   []AuditEntry `json:"entries"`
+	HeadHash  string       `json:"head_hash"`
+	Signature string       `json:"signature,omitempty"`
+	SignedAt  time.Time    `json:"signed_at,omitempty"`
+}
+
+// DatabaseRoleRequest configures a database credentials role.
+type DatabaseRoleRequest struct {
+	TTLSeconds           int            `json:"ttl_seconds"`
+	UsernamePrefix       string         `json:"username_prefix,omitempty"`
+	DefaultUsername      string         `json:"default_username,omitempty"`
+	CreationStatements   []string       `json:"creation_statements"`
+	RevocationStatements []string       `json:"revocation_statements,omitempty"`
+	ExecutionMode        string         `json:"execution_mode,omitempty"`
+	AdminCredentialsPath string         `json:"admin_credentials_path,omitempty"`
+	Config               map[string]any `json:"config,omitempty"`
+}
+
+// DatabaseRoleResponse returns database role configuration.
+type DatabaseRoleResponse struct {
+	Name                 string         `json:"name"`
+	TTLSeconds           int            `json:"ttl_seconds"`
+	UsernamePrefix       string         `json:"username_prefix,omitempty"`
+	DefaultUsername      string         `json:"default_username,omitempty"`
+	CreationStatements   []string       `json:"creation_statements"`
+	RevocationStatements []string       `json:"revocation_statements,omitempty"`
+	ExecutionMode        string         `json:"execution_mode,omitempty"`
+	AdminCredentialsPath string         `json:"admin_credentials_path,omitempty"`
+	Config               map[string]any `json:"config,omitempty"`
+}
+
+// DatabaseCredsResponse is returned for credential generation.
+type DatabaseCredsResponse struct {
+	LeaseID    string   `json:"lease_id"`
+	Username   string   `json:"username"`
+	Password   string   `json:"password"`
+	Role       string   `json:"role"`
+	TTLSeconds int      `json:"ttl_seconds"`
+	ExpiresAt  string   `json:"expires_at"`
+	Statements []string `json:"statements,omitempty"`
+}
+
+// RaftAddNodeRequest adds a Raft peer.
+type RaftAddNodeRequest struct {
+	NodeID  uint64 `json:"node_id"`
+	Address string `json:"address"`
+}
+
+// RaftRemoveNodeRequest removes a Raft peer.
+type RaftRemoveNodeRequest struct {
+	NodeID uint64 `json:"node_id"`
+}
+
+// RotationRunRequest triggers orchestrated rotation.
+type RotationRunRequest struct {
+	DBGrace  string `json:"db_grace,omitempty"`
+	PKIGrace string `json:"pki_grace,omitempty"`
+}
+
+// RotationRunResponse summarizes orchestrated rotation.
+type RotationRunResponse struct {
+	KVRotated    int `json:"kv_rotated"`
+	DBRenewed    int `json:"db_leases_renewed"`
+	PKIRenewed   int `json:"pki_certs_renewed"`
+	TotalActions int `json:"total_actions"`
+}
+
+// IssueListenerTLSRequest issues listener TLS material.
+type IssueListenerTLSRequest struct {
+	Role       string   `json:"role"`
+	CommonName string   `json:"common_name"`
+	DNSNames   []string `json:"dns_names,omitempty"`
+	CertFile   string   `json:"cert_file,omitempty"`
+	KeyFile    string   `json:"key_file,omitempty"`
+	TTL        string   `json:"ttl,omitempty"`
+}
+
+// IssueListenerTLSResponse returns issued listener TLS material.
+type IssueListenerTLSResponse struct {
+	CertPEM       string `json:"cert_pem"`
+	PrivateKeyPEM string `json:"private_key_pem"`
+	Serial        string `json:"serial"`
+	ExpiresAt     string `json:"expires_at"`
+	CertFile      string `json:"cert_file,omitempty"`
+	KeyFile       string `json:"key_file,omitempty"`
+}
+
+// PutPolicy stores a policy.
+func (c *Client) PutPolicy(ctx context.Context, name string, req PolicyRequest) error {
+	return c.putJSON(ctx, "/sys/policies/"+trimPath(name), true, req, nil, http.StatusNoContent)
+}
+
+// GetPolicy returns a policy.
+func (c *Client) GetPolicy(ctx context.Context, name string) (*PolicyResponse, error) {
+	var out PolicyResponse
+	if err := c.getJSON(ctx, "/sys/policies/"+trimPath(name), true, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListPolicies returns all policies.
+func (c *Client) ListPolicies(ctx context.Context) ([]PolicyResponse, error) {
+	var out struct {
+		Policies []PolicyResponse `json:"policies"`
+	}
+	if err := c.getJSON(ctx, "/sys/policies", true, &out); err != nil {
+		return nil, err
+	}
+	return out.Policies, nil
+}
+
+// DeletePolicy removes a policy.
+func (c *Client) DeletePolicy(ctx context.Context, name string) error {
+	return c.deleteJSON(ctx, "/sys/policies/"+trimPath(name), true, nil, http.StatusNoContent)
+}
+
+// PutRole stores a role.
+func (c *Client) PutRole(ctx context.Context, name string, req RoleRequest) error {
+	return c.putJSON(ctx, "/sys/roles/"+trimPath(name), true, req, nil, http.StatusNoContent)
+}
+
+// GetRole returns a role.
+func (c *Client) GetRole(ctx context.Context, name string) (*RoleResponse, error) {
+	var out RoleResponse
+	if err := c.getJSON(ctx, "/sys/roles/"+trimPath(name), true, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AuditExport exports audit entries.
+func (c *Client) AuditExport(ctx context.Context, limit int) (*AuditExportResponse, error) {
+	path := "/audit/export"
+	if limit > 0 {
+		path += fmt.Sprintf("?limit=%d", limit)
+	}
+	var out AuditExportResponse
+	if err := c.getJSON(ctx, path, true, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PutDatabaseRole stores a database role.
+func (c *Client) PutDatabaseRole(ctx context.Context, name string, req DatabaseRoleRequest) error {
+	return c.putJSON(ctx, "/secrets/database/roles/"+trimPath(name), true, req, nil, http.StatusNoContent)
+}
+
+// GetDatabaseRole returns a database role.
+func (c *Client) GetDatabaseRole(ctx context.Context, name string) (*DatabaseRoleResponse, error) {
+	var out DatabaseRoleResponse
+	if err := c.getJSON(ctx, "/secrets/database/roles/"+trimPath(name), true, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GenerateDatabaseCreds issues database credentials.
+func (c *Client) GenerateDatabaseCreds(ctx context.Context, role string, ttlSeconds int) (*DatabaseCredsResponse, error) {
+	body := map[string]any{}
+	if ttlSeconds > 0 {
+		body["ttl_seconds"] = ttlSeconds
+	}
+	var out DatabaseCredsResponse
+	if err := c.postJSON(ctx, "/secrets/database/creds/"+trimPath(role), true, body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RaftAddNode adds a Raft cluster member.
+func (c *Client) RaftAddNode(ctx context.Context, req RaftAddNodeRequest) error {
+	return c.postJSON(ctx, "/sys/raft/add-node", true, req, nil)
+}
+
+// RaftRemoveNode removes a Raft cluster member.
+func (c *Client) RaftRemoveNode(ctx context.Context, req RaftRemoveNodeRequest) error {
+	return c.postJSON(ctx, "/sys/raft/remove-node", true, req, nil)
+}
+
+// RunRotation triggers orchestrated rotation.
+func (c *Client) RunRotation(ctx context.Context, req RotationRunRequest) (*RotationRunResponse, error) {
+	var out RotationRunResponse
+	if err := c.postJSON(ctx, "/sys/rotation/run", true, req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// IssueListenerTLS issues TLS material for the API listener.
+func (c *Client) IssueListenerTLS(ctx context.Context, req IssueListenerTLSRequest) (*IssueListenerTLSResponse, error) {
+	var out IssueListenerTLSResponse
+	if err := c.postJSON(ctx, "/sys/tls/issue-listener", true, req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *Client) putJSON(ctx context.Context, path string, auth bool, body any, out any, expectStatus ...int) error {
+	raw, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, c.BaseURL+path, bytes.NewReader(raw))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	return c.do(req, auth, out, expectStatus...)
+}
+
+func (c *Client) deleteJSON(ctx context.Context, path string, auth bool, out any, expectStatus ...int) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.BaseURL+path, nil)
+	if err != nil {
+		return err
+	}
+	return c.do(req, auth, out, expectStatus...)
+}

@@ -23,7 +23,7 @@ func TestSysHandlerSealAndUnseal(t *testing.T) {
 	}
 	seal := app.NewSealState(key)
 	authSvc := testAuthService("admin")
-	handler := handlers.NewSysHandler(authSvc, nil, nil, nil, nil, seal, nil, nil, false, nil)
+	handler := handlers.NewSysHandler(authSvc, nil, nil, nil, nil, nil, seal, nil, nil, false, nil)
 
 	r := gin.New()
 	r.Use(middleware.ErrorHandler())
