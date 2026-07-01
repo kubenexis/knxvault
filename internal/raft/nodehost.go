@@ -86,12 +86,15 @@ func (b *NodeHostBundle) Ready() bool {
 	return err == nil && valid
 }
 
-// Stop shuts down the NodeHost.
+// Stop shuts down the NodeHost. Safe to call more than once.
 func (b *NodeHostBundle) Stop() {
 	if b == nil || b.NodeHost == nil {
 		return
 	}
-	b.NodeHost.Stop()
+	nh := b.NodeHost
+	b.NodeHost = nil
+	b.Client = nil
+	nh.Stop()
 }
 
 func clusterRunning(nh *dragonboat.NodeHost) bool {

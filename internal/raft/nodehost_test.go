@@ -53,6 +53,16 @@ func waitForLeader(t *testing.T, bundle *raft.NodeHostBundle) {
 	t.Fatal("raft leader not elected")
 }
 
+func TestNodeHostBundleStopIsIdempotent(t *testing.T) {
+	dir := t.TempDir()
+	addr := freePort(t)
+	bundle := startTestNode(t, filepath.Join(dir, "n1"), 1, addr, nil)
+	waitForLeader(t, bundle)
+
+	bundle.Stop()
+	bundle.Stop()
+}
+
 func TestSingleNodeRaftPropose(t *testing.T) {
 	dir := t.TempDir()
 	addr := freePort(t)
