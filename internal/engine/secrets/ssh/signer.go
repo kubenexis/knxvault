@@ -4,6 +4,8 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
+	"encoding/binary"
 	"encoding/pem"
 	"fmt"
 	"time"
@@ -66,6 +68,15 @@ func marshalSignerFromKey(key any) (gossh.Signer, []byte, error) {
 }
 
 func signUserCertificate(caSigner, userSigner gossh.Signer, opts CertOptions) ([]byte, error) {
+	validAfter, err := certEpochSeconds(opts.ValidAfter)
+	if err != nil {
+		return nil, err
+	}
+	validBefore, err := certEpochSeconds(opts.ValidBefore)
+	if err != nil {
+		return nil, err
+	}
+
 	pub := userSigner.PublicKey()
 	cert := &gossh.Certificate{
 		Key:             pub,
@@ -73,8 +84,8 @@ func signUserCertificate(caSigner, userSigner gossh.Signer, opts CertOptions) ([
 		CertType:        gossh.UserCert,
 		KeyId:           opts.KeyID,
 		ValidPrincipals: append([]string(nil), opts.Principals...),
-		ValidAfter:      uint64(opts.ValidAfter.Unix()),
-		ValidBefore:     uint64(opts.ValidBefore.Unix()),
+		ValidAfter:      validAfter,
+		ValidBefore:     validBefore,
 		Permissions: gossh.Permissions{
 			Extensions:      copyStringMap(opts.Extensions),
 			CriticalOptions: copyStringMap(opts.CriticalOptions),
@@ -98,10 +109,20 @@ func parseUserSigner(pemBytes []byte) (gossh.Signer, error) {
 	return gossh.NewSignerFromKey(raw)
 }
 
+// certEpochSeconds maps a time to OpenSSH certificate epoch seconds (uint64).
+func certEpochSeconds(t time.Time) (uint64, error) {
+	sec := t.Unix()
+	if sec < 0 {
+		return 0, fmt.Errorf("certificate time %s is before unix epoch", t.UTC().Format(time.RFC3339))
+	}
+	return uint64(sec), nil
+}
+
 func randomSerial() uint64 {
 	var buf [8]byte
 	if _, err := rand.Read(buf[:]); err != nil {
-		return uint64(time.Now().UTC().UnixNano())
+		sum := sha256.Sum256([]byte(time.Now().UTC().Format(time.RFC3339Nano)))
+		return binary.BigEndian.Uint64(sum[:8])
 	}
 	var out uint64
 	for _, b := range buf {
