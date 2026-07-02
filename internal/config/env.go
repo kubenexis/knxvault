@@ -226,8 +226,11 @@ func overlayEnv(cfg Config) (Config, error) {
 		}
 		cfg.TenantMode = enabled
 	}
-	if v := os.Getenv("KNXVAULT_REDIS_CACHE_URL"); v != "" {
-		cfg.RedisCacheURL = strings.TrimSpace(v)
+	if v := strings.TrimSpace(os.Getenv("KNXVAULT_VALKEY_CACHE_URL")); v != "" {
+		cfg.ValkeyCacheURL = v
+	} else if v := strings.TrimSpace(os.Getenv("KNXVAULT_REDIS_CACHE_URL")); v != "" {
+		// Deprecated: use KNXVAULT_VALKEY_CACHE_URL (Redis-named env removed in favor of Valkey).
+		cfg.ValkeyCacheURL = v
 	}
 	if v := os.Getenv("KNXVAULT_AUTH_LOCKOUT_THRESHOLD"); v != "" {
 		threshold, err := strconv.Atoi(v)

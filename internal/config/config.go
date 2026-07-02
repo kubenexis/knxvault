@@ -78,7 +78,7 @@ type Config struct {
 	AuthLockoutThreshold    int
 	AuthLockoutTTL          time.Duration
 	TenantMode              bool
-	RedisCacheURL           string
+	ValkeyCacheURL          string
 
 	RequestSigningKey      string
 	RequestSigningRequired bool

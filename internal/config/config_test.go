@@ -164,3 +164,27 @@ func TestLoadRaftNodeIDFromPodName(t *testing.T) {
 		t.Fatalf("Raft.NodeID = %d, want 3 from knxvault-2", cfg.Raft.NodeID)
 	}
 }
+
+func TestLoadValkeyCacheURL(t *testing.T) {
+	t.Setenv("KNXVAULT_VALKEY_CACHE_URL", "valkey://cache:6379")
+	t.Setenv("KNXVAULT_REDIS_CACHE_URL", "")
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() = %v", err)
+	}
+	if cfg.ValkeyCacheURL != "valkey://cache:6379" {
+		t.Fatalf("ValkeyCacheURL = %q", cfg.ValkeyCacheURL)
+	}
+}
+
+func TestLoadDeprecatedRedisCacheURLEnv(t *testing.T) {
+	t.Setenv("KNXVAULT_VALKEY_CACHE_URL", "")
+	t.Setenv("KNXVAULT_REDIS_CACHE_URL", "valkey://legacy:6379")
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() = %v", err)
+	}
+	if cfg.ValkeyCacheURL != "valkey://legacy:6379" {
+		t.Fatalf("ValkeyCacheURL = %q", cfg.ValkeyCacheURL)
+	}
+}

@@ -9,7 +9,7 @@ Design outline for the next major phase of KNXVault. Phase 3 (Dragonboat Raft st
 | Kubernetes-native management | Operator reconciles CA and RBAC CRDs |
 | Hardware security | HSM-backed CA key operations via OpenSSL engine |
 | Multi-workload isolation | Namespace-scoped tenancy with policy boundaries |
-| Performance at scale | Redis read cache for hot paths |
+| Performance at scale | Valkey read cache for hot paths (Apache 2.0) |
 | Transport security | Full mTLS for API and client certificates |
 | Disaster recovery | Automated DR failover and runbooks |
 
@@ -23,7 +23,7 @@ Design outline for the next major phase of KNXVault. Phase 3 (Dragonboat Raft st
 | **W31-02** | PKCS#11 HSM integration | crypto | L | W31-01 | Engine config via env; CA key generation on HSM |
 | **W32-01** | Multi-tenancy policy model | auth | M | W13-01 | Namespace-scoped policy isolation and admin boundaries |
 | **W32-02** | Tenant-aware API paths | api | M | W32-01 | Optional `X-KNX-Namespace` header enforcement |
-| **W33-01** | Redis read cache | storage | M | W26 | Cache public CA certs, CRLs, policy documents |
+| **W33-01** | Valkey read cache | storage | M | W26 | Cache public CA certs, CRLs, policy documents |
 | **W33-02** | Cache invalidation on write | storage | S | W33-01 | Raft commit hooks invalidate cache entries |
 | **W34-01** | Server mTLS | security | M | W5-03 | Require client certificates on secured routes |
 | **W34-02** | Client cert issuance API | security | M | W34-01 | PKI role for API consumer certificates |
@@ -41,7 +41,7 @@ graph TB
 
     subgraph KNXVault
         API[mTLS API]
-        Cache[Redis read cache]
+        Cache[Valkey read cache]
         Raft[Dragonboat cluster]
         HSM[OpenSSL + PKCS#11 engine]
     end
@@ -64,14 +64,14 @@ graph TB
 | Risk | Mitigation |
 |------|------------|
 | HSM vendor lock-in | Abstract engine interface; test with SoftHSM |
-| Redis availability | Cache miss falls through to Raft; not required for correctness |
+| Valkey availability | Cache miss falls through to Raft; not required for correctness |
 | Operator complexity | Start with CA + Policy CRDs only; expand incrementally |
 | mTLS rollout | Opt-in flag before `KNXVAULT_MTLS_REQUIRED=true` default |
 
 ## Open questions
 
 1. Should the Operator manage Raft cluster sizing or only application config?
-2. Is Redis a hard dependency or optional sidecar?
+2. Is Valkey a hard dependency or optional sidecar? (Optional — `KNXVAULT_VALKEY_CACHE_URL`; in-memory fallback per node.)
 3. Which HSM vendors to certify first (YubiHSM, AWS CloudHSM, Thales)?
 
 ## Related documents

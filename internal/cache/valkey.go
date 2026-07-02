@@ -1,4 +1,4 @@
-// Package cache provides optional Redis read-through caching (W33-01–02).
+// Package cache provides optional Valkey read-through caching (W33-01–02).
 package cache
 
 import (
@@ -14,7 +14,7 @@ type Store interface {
 	Delete(ctx context.Context, key string)
 }
 
-// MemoryStore is an in-process cache used when Redis is unavailable.
+// MemoryStore is an in-process cache used when Valkey is unavailable.
 type MemoryStore struct {
 	mu    sync.RWMutex
 	items map[string]entry
@@ -55,43 +55,44 @@ func (s *MemoryStore) Delete(_ context.Context, key string) {
 	delete(s.items, key)
 }
 
-// RedisStore uses Redis when URL is set; falls back to memory on errors.
-type RedisStore struct {
-	redis    Store
+// ValkeyStore uses a Valkey-compatible RESP server when URL is set; falls back to memory.
+type ValkeyStore struct {
+	remote   Store
 	fallback Store
 }
 
-// NewRedisStore constructs a cache with optional Redis backend.
-func NewRedisStore(url string) Store {
+// NewValkeyStore constructs a cache with optional Valkey backend.
+// URL format: valkey://host:port or host:port. Empty URL uses in-memory cache only.
+func NewValkeyStore(url string) Store {
 	fallback := NewMemoryStore()
 	if url == "" {
 		return fallback
 	}
-	if r, err := newMinimalRedis(url); err == nil {
-		return &RedisStore{redis: r, fallback: fallback}
+	if remote, err := newRESPClient(url); err == nil {
+		return &ValkeyStore{remote: remote, fallback: fallback}
 	}
 	return fallback
 }
 
-func (r *RedisStore) Get(ctx context.Context, key string) ([]byte, bool) {
-	if r.redis != nil {
-		if v, ok := r.redis.Get(ctx, key); ok {
-			return v, true
+func (v *ValkeyStore) Get(ctx context.Context, key string) ([]byte, bool) {
+	if v.remote != nil {
+		if raw, ok := v.remote.Get(ctx, key); ok {
+			return raw, true
 		}
 	}
-	return r.fallback.Get(ctx, key)
+	return v.fallback.Get(ctx, key)
 }
 
-func (r *RedisStore) Set(ctx context.Context, key string, value []byte, ttl time.Duration) {
-	if r.redis != nil {
-		r.redis.Set(ctx, key, value, ttl)
+func (v *ValkeyStore) Set(ctx context.Context, key string, value []byte, ttl time.Duration) {
+	if v.remote != nil {
+		v.remote.Set(ctx, key, value, ttl)
 	}
-	r.fallback.Set(ctx, key, value, ttl)
+	v.fallback.Set(ctx, key, value, ttl)
 }
 
-func (r *RedisStore) Delete(ctx context.Context, key string) {
-	if r.redis != nil {
-		r.redis.Delete(ctx, key)
+func (v *ValkeyStore) Delete(ctx context.Context, key string) {
+	if v.remote != nil {
+		v.remote.Delete(ctx, key)
 	}
-	r.fallback.Delete(ctx, key)
+	v.fallback.Delete(ctx, key)
 }

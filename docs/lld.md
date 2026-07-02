@@ -338,7 +338,7 @@ knxvault/
 
 - **`internal/config/`**: Strongly-typed config with validation (using `validator.v10`). Supports env vars, ConfigMaps, and secrets.
 
-- **`internal/infra/`**: Kubernetes client (`client-go`), OpenTelemetry setup, Redis (optional).
+- **`internal/infra/`**: Kubernetes client (`client-go`), OpenTelemetry setup, Valkey cache client (optional).
 
 - **`deployments/helm/`**: Complete Helm chart for Kubernetes deployment.
 
@@ -737,7 +737,7 @@ func ErrorHandler() gin.HandlerFunc {
 
 ### 5.4 Rate Limiting & Security Middleware
 
-- **Rate Limiter**: Token bucket per IP/token using `golang.org/x/time/rate` or Redis-backed for HA.
+- **Rate Limiter**: Token bucket per IP/token using `golang.org/x/time/rate` (Valkey-backed HA limiter: future).
 - **Security Middlewares** (in order):
   1. CORS (strict).
   2. Request ID + Logging.
@@ -1145,7 +1145,7 @@ KNXVault follows a phased approach aligned with the HLD, prioritizing core value
 - HSM support via OpenSSL engine.
 - Advanced dynamic secret engines (AWS, cloud OAuth, etc.).
 - Multi-tenancy / namespace isolation.
-- Performance optimizations and caching layer (Redis).
+- Performance optimizations and caching layer (Valkey, Apache 2.0).
 - Full mTLS enforcement + client certificate management.
 - Disaster recovery automation.
 - Compliance certifications support (audit packs).

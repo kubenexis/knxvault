@@ -10,21 +10,39 @@ import (
 	"time"
 )
 
-// minimalRedis implements basic GET/SET/DEL over RESP (W33-01).
-type minimalRedis struct {
+// respClient implements GET/SET/DEL over the Valkey RESP wire protocol.
+type respClient struct {
 	addr string
 }
 
-func newMinimalRedis(url string) (*minimalRedis, error) {
-	addr := strings.TrimPrefix(url, "redis://")
-	if addr == "" {
-		return nil, fmt.Errorf("invalid redis url")
+func parseValkeyURL(url string) (string, error) {
+	url = strings.TrimSpace(url)
+	if url == "" {
+		return "", fmt.Errorf("valkey cache url is required")
 	}
-	return &minimalRedis{addr: addr}, nil
+	// valkey:// is preferred; redis:// accepted as a legacy URL alias during migration.
+	for _, prefix := range []string{"valkey://", "redis://"} {
+		if strings.HasPrefix(url, prefix) {
+			addr := strings.TrimPrefix(url, prefix)
+			if addr == "" {
+				return "", fmt.Errorf("invalid valkey cache url")
+			}
+			return addr, nil
+		}
+	}
+	return url, nil
 }
 
-func (r *minimalRedis) Get(ctx context.Context, key string) ([]byte, bool) {
-	conn, err := r.dial(ctx)
+func newRESPClient(url string) (*respClient, error) {
+	addr, err := parseValkeyURL(url)
+	if err != nil {
+		return nil, err
+	}
+	return &respClient{addr: addr}, nil
+}
+
+func (c *respClient) Get(ctx context.Context, key string) ([]byte, bool) {
+	conn, err := c.dial(ctx)
 	if err != nil {
 		return nil, false
 	}
@@ -35,8 +53,8 @@ func (r *minimalRedis) Get(ctx context.Context, key string) ([]byte, bool) {
 	return readBulkString(bufio.NewReader(conn))
 }
 
-func (r *minimalRedis) Set(ctx context.Context, key string, value []byte, ttl time.Duration) {
-	conn, err := r.dial(ctx)
+func (c *respClient) Set(ctx context.Context, key string, value []byte, ttl time.Duration) {
+	conn, err := c.dial(ctx)
 	if err != nil {
 		return
 	}
@@ -48,8 +66,8 @@ func (r *minimalRedis) Set(ctx context.Context, key string, value []byte, ttl ti
 	_ = writeCommand(conn, "SET", key, string(value))
 }
 
-func (r *minimalRedis) Delete(ctx context.Context, key string) {
-	conn, err := r.dial(ctx)
+func (c *respClient) Delete(ctx context.Context, key string) {
+	conn, err := c.dial(ctx)
 	if err != nil {
 		return
 	}
@@ -57,9 +75,9 @@ func (r *minimalRedis) Delete(ctx context.Context, key string) {
 	_ = writeCommand(conn, "DEL", key)
 }
 
-func (r *minimalRedis) dial(ctx context.Context) (net.Conn, error) {
+func (c *respClient) dial(ctx context.Context) (net.Conn, error) {
 	d := net.Dialer{Timeout: 2 * time.Second}
-	return d.DialContext(ctx, "tcp", r.addr)
+	return d.DialContext(ctx, "tcp", c.addr)
 }
 
 func writeCommand(w io.Writer, parts ...string) error {

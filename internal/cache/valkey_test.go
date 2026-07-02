@@ -22,12 +22,22 @@ func TestMemoryStoreRoundTrip(t *testing.T) {
 	}
 }
 
-func TestRedisStoreFallbackWithoutURL(t *testing.T) {
-	store := cache.NewRedisStore("")
+func TestValkeyStoreFallbackWithoutURL(t *testing.T) {
+	store := cache.NewValkeyStore("")
 	ctx := context.Background()
 	store.Set(ctx, "k2", []byte("fallback"), time.Minute)
 	got, ok := store.Get(ctx, "k2")
 	if !ok || string(got) != "fallback" {
 		t.Fatalf("fallback Get() = %q ok=%v", got, ok)
+	}
+}
+
+func TestValkeyStoreUsesMemoryWhenRemoteUnreachable(t *testing.T) {
+	store := cache.NewValkeyStore("valkey://127.0.0.1:1")
+	ctx := context.Background()
+	store.Set(ctx, "probe", []byte("ok"), time.Minute)
+	got, ok := store.Get(ctx, "probe")
+	if !ok || string(got) != "ok" {
+		t.Fatalf("Get() = %q ok=%v", got, ok)
 	}
 }

@@ -28,7 +28,7 @@ KNXVault is a lightweight, self-hosted secrets management and PKI system written
 
 - Full HashiCorp Vault feature parity (plugins, complex secret engines)
 - Helm chart and Terraform provider (long-term future)
-- HSM integration, multi-tenancy, Redis cache, full mTLS (Phase 4)
+- HSM integration, multi-tenancy, Valkey cache, full mTLS (Phase 4)
 - GUI
 
 ## Logical architecture

@@ -224,7 +224,7 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 		if cfg.TenantMode {
 			deps.SecretsService.SetTenantMode(true)
 		}
-		deps.CacheStore = cache.NewRedisStore(cfg.RedisCacheURL)
+		deps.CacheStore = cache.NewValkeyStore(cfg.ValkeyCacheURL)
 		deps.SecretsService.SetCache(deps.CacheStore)
 		renderer := inject.NewRenderer(service.NewKVSecretReader(deps.SecretsService))
 		deps.InjectService = service.NewInjectService(renderer, deps.AuditService)
