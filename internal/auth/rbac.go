@@ -78,7 +78,7 @@ func (r *RBAC) Authorize(policyNames []string, resource, action string, req Requ
 func (r *RBAC) Capabilities(policyNames []string) []string {
 	seen := make(map[string]struct{})
 	var caps []string
-	for _, name := range policyNames {
+	for _, name := range r.ResolvePolicyNames(policyNames) {
 		policy, ok := r.policy(name)
 		if !ok {
 			continue

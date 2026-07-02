@@ -46,6 +46,30 @@ func TestLeaseServiceGetAndList(t *testing.T) {
 	}
 }
 
+func TestLeaseServiceListOffsetBeyondLength(t *testing.T) {
+	leases := memory.NewLeaseRepository()
+	now := time.Now().UTC()
+	for i, id := range []string{"l_a", "l_b"} {
+		lease := &domainsecrets.Lease{
+			ID: id, Path: "database/creds/role/" + id, RoleName: "role",
+			Engine: "database", TTLSeconds: 3600,
+			CreatedAt: now, ExpiresAt: now.Add(time.Hour), Renewable: true,
+		}
+		if err := leases.Save(context.Background(), lease); err != nil {
+			t.Fatalf("Save() = %v", err)
+		}
+		_ = i
+	}
+	svc := service.NewLeaseService(leases, nil, nil, auditsvc.NewService(memory.NewAuditRepository()))
+	list, err := svc.List(context.Background(), service.LeaseListFilter{Offset: 10})
+	if err != nil {
+		t.Fatalf("List() = %v", err)
+	}
+	if len(list) != 0 {
+		t.Fatalf("expected empty page, got %d leases", len(list))
+	}
+}
+
 func TestLeaseServiceBulkRevokeRequiresEngine(t *testing.T) {
 	leases := memory.NewLeaseRepository()
 	now := time.Now().UTC()

@@ -367,22 +367,46 @@ func (s *Service) LoginKubernetes(ctx context.Context, role, jwtToken string) (s
 	if err != nil {
 		auditCtx.FailureReason = "role not found"
 		s.recordLoginAudit(ctx, false, auditCtx)
+		if s.lockout != nil {
+			s.lockout.RecordFailure(lockKey)
+		}
 		return "", nil, common.Wrap(common.ErrCodeForbidden, "role not found", err)
+	}
+	if storedRole.AuthMethod != "" && storedRole.AuthMethod != domainauth.AuthMethodKubernetes {
+		auditCtx.FailureReason = "role does not allow kubernetes login"
+		s.recordLoginAudit(ctx, false, auditCtx)
+		if s.lockout != nil {
+			s.lockout.RecordFailure(lockKey)
+		}
+		return "", nil, common.New(common.ErrCodeForbidden, "role does not allow kubernetes login")
 	}
 	if err := MatchServiceAccountBinding(storedRole, identity); err != nil {
 		auditCtx.FailureReason = err.Error()
 		s.recordLoginAudit(ctx, false, auditCtx)
+		if s.lockout != nil {
+			s.lockout.RecordFailure(lockKey)
+		}
 		return "", nil, err
 	}
-	if len(storedRole.Policies) == 0 {
+	policies := storedRole.Policies
+	if s.roles != nil {
+		policies = s.roles.PoliciesForRole(ctx, role)
+	}
+	if len(policies) == 0 {
 		auditCtx.FailureReason = "role has no policies"
 		s.recordLoginAudit(ctx, false, auditCtx)
+		if s.lockout != nil {
+			s.lockout.RecordFailure(lockKey)
+		}
 		return "", nil, common.New(common.ErrCodeForbidden, "role has no policies")
 	}
-	policies := storedRole.Policies
 	nhiID := domainauth.NHIKey(domainauth.IdentityTypeK8sSA, identity.Namespace, identity.Name, subject)
 	if s.nhi != nil {
-		if revoked, err := s.nhi.IsRevoked(ctx, nhiID); err == nil && revoked {
+		revoked, err := s.nhi.IsRevoked(ctx, nhiID)
+		if err != nil {
+			return "", nil, common.Wrap(common.ErrCodeUnavailable, "identity check failed", err)
+		}
+		if revoked {
 			return "", nil, common.New(common.ErrCodeForbidden, "machine identity revoked")
 		}
 		_ = s.nhi.UpsertFromLogin(ctx, &domainauth.MachineIdentity{
@@ -458,6 +482,9 @@ func (s *Service) LoginOIDC(ctx context.Context, role, jwtToken string) (string,
 	if err := CheckMFA(requireMFA, claims); err != nil {
 		auditCtx.FailureReason = err.Error()
 		s.recordLoginAudit(ctx, false, auditCtx)
+		if s.lockout != nil {
+			s.lockout.RecordFailure(lockKey)
+		}
 		return "", nil, err
 	}
 	policies := PoliciesForRole(role)
@@ -467,7 +494,11 @@ func (s *Service) LoginOIDC(ctx context.Context, role, jwtToken string) (string,
 	ttl := OIDCTTL(oidcCfg, s.oidcTTL)
 	nhiID := domainauth.NHIKey(domainauth.IdentityTypeOIDC, "", "", subject)
 	if s.nhi != nil {
-		if revoked, err := s.nhi.IsRevoked(ctx, nhiID); err == nil && revoked {
+		revoked, err := s.nhi.IsRevoked(ctx, nhiID)
+		if err != nil {
+			return "", nil, common.Wrap(common.ErrCodeUnavailable, "identity check failed", err)
+		}
+		if revoked {
 			return "", nil, common.New(common.ErrCodeForbidden, "machine identity revoked")
 		}
 		_ = s.nhi.UpsertFromLogin(ctx, &domainauth.MachineIdentity{

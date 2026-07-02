@@ -96,11 +96,16 @@ func ConditionsMatch(conditions map[string]any, req RequestContext) bool {
 
 func matchIPCIDRAny(raw any, clientIP string) bool {
 	switch v := raw.(type) {
+	case string:
+		if strings.TrimSpace(v) == "" {
+			return false
+		}
+		return matchIPCIDR([]any{v}, clientIP)
 	case []any:
 		return len(v) > 0 && matchIPCIDR(v, clientIP)
 	case []string:
 		if len(v) == 0 {
-			return true
+			return false
 		}
 		anyList := make([]any, len(v))
 		for i, s := range v {
@@ -108,7 +113,7 @@ func matchIPCIDRAny(raw any, clientIP string) bool {
 		}
 		return matchIPCIDR(anyList, clientIP)
 	default:
-		return true
+		return false
 	}
 }
 

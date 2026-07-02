@@ -35,6 +35,24 @@ func TestCapabilitiesIncludesCapabilityField(t *testing.T) {
 	}
 }
 
+func TestCapabilitiesExpandsIncludes(t *testing.T) {
+	rbac := auth.NewRBAC()
+	rbac.UpsertPolicy(domainauth.Policy{
+		Name: "bundle", Effect: domainauth.EffectAllow,
+		Includes: []string{"secrets-reader"},
+	})
+	caps := rbac.Capabilities([]string{"bundle"})
+	found := false
+	for _, cap := range caps {
+		if cap == "secrets/*:read" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("Capabilities() = %v, expected included secrets-reader cap", caps)
+	}
+}
+
 func TestDenyOverridesAllow(t *testing.T) {
 	rbac := auth.NewRBAC()
 	rbac.UpsertPolicy(domainauth.Policy{

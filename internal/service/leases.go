@@ -95,7 +95,10 @@ func (s *LeaseService) List(ctx context.Context, filter LeaseListFilter) ([]Leas
 		}
 		out = append(out, *toLeaseView(lease))
 	}
-	if filter.Offset > 0 && filter.Offset < len(out) {
+	if filter.Offset > 0 {
+		if filter.Offset >= len(out) {
+			return nil, nil
+		}
 		out = out[filter.Offset:]
 	}
 	if filter.Limit > 0 && len(out) > filter.Limit {

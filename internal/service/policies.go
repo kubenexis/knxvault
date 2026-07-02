@@ -44,8 +44,10 @@ func NewPolicyService(
 func (s *PolicyService) SavePolicy(ctx context.Context, policy *domainauth.Policy) error {
 	err := s.policies.Save(ctx, policy)
 	if err == nil && s.rbac != nil {
+		s.hashMu.Lock()
 		s.rbac.UpsertPolicy(*policy)
-		s.invalidatePolicyHash()
+		s.policyHash = ""
+		s.hashMu.Unlock()
 	}
 	audithelper.Record(s.audit, ctx, "policy.write", "sys/policies/"+policy.Name, err, nil)
 	return err
@@ -65,8 +67,10 @@ func (s *PolicyService) ListPolicies(ctx context.Context) ([]*domainauth.Policy,
 func (s *PolicyService) DeletePolicy(ctx context.Context, name string) error {
 	err := s.policies.Delete(ctx, name)
 	if err == nil && s.rbac != nil {
+		s.hashMu.Lock()
 		s.rbac.DeletePolicy(name)
-		s.invalidatePolicyHash()
+		s.policyHash = ""
+		s.hashMu.Unlock()
 	}
 	audithelper.Record(s.audit, ctx, "policy.delete", "sys/policies/"+name, err, nil)
 	return err
@@ -117,22 +121,19 @@ func (s *PolicyService) SyncRBAC(ctx context.Context) error {
 	if s.policies == nil || s.rbac == nil {
 		return nil
 	}
+	s.hashMu.Lock()
+	defer s.hashMu.Unlock()
+
 	policies, err := s.policies.List(ctx)
 	if err != nil {
 		return err
 	}
 	hash := hashPolicies(policies)
-	s.hashMu.Lock()
-	if hash == s.policyHash {
-		s.hashMu.Unlock()
+	if hash == s.policyHash && s.policyHash != "" {
 		return nil
 	}
-	s.hashMu.Unlock()
-
 	s.rbac.ReloadFromPersisted(policies)
-	s.hashMu.Lock()
 	s.policyHash = hash
-	s.hashMu.Unlock()
 	return nil
 }
 

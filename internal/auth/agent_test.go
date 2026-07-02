@@ -56,6 +56,25 @@ func TestDelegateAgentScopesPathAndActions(t *testing.T) {
 	}
 }
 
+func TestDelegateAgentRejectsPolicyEscalation(t *testing.T) {
+	store := auth.NewTokenStore(time.Hour)
+	rbac := auth.NewRBAC()
+	svc := auth.NewService(store, rbac, "")
+	parent := auth.Principal{
+		Subject:  "ci-bot",
+		Policies: []string{"secrets-reader"},
+	}
+	_, _, err := svc.DelegateAgent(context.Background(), parent, auth.AgentDelegateRequest{
+		AgentID:        "planner-1",
+		PathPrefix:     "agent/planner-1",
+		AllowedActions: []string{"read"},
+		Policies:       []string{"admin"},
+	})
+	if err == nil {
+		t.Fatal("expected policy escalation to be rejected")
+	}
+}
+
 func TestConditionsMatchAgentID(t *testing.T) {
 	policy := domainauth.Policy{
 		Name:      "agent-only",

@@ -39,6 +39,8 @@ func (s *Service) DelegateAgent(ctx context.Context, parent Principal, req Agent
 	policies := req.Policies
 	if len(policies) == 0 {
 		policies = append([]string(nil), parent.Policies...)
+	} else if err := s.validateDelegatedPolicies(parent.Policies, policies); err != nil {
+		return "", nil, err
 	}
 	if len(policies) == 0 {
 		return "", nil, common.New(common.ErrCodeForbidden, "parent has no policies to delegate")
@@ -117,6 +119,24 @@ func (s *TokenStore) CreateAgent(ctx context.Context, subject string, policies [
 	}
 	copy := record
 	return token, &copy, nil
+}
+
+func (s *Service) validateDelegatedPolicies(parentPolicies, requested []string) error {
+	if s.rbac == nil {
+		return common.New(common.ErrCodeInternal, "rbac not configured")
+	}
+	parentSet := make(map[string]struct{})
+	for _, name := range s.rbac.ResolvePolicyNames(parentPolicies) {
+		parentSet[name] = struct{}{}
+	}
+	for _, name := range requested {
+		for _, resolved := range s.rbac.ResolvePolicyNames([]string{name}) {
+			if _, ok := parentSet[resolved]; !ok {
+				return common.New(common.ErrCodeForbidden, "cannot delegate policy outside parent scope")
+			}
+		}
+	}
+	return nil
 }
 
 // ParseAgentDelegateTTL parses optional TTL strings for delegation.

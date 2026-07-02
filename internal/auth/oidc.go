@@ -187,7 +187,7 @@ func (v *OIDCValidator) Validate(ctx context.Context, cfg *domainauth.OIDCConfig
 			}
 		}
 		return nil, fmt.Errorf("jwt missing kid with %d jwks keys", len(keys))
-	}, jwt.WithValidMethods([]string{"RS256", "RS384", "RS512", "PS256", "PS384", "PS512"}))
+	}, jwt.WithValidMethods([]string{"RS256", "RS384", "RS512", "PS256", "PS384", "PS512"}), jwt.WithExpirationRequired())
 	if err != nil {
 		return "", nil, common.Wrap(common.ErrCodeUnauthorized, "invalid oidc jwt", err)
 	}

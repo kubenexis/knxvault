@@ -142,6 +142,9 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 	if deps.AuthService != nil {
 		vaultCompat := handlers.NewVaultCompatHandler(deps.AuthService, deps.PKIService, deps.TokenTTL)
 		v1 := r.Group("/v1")
+		if deps.AuthLoginLimiter != nil {
+			v1.Use(middleware.AuthLoginThrottle(deps.AuthLoginLimiter))
+		}
 		v1.POST("/auth/kubernetes/login", vaultCompat.LoginKubernetes)
 		v1Auth := v1.Group("/")
 		v1Auth.Use(middleware.Auth(deps.AuthService))

@@ -50,6 +50,22 @@ func TestConditionsMatchIPCIDRStringSlice(t *testing.T) {
 	}
 }
 
+func TestConditionsMatchIPCIDRScalarString(t *testing.T) {
+	policy := domainauth.Policy{
+		Name: "office", Effect: domainauth.EffectAllow,
+		Resources: []string{"secrets/*"}, Actions: []string{"read"},
+		Conditions: map[string]any{
+			"ip_cidr": "10.0.0.0/8",
+		},
+	}
+	if !auth.PolicyMatches(policy, "secrets/kv/app", "read", auth.RequestContext{ClientIP: "10.2.3.4"}) {
+		t.Fatal("expected scalar ip_cidr to allow")
+	}
+	if auth.PolicyMatches(policy, "secrets/kv/app", "read", auth.RequestContext{ClientIP: "8.8.8.8"}) {
+		t.Fatal("expected scalar ip_cidr to deny")
+	}
+}
+
 func TestConditionsMatchNamespace(t *testing.T) {
 	policy := domainauth.Policy{
 		Name:      "prod-only",

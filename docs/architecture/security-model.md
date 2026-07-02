@@ -77,6 +77,10 @@ When KNXVault runs in a Kubernetes cluster, `POST /auth/kubernetes` validates th
 
 **Role bindings:** Roles may restrict login to specific service accounts via `bound_service_account_names` and `bound_service_account_namespaces`. A successful TokenReview with a non-matching SA returns `403`.
 
+**Auth method enforcement:** Roles with `auth_method: "oidc"` reject Kubernetes login; roles with `auth_method: "kubernetes"` reject OIDC login. K8s login resolves `policy_groups` the same way as OIDC.
+
+**OIDC JWT requirements:** OIDC login rejects JWTs without an `exp` claim. Machine identity revocation checks fail closed when the NHI backend is unavailable.
+
 **Login lockout (W43-04):** Failed `/auth/kubernetes` and `/auth/oidc/*` attempts are tracked **per source IP** (`LoginLockoutKey`). After `KNXVAULT_AUTH_LOCKOUT_THRESHOLD` failures within the window, further logins from that IP are rejected until TTL expiry or successful login clears the counter.
 
 **ABAC environment (W44-02):** Send `X-KNX-Environment` on API requests when policies use `environment` conditions. The header is copied into `RequestContext` after authentication.
@@ -85,7 +89,7 @@ When KNXVault runs in a Kubernetes cluster, `POST /auth/kubernetes` validates th
 
 **HA client tokens:** When Raft is enabled, opaque client tokens (root, `POST /auth/token/create`, K8s login) are replicated via `token.save` / `token.get` / `token.revoke` Raft commands. Tokens survive node restarts and authenticate on any cluster member.
 
-**RBAC cluster sync:** Each node reloads persisted policies from Raft before `Authorize` when the policy set hash changes, so policy writes on the leader are visible on followers without restart.
+**RBAC cluster sync:** Each node reloads persisted policies from Raft before `Authorize` when the policy set hash changes, so policy writes on the leader are visible on followers without restart. `SyncRBAC` holds an exclusive lock across list-and-reload to avoid overwriting concurrent policy updates with a stale snapshot.
 
 Tokens carry a TTL (`KNXVAULT_TOKEN_TTL`, default 24h). The root token should be rotated or disabled after bootstrap policies are established.
 
@@ -104,7 +108,9 @@ Conditions restrict by source IP, time window, K8s namespace, path prefix, or `a
 
 **Namespace condition:** Set `RequestContext.Namespace` from the `X-KNX-Namespace` request header or, for Kubernetes ServiceAccount tokens, from the `system:serviceaccount:{ns}:{name}` subject. Policies with `"namespace": "prod"` deny callers outside that namespace unless the header or SA subject matches.
 
-**AI agent delegation (W37-04):** Parent principals call `POST /auth/agent/delegate` to mint a non-renewable 15-minute token scoped by `path_prefix` (`agent/{id}/*` under `secrets/kv/`) and `allowed_actions`. Delegation is audited (`auth.agent.delegate`) with `parent_identity_id` → `agent_id` linkage on `MachineIdentity`.
+**AI agent delegation (W37-04):** Parent principals call `POST /auth/agent/delegate` to mint a non-renewable 15-minute token scoped by `path_prefix` (`agent/{id}/*` under `secrets/kv/`) and `allowed_actions`. Client-supplied `policies` must be a subset of the parent's resolved policies; omit the field to inherit parent policies. Delegation is audited (`auth.agent.delegate`) with `parent_identity_id` → `agent_id` linkage on `MachineIdentity`.
+
+**KV path normalization:** Secret API paths containing `..` are rejected before authorization. Invalid `?version=` on DELETE returns `400` instead of `500`.
 
 **CSI mount audit (W39-02):** The CSI provider authenticates each mount with the workload ServiceAccount JWT (TokenReview on the API). After a successful read, the provider calls `POST /inject/csi/mount-audit` with the short-lived session token; audit action `csi.mount` records role, namespace, service account, and paths.
 

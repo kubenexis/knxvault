@@ -126,3 +126,61 @@ func TestSecretsHandlerListMetadataDestroy(t *testing.T) {
 		t.Fatalf("destroy status = %d", rec.Code)
 	}
 }
+
+func TestSecretsHandlerRejectsPathTraversal(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	key := make([]byte, 32)
+	cryptoSvc, err := crypto.NewService(key)
+	if err != nil {
+		t.Fatalf("NewService() = %v", err)
+	}
+	tokenStore := auth.NewTokenStore(time.Hour)
+	_ = tokenStore.RegisterRootToken(context.Background(), "root-token", []string{"secrets-admin"})
+	authSvc := auth.NewService(tokenStore, auth.NewRBAC(), "")
+	secretsSvc := service.NewSecretsService(
+		secretsengine.NewKVV2Engine(memory.NewSecretRepository(), cryptoSvc),
+		auditsvc.NewService(memory.NewAuditRepository()),
+	)
+	handler := handlers.NewSecretsHandler(secretsSvc, nil)
+	r := gin.New()
+	r.Use(middleware.ErrorHandler())
+	r.Use(middleware.Auth(authSvc))
+	r.GET("/secrets/kv/*path", middleware.RequirePermission(authSvc, "secrets/kv", "read"), handler.Read)
+
+	req := httptest.NewRequest(http.MethodGet, "/secrets/kv/public/../admin/secret", nil)
+	req.Header.Set("Authorization", "Bearer root-token")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for .. path, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSecretsHandlerDeleteInvalidVersion(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	key := make([]byte, 32)
+	cryptoSvc, err := crypto.NewService(key)
+	if err != nil {
+		t.Fatalf("NewService() = %v", err)
+	}
+	tokenStore := auth.NewTokenStore(time.Hour)
+	_ = tokenStore.RegisterRootToken(context.Background(), "root-token", []string{"secrets-admin"})
+	authSvc := auth.NewService(tokenStore, auth.NewRBAC(), "")
+	secretsSvc := service.NewSecretsService(
+		secretsengine.NewKVV2Engine(memory.NewSecretRepository(), cryptoSvc),
+		auditsvc.NewService(memory.NewAuditRepository()),
+	)
+	handler := handlers.NewSecretsHandler(secretsSvc, nil)
+	r := gin.New()
+	r.Use(middleware.ErrorHandler())
+	r.Use(middleware.Auth(authSvc))
+	r.DELETE("/secrets/kv/*path", middleware.RequirePermission(authSvc, "secrets/kv", "write"), handler.Delete)
+
+	req := httptest.NewRequest(http.MethodDelete, "/secrets/kv/app/a?version=0", nil)
+	req.Header.Set("Authorization", "Bearer root-token")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for version=0, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}

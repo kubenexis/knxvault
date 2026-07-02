@@ -38,3 +38,36 @@ func TestPolicyServiceSyncRBAC(t *testing.T) {
 		t.Fatalf("Authorize() after sync = %v", err)
 	}
 }
+
+func TestPolicyServiceSyncRBACDoesNotOverwriteConcurrentSave(t *testing.T) {
+	ctx := context.Background()
+	policies := memory.NewPolicyRepository()
+	rbac := auth.NewRBAC()
+	svc := service.NewPolicyService(policies, memory.NewRoleRepository(), rbac, nil)
+	if err := svc.LoadIntoRBAC(ctx); err != nil {
+		t.Fatalf("LoadIntoRBAC() = %v", err)
+	}
+
+	if err := policies.Save(ctx, &domainauth.Policy{
+		Name: "live", Effect: domainauth.EffectAllow,
+		Resources: []string{"secrets/live/*"}, Actions: []string{"read"},
+	}); err != nil {
+		t.Fatalf("Save() = %v", err)
+	}
+	if err := svc.SavePolicy(ctx, &domainauth.Policy{
+		Name: "live", Effect: domainauth.EffectAllow,
+		Resources: []string{"secrets/live/*"}, Actions: []string{"read"},
+	}); err != nil {
+		t.Fatalf("SavePolicy() = %v", err)
+	}
+
+	if err := policies.Delete(ctx, "live"); err != nil {
+		t.Fatalf("Delete() = %v", err)
+	}
+	if err := svc.SyncRBAC(ctx); err != nil {
+		t.Fatalf("SyncRBAC() = %v", err)
+	}
+	if rbac.Authorize([]string{"live"}, "secrets/live/app", "read", auth.RequestContext{}) {
+		t.Fatal("SyncRBAC must not resurrect deleted policy after concurrent SavePolicy upsert")
+	}
+}

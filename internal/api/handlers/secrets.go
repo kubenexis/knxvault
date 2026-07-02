@@ -2,12 +2,14 @@ package handlers
 
 import (
 	"net/http"
+	"path"
 	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/kubenexis/knxvault/internal/api/dto"
+	"github.com/kubenexis/knxvault/internal/domain/common"
 	domainsecrets "github.com/kubenexis/knxvault/internal/domain/secrets"
 	secretsengine "github.com/kubenexis/knxvault/internal/engine/secrets"
 	"github.com/kubenexis/knxvault/internal/service"
@@ -27,7 +29,11 @@ func NewSecretsHandler(svc *service.SecretsService, rotation *service.RotationSe
 
 // Write handles POST /secrets/kv/*path.
 func (h *SecretsHandler) Write(c *gin.Context) {
-	path := secretPath(c)
+	path, err := secretPath(c)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
 	var req dto.KVWriteRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		_ = c.Error(err)
@@ -50,7 +56,11 @@ func (h *SecretsHandler) Write(c *gin.Context) {
 
 // Read handles GET /secrets/kv/*path.
 func (h *SecretsHandler) Read(c *gin.Context) {
-	rawPath := secretPath(c)
+	rawPath, err := secretPath(c)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
 	if c.Query("list") == "true" {
 		prefix := c.Query("prefix")
 		if prefix == "" {
@@ -89,10 +99,7 @@ func (h *SecretsHandler) Read(c *gin.Context) {
 	}
 
 	version := queryVersion(c)
-	var (
-		result *secretsengine.GetResult
-		err    error
-	)
+	var result *secretsengine.GetResult
 	if version > 0 {
 		result, err = h.svc.GetVersion(c.Request.Context(), rawPath, version)
 	} else {
@@ -113,11 +120,19 @@ func (h *SecretsHandler) Read(c *gin.Context) {
 
 // Delete handles DELETE /secrets/kv/*path.
 func (h *SecretsHandler) Delete(c *gin.Context) {
-	path := secretPath(c)
+	path, err := secretPath(c)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
 	if versionStr := c.Query("version"); versionStr != "" {
 		version, err := strconv.Atoi(versionStr)
-		if err != nil || version < 1 {
+		if err != nil {
 			_ = c.Error(err)
+			return
+		}
+		if version < 1 {
+			_ = c.Error(common.New(common.ErrCodeValidation, "version must be >= 1"))
 			return
 		}
 		if err := h.svc.DestroyVersion(c.Request.Context(), path, version); err != nil {
@@ -183,9 +198,19 @@ func (h *SecretsHandler) DeleteRotation(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-func secretPath(c *gin.Context) string {
-	path := c.Param("path")
-	return strings.TrimPrefix(path, "/")
+func secretPath(c *gin.Context) (string, error) {
+	raw := strings.TrimPrefix(c.Param("path"), "/")
+	if raw == "" {
+		return "", common.New(common.ErrCodeValidation, "path is required")
+	}
+	if strings.Contains(raw, "..") {
+		return "", common.New(common.ErrCodeValidation, "path must not contain ..")
+	}
+	cleaned := strings.TrimPrefix(path.Clean("/"+raw), "/")
+	if cleaned == "" || cleaned == "." {
+		return "", common.New(common.ErrCodeValidation, "invalid path")
+	}
+	return cleaned, nil
 }
 
 func queryVersion(c *gin.Context) int {

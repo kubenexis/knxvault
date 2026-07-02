@@ -156,6 +156,60 @@ func TestCreateRenewRevokeToken(t *testing.T) {
 	}
 }
 
+func TestLoginKubernetesRejectsOIDCAuthMethod(t *testing.T) {
+	roleRepo := memory.NewRoleRepository()
+	_ = roleRepo.Save(context.Background(), &domainauth.Role{
+		Name:                          "oidc-only",
+		AuthMethod:                    domainauth.AuthMethodOIDC,
+		Policies:                      []string{"secrets-reader"},
+		BoundServiceAccountNames:      []string{"app"},
+		BoundServiceAccountNamespaces: []string{"default"},
+	})
+	svc := auth.NewService(auth.NewTokenStore(time.Hour), auth.NewRBAC(), "")
+	svc.SetRoleResolver(auth.NewRepositoryRoleResolver(roleRepo))
+	svc.SetK8sLoginOptions(auth.K8sLoginOptions{InsecureDev: true})
+	token := jwt.NewWithClaims(jwt.SigningMethodNone, jwt.MapClaims{
+		"sub": "system:serviceaccount:default:app",
+	})
+	unsigned, err := token.SignedString(jwt.UnsafeAllowNoneSignatureType)
+	if err != nil {
+		t.Fatalf("sign jwt: %v", err)
+	}
+	_, _, err = svc.LoginKubernetes(context.Background(), "oidc-only", unsigned)
+	var kv *common.KNXVaultError
+	if !errors.As(err, &kv) || kv.Code != common.ErrCodeForbidden {
+		t.Fatalf("expected forbidden, got %v", err)
+	}
+}
+
+func TestLoginKubernetesUsesPolicyGroups(t *testing.T) {
+	roleRepo := memory.NewRoleRepository()
+	_ = roleRepo.Save(context.Background(), &domainauth.Role{
+		Name:                          "app-sa",
+		Policies:                      []string{"secrets-reader"},
+		PolicyGroups:                  []string{"audit-reader"},
+		BoundServiceAccountNames:      []string{"app"},
+		BoundServiceAccountNamespaces: []string{"default"},
+	})
+	svc := auth.NewService(auth.NewTokenStore(time.Hour), auth.NewRBAC(), "")
+	svc.SetRoleResolver(auth.NewRepositoryRoleResolver(roleRepo))
+	svc.SetK8sLoginOptions(auth.K8sLoginOptions{InsecureDev: true})
+	token := jwt.NewWithClaims(jwt.SigningMethodNone, jwt.MapClaims{
+		"sub": "system:serviceaccount:default:app",
+	})
+	unsigned, err := token.SignedString(jwt.UnsafeAllowNoneSignatureType)
+	if err != nil {
+		t.Fatalf("sign jwt: %v", err)
+	}
+	_, rec, err := svc.LoginKubernetes(context.Background(), "app-sa", unsigned)
+	if err != nil {
+		t.Fatalf("LoginKubernetes() = %v", err)
+	}
+	if len(rec.Policies) != 2 {
+		t.Fatalf("policies = %v, want policy_groups merged", rec.Policies)
+	}
+}
+
 func TestLoginKubernetesHS256Dev(t *testing.T) {
 	secret := []byte("dev-secret")
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{

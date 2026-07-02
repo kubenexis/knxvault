@@ -50,8 +50,13 @@ func (s *SecretsService) invalidateCache(ctx context.Context, path string) {
 		return
 	}
 	s.cache.Delete(ctx, s.cacheKey(path, 0))
-	for v := 1; v <= 20; v++ {
-		s.cache.Delete(ctx, s.cacheKey(path, v))
+	if s.engine == nil {
+		return
+	}
+	if versions, err := s.engine.ListVersions(ctx, path); err == nil {
+		for _, ver := range versions {
+			s.cache.Delete(ctx, s.cacheKey(path, ver.Version))
+		}
 	}
 }
 
