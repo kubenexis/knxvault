@@ -44,6 +44,31 @@ func (s *Service) recordLoginAudit(ctx context.Context, success bool, auditCtx L
 	_ = s.audit.Record(ctx, actor, action, "auth/"+auditCtx.AuthMethod, status, details)
 }
 
+func (s *Service) recordLockoutAudit(ctx context.Context, lockKey string, auditCtx LoginAuditContext) {
+	if s == nil || s.audit == nil {
+		return
+	}
+	details := map[string]any{
+		"auth_method": auditCtx.AuthMethod,
+		"source_ip":   auditCtx.SourceIP,
+		"lockout_key": lockKey,
+		"request_id":  auditCtx.RequestID,
+	}
+	actor := auditCtx.SourceIP
+	if actor == "" {
+		actor = "anonymous"
+	}
+	_ = s.audit.Record(ctx, actor, "auth.lockout", "auth/"+auditCtx.AuthMethod, "failure", details)
+}
+
+// ClearLockout removes lockout state for an identity (W43-04 break-glass).
+func (s *Service) ClearLockout(authMethod, sourceIP string) {
+	if s == nil || s.lockout == nil {
+		return
+	}
+	s.lockout.Clear(LockoutKey(authMethod, sourceIP))
+}
+
 // CheckMFA validates OIDC MFA claims for roles with require_mfa (W44-03).
 func CheckMFA(requireMFA bool, claims map[string]any) error {
 	if !requireMFA {
@@ -76,6 +101,43 @@ func CheckMFA(requireMFA bool, claims map[string]any) error {
 		}
 	}
 	return common.New(common.ErrCodeForbidden, "mfa required for administrative role")
+}
+
+func (s *Service) noteLockoutFailure(ctx context.Context, lockKey string, auditCtx LoginAuditContext) {
+	if s.lockout != nil && s.lockout.RecordFailure(lockKey) {
+		s.recordLockoutAudit(ctx, lockKey, auditCtx)
+	}
+}
+
+func (s *Service) recordLoginFailure(ctx context.Context, lockKey string, auditCtx LoginAuditContext, reason string) {
+	auditCtx.FailureReason = reason
+	s.recordLoginAudit(ctx, false, auditCtx)
+	s.noteLockoutFailure(ctx, lockKey, auditCtx)
+}
+
+// LoginWithTokenEndpoint authenticates via POST /auth/token with lockout and audit (W43-01/04).
+func (s *Service) LoginWithTokenEndpoint(ctx context.Context, token string) (*TokenRecord, error) {
+	auditCtx := loginAuditFromContext(ctx, "token")
+	lockKey := LoginLockoutKey("token", auditCtx)
+	if s.lockout != nil && s.lockout.IsLocked(lockKey) {
+		auditCtx.FailureReason = "identity locked out"
+		s.recordLoginAudit(ctx, false, auditCtx)
+		return nil, common.New(common.ErrCodeForbidden, "identity locked out")
+	}
+	if token == "" {
+		s.recordLoginFailure(ctx, lockKey, auditCtx, "token is required")
+		return nil, common.New(common.ErrCodeValidation, "token is required")
+	}
+	record, err := s.tokens.Authenticate(ctx, token)
+	if err != nil {
+		s.recordLoginFailure(ctx, lockKey, auditCtx, "invalid token")
+		return nil, err
+	}
+	auditCtx.ClientIdentity = record.Subject
+	if s.lockout != nil {
+		s.lockout.RecordSuccess(lockKey)
+	}
+	return record, nil
 }
 
 // RecordTokenLogin records token-based login audit from handlers.

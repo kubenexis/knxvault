@@ -42,8 +42,8 @@ type RunResult struct {
 	TotalActions int `json:"total_actions"`
 }
 
-// Run triggers due KV rotations, expiring DB lease renewals, and PKI renewals.
-func (s *OrchestrationService) Run(ctx context.Context, dbGrace, pkiGrace time.Duration) (*RunResult, error) {
+// Run triggers due KV rotations, expiring DB/SSH lease renewals, and PKI renewals.
+func (s *OrchestrationService) Run(ctx context.Context, dbGrace, sshGrace, pkiGrace time.Duration) (*RunResult, error) {
 	if s == nil {
 		return &RunResult{}, nil
 	}
@@ -67,7 +67,10 @@ func (s *OrchestrationService) Run(ctx context.Context, dbGrace, pkiGrace time.D
 	}
 
 	if s.ssh != nil {
-		sshCount, err := s.ssh.RenewExpiring(ctx, dbGrace, 50)
+		if sshGrace <= 0 {
+			sshGrace = dbGrace
+		}
+		sshCount, err := s.ssh.RenewExpiring(ctx, sshGrace, 50)
 		if err != nil {
 			return nil, err
 		}

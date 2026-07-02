@@ -306,6 +306,15 @@ func (h *SysHandler) RunRotation(c *gin.Context) {
 		}
 		dbGrace = parsed
 	}
+	sshGrace := dbGrace
+	if req.SSHGrace != "" {
+		parsed, err := utils.ParseTTL(req.SSHGrace)
+		if err != nil {
+			_ = c.Error(common.Wrap(common.ErrCodeValidation, "invalid ssh_grace", err))
+			return
+		}
+		sshGrace = parsed
+	}
 	pkiGrace := 72 * time.Hour
 	if req.PKIGrace != "" {
 		parsed, err := utils.ParseTTL(req.PKIGrace)
@@ -316,7 +325,7 @@ func (h *SysHandler) RunRotation(c *gin.Context) {
 		pkiGrace = parsed
 	}
 
-	result, err := h.orchestration.Run(c.Request.Context(), dbGrace, pkiGrace)
+	result, err := h.orchestration.Run(c.Request.Context(), dbGrace, sshGrace, pkiGrace)
 	if err != nil {
 		_ = c.Error(err)
 		return

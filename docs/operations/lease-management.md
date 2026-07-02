@@ -1,6 +1,6 @@
 # Lease management (W42-08)
 
-Unified lease APIs for database and SSH dynamic credentials.
+Unified lease APIs for database and SSH dynamic credentials. See also [Day-2 operations](day2.md), [Database credentials](../deploy/database-credentials.md), and [Dynamic SSH credentials](../recipes/dynamic-ssh-credentials.md).
 
 ## Lookup
 
@@ -35,3 +35,15 @@ Database/SSH roles support `default_ttl`, `max_ttl`, `renewable`, `period`, `max
 ## Warnings (W42-05)
 
 Renew responses may include `warnings[]` when remaining TTL is below 10% of max.
+
+## Background renewal (W42-06)
+
+The Raft leader renews expiring database and SSH leases on the cert-renew job interval. Trigger orchestrated renewal manually:
+
+```bash
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  -d '{"db_grace":"24h","ssh_grace":"24h","pki_grace":"72h"}' \
+  "$KNXVAULT_ADDR/sys/rotation/run"
+```
+
+Response includes `ssh_leases_renewed` alongside `db_leases_renewed` and `kv_rotated`.

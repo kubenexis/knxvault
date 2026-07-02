@@ -501,6 +501,7 @@ type RaftRemoveNodeRequest struct {
 // RotationRunRequest triggers orchestrated rotation.
 type RotationRunRequest struct {
 	DBGrace  string `json:"db_grace,omitempty"`
+	SSHGrace string `json:"ssh_grace,omitempty"`
 	PKIGrace string `json:"pki_grace,omitempty"`
 }
 
@@ -508,6 +509,7 @@ type RotationRunRequest struct {
 type RotationRunResponse struct {
 	KVRotated    int `json:"kv_rotated"`
 	DBRenewed    int `json:"db_leases_renewed"`
+	SSHRenewed   int `json:"ssh_leases_renewed"`
 	PKIRenewed   int `json:"pki_certs_renewed"`
 	TotalActions int `json:"total_actions"`
 }
@@ -535,6 +537,13 @@ type IssueListenerTLSResponse struct {
 // PutPolicy stores a policy.
 func (c *Client) PutPolicy(ctx context.Context, name string, req PolicyRequest) error {
 	return c.putJSON(ctx, "/sys/policies/"+trimPath(name), true, req, nil, http.StatusNoContent)
+}
+
+// ImportPolicyHCL imports a Vault-style HCL policy (W41-08).
+func (c *Client) ImportPolicyHCL(ctx context.Context, name, hcl string) (map[string]any, error) {
+	var out map[string]any
+	err := c.postJSON(ctx, "/sys/policies/"+trimPath(name)+"/import", true, map[string]string{"hcl": hcl}, &out)
+	return out, err
 }
 
 // GetPolicy returns a policy.

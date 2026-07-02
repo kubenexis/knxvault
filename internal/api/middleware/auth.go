@@ -48,11 +48,18 @@ func Auth(svc *auth.Service) gin.HandlerFunc {
 			c.Abort()
 			return
 		}
+		reqPath := c.FullPath()
+		if reqPath == "" {
+			reqPath = c.Request.URL.Path
+		}
 		ctx = auth.WithRequestContext(ctx, auth.RequestContext{
 			ClientIP:    c.ClientIP(),
 			AgentID:     record.AgentID,
 			Namespace:   ns,
 			Environment: envStr,
+			Cluster:     strings.TrimSpace(c.GetHeader(auth.ClusterHeader)),
+			RequestPath: reqPath,
+			RequestID:   c.GetHeader("X-Request-ID"),
 		})
 		c.Request = c.Request.WithContext(ctx)
 		c.Next()

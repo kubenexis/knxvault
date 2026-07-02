@@ -56,18 +56,33 @@ Manual renew: `POST /pki/renew` with `ca_id`, `serial`, and `ttl`. CRL: `GET /pk
 
 ## Lease management
 
-Dynamic database credentials expire automatically. The leader cleans expired leases every `KNXVAULT_JOB_LEASE_CLEANUP_INTERVAL` (default 1m).
+Dynamic **database** and **SSH** credentials expire automatically. The Raft leader:
+
+- Cleans expired leases every `KNXVAULT_JOB_LEASE_CLEANUP_INTERVAL` (default 1m)
+- Renews expiring database and SSH leases on `KNXVAULT_JOB_CERT_RENEW_INTERVAL` (default 1h) within a 24h grace window
+- Supports orchestrated renewal via `POST /sys/rotation/run` with optional `db_grace`, `ssh_grace`, and `pki_grace`
+
+Full runbook: [Lease management](lease-management.md). Engine guides: [Database credentials](../deploy/database-credentials.md), [Dynamic SSH credentials](../recipes/dynamic-ssh-credentials.md).
 
 Manual operations:
 
 ```bash
-# Renew
+# Database renew / revoke
 curl -s -X POST $KNXVAULT_ADDR/secrets/database/renew/<lease_id> \
   -H "Authorization: Bearer $TOKEN"
-
-# Revoke
 curl -s -X PUT $KNXVAULT_ADDR/secrets/database/revoke/<lease_id> \
   -H "Authorization: Bearer $TOKEN"
+
+# SSH renew / revoke
+curl -s -X POST $KNXVAULT_ADDR/secrets/ssh/renew/<lease_id> \
+  -H "Authorization: Bearer $TOKEN"
+curl -s -X PUT $KNXVAULT_ADDR/secrets/ssh/revoke/<lease_id> \
+  -H "Authorization: Bearer $TOKEN"
+
+# Bulk revoke by role (incident)
+curl -s -X PUT $KNXVAULT_ADDR/sys/leases/revoke \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"engine":"database","role":"compromised-role"}'
 ```
 
 ## Upgrades

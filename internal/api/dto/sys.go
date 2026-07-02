@@ -60,6 +60,7 @@ type IssueListenerTLSResponse struct {
 
 // RotationRunRequest is POST /sys/rotation/run.
 type RotationRunRequest struct {
-	DBGrace  string `json:"db_grace,omitempty"`
-	PKIGrace string `json:"pki_grace,omitempty"`
+	DBGrace   string `json:"db_grace,omitempty"`
+	SSHGrace  string `json:"ssh_grace,omitempty"`
+	PKIGrace  string `json:"pki_grace,omitempty"`
 }

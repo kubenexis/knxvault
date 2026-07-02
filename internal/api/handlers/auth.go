@@ -79,7 +79,7 @@ func (h *AuthHandler) LoginToken(c *gin.Context) {
 	}
 
 	ctx := auth.WithLoginAuditContext(c.Request.Context(), c.ClientIP(), c.GetHeader("X-Request-ID"))
-	record, err := h.auth.LoginWithToken(ctx, req.Token)
+	record, err := h.auth.LoginWithTokenEndpoint(ctx, req.Token)
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -188,6 +188,17 @@ func (h *AuthHandler) DelegateAgent(c *gin.Context) {
 		Policies:    record.Policies,
 		Renewable:   record.Renewable,
 	})
+}
+
+// ClearLockout handles DELETE /sys/auth/lockout (W43-04).
+func (h *AuthHandler) ClearLockout(c *gin.Context) {
+	var req dto.LockoutClearRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	h.auth.ClearLockout(req.AuthMethod, req.SourceIP)
+	c.Status(http.StatusNoContent)
 }
 
 // RevokeSelfToken handles DELETE /auth/token/self.

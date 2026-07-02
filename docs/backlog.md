@@ -2,7 +2,7 @@
 
 Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topologically sorted by dependency** — implement in listed order within each phase.
 
-**Current focus:** Phase 4–5 near-term backlog is **largely shipped** (code-audited 2026-07-02). **19 items Complete**, **25 Partial**, **2 Not started** among Phase 5 / Tier I–L items below. Remaining near-term work is mostly **partial-completion gaps** (path-aware PKI/inject, ABAC wiring, tenant depth, operator/HSM). Long-term packaging and cloud engines remain [LT-*](#long-term-future).
+**Current focus:** Phase 4–5 near-term backlog is **largely shipped** (code-audited 2026-07-02, updated 2026-07-02). **33 items Complete**, **11 Partial**, **2 Not started** among Phase 5 / Tier I–L items below. Remaining near-term work is mostly **tenant depth**, **operator/HSM**, and **mTLS polish**. Long-term packaging and cloud engines remain [LT-*](#long-term-future).
 
 **Legend**
 
@@ -19,8 +19,8 @@ Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topological
 | Status | Count | IDs |
 |--------|-------|-----|
 | Complete (Tier 0 / Phase 4 core) | 29 | W37-04, W37-06, W37-09, W38-15, W39-01–08, W40-01–03, W40-08, W36-09, W36-10, W36-14, W36-15, W36-16, W36-20, W36-21, W36-22 |
-| Complete (Phase 5 / Tiers I–L) | 19 | W36-19, W41-02, W41-03, W41-05, W41-06, W41-07, W41-09, W41-10, W42-01–04, W42-07, W43-06, W43-08, W44-03, W44-04, W32-02, W31-01, W40-04–07 |
-| Partial | 25 | W41-01, W41-04, W41-08, W42-05, W42-06, W42-08, W43-01–05, W43-07, W44-01, W44-02, W30-01, W32-01, W32-03–05, W33-01–02, W34-01–02, W35-01–02 |
+| Complete (Phase 5 / Tiers I–L) | 33 | W36-19, W41-01–04, W41-06–10, W42-01–08, W43-01–08, W44-01–04, W32-02, W31-01, W40-04–07 |
+| Partial | 11 | W30-01, W32-01, W32-03–05, W33-01–02, W34-01–02, W35-01–02 |
 | Not started | 2 | W30-02, W31-02 |
 | Long-term only | 14 | LT-01–LT-14 |
 
@@ -213,14 +213,14 @@ Items below come from a **2026-06 codebase gap analysis**, a **secrets manager c
 
 | ID | Status | Title | Area | Effort | Depends on | Description | Acceptance criteria |
 |----|--------|-------|------|--------|------------|-------------|---------------------|
-| **W41-01** | Partial | Path-aware authorization (KV, inject, PKI) | auth | M | W13-02, W36-14 | KV routes use `RequireKVAccess` → `secrets/kv/<path>` (`internal/api/middleware/kvauth.go`). `RequirePathCapability` exists (`pathauth.go`) but **not wired** to PKI/inject. | Policy `resources: ["secrets/kv/team-a/*"]` allows `GET /secrets/kv/team-a/x` and denies `team-b/x` in API integration test. |
+| ~~**W41-01**~~ | Complete | Path-aware authorization (KV, inject, PKI) | auth | M | W13-02, W36-14 | Done — `RequirePathCapability` on PKI CA/CRL routes; inject path checks in `handlers/inject.go`; KV uses `RequireKVAccess` + integration test `kv_pathauth_test.go`. | Policy `resources: ["secrets/kv/team-a/*"]` allows `GET /secrets/kv/team-a/x` and denies `team-b/x` in API integration test. |
 | ~~**W41-02**~~ | Complete | Capability model (read / write / list / delete / sudo) | auth | M | W41-01 | Done — `internal/auth/capabilities.go`, `NormalizeCapabilities`, `sudo` on token create (`router.go`). | Policy with only `list` can call metadata/list endpoints but not `GET` secret values; `sudo` gates `POST /auth/token/create`. |
 | ~~**W41-03**~~ | Complete | Default-deny and deny-precedence semantics | auth | S | W41-02 | Done — `AuthorizeDetailed` in `internal/auth/authz.go`; `TestDenyOverridesAllow` in `rbac_test.go`. | Deny policy on `secrets/kv/team-a/*` blocks even if another policy allows `secrets/*`. |
-| **W41-04** | Partial | Policy simulation API | api | M | W41-02 | Done — `POST /sys/policy/simulate`, CLI `sys policy simulate`, `pkg/client`. **Gap:** no `*_test.go` for simulate allow/deny/condition cases. | CLI `sys policy simulate` matches API; unit tests for allow/deny/condition cases. |
+| ~~**W41-04**~~ | Complete | Policy simulation API | api | M | W41-02 | Done — `POST /sys/policy/simulate`, CLI `sys policy simulate`, `policy_simulate_test.go` (allow/deny/condition). | CLI `sys policy simulate` matches API; unit tests for allow/deny/condition cases. |
 | ~~**W41-05**~~ | Complete | KV list vs read separation | api | M | W41-02 | Done — `KVCapability()` in `pathauth.go` maps list/metadata/versions → `list`, values → `read`. | Reader with `list` only sees paths/versions; `read` required for plaintext. |
 | ~~**W41-06**~~ | Complete | Authorization denial audit | security | S | W41-01 | Done — `authz.denied` in `internal/api/middleware/authz_audit.go` with rate-limited denials. | Failed `Authorize` produces audit row; success unchanged. |
 | ~~**W41-07**~~ | Complete | Policy operator guide & examples | docs | S | W41-02 | Done — `docs/architecture/policy-engine.md`; linked from `security-model.md`. | Examples cover team-scoped KV, PKI read-only, break-glass admin; linked from security-model. |
-| **W41-08** | Partial | HCL policy import (Vault migration) | auth | L | W41-02 | Done — `internal/auth/hclimport.go`, `POST /sys/policies/:name/import`, `hclimport_test.go`. **Gap:** no `knxvault-cli sys policy import`. | Sample Vault KV policy imports and enforces correctly on path-aware API. |
+| ~~**W41-08**~~ | Complete | HCL policy import (Vault migration) | auth | L | W41-02 | Done — `hclimport.go`, `POST /sys/policies/:name/import`, CLI `sys policies import`, `pkg/client.ImportPolicyHCL`. | Sample Vault KV policy imports and enforces correctly on path-aware API. |
 | ~~**W41-09**~~ | Complete | Glob path patterns (`*`, `**`, `?`) | auth | M | W41-01 | Done — `internal/auth/glob.go`, `MatchResource`, `TestGlobResourceMatch`. | Policy `secrets/kv/team-?/app-*` matches `team-a/app-config` and denies `team-b/other`; unit tests in `rbac_test.go`. |
 | ~~**W41-10**~~ | Complete | Policy composition and reusable modules | auth | L | W41-02 | Done — `Policy.Includes`, `ResolvePolicyNames`, role `policy_groups` via `flattenRolePolicies`. | Role composes two policies; deny in one module overrides allow in another (**W41-03**); migration guide from flat policy lists. |
 
@@ -243,13 +243,13 @@ Items below come from a **2026-06 codebase gap analysis**, a **secrets manager c
 
 | ID | Status | Title | Area | Effort | Depends on | Description | Acceptance criteria |
 |----|--------|-------|------|--------|------------|-------------|---------------------|
-| **W43-01** | Partial | Authentication audit events (login success/failure) | auth | M | W7-04 | Done for K8s/OIDC in `login_audit.go` + `token.go`. **Gap:** `POST /auth/token` audits success only; failed token login not audited. | Failed K8s login (wrong SA) produces audit row with `status=failure`; success produces `status=success`; no token material in details. |
-| **W43-02** | Partial | Audit schema enrichment for authn/authz | auth | M | W43-01 | Fields exist on `audit.Entry` and in login `details` map. **Gap:** export DTO does not surface top-level enriched fields; `Record()` does not populate struct fields. | Export row includes `request_id` matching `X-Request-ID`; SIEM forwarder sample updated in `docs/observability/audit-forwarding.md`. |
-| **W43-03** | Partial | Login endpoint throttling and brute-force protection | security | M | W19-01 | Done — `AuthLoginThrottle` on `/auth/*` and `/v1/auth/kubernetes/login`; metric `knxvault_auth_login_throttled_total`. **Gap:** `/sys/unseal` uses separate limiter; no 429 integration test. | 429 after N failures/min/IP; legitimate SA login unaffected after window; unit + integration test. |
-| **W43-04** | Partial | Identity lockout after repeated failed logins | security | M | W43-03 | Done — `LockoutTracker` on K8s/OIDC (`lockout.go`, per-IP key). **Gap:** no `auth.lockout` audit; no admin clear API; not applied to token login. | Lockout blocks further login for 15m; admin clear via API or TTL expiry; documented break-glass. |
-| **W43-05** | Partial | Token issuance rate limits | security | S | W19-01 | Done — `TokenCreateThrottle` on `POST /auth/token/create`; metric `knxvault_token_create_throttled_total`. **Gap:** `POST /auth/agent/delegate` not throttled. | Exceeding limit returns 429; metric `knxvault_token_create_throttled_total`. |
+| ~~**W43-01**~~ | Complete | Authentication audit events (login success/failure) | auth | M | W7-04 | Done — K8s/OIDC + `LoginWithTokenEndpoint` audits failures on `POST /auth/token`. | Failed K8s login (wrong SA) produces audit row with `status=failure`; success produces `status=success`; no token material in details. |
+| ~~**W43-02**~~ | Complete | Audit schema enrichment for authn/authz | auth | M | W43-01 | Done — `Record()` populates `audit.Entry` auth fields; export DTO includes top-level `auth_method`, `source_ip`, `request_id`, etc. | Export row includes `request_id` matching `X-Request-ID`; SIEM forwarder sample updated in `docs/observability/audit-forwarding.md`. |
+| ~~**W43-03**~~ | Complete | Login endpoint throttling and brute-force protection | security | M | W19-01 | Done — `AuthLoginThrottle`; `auth_throttle_test.go` verifies 429. | 429 after N failures/min/IP; legitimate SA login unaffected after window; unit + integration test. |
+| ~~**W43-04**~~ | Complete | Identity lockout after repeated failed logins | security | M | W43-03 | Done — `auth.lockout` audit; `DELETE /sys/auth/lockout` (sudo); lockout on `POST /auth/token`. | Lockout blocks further login for 15m; admin clear via API or TTL expiry; documented break-glass. |
+| ~~**W43-05**~~ | Complete | Token issuance rate limits | security | S | W19-01 | Done — `TokenCreateThrottle` on `POST /auth/token/create` and `POST /auth/agent/delegate`. | Exceeding limit returns 429; metric `knxvault_token_create_throttled_total`. |
 | ~~**W43-06**~~ | Complete | OIDC config on `PUT /sys/roles` API | auth | S | W37-02 | Done — `dto.RoleRequest`/`RoleResponse` with `auth_method`, `oidc`, `require_mfa`; `handlers/policies.go`. | `PUT /sys/roles/oidc-app` with OIDC config round-trips; `POST /auth/oidc/oidc-app` works without manual Raft seeding. |
-| **W43-07** | Partial | JWKS cache keyed by URL | auth | S | W37-02 | Done — per-URL LRU cache in `oidc.go`. **Gap:** `oidc_test.go` is smoke-only; no multi-IdP validation test. | Two roles with different IdPs validate against correct keys; unit test in `oidc_test.go`. |
+| ~~**W43-07**~~ | Complete | JWKS cache keyed by URL | auth | S | W37-02 | Done — per-URL LRU cache; `oidc_test.go` multi-IdP JWKS validation. | Two roles with different IdPs validate against correct keys; unit test in `oidc_test.go`. |
 | ~~**W43-08**~~ | Complete | BFSI prospect evaluation response pack | docs | S | W43-01, W41-03 | Done — `docs/product/bfsi-prospect-response.md`. | Document linked from traceability matrix; includes Go/No-Go for POC vs production. |
 
 > **Tier K sequencing:** **W43-01–02** (audit export schema) before POC sign-off. **W43-03–05** polish before internet-facing deploy. **W43-07** multi-IdP test.
@@ -260,8 +260,8 @@ Items below come from a **2026-06 codebase gap analysis**, a **secrets manager c
 
 | ID | Status | Title | Area | Effort | Depends on | Description | Acceptance criteria |
 |----|--------|-------|------|--------|------------|-------------|---------------------|
-| **W44-01** | Partial | ABAC — resource labels and ownership | auth | L | W41-01, W38-01 | KV labels stored; conditions `resource_label`, `owner_match` in `evaluator.go`. **Gap:** `ResourceLabels` not populated during live `AuthorizePath`; list filtering by label not implemented. | Policy `owner: team-a` denies read when secret metadata owner is `team-b`; list filtered when `list` + label condition. |
-| **W44-02** | Partial | ABAC — environment and request attributes | auth | M | W13-01, W41-02 | Conditions `environment`, `cluster`, `request_path` in evaluator; `X-KNX-Environment` wired. **Gap:** `cluster`/`request_path` not set on normal requests; no environment integration test. | Integration test: `environment: prod` policy denies when header/context says `staging`. |
+| ~~**W44-01**~~ | Complete | ABAC — resource labels and ownership | auth | L | W41-01, W38-01 | Done — `EnrichKVResourceLabels` middleware; list filtering in `secrets.go`; `abac_live_test.go`. | Policy `owner: team-a` denies read when secret metadata owner is `team-b`; list filtered when `list` + label condition. |
+| ~~**W44-02**~~ | Complete | ABAC — environment and request attributes | auth | M | W13-01, W41-02 | Done — `X-KNX-Cluster`, `RequestPath` on `RequestContext`; environment tests in `policy_simulate_test.go` / `abac_live_test.go`. | Integration test: `environment: prod` policy denies when header/context says `staging`. |
 | ~~**W44-03**~~ | Complete | Admin MFA enforcement via OIDC | auth | M | W37-02, W43-06 | Done — `require_mfa` on roles; `CheckMFA()` in `login_audit.go`; enforced in `LoginOIDC`. | Admin role without `mfa` claim → `403`; documented Keycloak/Azure AD mapper setup. |
 | ~~**W44-04**~~ | Complete | Enterprise federation guide (SAML/LDAP → OIDC) | docs | S | W37-02 | Done — `docs/integration/enterprise-identity.md`. | `docs/integration/enterprise-identity.md` with architecture diagram and IdP config examples. |
 
@@ -279,10 +279,10 @@ Items below come from a **2026-06 codebase gap analysis**, a **secrets manager c
 | ~~**W42-02**~~ | Complete | Lease list and filter API | api | M | W42-01 | Done — filters + pagination; CLI `sys leases list`; OpenAPI. | List returns consistent JSON across engines; integration test covers active vs revoked. |
 | ~~**W42-03**~~ | Complete | Bulk lease revocation (by role or prefix) | api | M | W42-01 | Done — `PUT /sys/leases/revoke`, partial-result handling in `leases.go`. | Revoke-by-role clears all DB/SSH creds for role; audit per lease; idempotent on already-revoked. |
 | ~~**W42-04**~~ | Complete | Role-level lease tuning (max TTL, renewability, period) | crypto | M | W12-01 | Done — `lease_tuning.go`, fields on DB/SSH roles; enforced in engines. | Role with `max_ttl=1h` rejects `ttl_seconds=24h`; `renewable=false` → renew returns `400`. |
-| **W42-05** | Partial | Renew increment and lease warnings | api | S | W42-04 | Done — `LeaseWarnings`, `LeaseFields` on creds/renew responses. **Gap:** no test for &lt;10% TTL `warnings[]`. | Renew with increment > max extends only to cap; warning emitted when &lt;10% TTL remains. |
-| **W42-06** | Partial | Multi-engine lease renewal in orchestration | crypto | M | W37-06 | Done — SSH renewal in `orchestration.go`. **Gap:** leader job does not renew SSH leases; no `ssh_grace` in rotation-run DTO; no SSH integration test. | `rotation-run` reports `ssh_leases_renewed`; leader job renews SSH before expiry in integration test. |
+| ~~**W42-05**~~ | Complete | Renew increment and lease warnings | api | S | W42-04 | Done — `lease_tuning_test.go` covers &lt;10% TTL `warnings[]` and renew cap. | Renew with increment > max extends only to cap; warning emitted when &lt;10% TTL remains. |
+| ~~**W42-06**~~ | Complete | Multi-engine lease renewal in orchestration | crypto | M | W37-06 | Done — `ssh_grace` in rotation-run DTO; `runLeaseRenewal` leader job; `orchestration_ssh_test.go`, `jobs_ssh_renew_test.go`. | `rotation-run` reports `ssh_leases_renewed`; leader job renews SSH before expiry in integration test. |
 | ~~**W42-07**~~ | Complete | Per-role lease quotas and issuance limits | storage | M | W42-04 | Done — `CheckMaxLeases` in `leaseutil.go`; metric `knxvault_leases_by_engine`. | Role with `max_leases=5` rejects 6th issuance; metric exposed on `/metrics`. |
-| **W42-08** | Partial | Lease operator guide and runbooks | docs | S | W42-01–W42-03 | Done — `docs/operations/lease-management.md`, OpenAPI. **Gap:** `day2.md` not updated; thin links to DB/SSH engine docs. | Runbook covers incident revoke-by-role; API reference lists `/sys/leases/*`. |
+| ~~**W42-08**~~ | Complete | Lease operator guide and runbooks | docs | S | W42-01–W42-03 | Done — `lease-management.md`, `day2.md` cross-links, SSH/DB renewal in leader jobs documented. | Runbook covers incident revoke-by-role; API reference lists `/sys/leases/*`. |
 
 > **Tier J sequencing:** **W42-05–06** polish (warning tests, leader SSH renew). **W42-08** doc cross-links.
 

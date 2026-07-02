@@ -50,14 +50,20 @@ func (h *AuditHandler) Export(c *gin.Context) {
 	entries := make([]dto.AuditEntryResponse, 0, len(result.Entries))
 	for _, entry := range result.Entries {
 		entries = append(entries, dto.AuditEntryResponse{
-			ID:        entry.ID,
-			Timestamp: entry.Timestamp,
-			Actor:     entry.Actor,
-			Action:    entry.Action,
-			Resource:  entry.Resource,
-			Status:    entry.Status,
-			Details:   entry.Details,
-			Hash:      entry.Hash,
+			ID:             entry.ID,
+			Timestamp:      entry.Timestamp,
+			Actor:          entry.Actor,
+			Action:         entry.Action,
+			Resource:       entry.Resource,
+			Status:         entry.Status,
+			Details:        entry.Details,
+			Hash:           entry.Hash,
+			AuthMethod:     entry.AuthMethod,
+			SourceIP:       entry.SourceIP,
+			ClientIdentity: entry.ClientIdentity,
+			FailureReason:  entry.FailureReason,
+			RequestID:      entry.RequestID,
+			Namespace:      entry.Namespace,
 		})
 	}
 	c.JSON(http.StatusOK, dto.AuditExportResponse{

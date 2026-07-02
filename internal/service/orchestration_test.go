@@ -51,7 +51,7 @@ func TestOrchestrationServiceRunKVRotation(t *testing.T) {
 	policy.LastRotatedAt = time.Now().UTC().Add(-2 * time.Minute)
 	_ = rotationRepo.Save(context.Background(), policy)
 
-	result, err := orch.Run(context.Background(), time.Hour, 0)
+	result, err := orch.Run(context.Background(), time.Hour, time.Hour, 0)
 	if err != nil {
 		t.Fatalf("Run() = %v", err)
 	}

@@ -341,6 +341,7 @@ func (s *Service) LoginKubernetes(ctx context.Context, role, jwtToken string) (s
 	auditCtx := loginAuditFromContext(ctx, "kubernetes")
 	lockKey := LoginLockoutKey("kubernetes", auditCtx)
 	if s.lockout != nil && s.lockout.IsLocked(lockKey) {
+		auditCtx.FailureReason = "identity locked out"
 		s.recordLoginAudit(ctx, false, auditCtx)
 		return "", nil, common.New(common.ErrCodeForbidden, "identity locked out")
 	}
@@ -361,9 +362,7 @@ func (s *Service) LoginKubernetes(ctx context.Context, role, jwtToken string) (s
 	if err != nil {
 		auditCtx.FailureReason = err.Error()
 		s.recordLoginAudit(ctx, false, auditCtx)
-		if s.lockout != nil {
-			s.lockout.RecordFailure(lockKey)
-		}
+		s.noteLockoutFailure(ctx, lockKey, auditCtx)
 		return "", nil, err
 	}
 
@@ -377,25 +376,19 @@ func (s *Service) LoginKubernetes(ctx context.Context, role, jwtToken string) (s
 	if err != nil {
 		auditCtx.FailureReason = "role not found"
 		s.recordLoginAudit(ctx, false, auditCtx)
-		if s.lockout != nil {
-			s.lockout.RecordFailure(lockKey)
-		}
+		s.noteLockoutFailure(ctx, lockKey, auditCtx)
 		return "", nil, common.Wrap(common.ErrCodeForbidden, "role not found", err)
 	}
 	if storedRole.AuthMethod != "" && storedRole.AuthMethod != domainauth.AuthMethodKubernetes {
 		auditCtx.FailureReason = "role does not allow kubernetes login"
 		s.recordLoginAudit(ctx, false, auditCtx)
-		if s.lockout != nil {
-			s.lockout.RecordFailure(lockKey)
-		}
+		s.noteLockoutFailure(ctx, lockKey, auditCtx)
 		return "", nil, common.New(common.ErrCodeForbidden, "role does not allow kubernetes login")
 	}
 	if err := MatchServiceAccountBinding(storedRole, identity); err != nil {
 		auditCtx.FailureReason = err.Error()
 		s.recordLoginAudit(ctx, false, auditCtx)
-		if s.lockout != nil {
-			s.lockout.RecordFailure(lockKey)
-		}
+		s.noteLockoutFailure(ctx, lockKey, auditCtx)
 		return "", nil, err
 	}
 	policies := storedRole.Policies
@@ -405,9 +398,7 @@ func (s *Service) LoginKubernetes(ctx context.Context, role, jwtToken string) (s
 	if len(policies) == 0 {
 		auditCtx.FailureReason = "role has no policies"
 		s.recordLoginAudit(ctx, false, auditCtx)
-		if s.lockout != nil {
-			s.lockout.RecordFailure(lockKey)
-		}
+		s.noteLockoutFailure(ctx, lockKey, auditCtx)
 		return "", nil, common.New(common.ErrCodeForbidden, "role has no policies")
 	}
 	nhiID := domainauth.NHIKey(domainauth.IdentityTypeK8sSA, identity.Namespace, identity.Name, subject)
@@ -439,6 +430,7 @@ func (s *Service) LoginOIDC(ctx context.Context, role, jwtToken string) (string,
 	auditCtx := loginAuditFromContext(ctx, "oidc")
 	lockKey := LoginLockoutKey("oidc", auditCtx)
 	if s.lockout != nil && s.lockout.IsLocked(lockKey) {
+		auditCtx.FailureReason = "identity locked out"
 		s.recordLoginAudit(ctx, false, auditCtx)
 		return "", nil, common.New(common.ErrCodeForbidden, "identity locked out")
 	}
@@ -484,17 +476,13 @@ func (s *Service) LoginOIDC(ctx context.Context, role, jwtToken string) (string,
 	if err != nil {
 		auditCtx.FailureReason = err.Error()
 		s.recordLoginAudit(ctx, false, auditCtx)
-		if s.lockout != nil {
-			s.lockout.RecordFailure(lockKey)
-		}
+		s.noteLockoutFailure(ctx, lockKey, auditCtx)
 		return "", nil, err
 	}
 	if err := CheckMFA(requireMFA, claims); err != nil {
 		auditCtx.FailureReason = err.Error()
 		s.recordLoginAudit(ctx, false, auditCtx)
-		if s.lockout != nil {
-			s.lockout.RecordFailure(lockKey)
-		}
+		s.noteLockoutFailure(ctx, lockKey, auditCtx)
 		return "", nil, err
 	}
 	policies := PoliciesForRole(role)

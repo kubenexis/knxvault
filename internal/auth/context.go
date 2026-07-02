@@ -50,6 +50,9 @@ func RequestContextFromContext(ctx context.Context) (RequestContext, bool) {
 // NamespaceHeader is the optional caller namespace for RBAC condition evaluation.
 const NamespaceHeader = "X-KNX-Namespace"
 
+// ClusterHeader is the optional cluster identifier for ABAC conditions (W44-02).
+const ClusterHeader = "X-KNX-Cluster"
+
 // RequestNamespace resolves the namespace for policy conditions from the header or K8s SA subject.
 func RequestNamespace(header, subject string) string {
 	ns, _ := ResolveTenantNamespace(header, subject)

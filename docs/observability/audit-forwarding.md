@@ -12,19 +12,31 @@ Forwarding is **asynchronous** — `Record()` appends to the Raft-backed hash ch
 
 ## Payload format
 
-Each POST body is a single `audit.Entry` JSON object:
+Each POST body is a single `audit.Entry` JSON object. Authentication events (W43-02) include top-level enriched fields in addition to `details`:
 
 ```json
 {
   "timestamp": "2026-06-30T12:00:00Z",
-  "actor": "root",
-  "action": "secret.read",
-  "resource": "secrets/kv/app/config",
-  "status": "success",
+  "actor": "10.0.0.5",
+  "action": "auth.login.failed",
+  "resource": "auth/kubernetes",
+  "status": "failure",
+  "auth_method": "kubernetes",
+  "source_ip": "10.0.0.5",
+  "request_id": "req-abc123",
+  "failure_reason": "role not found",
+  "details": {
+    "auth_method": "kubernetes",
+    "source_ip": "10.0.0.5",
+    "request_id": "req-abc123",
+    "failure_reason": "role not found"
+  },
   "hash": "...",
   "signature": "..."
 }
 ```
+
+`GET /audit/export` returns the same enriched fields on each `AuditEntryResponse` row.
 
 ## Promtail / Loki pipeline (example)
 

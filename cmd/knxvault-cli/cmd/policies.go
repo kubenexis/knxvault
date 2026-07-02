@@ -62,6 +62,25 @@ var policiesPutCmd = &cobra.Command{
 	},
 }
 
+var policiesImportCmd = &cobra.Command{
+	Use:   "import <name> <hcl-file>",
+	Short: "Import a policy from Vault-style HCL (W41-08)",
+	Args:  cobra.ExactArgs(2),
+	RunE: func(_ *cobra.Command, args []string) error {
+		raw, err := os.ReadFile(args[1])
+		if err != nil {
+			return err
+		}
+		resp, err := apiClient().ImportPolicyHCL(context.Background(), args[0], string(raw))
+		if err != nil {
+			return err
+		}
+		out, _ := json.MarshalIndent(resp, "", "  ")
+		fmt.Println(string(out))
+		return nil
+	},
+}
+
 var policiesDeleteCmd = &cobra.Command{
 	Use:   "delete <name>",
 	Short: "Delete a policy",
@@ -135,6 +154,7 @@ func init() {
 	policiesCmd.AddCommand(policiesListCmd)
 	policiesCmd.AddCommand(policiesGetCmd)
 	policiesCmd.AddCommand(policiesPutCmd)
+	policiesCmd.AddCommand(policiesImportCmd)
 	policiesCmd.AddCommand(policiesDeleteCmd)
 	rolesCmd.AddCommand(rolesListCmd)
 	rolesCmd.AddCommand(rolesGetCmd)

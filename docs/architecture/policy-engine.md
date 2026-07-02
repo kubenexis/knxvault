@@ -42,6 +42,16 @@ Roles may reference `policy_groups` / policy `includes[]`. Policies are flattene
 knxvault-cli sys policy simulate --policies team-a-kv --resource secrets/kv/team-a/x --capability read
 ```
 
+## HCL import (W41-08)
+
+Import Vault-style HCL policies for migration:
+
+```bash
+knxvault-cli sys policies import team-a-kv ./policies/team-a.hcl
+```
+
+API equivalent: `POST /sys/policies/:name/import` with `{"hcl":"..."}`.
+
 ## Migration from `secrets-reader`
 
 Replace coarse `secrets/*` + `read` with path-scoped policies:

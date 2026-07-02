@@ -59,6 +59,7 @@ func (s *Service) Record(ctx context.Context, actor, action, resource, status st
 		Details:   safeDetails,
 		Hash:      computeHash(prevHash, actor, action, resource, status, safeDetails, now),
 	}
+	applyAuthFields(entry, safeDetails)
 	if len(s.signingKey) > 0 {
 		entry.Signature = signEntry(s.signingKey, entry.Hash)
 	}
@@ -178,6 +179,30 @@ func (s *Service) Verify(ctx context.Context, signature string, signedAt time.Ti
 		}
 	}
 	return result, nil
+}
+
+func applyAuthFields(entry *audit.Entry, details map[string]any) {
+	if entry == nil || len(details) == 0 {
+		return
+	}
+	if v, ok := details["auth_method"].(string); ok {
+		entry.AuthMethod = v
+	}
+	if v, ok := details["source_ip"].(string); ok {
+		entry.SourceIP = v
+	}
+	if v, ok := details["client_identity"].(string); ok {
+		entry.ClientIdentity = v
+	}
+	if v, ok := details["failure_reason"].(string); ok {
+		entry.FailureReason = v
+	}
+	if v, ok := details["request_id"].(string); ok {
+		entry.RequestID = v
+	}
+	if v, ok := details["namespace"].(string); ok {
+		entry.Namespace = v
+	}
 }
 
 func computeHash(prevHash, actor, action, resource, status string, details map[string]any, ts time.Time) string {

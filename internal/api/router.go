@@ -70,7 +70,14 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 			securedAuth.POST("/token/create", tokenCreate...)
 			securedAuth.POST("/token/renew", authHandler.RenewToken)
 			securedAuth.DELETE("/token/self", authHandler.RevokeSelfToken)
-			securedAuth.POST("/agent/delegate", authHandler.DelegateAgent)
+			delegateHandlers := []gin.HandlerFunc{
+				middleware.RequirePermission(deps.AuthService, "auth/agent", "write"),
+				authHandler.DelegateAgent,
+			}
+			if deps.TokenCreateLimiter != nil {
+				delegateHandlers = append([]gin.HandlerFunc{middleware.TokenCreateThrottle(deps.TokenCreateLimiter)}, delegateHandlers...)
+			}
+			securedAuth.POST("/agent/delegate", delegateHandlers...)
 		}
 	}
 
@@ -92,6 +99,7 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 	}
 
 	if deps.AuthService != nil {
+		authHandler := handlers.NewAuthHandler(deps.AuthService, deps.TokenTTL)
 		sys := handlers.NewSysHandler(
 			deps.AuthService,
 			deps.PKIService,
@@ -117,6 +125,10 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 		secured.POST("/sys/rotation/run",
 			middleware.RequirePermission(deps.AuthService, "sys/rotate", "write"),
 			sys.RunRotation,
+		)
+		secured.DELETE("/sys/auth/lockout",
+			middleware.RequirePermission(deps.AuthService, "sys/auth", "sudo"),
+			authHandler.ClearLockout,
 		)
 		secured.POST("/sys/rotate-master-key",
 			middleware.RequirePermission(deps.AuthService, "sys/rotate", "write"),
@@ -172,32 +184,47 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 				pkiGroup.POST("/renew", pkiHandler.Renew)
 				pkiGroup.POST("/revoke", pkiHandler.Revoke)
 				pkiGroup.POST("/ca/import", pkiHandler.ImportCA)
-				pkiGroup.POST("/ca/:id/rotate", pkiHandler.RotateCA)
+				pkiGroup.POST("/ca/:id/rotate",
+					middleware.RequirePathCapability(deps.AuthService, "pki/ca", auth.CapWrite, "id", deps.AuthzAudit),
+					pkiHandler.RotateCA,
+				)
 			}
-			secured.GET("/pki/ca/:id", middleware.RequirePermission(deps.AuthService, "pki", "read"), pkiHandler.GetCA)
-			secured.GET("/pki/ca/:id/export", middleware.RequirePermission(deps.AuthService, "pki", "read"), pkiHandler.ExportCA)
-			secured.GET("/pki/crl/:id", middleware.RequirePermission(deps.AuthService, "pki", "read"), pkiHandler.CRL)
+			secured.GET("/pki/ca/:id",
+				middleware.RequirePathCapability(deps.AuthService, "pki/ca", auth.CapRead, "id", deps.AuthzAudit),
+				pkiHandler.GetCA,
+			)
+			secured.GET("/pki/ca/:id/export",
+				middleware.RequirePathCapability(deps.AuthService, "pki/ca", auth.CapRead, "id", deps.AuthzAudit),
+				pkiHandler.ExportCA,
+			)
+			secured.GET("/pki/crl/:id",
+				middleware.RequirePathCapability(deps.AuthService, "pki/crl", auth.CapRead, "id", deps.AuthzAudit),
+				pkiHandler.CRL,
+			)
 		}
 	}
 
 	if deps.SecretsService != nil && deps.AuthService != nil {
-		secretsHandler := handlers.NewSecretsHandler(deps.SecretsService, deps.RotationService)
+		secretsHandler := handlers.NewSecretsHandler(deps.SecretsService, deps.RotationService, deps.AuthService)
+		kvReadChain := []gin.HandlerFunc{
+			middleware.EnrichKVResourceLabels(deps.SecretsService),
+			middleware.RequireKVAccess(deps.AuthService, "", deps.AuthzAudit),
+		}
+		kvWriteChain := []gin.HandlerFunc{
+			middleware.EnrichKVResourceLabels(deps.SecretsService),
+			middleware.RequireKVAccess(deps.AuthService, auth.CapWrite, deps.AuthzAudit),
+		}
+		kvDeleteChain := []gin.HandlerFunc{
+			middleware.EnrichKVResourceLabels(deps.SecretsService),
+			middleware.RequireKVAccess(deps.AuthService, auth.CapDelete, deps.AuthzAudit),
+		}
 		kvWrite := secured.Group("/secrets/kv")
 		if deps.MTLSRequired {
 			kvWrite.Use(middleware.MTLSRequired(true))
 		}
-		kvWrite.POST("/*path",
-			middleware.RequireKVAccess(deps.AuthService, auth.CapWrite, deps.AuthzAudit),
-			secretsHandler.Write,
-		)
-		secured.GET("/secrets/kv/*path",
-			middleware.RequireKVAccess(deps.AuthService, "", deps.AuthzAudit),
-			secretsHandler.Read,
-		)
-		secured.DELETE("/secrets/kv/*path",
-			middleware.RequireKVAccess(deps.AuthService, auth.CapDelete, deps.AuthzAudit),
-			secretsHandler.Delete,
-		)
+		kvWrite.POST("/*path", append(kvWriteChain, secretsHandler.Write)...)
+		secured.GET("/secrets/kv/*path", append(kvReadChain, secretsHandler.Read)...)
+		secured.DELETE("/secrets/kv/*path", append(kvDeleteChain, secretsHandler.Delete)...)
 	}
 
 	if deps.DatabaseService != nil && deps.AuthService != nil {
@@ -233,7 +260,7 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 	}
 
 	if deps.RotationService != nil && deps.AuthService != nil {
-		secretsHandler := handlers.NewSecretsHandler(deps.SecretsService, deps.RotationService)
+		secretsHandler := handlers.NewSecretsHandler(deps.SecretsService, deps.RotationService, deps.AuthService)
 		secured.PUT("/sys/kv-rotation",
 			middleware.RequirePermission(deps.AuthService, "secrets/kv", "write"),
 			secretsHandler.PutRotation,
@@ -298,13 +325,13 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 	}
 
 	if deps.InjectService != nil && deps.AuthService != nil {
-		injectHandler := handlers.NewInjectHandler(deps.InjectService)
+		injectHandler := handlers.NewInjectHandler(deps.InjectService, deps.AuthService, deps.SecretsService)
 		secured.POST("/inject/render",
-			middleware.RequirePermission(deps.AuthService, "inject/render", "read"),
+			middleware.RequirePathCapability(deps.AuthService, "inject/render", auth.CapRead, "path", deps.AuthzAudit),
 			injectHandler.Render,
 		)
 		secured.POST("/inject/csi/mount-audit",
-			middleware.RequirePermission(deps.AuthService, "inject/csi", "read"),
+			middleware.RequirePathCapability(deps.AuthService, "inject/csi", auth.CapRead, "path", deps.AuthzAudit),
 			injectHandler.RecordCSIMount,
 		)
 	}

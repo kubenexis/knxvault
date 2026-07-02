@@ -40,7 +40,7 @@ func TestSecretsHandlerWriteRead(t *testing.T) {
 		secretsengine.NewKVV2Engine(memory.NewSecretRepository(), cryptoSvc),
 		auditsvc.NewService(auditRepo),
 	)
-	handler := handlers.NewSecretsHandler(secretsSvc, nil)
+	handler := handlers.NewSecretsHandler(secretsSvc, nil, nil)
 
 	r := gin.New()
 	r.Use(middleware.Auth(authSvc))
@@ -84,7 +84,7 @@ func TestSecretsHandlerListMetadataDestroy(t *testing.T) {
 		secretsengine.NewKVV2Engine(memory.NewSecretRepository(), cryptoSvc),
 		auditsvc.NewService(auditRepo),
 	)
-	handler := handlers.NewSecretsHandler(secretsSvc, nil)
+	handler := handlers.NewSecretsHandler(secretsSvc, nil, nil)
 
 	r := gin.New()
 	r.Use(middleware.Auth(authSvc))
@@ -141,7 +141,7 @@ func TestSecretsHandlerRejectsPathTraversal(t *testing.T) {
 		secretsengine.NewKVV2Engine(memory.NewSecretRepository(), cryptoSvc),
 		auditsvc.NewService(memory.NewAuditRepository()),
 	)
-	handler := handlers.NewSecretsHandler(secretsSvc, nil)
+	handler := handlers.NewSecretsHandler(secretsSvc, nil, nil)
 	r := gin.New()
 	r.Use(middleware.ErrorHandler())
 	r.Use(middleware.Auth(authSvc))
@@ -170,7 +170,7 @@ func TestSecretsHandlerReadInvalidVersionQuery(t *testing.T) {
 		secretsengine.NewKVV2Engine(memory.NewSecretRepository(), cryptoSvc),
 		auditsvc.NewService(memory.NewAuditRepository()),
 	)
-	handler := handlers.NewSecretsHandler(secretsSvc, nil)
+	handler := handlers.NewSecretsHandler(secretsSvc, nil, nil)
 	r := gin.New()
 	r.Use(middleware.ErrorHandler())
 	r.Use(middleware.Auth(authSvc))
@@ -199,7 +199,7 @@ func TestSecretsHandlerDeleteInvalidVersion(t *testing.T) {
 		secretsengine.NewKVV2Engine(memory.NewSecretRepository(), cryptoSvc),
 		auditsvc.NewService(memory.NewAuditRepository()),
 	)
-	handler := handlers.NewSecretsHandler(secretsSvc, nil)
+	handler := handlers.NewSecretsHandler(secretsSvc, nil, nil)
 	r := gin.New()
 	r.Use(middleware.ErrorHandler())
 	r.Use(middleware.Auth(authSvc))

@@ -102,6 +102,7 @@ func (j *JobRunner) runOnLeader(ctx context.Context) {
 	j.updateActiveLeasesMetric(ctx)
 	j.runCRLRefresh(ctx)
 	j.runCertRenewal(ctx)
+	j.runLeaseRenewal(ctx)
 	j.runKVRotation(ctx)
 	j.runMasterKeyReencrypt(ctx)
 
@@ -117,6 +118,7 @@ func (j *JobRunner) runOnLeader(ctx context.Context) {
 			j.runCRLRefresh(ctx)
 		case <-renewTicker.C:
 			j.runCertRenewal(ctx)
+			j.runLeaseRenewal(ctx)
 		case <-kvRotTicker.C:
 			j.runKVRotation(ctx)
 		case <-reencTicker.C:
@@ -154,6 +156,38 @@ func (j *JobRunner) runKVRotation(ctx context.Context) {
 	if count > 0 {
 		j.log.Info("kv secrets rotated", zap.Int("count", count))
 	}
+}
+
+func (j *JobRunner) runLeaseRenewal(ctx context.Context) {
+	grace := leaseRenewGrace(j.cfg.RenewGrace)
+	if j.database != nil {
+		count, err := j.database.RenewExpiring(ctx, grace, 50)
+		if err != nil {
+			j.log.Warn("database lease renewal failed", zap.Error(err))
+		} else if count > 0 {
+			j.log.Info("database leases renewed", zap.Int("count", count))
+		}
+	}
+	if j.ssh != nil {
+		count, err := j.ssh.RenewExpiring(ctx, grace, 50)
+		if err != nil {
+			j.log.Warn("ssh lease renewal failed", zap.Error(err))
+		} else if count > 0 {
+			j.log.Info("ssh leases renewed", zap.Int("count", count))
+		}
+	}
+}
+
+// leaseRenewGrace picks DB/SSH lease renewal window (capped at 24h; PKI uses RenewGrace separately).
+func leaseRenewGrace(pkiRenewGrace time.Duration) time.Duration {
+	const defaultLeaseGrace = 24 * time.Hour
+	if pkiRenewGrace <= 0 {
+		return defaultLeaseGrace
+	}
+	if pkiRenewGrace > defaultLeaseGrace {
+		return defaultLeaseGrace
+	}
+	return pkiRenewGrace
 }
 
 func (j *JobRunner) runCertRenewal(ctx context.Context) {

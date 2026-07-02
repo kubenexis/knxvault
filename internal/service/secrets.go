@@ -165,6 +165,23 @@ func (s *SecretsService) ListVersions(ctx context.Context, path string) ([]secre
 	return result, err
 }
 
+// LabelsForPath returns metadata labels for the latest secret version (W44-01).
+// Does not emit audit events (used by auth middleware and list filtering).
+func (s *SecretsService) LabelsForPath(ctx context.Context, path string) (map[string]string, error) {
+	scoped, err := s.scopePath(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+	meta, err := s.engine.GetMetadata(ctx, scoped, 0)
+	if err != nil {
+		return nil, err
+	}
+	if meta == nil || len(meta.Labels) == 0 {
+		return nil, nil
+	}
+	return meta.Labels, nil
+}
+
 // GetMetadata returns path metadata.
 func (s *SecretsService) GetMetadata(ctx context.Context, path string, version int) (*secretsengine.PathMetadata, error) {
 	path, err := s.scopePath(ctx, path)

@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/kubenexis/knxvault/internal/api/dto"
+	"github.com/kubenexis/knxvault/internal/auth"
 	"github.com/kubenexis/knxvault/internal/domain/common"
 	domainsecrets "github.com/kubenexis/knxvault/internal/domain/secrets"
 	secretsengine "github.com/kubenexis/knxvault/internal/engine/secrets"
@@ -20,11 +21,12 @@ import (
 type SecretsHandler struct {
 	svc      *service.SecretsService
 	rotation *service.RotationService
+	auth     *auth.Service
 }
 
 // NewSecretsHandler constructs a SecretsHandler.
-func NewSecretsHandler(svc *service.SecretsService, rotation *service.RotationService) *SecretsHandler {
-	return &SecretsHandler{svc: svc, rotation: rotation}
+func NewSecretsHandler(svc *service.SecretsService, rotation *service.RotationService, authSvc *auth.Service) *SecretsHandler {
+	return &SecretsHandler{svc: svc, rotation: rotation, auth: authSvc}
 }
 
 // Write handles POST /secrets/kv/*path.
@@ -71,6 +73,7 @@ func (h *SecretsHandler) Read(c *gin.Context) {
 			_ = c.Error(err)
 			return
 		}
+		paths = h.filterListPaths(c, paths)
 		c.JSON(http.StatusOK, dto.KVListResponse{Paths: paths})
 		return
 	}
@@ -244,6 +247,29 @@ func toMetadataResponse(meta *secretsengine.PathMetadata) dto.KVMetadataResponse
 		Labels:         meta.Labels,
 		Versions:       toVersionDTOs(meta.Versions),
 	}
+}
+
+func (h *SecretsHandler) filterListPaths(c *gin.Context, paths []string) []string {
+	if h.auth == nil || len(paths) == 0 {
+		return paths
+	}
+	principal, ok := auth.PrincipalFromContext(c.Request.Context())
+	if !ok {
+		return paths
+	}
+	filtered := make([]string, 0, len(paths))
+	for _, p := range paths {
+		resource := "secrets/kv/" + strings.TrimPrefix(p, "/")
+		reqCtx, _ := auth.RequestContextFromContext(c.Request.Context())
+		if labels, err := h.svc.LabelsForPath(c.Request.Context(), strings.TrimPrefix(p, "/")); err == nil && labels != nil {
+			reqCtx.ResourceLabels = labels
+		}
+		ctx := auth.WithRequestContext(c.Request.Context(), reqCtx)
+		if err := h.auth.AuthorizePath(ctx, principal, resource, auth.CapList); err == nil {
+			filtered = append(filtered, p)
+		}
+	}
+	return filtered
 }
 
 func toVersionDTOs(versions []secretsengine.VersionMetadata) []dto.KVVersionInfo {

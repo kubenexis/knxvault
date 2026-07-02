@@ -81,9 +81,9 @@ When KNXVault runs in a Kubernetes cluster, `POST /auth/kubernetes` validates th
 
 **OIDC JWT requirements:** OIDC login rejects JWTs without an `exp` claim. Renewals cannot extend OIDC tokens beyond the role `max_ttl_seconds` cap stored as `max_expires_at`. JWKS fetches use a 10s HTTP timeout and refresh once on unknown `kid` during key rotation. Machine identity revocation checks fail closed when the NHI backend is unavailable.
 
-**Login lockout (W43-04):** Failed `/auth/kubernetes` and `/auth/oidc/*` attempts are tracked **per source IP** (`LoginLockoutKey`). After `KNXVAULT_AUTH_LOCKOUT_THRESHOLD` failures within the window, further logins from that IP are rejected until TTL expiry or successful login clears the counter.
+**Login lockout (W43-04):** Failed `/auth/kubernetes`, `/auth/oidc/*`, and `/auth/token` attempts are tracked **per source IP** (`LoginLockoutKey`). After `KNXVAULT_AUTH_LOCKOUT_THRESHOLD` failures within the window, further logins from that IP are rejected until TTL expiry, successful login, or admin clear. Lockout emits `auth.lockout` audit events. Break-glass clear: `DELETE /sys/auth/lockout` with `{"auth_method":"kubernetes","source_ip":"10.0.0.1"}` (requires `sys/auth` sudo).
 
-**ABAC environment (W44-02):** Send `X-KNX-Environment` on API requests when policies use `environment` conditions. The header is copied into `RequestContext` after authentication.
+**ABAC attributes (W44-02):** Send `X-KNX-Environment` and optional `X-KNX-Cluster` on API requests when policies use `environment` or `cluster` conditions. Gin route template and URL path are available as `request_path` in policy evaluation.
 
 **Dev-only paths:** `KNXVAULT_JWT_SECRET` enables HS256 validation for local testing. `KNXVAULT_K8S_AUTH_INSECURE=true` parses JWT structure without signature verification when Raft is disabled — still requires a `system:serviceaccount:…` subject for SA binding checks; never enable in production.
 
