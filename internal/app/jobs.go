@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -202,6 +203,23 @@ func (j *JobRunner) updateActiveLeasesMetric(ctx context.Context) {
 		return
 	}
 	metrics.SetActiveLeasesGauge(count)
+	leases, err := j.leases.List(ctx)
+	if err != nil {
+		return
+	}
+	now := time.Now().UTC()
+	byKey := make(map[string]int)
+	for _, l := range leases {
+		if !l.Active(now) {
+			continue
+		}
+		key := l.Engine + "\x00" + l.RoleName
+		byKey[key]++
+	}
+	for key, n := range byKey {
+		parts := strings.SplitN(key, "\x00", 2)
+		metrics.SetLeasesByEngine(parts[0], parts[1], n)
+	}
 }
 
 func (j *JobRunner) runCRLRefresh(ctx context.Context) {

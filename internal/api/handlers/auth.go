@@ -32,7 +32,8 @@ func (h *AuthHandler) LoginOIDC(c *gin.Context) {
 		return
 	}
 	role := c.Param("role")
-	token, record, err := h.auth.LoginOIDC(c.Request.Context(), role, req.JWT)
+	ctx := auth.WithLoginAuditContext(c.Request.Context(), c.ClientIP(), c.GetHeader("X-Request-ID"))
+	token, record, err := h.auth.LoginOIDC(ctx, role, req.JWT)
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -54,7 +55,8 @@ func (h *AuthHandler) LoginKubernetes(c *gin.Context) {
 		return
 	}
 
-	token, record, err := h.auth.LoginKubernetes(c.Request.Context(), req.Role, req.JWT)
+	ctx := auth.WithLoginAuditContext(c.Request.Context(), c.ClientIP(), c.GetHeader("X-Request-ID"))
+	token, record, err := h.auth.LoginKubernetes(ctx, req.Role, req.JWT)
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -76,11 +78,13 @@ func (h *AuthHandler) LoginToken(c *gin.Context) {
 		return
 	}
 
-	record, err := h.auth.LoginWithToken(c.Request.Context(), req.Token)
+	ctx := auth.WithLoginAuditContext(c.Request.Context(), c.ClientIP(), c.GetHeader("X-Request-ID"))
+	record, err := h.auth.LoginWithToken(ctx, req.Token)
 	if err != nil {
 		_ = c.Error(err)
 		return
 	}
+	h.auth.RecordTokenLogin(ctx, record.Subject, true, "")
 
 	c.JSON(http.StatusOK, dto.LoginResponse{
 		ClientToken: req.Token,

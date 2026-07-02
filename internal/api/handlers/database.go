@@ -31,6 +31,11 @@ func (h *DatabaseHandler) PutRole(c *gin.Context) {
 	cfg := databaseengine.RoleConfig{
 		Name:                 name,
 		TTLSeconds:           req.TTLSeconds,
+		DefaultTTL:           req.DefaultTTL,
+		MaxTTL:               req.MaxTTL,
+		Period:               req.Period,
+		Renewable:            req.Renewable,
+		MaxLeases:            req.MaxLeases,
 		UsernamePrefix:       req.UsernamePrefix,
 		DefaultUsername:      req.DefaultUsername,
 		CreationStatements:   req.CreationStatements,
@@ -56,6 +61,11 @@ func (h *DatabaseHandler) GetRole(c *gin.Context) {
 	c.JSON(http.StatusOK, dto.DatabaseRoleResponse{
 		Name:                 role.Name,
 		TTLSeconds:           role.TTLSeconds,
+		DefaultTTL:           role.DefaultTTL,
+		MaxTTL:               role.MaxTTL,
+		Period:               role.Period,
+		Renewable:            role.Renewable,
+		MaxLeases:            role.MaxLeases,
 		UsernamePrefix:       role.UsernamePrefix,
 		DefaultUsername:      role.DefaultUsername,
 		CreationStatements:   role.CreationStatements,
@@ -78,15 +88,7 @@ func (h *DatabaseHandler) GenerateCreds(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
-	c.JSON(http.StatusOK, dto.DatabaseCredsResponse{
-		LeaseID:    result.LeaseID,
-		Username:   result.Username,
-		Password:   result.Password,
-		Role:       result.Role,
-		TTLSeconds: result.TTLSeconds,
-		ExpiresAt:  result.ExpiresAt,
-		Statements: result.Statements,
-	})
+	c.JSON(http.StatusOK, toDatabaseCredsResponse(result))
 }
 
 // Renew handles POST /secrets/database/renew/:lease_id.
@@ -98,21 +100,31 @@ func (h *DatabaseHandler) Renew(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
-	c.JSON(http.StatusOK, dto.DatabaseCredsResponse{
-		LeaseID:    result.LeaseID,
-		Username:   result.Username,
-		Password:   result.Password,
-		Role:       result.Role,
-		TTLSeconds: result.TTLSeconds,
-		ExpiresAt:  result.ExpiresAt,
-		Statements: result.Statements,
-	})
+	c.JSON(http.StatusOK, toDatabaseCredsResponse(result))
+}
+
+func toDatabaseCredsResponse(result *databaseengine.CredsResult) dto.DatabaseCredsResponse {
+	return dto.DatabaseCredsResponse{
+		LeaseFields: dto.NewLeaseFields(result.LeaseID, result.TTLSeconds, result.MaxTTL, result.ExpiresAt, result.Warnings),
+		Username:    result.Username,
+		Password:    result.Password,
+		Role:        result.Role,
+		TTLSeconds:  result.TTLSeconds,
+		Statements:  result.Statements,
+	}
 }
 
 // Revoke handles PUT /secrets/database/revoke/:lease_id.
 func (h *DatabaseHandler) Revoke(c *gin.Context) {
-	if err := h.svc.Revoke(c.Request.Context(), c.Param("lease_id")); err != nil {
+	result, err := h.svc.Revoke(c.Request.Context(), c.Param("lease_id"))
+	if err != nil {
 		_ = c.Error(err)
+		return
+	}
+	if result != nil && len(result.RevocationStatements) > 0 {
+		c.JSON(http.StatusOK, dto.DatabaseRevokeResponse{
+			RevocationStatements: result.RevocationStatements,
+		})
 		return
 	}
 	c.Status(http.StatusNoContent)

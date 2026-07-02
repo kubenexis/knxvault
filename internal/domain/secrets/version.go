@@ -19,6 +19,7 @@ type SecretVersion struct {
 	CreatedAt  time.Time
 	ExpiresAt  *time.Time
 	Destroyed  bool
+	Labels     map[string]string
 }
 
 // Validate checks required secret version fields.

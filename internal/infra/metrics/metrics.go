@@ -58,6 +58,25 @@ var (
 			Help: "Total requests rejected by rate limiting",
 		},
 	)
+	authLoginThrottledTotal = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "knxvault_auth_login_throttled_total",
+			Help: "Auth login requests rejected by throttling",
+		},
+	)
+	tokenCreateThrottledTotal = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "knxvault_token_create_throttled_total",
+			Help: "Token create/delegate requests rejected by throttling",
+		},
+	)
+	leasesByEngine = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "knxvault_leases_by_engine",
+			Help: "Active leases by engine and role",
+		},
+		[]string{"engine", "role"},
+	)
 	opensslBreakerOpen = promauto.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "knxvault_openssl_breaker_open",
@@ -123,6 +142,17 @@ func SetRaftTLSEnabled(enabled bool) {
 // IncRateLimited increments the rate-limited request counter.
 func IncRateLimited() {
 	rateLimitedTotal.Inc()
+}
+
+// IncAuthLoginThrottled increments auth login throttle counter (W43-03).
+func IncAuthLoginThrottled() { authLoginThrottledTotal.Inc() }
+
+// IncTokenCreateThrottled increments token create throttle counter (W43-05).
+func IncTokenCreateThrottled() { tokenCreateThrottledTotal.Inc() }
+
+// SetLeasesByEngine records per-role active lease counts (W42-07).
+func SetLeasesByEngine(engine, role string, count int) {
+	leasesByEngine.WithLabelValues(engine, role).Set(float64(count))
 }
 
 // SetOpenSSLBreakerOpen records OpenSSL circuit breaker state.

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"time"
 
 	auditsvc "github.com/kubenexis/knxvault/internal/audit"
 	domainsecrets "github.com/kubenexis/knxvault/internal/domain/secrets"
@@ -56,6 +57,14 @@ func (s *SSHService) Revoke(ctx context.Context, leaseID string) error {
 	err := s.engine.RevokeLease(ctx, leaseID)
 	audithelper.Record(s.audit, ctx, "ssh.lease.revoke", "secrets/ssh/leases/"+leaseID, err, map[string]any{"lease_id": leaseID})
 	return err
+}
+
+// RenewExpiring renews active leases expiring within the grace window.
+func (s *SSHService) RenewExpiring(ctx context.Context, grace time.Duration, limit int) (int, error) {
+	if s == nil || s.engine == nil {
+		return 0, nil
+	}
+	return s.engine.RenewExpiring(ctx, grace, limit)
 }
 
 // CleanupExpired revokes expired ssh leases (background job).

@@ -46,7 +46,7 @@ func TestOrchestrationServiceRunKVRotation(t *testing.T) {
 	}
 
 	rotationSvc := service.NewRotationService(rotationRepo, secretsSvc, audit, "")
-	orch := service.NewOrchestrationService(rotationSvc, nil, nil, "")
+	orch := service.NewOrchestrationService(rotationSvc, nil, nil, nil, "")
 
 	policy.LastRotatedAt = time.Now().UTC().Add(-2 * time.Minute)
 	_ = rotationRepo.Save(context.Background(), policy)

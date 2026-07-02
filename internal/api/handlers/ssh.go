@@ -31,6 +31,11 @@ func (h *SSHHandler) PutRole(c *gin.Context) {
 	cfg := sshengine.RoleConfig{
 		Name:         name,
 		TTLSeconds:   req.TTLSeconds,
+		DefaultTTL:   req.DefaultTTL,
+		MaxTTL:       req.MaxTTL,
+		Period:       req.Period,
+		Renewable:    req.Renewable,
+		MaxLeases:    req.MaxLeases,
 		CAKeyPath:    req.CAKeyPath,
 		AllowedUsers: req.AllowedUsers,
 		DefaultUser:  req.DefaultUser,
@@ -54,6 +59,11 @@ func (h *SSHHandler) GetRole(c *gin.Context) {
 	c.JSON(http.StatusOK, dto.SSHRoleResponse{
 		Name:         role.Name,
 		TTLSeconds:   role.TTLSeconds,
+		DefaultTTL:   role.DefaultTTL,
+		MaxTTL:       role.MaxTTL,
+		Period:       role.Period,
+		Renewable:    role.Renewable,
+		MaxLeases:    role.MaxLeases,
 		CAKeyPath:    role.CAKeyPath,
 		AllowedUsers: role.AllowedUsers,
 		DefaultUser:  role.DefaultUser,
@@ -75,15 +85,7 @@ func (h *SSHHandler) GenerateCreds(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
-	c.JSON(http.StatusOK, dto.SSHCredsResponse{
-		LeaseID:    result.LeaseID,
-		Username:   result.Username,
-		PrivateKey: result.PrivateKey,
-		SignedKey:  result.SignedKey,
-		Role:       result.Role,
-		TTLSeconds: result.TTLSeconds,
-		ExpiresAt:  result.ExpiresAt,
-	})
+	c.JSON(http.StatusOK, toSSHCredsResponse(result))
 }
 
 // Renew handles POST /secrets/ssh/renew/:lease_id.
@@ -95,15 +97,18 @@ func (h *SSHHandler) Renew(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
-	c.JSON(http.StatusOK, dto.SSHCredsResponse{
-		LeaseID:    result.LeaseID,
-		Username:   result.Username,
-		PrivateKey: result.PrivateKey,
-		SignedKey:  result.SignedKey,
-		Role:       result.Role,
-		TTLSeconds: result.TTLSeconds,
-		ExpiresAt:  result.ExpiresAt,
-	})
+	c.JSON(http.StatusOK, toSSHCredsResponse(result))
+}
+
+func toSSHCredsResponse(result *sshengine.CredsResult) dto.SSHCredsResponse {
+	return dto.SSHCredsResponse{
+		LeaseFields: dto.NewLeaseFields(result.LeaseID, result.TTLSeconds, result.MaxTTL, result.ExpiresAt, result.Warnings),
+		Username:    result.Username,
+		PrivateKey:  result.PrivateKey,
+		SignedKey:   result.SignedKey,
+		Role:        result.Role,
+		TTLSeconds:  result.TTLSeconds,
+	}
 }
 
 // Revoke handles PUT /secrets/ssh/revoke/:lease_id.

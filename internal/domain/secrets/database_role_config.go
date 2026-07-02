@@ -55,6 +55,7 @@ func NormalizeDatabaseRole(role *DatabaseRole) {
 		role.Config = map[string]any{}
 	}
 	role.AdminCredentialsPath = strings.TrimSpace(role.AdminCredentialsPath)
+	NormalizeDatabaseLeaseTuning(role)
 }
 
 // ValidateDatabaseRoleConfig rejects secret material in role config maps.

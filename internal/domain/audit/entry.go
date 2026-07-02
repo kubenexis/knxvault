@@ -7,15 +7,21 @@ import (
 
 // Entry is an append-only audit log record (LLD §4.D.1).
 type Entry struct {
-	ID        int64
-	Timestamp time.Time
-	Actor     string
-	Action    string
-	Resource  string
-	Status    string
-	Details   map[string]any
-	Hash      string
-	Signature string
+	ID             int64
+	Timestamp      time.Time
+	Actor          string
+	Action         string
+	Resource       string
+	Status         string
+	Details        map[string]any
+	Hash           string
+	Signature      string
+	AuthMethod     string
+	SourceIP       string
+	ClientIdentity string
+	FailureReason  string
+	RequestID      string
+	Namespace      string
 }
 
 // Validate checks required audit fields.

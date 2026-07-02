@@ -231,6 +231,7 @@ type Service struct {
 	oidcTTL   time.Duration
 	nhi       MachineIdentityRecorder
 	audit     AuditRecorder
+	lockout   *LockoutTracker
 }
 
 // RoleResolver resolves role names to policy names.
@@ -283,6 +284,43 @@ func (s *Service) SetAuditRecorder(recorder AuditRecorder) {
 	s.audit = recorder
 }
 
+// SetLockoutTracker configures identity lockout after failed logins.
+func (s *Service) SetLockoutTracker(tracker *LockoutTracker) {
+	s.lockout = tracker
+}
+
+// SimulatePolicy evaluates authorization for policy simulation (W41-04).
+func (s *Service) SimulatePolicy(ctx context.Context, policies []string, resource, capability string, req RequestContext) AuthzResult {
+	if s.rbacSync != nil {
+		_ = s.rbacSync.SyncRBAC(ctx)
+	}
+	return s.rbac.AuthorizeDetailed(s.rbac.ResolvePolicyNames(policies), resource, capability, req)
+}
+
+// AuthorizePath checks RBAC for a path-aware resource and capability.
+func (s *Service) AuthorizePath(ctx context.Context, principal Principal, resource, capability string) error {
+	if !ActionAllowedForPrincipal(principal, capability) {
+		return common.New(common.ErrCodeForbidden, "action not allowed for agent token")
+	}
+	if strings.HasPrefix(resource, "secrets/kv/") && !KVPathAllowedForPrincipal(principal, resource) {
+		return common.New(common.ErrCodeForbidden, "path outside agent prefix")
+	}
+	if s.rbacSync != nil {
+		_ = s.rbacSync.SyncRBAC(ctx)
+	}
+	req := RequestContext{Resource: resource, Action: capability, AgentID: principal.AgentID}
+	if existing, ok := RequestContextFromContext(ctx); ok {
+		req = existing
+	}
+	req.Resource = resource
+	req.Action = capability
+	req.AgentID = principal.AgentID
+	if !s.rbac.Authorize(principal.Policies, resource, capability, req) {
+		return common.New(common.ErrCodeForbidden, "access denied")
+	}
+	return nil
+}
+
 // LoginWithToken authenticates an opaque token.
 func (s *Service) LoginWithToken(ctx context.Context, token string) (*TokenRecord, error) {
 	return s.tokens.Authenticate(ctx, token)
@@ -290,30 +328,54 @@ func (s *Service) LoginWithToken(ctx context.Context, token string) (*TokenRecor
 
 // LoginKubernetes validates a service account JWT and maps it to a role.
 func (s *Service) LoginKubernetes(ctx context.Context, role, jwtToken string) (string, *TokenRecord, error) {
+	auditCtx := loginAuditFromContext(ctx, "kubernetes")
+	if s.lockout != nil && s.lockout.IsLocked(LockoutKey("kubernetes", auditCtx.ClientIdentity)) {
+		s.recordLoginAudit(ctx, false, auditCtx)
+		return "", nil, common.New(common.ErrCodeForbidden, "identity locked out")
+	}
 	if jwtToken == "" {
+		auditCtx.FailureReason = "jwt is required"
+		s.recordLoginAudit(ctx, false, auditCtx)
 		return "", nil, common.New(common.ErrCodeValidation, "jwt is required")
 	}
 	if role == "" {
+		auditCtx.FailureReason = "role is required"
+		s.recordLoginAudit(ctx, false, auditCtx)
 		return "", nil, common.New(common.ErrCodeValidation, "role is required")
 	}
 
 	identity, subject, err := s.validateKubernetesJWT(ctx, role, jwtToken)
+	auditCtx.ClientIdentity = subject
+	auditCtx.Namespace = identity.Namespace
 	if err != nil {
+		auditCtx.FailureReason = err.Error()
+		s.recordLoginAudit(ctx, false, auditCtx)
+		if s.lockout != nil {
+			s.lockout.RecordFailure(LockoutKey("kubernetes", auditCtx.SourceIP))
+		}
 		return "", nil, err
 	}
 
 	bindingResolver, ok := s.roles.(RoleBindingResolver)
 	if !ok {
+		auditCtx.FailureReason = "kubernetes login requires persisted roles"
+		s.recordLoginAudit(ctx, false, auditCtx)
 		return "", nil, common.New(common.ErrCodeForbidden, "kubernetes login requires persisted roles")
 	}
 	storedRole, err := bindingResolver.GetStoredRole(ctx, role)
 	if err != nil {
+		auditCtx.FailureReason = "role not found"
+		s.recordLoginAudit(ctx, false, auditCtx)
 		return "", nil, common.Wrap(common.ErrCodeForbidden, "role not found", err)
 	}
 	if err := MatchServiceAccountBinding(storedRole, identity); err != nil {
+		auditCtx.FailureReason = err.Error()
+		s.recordLoginAudit(ctx, false, auditCtx)
 		return "", nil, err
 	}
 	if len(storedRole.Policies) == 0 {
+		auditCtx.FailureReason = "role has no policies"
+		s.recordLoginAudit(ctx, false, auditCtx)
 		return "", nil, common.New(common.ErrCodeForbidden, "role has no policies")
 	}
 	policies := storedRole.Policies
@@ -330,36 +392,70 @@ func (s *Service) LoginKubernetes(ctx context.Context, role, jwtToken string) (s
 			Policies:       policies,
 		})
 	}
+	if s.lockout != nil {
+		s.lockout.RecordSuccess(LockoutKey("kubernetes", auditCtx.ClientIdentity))
+	}
+	s.recordLoginAudit(ctx, true, auditCtx)
 	return s.tokens.Issue(ctx, subject, policies)
 }
 
 // LoginOIDC validates an OIDC JWT and maps it to a role.
 func (s *Service) LoginOIDC(ctx context.Context, role, jwtToken string) (string, *TokenRecord, error) {
+	auditCtx := loginAuditFromContext(ctx, "oidc")
+	if s.lockout != nil && s.lockout.IsLocked(LockoutKey("oidc", auditCtx.ClientIdentity)) {
+		s.recordLoginAudit(ctx, false, auditCtx)
+		return "", nil, common.New(common.ErrCodeForbidden, "identity locked out")
+	}
 	if jwtToken == "" {
+		auditCtx.FailureReason = "jwt is required"
+		s.recordLoginAudit(ctx, false, auditCtx)
 		return "", nil, common.New(common.ErrCodeValidation, "jwt is required")
 	}
 	if role == "" {
+		auditCtx.FailureReason = "role is required"
+		s.recordLoginAudit(ctx, false, auditCtx)
 		return "", nil, common.New(common.ErrCodeValidation, "role is required")
 	}
 	if s.oidc == nil {
+		auditCtx.FailureReason = "oidc not configured"
+		s.recordLoginAudit(ctx, false, auditCtx)
 		return "", nil, common.New(common.ErrCodeUnauthorized, "oidc authentication not configured")
 	}
 	var oidcCfg *domainauth.OIDCConfig
+	var requireMFA bool
 	if bindingResolver, ok := s.roles.(RoleBindingResolver); ok {
 		storedRole, err := bindingResolver.GetStoredRole(ctx, role)
 		if err != nil {
+			auditCtx.FailureReason = "role not found"
+			s.recordLoginAudit(ctx, false, auditCtx)
 			return "", nil, common.Wrap(common.ErrCodeForbidden, "role not found", err)
 		}
 		if storedRole.AuthMethod != "" && storedRole.AuthMethod != domainauth.AuthMethodOIDC {
+			auditCtx.FailureReason = "role does not allow oidc login"
+			s.recordLoginAudit(ctx, false, auditCtx)
 			return "", nil, common.New(common.ErrCodeForbidden, "role does not allow oidc login")
 		}
 		oidcCfg = storedRole.OIDC
+		requireMFA = storedRole.RequireMFA
 	}
 	if oidcCfg == nil {
+		auditCtx.FailureReason = "oidc not configured for role"
+		s.recordLoginAudit(ctx, false, auditCtx)
 		return "", nil, common.New(common.ErrCodeValidation, "oidc not configured for role")
 	}
-	subject, _, err := s.oidc.Validate(ctx, oidcCfg, jwtToken)
+	subject, claims, err := s.oidc.Validate(ctx, oidcCfg, jwtToken)
+	auditCtx.ClientIdentity = subject
 	if err != nil {
+		auditCtx.FailureReason = err.Error()
+		s.recordLoginAudit(ctx, false, auditCtx)
+		if s.lockout != nil {
+			s.lockout.RecordFailure(LockoutKey("oidc", auditCtx.SourceIP))
+		}
+		return "", nil, err
+	}
+	if err := CheckMFA(requireMFA, claims); err != nil {
+		auditCtx.FailureReason = err.Error()
+		s.recordLoginAudit(ctx, false, auditCtx)
 		return "", nil, err
 	}
 	policies := PoliciesForRole(role)
@@ -381,6 +477,10 @@ func (s *Service) LoginOIDC(ctx context.Context, role, jwtToken string) (string,
 		})
 	}
 	subjectLabel := OIDCSubjectLabel(oidcCfg.Issuer, subject)
+	if s.lockout != nil {
+		s.lockout.RecordSuccess(LockoutKey("oidc", subject))
+	}
+	s.recordLoginAudit(ctx, true, auditCtx)
 	return s.tokens.Create(ctx, subjectLabel, policies, ttl, true)
 }
 

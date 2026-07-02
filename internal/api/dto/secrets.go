@@ -4,7 +4,8 @@ import "time"
 
 // KVWriteRequest is POST /secrets/kv/:path.
 type KVWriteRequest struct {
-	Data    map[string]any `json:"data" binding:"required"`
+	Data    map[string]any    `json:"data" binding:"required"`
+	Labels  map[string]string `json:"labels,omitempty"`
 	Options struct {
 		TTL         string `json:"ttl,omitempty"`
 		CasVersion  *int   `json:"cas_version,omitempty"`
@@ -21,9 +22,10 @@ type KVWriteResponse struct {
 type KVReadResponse struct {
 	Data     map[string]any `json:"data"`
 	Metadata struct {
-		Version   int       `json:"version"`
-		CreatedAt time.Time `json:"created_at"`
-		TTL       string    `json:"ttl,omitempty"`
+		Version   int               `json:"version"`
+		CreatedAt time.Time         `json:"created_at"`
+		TTL       string            `json:"ttl,omitempty"`
+		Labels    map[string]string `json:"labels,omitempty"`
 	} `json:"metadata"`
 }
 
@@ -47,8 +49,9 @@ type KVVersionsResponse struct {
 
 // KVMetadataResponse returns path metadata.
 type KVMetadataResponse struct {
-	Path           string          `json:"path"`
-	CurrentVersion int             `json:"current_version"`
-	MaxVersions    int             `json:"max_versions"`
-	Versions       []KVVersionInfo `json:"versions"`
+	Path           string            `json:"path"`
+	CurrentVersion int               `json:"current_version"`
+	MaxVersions    int               `json:"max_versions"`
+	Labels         map[string]string `json:"labels,omitempty"`
+	Versions       []KVVersionInfo   `json:"versions"`
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/kubenexis/knxvault/internal/crypto"
 	"github.com/kubenexis/knxvault/internal/domain/common"
 	domainsecrets "github.com/kubenexis/knxvault/internal/domain/secrets"
+	"github.com/kubenexis/knxvault/internal/engine/secrets/leaseutil"
 	"github.com/kubenexis/knxvault/internal/repository"
 )
 
@@ -64,6 +65,11 @@ func (e *Engine) Name() string {
 type RoleConfig struct {
 	Name                 string
 	TTLSeconds           int
+	DefaultTTL           int
+	MaxTTL               int
+	Period               int
+	Renewable            *bool
+	MaxLeases            int
 	UsernamePrefix       string
 	DefaultUsername      string
 	CreationStatements   []string
@@ -78,9 +84,18 @@ func (e *Engine) SaveRole(ctx context.Context, cfg RoleConfig) error {
 	if e.roles == nil {
 		return common.New(common.ErrCodeInternal, "database role repository not configured")
 	}
+	renewable := true
+	if cfg.Renewable != nil {
+		renewable = *cfg.Renewable
+	}
 	role := &domainsecrets.DatabaseRole{
 		Name:                 cfg.Name,
 		TTLSeconds:           cfg.TTLSeconds,
+		DefaultTTL:           cfg.DefaultTTL,
+		MaxTTL:               cfg.MaxTTL,
+		Period:               cfg.Period,
+		Renewable:            renewable,
+		MaxLeases:            cfg.MaxLeases,
 		UsernamePrefix:       cfg.UsernamePrefix,
 		DefaultUsername:      cfg.DefaultUsername,
 		CreationStatements:   cfg.CreationStatements,
@@ -125,8 +140,10 @@ type CredsResult struct {
 	Password   string
 	Role       string
 	TTLSeconds int
+	MaxTTL     int
 	ExpiresAt  time.Time
 	Statements []string
+	Warnings   []string
 }
 
 // GenerateCredentials creates ephemeral credentials bound to a lease.
@@ -143,16 +160,13 @@ func (e *Engine) GenerateCredentials(ctx context.Context, req CredsRequest) (*Cr
 		return nil, err
 	}
 	domainsecrets.NormalizeDatabaseRole(role)
-
-	ttlSeconds := role.TTLSeconds
-	if req.TTLSecond > 0 {
-		ttlSeconds = req.TTLSecond
+	tuning := domainsecrets.LeaseTuningFromDatabaseRole(role)
+	if err := leaseutil.CheckMaxLeases(ctx, e.leases, engineName, req.Role, tuning); err != nil {
+		return nil, err
 	}
-	if role.TTLSeconds > 0 && ttlSeconds > role.TTLSeconds {
-		ttlSeconds = role.TTLSeconds
-	}
-	if ttlSeconds <= 0 {
-		return nil, common.New(common.ErrCodeValidation, "ttl must be positive")
+	ttlSeconds, err := tuning.ResolveIssueTTL(req.TTLSecond)
+	if err != nil {
+		return nil, common.Wrap(common.ErrCodeValidation, "invalid ttl", err)
 	}
 
 	leaseID, err := e.leaseGen()
@@ -181,7 +195,7 @@ func (e *Engine) GenerateCredentials(ctx context.Context, req CredsRequest) (*Cr
 		TTLSeconds: ttlSeconds,
 		CreatedAt:  now,
 		ExpiresAt:  expiresAt,
-		Renewable:  true,
+		Renewable:  tuning.Renewable,
 	}
 	data := map[string]any{
 		"username": username,
@@ -218,8 +232,10 @@ func (e *Engine) GenerateCredentials(ctx context.Context, req CredsRequest) (*Cr
 		Password:   password,
 		Role:       req.Role,
 		TTLSeconds: ttlSeconds,
+		MaxTTL:     tuning.MaxTTL,
 		ExpiresAt:  expiresAt,
 		Statements: statements,
+		Warnings:   domainsecrets.LeaseWarnings(now, expiresAt, ttlSeconds),
 	}, nil
 }
 
@@ -240,16 +256,12 @@ func (e *Engine) Renew(ctx context.Context, leaseID string, ttlSeconds int) (*Cr
 	if !lease.Renewable {
 		return nil, common.New(common.ErrCodeValidation, "lease is not renewable")
 	}
-	if ttlSeconds <= 0 {
-		ttlSeconds = lease.TTLSeconds
-	}
 	role, err := e.roles.Get(ctx, lease.RoleName)
 	if err != nil {
 		return nil, err
 	}
-	if role.TTLSeconds > 0 && ttlSeconds > role.TTLSeconds {
-		ttlSeconds = role.TTLSeconds
-	}
+	tuning := domainsecrets.LeaseTuningFromDatabaseRole(role)
+	ttlSeconds = tuning.ResolveRenewTTL(ttlSeconds, lease.TTLSeconds, now, lease.ExpiresAt)
 
 	latest, err := e.secrets.GetLatest(ctx, lease.Path)
 	if err != nil {
@@ -282,57 +294,70 @@ func (e *Engine) Renew(ctx context.Context, leaseID string, ttlSeconds int) (*Cr
 		Password:   password,
 		Role:       lease.RoleName,
 		TTLSeconds: ttlSeconds,
+		MaxTTL:     tuning.MaxTTL,
 		ExpiresAt:  expiresAt,
 		Statements: renderStatementsForRole(role.CreationStatements, role, username, password, expiresAt),
+		Warnings:   domainsecrets.LeaseWarnings(now, expiresAt, ttlSeconds),
 	}, nil
 }
 
+// RevokeResult contains optional client-mode revocation SQL (W36-19).
+type RevokeResult struct {
+	RevocationStatements []string `json:"revocation_statements,omitempty"`
+}
+
 // RevokeLease revokes a lease and its stored credentials.
-func (e *Engine) RevokeLease(ctx context.Context, leaseID string) error {
+func (e *Engine) RevokeLease(ctx context.Context, leaseID string) (*RevokeResult, error) {
 	if e.leases == nil {
-		return common.New(common.ErrCodeInternal, "lease repository not configured")
+		return nil, common.New(common.ErrCodeInternal, "lease repository not configured")
 	}
 	lease, err := e.leases.Get(ctx, leaseID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	now := e.now().UTC()
 	if lease.RevokedAt != nil {
-		return nil
+		return &RevokeResult{}, nil
 	}
-	if err := e.leases.Revoke(ctx, leaseID, now); err != nil {
-		return err
-	}
-	if role, roleErr := e.roles.Get(ctx, lease.RoleName); roleErr == nil && role.ExecutionMode == domainsecrets.ExecutionModeManaged {
-		if latest, err := e.secrets.GetLatest(ctx, lease.Path); err == nil {
-			if plain, err := e.crypto.Open(latest.DataEnc, latest.DEKEnc); err == nil {
-				var data map[string]any
-				if json.Unmarshal(plain, &data) == nil {
-					username, _ := data["username"].(string)
-					password, _ := data["password"].(string)
-					statements := renderStatementsForRole(role.RevocationStatements, role, username, password, now)
-					if len(statements) > 0 {
-						connURL, err := e.adminConnectionURL(ctx, role)
-						if err != nil {
-							return common.Wrap(common.ErrCodeInternal, "managed revoke: admin credentials", err)
-						}
-						if e.sql == nil {
-							return common.New(common.ErrCodeInternal, "sql runner not configured")
-						}
-						if err := e.sql.ExecStatements(ctx, connURL, statements); err != nil {
-							return common.Wrap(common.ErrCodeInternal, "managed revoke: execute revocation statements", err)
-						}
-					}
-				}
+	var username, password string
+	if latest, err := e.secrets.GetLatest(ctx, lease.Path); err == nil {
+		if plain, err := e.crypto.Open(latest.DataEnc, latest.DEKEnc); err == nil {
+			var data map[string]any
+			if json.Unmarshal(plain, &data) == nil {
+				username, _ = data["username"].(string)
+				password, _ = data["password"].(string)
 			}
 		}
 	}
+	role, _ := e.roles.Get(ctx, lease.RoleName)
+	var result RevokeResult
+	if role != nil && len(role.RevocationStatements) > 0 && username != "" {
+		result.RevocationStatements = renderStatementsForRole(role.RevocationStatements, role, username, password, now)
+	}
+	if err := e.leases.Revoke(ctx, leaseID, now); err != nil {
+		return nil, err
+	}
+	if role != nil && role.ExecutionMode == domainsecrets.ExecutionModeManaged {
+		if len(result.RevocationStatements) > 0 {
+			connURL, err := e.adminConnectionURL(ctx, role)
+			if err != nil {
+				return nil, common.Wrap(common.ErrCodeInternal, "managed revoke: admin credentials", err)
+			}
+			if e.sql == nil {
+				return nil, common.New(common.ErrCodeInternal, "sql runner not configured")
+			}
+			if err := e.sql.ExecStatements(ctx, connURL, result.RevocationStatements); err != nil {
+				return nil, common.Wrap(common.ErrCodeInternal, "managed revoke: execute revocation statements", err)
+			}
+		}
+		result.RevocationStatements = nil
+	}
 	if e.secrets != nil && e.crypto != nil {
 		if err := e.destroySecret(ctx, lease.Path); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return nil
+	return &result, nil
 }
 
 func (e *Engine) adminConnectionURL(ctx context.Context, role *domainsecrets.DatabaseRole) (string, error) {
@@ -407,7 +432,7 @@ func (e *Engine) CleanupExpired(ctx context.Context, limit int) (int, error) {
 		if lease.Engine != engineName {
 			continue
 		}
-		if err := e.RevokeLease(ctx, lease.ID); err != nil {
+		if _, err := e.RevokeLease(ctx, lease.ID); err != nil {
 			if firstErr == nil {
 				firstErr = err
 			}

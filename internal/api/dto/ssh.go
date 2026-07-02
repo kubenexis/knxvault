@@ -1,10 +1,13 @@
 package dto
 
-import "time"
-
 // SSHRoleRequest configures an OpenSSH credential role.
 type SSHRoleRequest struct {
 	TTLSeconds   int               `json:"ttl_seconds"`
+	DefaultTTL   int               `json:"default_ttl,omitempty"`
+	MaxTTL       int               `json:"max_ttl,omitempty"`
+	Period       int               `json:"period,omitempty"`
+	Renewable    *bool             `json:"renewable,omitempty"`
+	MaxLeases    int               `json:"max_leases,omitempty"`
 	CAKeyPath    string            `json:"ca_key_path"`
 	AllowedUsers []string          `json:"allowed_users,omitempty"`
 	DefaultUser  string            `json:"default_user,omitempty"`
@@ -16,6 +19,11 @@ type SSHRoleRequest struct {
 type SSHRoleResponse struct {
 	Name         string            `json:"name"`
 	TTLSeconds   int               `json:"ttl_seconds"`
+	DefaultTTL   int               `json:"default_ttl,omitempty"`
+	MaxTTL       int               `json:"max_ttl,omitempty"`
+	Period       int               `json:"period,omitempty"`
+	Renewable    bool              `json:"renewable"`
+	MaxLeases    int               `json:"max_leases,omitempty"`
 	CAKeyPath    string            `json:"ca_key_path"`
 	AllowedUsers []string          `json:"allowed_users,omitempty"`
 	DefaultUser  string            `json:"default_user,omitempty"`
@@ -31,11 +39,10 @@ type SSHCredsRequest struct {
 
 // SSHCredsResponse is returned for SSH credential generation.
 type SSHCredsResponse struct {
-	LeaseID    string    `json:"lease_id"`
-	Username   string    `json:"username"`
-	PrivateKey string    `json:"private_key"`
-	SignedKey  string    `json:"signed_key"`
-	Role       string    `json:"role"`
-	TTLSeconds int       `json:"ttl_seconds"`
-	ExpiresAt  time.Time `json:"expires_at"`
+	LeaseFields
+	Username   string `json:"username"`
+	PrivateKey string `json:"private_key"`
+	SignedKey  string `json:"signed_key"`
+	Role       string `json:"role"`
+	TTLSeconds int    `json:"ttl_seconds"`
 }

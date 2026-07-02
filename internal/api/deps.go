@@ -31,13 +31,19 @@ type RouterDeps struct {
 	BackupService        *service.BackupService
 	RotationService      *service.RotationService
 	OrchestrationService *service.OrchestrationService
+	LeaseService         *service.LeaseService
+	AuditPackService     *service.AuditPackService
 	MachineIdentitySvc   *service.MachineIdentityService
+	TenantMode           bool
+	AuthzAudit           *middleware.AuthzAudit
 	ExposureSigningKey   string
 	ExposureAutoRevoke   bool
 	ExposureWebhook      *notify.Webhook
 	MTLSRequired         bool
 	TokenTTL             time.Duration
 	RateLimiter          *middleware.RateLimiter
+	AuthLoginLimiter     *middleware.RateLimiter
+	TokenCreateLimiter   *middleware.RateLimiter
 	RequestSigning       *middleware.RequestSigning
 	HAStatus             handlers.HAStatusProvider
 	IsLeader             func() bool

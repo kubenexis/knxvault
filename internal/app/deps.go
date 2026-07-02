@@ -16,6 +16,7 @@ import (
 	auditsvc "github.com/kubenexis/knxvault/internal/audit"
 	"github.com/kubenexis/knxvault/internal/auth"
 	"github.com/kubenexis/knxvault/internal/backup"
+	"github.com/kubenexis/knxvault/internal/cache"
 	"github.com/kubenexis/knxvault/internal/config"
 	"github.com/kubenexis/knxvault/internal/crypto"
 	"github.com/kubenexis/knxvault/internal/crypto/masterkey"
@@ -75,13 +76,19 @@ type Dependencies struct {
 	BackupService          *service.BackupService
 	RotationService        *service.RotationService
 	OrchestrationService   *service.OrchestrationService
+	LeaseService           *service.LeaseService
+	AuditPackService       *service.AuditPackService
 	MachineIdentityService *service.MachineIdentityService
+	CacheStore             cache.Store
+	AuthzAudit             *middleware.AuthzAudit
 	ExposureWebhook        *notify.Webhook
 	EngineRegistry         *engine.Registry
 	TokenTTL               time.Duration
 
-	RateLimiter    *middleware.RateLimiter
-	RequestSigning *middleware.RequestSigning
+	RateLimiter        *middleware.RateLimiter
+	AuthLoginLimiter   *middleware.RateLimiter
+	TokenCreateLimiter *middleware.RateLimiter
+	RequestSigning     *middleware.RequestSigning
 
 	Leader           leader.Elector
 	LeaderMonitor    *leader.Monitor
@@ -214,6 +221,11 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 	}
 	if deps.SecretsEngine != nil {
 		deps.SecretsService = service.NewSecretsService(deps.SecretsEngine, deps.AuditService)
+		if cfg.TenantMode {
+			deps.SecretsService.SetTenantMode(true)
+		}
+		deps.CacheStore = cache.NewRedisStore(cfg.RedisCacheURL)
+		deps.SecretsService.SetCache(deps.CacheStore)
 		renderer := inject.NewRenderer(service.NewKVSecretReader(deps.SecretsService))
 		deps.InjectService = service.NewInjectService(renderer, deps.AuditService)
 	}
@@ -268,9 +280,11 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 	deps.OrchestrationService = service.NewOrchestrationService(
 		deps.RotationService,
 		deps.DatabaseService,
+		deps.SSHService,
 		deps.PKIService,
 		cfg.RotationWebhookURL,
 	)
+	deps.LeaseService = service.NewLeaseService(deps.LeaseRepo, deps.DatabaseEngine, deps.SSHEngine, deps.AuditService)
 	deps.ExposureWebhook = notify.NewWebhook(cfg.ExposureWebhookURL)
 
 	deps.AuthService = auth.NewService(tokenStore, rbac, cfg.JWTSecret)
@@ -279,6 +293,8 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 	deps.AuthService.SetOIDCValidator(auth.NewOIDCValidator(), cfg.OIDCDefaultTTL)
 	deps.AuthService.SetMachineIdentityRecorder(deps.MachineIdentityService)
 	deps.AuthService.SetAuditRecorder(deps.AuditService)
+	deps.AuthService.SetLockoutTracker(auth.NewLockoutTracker(cfg.AuthLockoutThreshold, cfg.AuthLockoutTTL))
+	deps.AuthzAudit = middleware.NewAuthzAudit(deps.AuditService)
 	var tokenReviewer k8s.TokenReviewer
 	if reviewer, err := k8s.NewInClusterTokenReviewer(); err == nil {
 		tokenReviewer = reviewer
@@ -297,6 +313,7 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 
 	if deps.AuditService != nil {
 		deps.AuditExportService = service.NewAuditExportService(deps.AuditService)
+		deps.AuditPackService = service.NewAuditPackService(deps.AuditService)
 	}
 
 	if deps.Crypto != nil {
@@ -343,6 +360,8 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 	}
 
 	deps.RateLimiter = middleware.NewRateLimiter(cfg.RateLimitRPM, cfg.RateLimitEnabled)
+	deps.AuthLoginLimiter = middleware.NewRateLimiter(cfg.AuthLoginRateLimitRPM, true)
+	deps.TokenCreateLimiter = middleware.NewRateLimiter(cfg.TokenCreateRateLimitRPM, true)
 	deps.RequestSigning = middleware.NewRequestSigning(cfg.RequestSigningKey, cfg.RequestSigningRequired)
 
 	deps.LeaderMonitor = leader.NewMonitor()

@@ -69,7 +69,11 @@ func New(ctx context.Context, cfg config.Config, log *zap.Logger) (*App, error) 
 		PolicyService:        deps.PolicyService,
 		RotationService:      deps.RotationService,
 		OrchestrationService: deps.OrchestrationService,
+		LeaseService:         deps.LeaseService,
+		AuditPackService:     deps.AuditPackService,
+		TenantMode:           cfg.TenantMode,
 		MachineIdentitySvc:   deps.MachineIdentityService,
+		AuthzAudit:           deps.AuthzAudit,
 		AuditExportService:   deps.AuditExportService,
 		InjectService:        deps.InjectService,
 		BackupService:        deps.BackupService,
@@ -80,6 +84,8 @@ func New(ctx context.Context, cfg config.Config, log *zap.Logger) (*App, error) 
 		HAStatus:             deps,
 		IsLeader:             deps.IsLeader,
 		RateLimiter:          deps.RateLimiter,
+		AuthLoginLimiter:     deps.AuthLoginLimiter,
+		TokenCreateLimiter:   deps.TokenCreateLimiter,
 		RequestSigning:       deps.RequestSigning,
 	})
 

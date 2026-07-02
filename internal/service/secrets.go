@@ -2,16 +2,24 @@ package service
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"time"
 
 	auditsvc "github.com/kubenexis/knxvault/internal/audit"
+	"github.com/kubenexis/knxvault/internal/cache"
+	"github.com/kubenexis/knxvault/internal/domain/common"
 	secretsengine "github.com/kubenexis/knxvault/internal/engine/secrets"
 	"github.com/kubenexis/knxvault/internal/service/audithelper"
+	"github.com/kubenexis/knxvault/internal/tenant"
 )
 
 // SecretsService coordinates KV secret operations with audit logging.
 type SecretsService struct {
-	engine *secretsengine.KVV2Engine
-	audit  *auditsvc.Service
+	engine     *secretsengine.KVV2Engine
+	audit      *auditsvc.Service
+	tenantMode bool
+	cache      cache.Store
 }
 
 // NewSecretsService constructs a secrets service.
@@ -19,29 +27,104 @@ func NewSecretsService(engine *secretsengine.KVV2Engine, audit *auditsvc.Service
 	return &SecretsService{engine: engine, audit: audit}
 }
 
+// SetTenantMode enables tenant path scoping (W32-04).
+func (s *SecretsService) SetTenantMode(enabled bool) {
+	if s != nil {
+		s.tenantMode = enabled
+	}
+}
+
+// SetCache configures optional read-through caching (W33-01–02).
+func (s *SecretsService) SetCache(store cache.Store) {
+	if s != nil {
+		s.cache = store
+	}
+}
+
+func (s *SecretsService) cacheKey(path string, version int) string {
+	return fmt.Sprintf("kv:%s:v%d", path, version)
+}
+
+func (s *SecretsService) invalidateCache(ctx context.Context, path string) {
+	if s == nil || s.cache == nil {
+		return
+	}
+	s.cache.Delete(ctx, s.cacheKey(path, 0))
+	for v := 1; v <= 20; v++ {
+		s.cache.Delete(ctx, s.cacheKey(path, v))
+	}
+}
+
+func (s *SecretsService) scopePath(ctx context.Context, path string) (string, error) {
+	if s == nil || !s.tenantMode {
+		return path, nil
+	}
+	ns := tenant.FromContext(ctx)
+	if ns == "" {
+		return "", common.New(common.ErrCodeValidation, "tenant namespace required")
+	}
+	scoped := tenant.ScopePath(ns, path, true)
+	if !tenant.ValidateAccess(ns, scoped, true) {
+		return "", common.New(common.ErrCodeNotFound, "secret not found")
+	}
+	return scoped, nil
+}
+
 // Put stores a secret version.
 func (s *SecretsService) Put(ctx context.Context, path string, data map[string]any, opts secretsengine.PutOptions) (*secretsengine.PutResult, error) {
+	path, err := s.scopePath(ctx, path)
+	if err != nil {
+		return nil, err
+	}
 	result, err := s.engine.Put(ctx, path, data, opts)
+	if err == nil {
+		s.invalidateCache(ctx, path)
+	}
 	audithelper.Record(s.audit, ctx, "secret.write", "secrets/kv/"+path, err, nil)
 	return result, err
 }
 
 // Get reads the latest secret version.
 func (s *SecretsService) Get(ctx context.Context, path string) (*secretsengine.GetResult, error) {
-	result, err := s.engine.Get(ctx, path)
-	audithelper.Record(s.audit, ctx, "secret.read", "secrets/kv/"+path, err, nil)
-	return result, err
+	return s.getVersion(ctx, path, 0)
 }
 
 // GetVersion reads a specific secret version.
 func (s *SecretsService) GetVersion(ctx context.Context, path string, version int) (*secretsengine.GetResult, error) {
+	return s.getVersion(ctx, path, version)
+}
+
+func (s *SecretsService) getVersion(ctx context.Context, path string, version int) (*secretsengine.GetResult, error) {
+	path, err := s.scopePath(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+	if s.cache != nil {
+		if raw, ok := s.cache.Get(ctx, s.cacheKey(path, version)); ok {
+			var result secretsengine.GetResult
+			if json.Unmarshal(raw, &result) == nil {
+				audithelper.Record(s.audit, ctx, "secret.read", "secrets/kv/"+path, nil, map[string]any{"cached": true, "version": version})
+				return &result, nil
+			}
+		}
+	}
 	result, err := s.engine.GetVersion(ctx, path, version)
-	audithelper.Record(s.audit, ctx, "secret.read", "secrets/kv/"+path, err, map[string]any{"version": version})
+	if err == nil && s.cache != nil {
+		if raw, marshalErr := json.Marshal(result); marshalErr == nil {
+			s.cache.Set(ctx, s.cacheKey(path, version), raw, 5*time.Minute)
+		}
+	}
+	details := map[string]any{"version": version}
+	audithelper.Record(s.audit, ctx, "secret.read", "secrets/kv/"+path, err, details)
 	return result, err
 }
 
 // ListPaths returns secret paths under a prefix.
 func (s *SecretsService) ListPaths(ctx context.Context, prefix string) ([]string, error) {
+	prefix, err := s.scopePath(ctx, prefix)
+	if err != nil {
+		return nil, err
+	}
 	result, err := s.engine.ListPaths(ctx, prefix)
 	audithelper.Record(s.audit, ctx, "secret.list", "secrets/kv/", err, map[string]any{"prefix": prefix})
 	return result, err
@@ -49,6 +132,10 @@ func (s *SecretsService) ListPaths(ctx context.Context, prefix string) ([]string
 
 // ListVersions returns version metadata for a path.
 func (s *SecretsService) ListVersions(ctx context.Context, path string) ([]secretsengine.VersionMetadata, error) {
+	path, err := s.scopePath(ctx, path)
+	if err != nil {
+		return nil, err
+	}
 	result, err := s.engine.ListVersions(ctx, path)
 	audithelper.Record(s.audit, ctx, "secret.versions", "secrets/kv/"+path, err, nil)
 	return result, err
@@ -56,6 +143,10 @@ func (s *SecretsService) ListVersions(ctx context.Context, path string) ([]secre
 
 // GetMetadata returns path metadata.
 func (s *SecretsService) GetMetadata(ctx context.Context, path string, version int) (*secretsengine.PathMetadata, error) {
+	path, err := s.scopePath(ctx, path)
+	if err != nil {
+		return nil, err
+	}
 	result, err := s.engine.GetMetadata(ctx, path, version)
 	audithelper.Record(s.audit, ctx, "secret.metadata", "secrets/kv/"+path, err, nil)
 	return result, err
@@ -63,14 +154,25 @@ func (s *SecretsService) GetMetadata(ctx context.Context, path string, version i
 
 // DestroyVersion marks a version destroyed.
 func (s *SecretsService) DestroyVersion(ctx context.Context, path string, version int) error {
-	err := s.engine.DestroyVersion(ctx, path, version)
+	path, err := s.scopePath(ctx, path)
+	if err != nil {
+		return err
+	}
+	err = s.engine.DestroyVersion(ctx, path, version)
 	audithelper.Record(s.audit, ctx, "secret.destroy", "secrets/kv/"+path, err, map[string]any{"version": version})
 	return err
 }
 
 // Delete soft-deletes a secret path.
 func (s *SecretsService) Delete(ctx context.Context, path string) error {
-	err := s.engine.Delete(ctx, path)
-	audithelper.Record(s.audit, ctx, "secret.delete", "secrets/kv/"+path, err, nil)
+	scoped, err := s.scopePath(ctx, path)
+	if err != nil {
+		return err
+	}
+	err = s.engine.Delete(ctx, scoped)
+	if err == nil {
+		s.invalidateCache(ctx, scoped)
+	}
+	audithelper.Record(s.audit, ctx, "secret.delete", "secrets/kv/"+scoped, err, nil)
 	return err
 }

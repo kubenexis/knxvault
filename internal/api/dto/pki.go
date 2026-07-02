@@ -18,6 +18,21 @@ type CreateIntermediateCARequest struct {
 	KeyBits    int    `json:"key_bits"`
 }
 
+// IssueClientCertRequest is POST /pki/issue-client-cert (W34-02).
+type IssueClientCertRequest struct {
+	Role       string `json:"role" binding:"required"`
+	CommonName string `json:"common_name" binding:"required"`
+	TTL        string `json:"ttl"`
+}
+
+// IssueClientCertResponse returns a client certificate for API mTLS.
+type IssueClientCertResponse struct {
+	CertPEM       string `json:"cert_pem"`
+	PrivateKeyPEM string `json:"private_key_pem"`
+	Serial        string `json:"serial"`
+	ExpiresAt     string `json:"expires_at"`
+}
+
 // IssueCertRequest is POST /pki/issue.
 type IssueCertRequest struct {
 	Role        string   `json:"role" binding:"required"`

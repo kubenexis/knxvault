@@ -22,6 +22,10 @@ func defaults() Config {
 		RenewGrace:                    defaultRenewGrace,
 		OIDCDefaultTTL:                defaultOIDCTokenTTL,
 		RateLimitRPM:                  defaultRateLimitRPM,
+		AuthLoginRateLimitRPM:         defaultAuthLoginRateLimitRPM,
+		TokenCreateRateLimitRPM:       defaultTokenCreateRateLimitRPM,
+		AuthLockoutThreshold:          defaultAuthLockoutThreshold,
+		AuthLockoutTTL:                defaultAuthLockoutTTL,
 		Raft:                          defaultRaft(),
 	}
 }

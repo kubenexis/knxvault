@@ -219,6 +219,44 @@ func overlayEnv(cfg Config) (Config, error) {
 		}
 		cfg.K8sAuthInsecure = insecure
 	}
+	if v := os.Getenv("KNXVAULT_TENANT_MODE"); v != "" {
+		enabled, err := strconv.ParseBool(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_TENANT_MODE: %w", err)
+		}
+		cfg.TenantMode = enabled
+	}
+	if v := os.Getenv("KNXVAULT_REDIS_CACHE_URL"); v != "" {
+		cfg.RedisCacheURL = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("KNXVAULT_AUTH_LOCKOUT_THRESHOLD"); v != "" {
+		threshold, err := strconv.Atoi(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_AUTH_LOCKOUT_THRESHOLD: %w", err)
+		}
+		cfg.AuthLockoutThreshold = threshold
+	}
+	if v := os.Getenv("KNXVAULT_AUTH_LOCKOUT_TTL"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_AUTH_LOCKOUT_TTL: %w", err)
+		}
+		cfg.AuthLockoutTTL = d
+	}
+	if v := os.Getenv("KNXVAULT_AUTH_LOGIN_RATE_LIMIT_RPM"); v != "" {
+		rpm, err := strconv.Atoi(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_AUTH_LOGIN_RATE_LIMIT_RPM: %w", err)
+		}
+		cfg.AuthLoginRateLimitRPM = rpm
+	}
+	if v := os.Getenv("KNXVAULT_TOKEN_CREATE_RATE_LIMIT_RPM"); v != "" {
+		rpm, err := strconv.Atoi(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_TOKEN_CREATE_RATE_LIMIT_RPM: %w", err)
+		}
+		cfg.TokenCreateRateLimitRPM = rpm
+	}
 
 	raft, err := overlayRaftEnv(cfg.Raft)
 	if err != nil {

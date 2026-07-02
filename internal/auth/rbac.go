@@ -71,21 +71,7 @@ func (r *RBAC) ReloadFromPersisted(policies []*domainauth.Policy) {
 
 // Authorize returns true when any assigned policy allows the action.
 func (r *RBAC) Authorize(policyNames []string, resource, action string, req RequestContext) bool {
-	allowed := false
-	for _, name := range policyNames {
-		policy, ok := r.policy(name)
-		if !ok {
-			continue
-		}
-		if !PolicyMatches(policy, resource, action, req) {
-			continue
-		}
-		if policy.Effect == domainauth.EffectDeny {
-			return false
-		}
-		allowed = true
-	}
-	return allowed
+	return r.AuthorizeDetailed(r.ResolvePolicyNames(policyNames), resource, action, req).Allowed
 }
 
 // Capabilities returns allowed action patterns for policy names.

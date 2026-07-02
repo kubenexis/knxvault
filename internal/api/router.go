@@ -10,6 +10,7 @@ import (
 
 	"github.com/kubenexis/knxvault/internal/api/handlers"
 	"github.com/kubenexis/knxvault/internal/api/middleware"
+	"github.com/kubenexis/knxvault/internal/auth"
 	"github.com/kubenexis/knxvault/internal/crypto/openssl"
 	"github.com/kubenexis/knxvault/internal/domain/common"
 	"github.com/kubenexis/knxvault/internal/infra/metrics"
@@ -44,6 +45,9 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 	if deps.AuthService != nil {
 		authHandler := handlers.NewAuthHandler(deps.AuthService, deps.TokenTTL)
 		authGroup := r.Group("/auth")
+		if deps.AuthLoginLimiter != nil {
+			authGroup.Use(middleware.AuthLoginThrottle(deps.AuthLoginLimiter))
+		}
 		{
 			authGroup.POST("/kubernetes", authHandler.LoginKubernetes)
 			authGroup.POST("/oidc/:role", authHandler.LoginOIDC)
@@ -55,10 +59,14 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 			securedAuth.Use(middleware.SealGuard(deps.Seal))
 		}
 		{
-			securedAuth.POST("/token/create",
-				middleware.RequirePermission(deps.AuthService, "sys/auth", "write"),
+			tokenCreate := []gin.HandlerFunc{
+				middleware.RequirePermission(deps.AuthService, "sys/auth", "sudo"),
 				authHandler.CreateToken,
-			)
+			}
+			if deps.TokenCreateLimiter != nil {
+				tokenCreate = append([]gin.HandlerFunc{middleware.TokenCreateThrottle(deps.TokenCreateLimiter)}, tokenCreate...)
+			}
+			securedAuth.POST("/token/create", tokenCreate...)
 			securedAuth.POST("/token/renew", authHandler.RenewToken)
 			securedAuth.DELETE("/token/self", authHandler.RevokeSelfToken)
 			securedAuth.POST("/agent/delegate", authHandler.DelegateAgent)
@@ -71,6 +79,9 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 			secured.Use(deps.RequestSigning.Middleware())
 		}
 		secured.Use(middleware.Auth(deps.AuthService))
+		if deps.TenantMode {
+			secured.Use(middleware.TenantEnforcement(true))
+		}
 		if deps.Seal != nil {
 			secured.Use(middleware.SealGuard(deps.Seal))
 		}
@@ -153,6 +164,7 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 				pkiGroup.POST("/root", pkiHandler.CreateRoot)
 				pkiGroup.POST("/intermediate", pkiHandler.CreateIntermediate)
 				pkiGroup.POST("/issue", pkiHandler.Issue)
+				pkiGroup.POST("/issue-client-cert", pkiHandler.IssueClientCert)
 				pkiGroup.POST("/renew", pkiHandler.Renew)
 				pkiGroup.POST("/revoke", pkiHandler.Revoke)
 				pkiGroup.POST("/ca/import", pkiHandler.ImportCA)
@@ -171,15 +183,15 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 			kvWrite.Use(middleware.MTLSRequired(true))
 		}
 		kvWrite.POST("/*path",
-			middleware.RequirePermission(deps.AuthService, "secrets/kv", "write"),
+			middleware.RequireKVAccess(deps.AuthService, auth.CapWrite, deps.AuthzAudit),
 			secretsHandler.Write,
 		)
 		secured.GET("/secrets/kv/*path",
-			middleware.RequirePermission(deps.AuthService, "secrets/kv", "read"),
+			middleware.RequireKVAccess(deps.AuthService, "", deps.AuthzAudit),
 			secretsHandler.Read,
 		)
 		secured.DELETE("/secrets/kv/*path",
-			middleware.RequirePermission(deps.AuthService, "secrets/kv", "write"),
+			middleware.RequireKVAccess(deps.AuthService, auth.CapDelete, deps.AuthzAudit),
 			secretsHandler.Delete,
 		)
 	}
@@ -254,6 +266,31 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 			middleware.RequirePermission(deps.AuthService, "sys/roles", "read"),
 			policyHandler.GetRole,
 		)
+		secured.POST("/sys/policies/:name/import",
+			middleware.RequirePermission(deps.AuthService, "sys/policies", "write"),
+			policyHandler.ImportHCL,
+		)
+		simHandler := handlers.NewPolicySimulateHandler(deps.AuthService)
+		secured.POST("/sys/policy/simulate",
+			middleware.RequirePermission(deps.AuthService, "sys/policies", "read"),
+			simHandler.Simulate,
+		)
+	}
+
+	if deps.LeaseService != nil && deps.AuthService != nil {
+		leaseHandler := handlers.NewLeaseHandler(deps.LeaseService)
+		secured.GET("/sys/leases/:lease_id",
+			middleware.RequirePermission(deps.AuthService, "sys/leases", "read"),
+			leaseHandler.Get,
+		)
+		secured.GET("/sys/leases",
+			middleware.RequirePermission(deps.AuthService, "sys/leases", "read"),
+			leaseHandler.List,
+		)
+		secured.PUT("/sys/leases/revoke",
+			middleware.RequirePermission(deps.AuthService, "sys/leases", "write"),
+			leaseHandler.BulkRevoke,
+		)
 	}
 
 	if deps.InjectService != nil && deps.AuthService != nil {
@@ -277,6 +314,13 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 		secured.POST("/audit/verify",
 			middleware.RequirePermission(deps.AuthService, "audit/verify", "read"),
 			auditHandler.Verify,
+		)
+	}
+	if deps.AuditPackService != nil && deps.AuthService != nil {
+		auditPackHandler := handlers.NewAuditPackHandler(deps.AuditPackService)
+		secured.GET("/sys/audit/pack",
+			middleware.RequirePermission(deps.AuthService, "audit/export", "read"),
+			auditPackHandler.ExportPack,
 		)
 	}
 

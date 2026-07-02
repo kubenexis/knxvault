@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: KNXVault API
-  version: 0.4.5
+  version: 0.4.6
   description: Secrets management and PKI REST API (Phase 1 MVP + Phase 2 complete).
 servers:
   - url: http://localhost:8200
@@ -259,6 +259,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CAResponse"
+  /pki/issue-client-cert:
+    post:
+      tags: [pki]
+      summary: Issue a client certificate for API mTLS consumers
+      operationId: issueClientCertificate
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IssueClientCertRequest"
+      responses:
+        "201":
+          description: Client certificate issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IssueClientCertResponse"
   /pki/issue:
     post:
       tags: [pki]
@@ -573,6 +593,106 @@ paths:
           schema: { type: string }
       responses:
         "204": { description: Lease revoked }
+  /sys/leases:
+    get:
+      tags: [sys]
+      summary: List leases with optional filters
+      operationId: listLeases
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: engine
+          in: query
+          schema: { type: string }
+        - name: role
+          in: query
+          schema: { type: string }
+        - name: prefix
+          in: query
+          schema: { type: string }
+        - name: active_only
+          in: query
+          schema: { type: boolean }
+      responses:
+        "200":
+          description: Lease list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaseListResponse"
+  /sys/leases/{lease_id}:
+    get:
+      tags: [sys]
+      summary: Lookup lease metadata
+      operationId: getLease
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: lease_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Lease metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaseView"
+  /sys/leases/revoke:
+    put:
+      tags: [sys]
+      summary: Bulk revoke leases by engine/role/prefix
+      operationId: bulkRevokeLeases
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkRevokeLeasesRequest"
+      responses:
+        "200":
+          description: Revocation summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkRevokeLeasesResponse"
+  /sys/policy/simulate:
+    post:
+      tags: [sys]
+      summary: Simulate policy authorization for a resource
+      operationId: simulatePolicy
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PolicySimulateRequest"
+      responses:
+        "200":
+          description: Simulation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicySimulateResponse"
+  /sys/audit/pack:
+    get:
+      tags: [sys]
+      summary: Export compliance audit pack (ZIP)
+      operationId: exportAuditPack
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: since
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: Audit pack ZIP archive
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
   /sys/policies:
     get:
       tags: [sys]
@@ -1093,6 +1213,9 @@ components:
         data:
           type: object
           additionalProperties: true
+        labels:
+          type: object
+          additionalProperties: { type: string }
         options:
           type: object
           properties:
@@ -1121,10 +1244,84 @@ components:
               format: date-time
             ttl:
               type: string
+            labels:
+              type: object
+              additionalProperties: { type: string }
+    IssueClientCertRequest:
+      type: object
+      required: [role, common_name]
+      properties:
+        role: { type: string }
+        common_name: { type: string }
+        ttl: { type: string }
+    IssueClientCertResponse:
+      type: object
+      properties:
+        cert_pem: { type: string }
+        private_key_pem: { type: string }
+        serial: { type: string }
+        expires_at: { type: string, format: date-time }
+    LeaseView:
+      type: object
+      properties:
+        lease_id: { type: string }
+        engine: { type: string }
+        role: { type: string }
+        path: { type: string }
+        ttl_seconds: { type: integer }
+        expires_at: { type: string, format: date-time }
+        renewable: { type: boolean }
+        revoked_at: { type: string, format: date-time }
+    LeaseListResponse:
+      type: object
+      properties:
+        leases:
+          type: array
+          items:
+            $ref: "#/components/schemas/LeaseView"
+    BulkRevokeLeasesRequest:
+      type: object
+      properties:
+        engine: { type: string }
+        role: { type: string }
+        path_prefix: { type: string }
+        lease_ids:
+          type: array
+          items: { type: string }
+    BulkRevokeLeasesResponse:
+      type: object
+      properties:
+        revoked: { type: integer }
+        lease_ids:
+          type: array
+          items: { type: string }
+    PolicySimulateRequest:
+      type: object
+      properties:
+        policies:
+          type: array
+          items: { type: string }
+        resource: { type: string }
+        action: { type: string }
+        capability: { type: string }
+        context:
+          type: object
+          additionalProperties: true
+    PolicySimulateResponse:
+      type: object
+      properties:
+        allowed: { type: boolean }
+        matched_policy: { type: string }
+        reason: { type: string }
     DatabaseRoleRequest:
       type: object
       properties:
         ttl_seconds: { type: integer }
+        default_ttl: { type: integer }
+        max_ttl: { type: integer }
+        period: { type: integer }
+        renewable: { type: boolean }
+        max_leases: { type: integer }
         username_prefix: { type: string }
         default_username: { type: string }
         creation_statements:
@@ -1159,6 +1356,11 @@ components:
       type: object
       properties:
         lease_id: { type: string }
+        lease_duration: { type: integer }
+        lease_max_ttl: { type: integer }
+        warnings:
+          type: array
+          items: { type: string }
         username: { type: string }
         password: { type: string }
         role: { type: string }

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -28,8 +30,35 @@ var auditExportCmd = &cobra.Command{
 	},
 }
 
+var auditPackCmd = &cobra.Command{
+	Use:   "pack",
+	Short: "Export compliance audit pack (ZIP)",
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		sinceRaw, _ := cmd.Flags().GetString("since")
+		outPath, _ := cmd.Flags().GetString("output")
+		path := "/sys/audit/pack"
+		if sinceRaw != "" {
+			if _, err := time.Parse(time.RFC3339, sinceRaw); err != nil {
+				return fmt.Errorf("invalid --since (RFC3339): %w", err)
+			}
+			path += "?since=" + sinceRaw
+		}
+		data, err := apiClient().GetRaw(context.Background(), path, true)
+		if err != nil {
+			return err
+		}
+		if outPath == "" {
+			outPath = "knxvault-audit-pack.zip"
+		}
+		return os.WriteFile(outPath, data, 0o600)
+	},
+}
+
 func init() {
 	auditExportCmd.Flags().Int("limit", 100, "Maximum entries to export")
+	auditPackCmd.Flags().String("since", "", "Export entries since RFC3339 timestamp")
+	auditPackCmd.Flags().StringP("output", "o", "", "Output ZIP path (default knxvault-audit-pack.zip)")
 	auditCmd.AddCommand(auditExportCmd)
+	auditCmd.AddCommand(auditPackCmd)
 	rootCmd.AddCommand(auditCmd)
 }

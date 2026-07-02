@@ -15,6 +15,10 @@ func testMasterKey() []byte {
 	return bytes.Repeat([]byte{0x42}, 32)
 }
 
+func boolPtr(v bool) *bool {
+	return &v
+}
+
 func TestEngineGenerateAndRevoke(t *testing.T) {
 	cryptoSvc, err := crypto.NewService(testMasterKey())
 	if err != nil {
@@ -56,7 +60,7 @@ func TestEngineGenerateAndRevoke(t *testing.T) {
 		t.Fatalf("TTLSeconds = %d, want 60", renewed.TTLSeconds)
 	}
 
-	if err := engine.RevokeLease(ctx, result.LeaseID); err != nil {
+	if _, err := engine.RevokeLease(ctx, result.LeaseID); err != nil {
 		t.Fatalf("RevokeLease() = %v", err)
 	}
 	lease, err := leases.Get(ctx, result.LeaseID)
@@ -112,6 +116,78 @@ func TestEngineSaveRoleAdminCredentialsPath(t *testing.T) {
 	}
 	if role.AdminCredentialsPath != "database/admin/prod-db" {
 		t.Fatalf("AdminCredentialsPath = %q", role.AdminCredentialsPath)
+	}
+}
+
+func TestEngineMaxTTLAndNonRenewable(t *testing.T) {
+	cryptoSvc, err := crypto.NewService(testMasterKey())
+	if err != nil {
+		t.Fatalf("NewService() = %v", err)
+	}
+	roles := memory.NewDatabaseRoleRepository()
+	leases := memory.NewLeaseRepository()
+	secrets := memory.NewSecretRepository()
+	engine := database.NewEngine(roles, leases, secrets, cryptoSvc)
+	ctx := context.Background()
+
+	if err := engine.SaveRole(ctx, database.RoleConfig{
+		Name:       "limited",
+		TTLSeconds: 60,
+		MaxTTL:     120,
+		Renewable:  boolPtr(false),
+		CreationStatements: []string{
+			"CREATE USER {{username}} PASSWORD '{{password}}';",
+		},
+	}); err != nil {
+		t.Fatalf("SaveRole() = %v", err)
+	}
+
+	_, err = engine.GenerateCredentials(ctx, database.CredsRequest{Role: "limited", TTLSecond: 3600})
+	if err == nil {
+		t.Fatal("expected max_ttl rejection")
+	}
+
+	result, err := engine.GenerateCredentials(ctx, database.CredsRequest{Role: "limited", TTLSecond: 90})
+	if err != nil {
+		t.Fatalf("GenerateCredentials() = %v", err)
+	}
+	if result.TTLSeconds != 90 {
+		t.Fatalf("TTLSeconds = %d want 90", result.TTLSeconds)
+	}
+	if result.MaxTTL != 120 {
+		t.Fatalf("MaxTTL = %d want 120", result.MaxTTL)
+	}
+	if _, err := engine.Renew(ctx, result.LeaseID, 60); err == nil {
+		t.Fatal("expected renew rejection for non-renewable lease")
+	}
+}
+
+func TestEngineMaxLeasesQuota(t *testing.T) {
+	cryptoSvc, err := crypto.NewService(testMasterKey())
+	if err != nil {
+		t.Fatalf("NewService() = %v", err)
+	}
+	roles := memory.NewDatabaseRoleRepository()
+	leases := memory.NewLeaseRepository()
+	secrets := memory.NewSecretRepository()
+	engine := database.NewEngine(roles, leases, secrets, cryptoSvc)
+	ctx := context.Background()
+
+	if err := engine.SaveRole(ctx, database.RoleConfig{
+		Name:       "quota",
+		TTLSeconds: 60,
+		MaxLeases:  1,
+		CreationStatements: []string{
+			"CREATE USER {{username}} PASSWORD '{{password}}';",
+		},
+	}); err != nil {
+		t.Fatalf("SaveRole() = %v", err)
+	}
+	if _, err := engine.GenerateCredentials(ctx, database.CredsRequest{Role: "quota"}); err != nil {
+		t.Fatalf("first GenerateCredentials() = %v", err)
+	}
+	if _, err := engine.GenerateCredentials(ctx, database.CredsRequest{Role: "quota"}); err == nil {
+		t.Fatal("expected max_leases rejection")
 	}
 }
 

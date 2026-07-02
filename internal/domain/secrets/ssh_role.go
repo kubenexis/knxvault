@@ -15,6 +15,11 @@ const (
 type SSHRole struct {
 	Name         string
 	TTLSeconds   int
+	DefaultTTL   int
+	MaxTTL       int
+	Period       int
+	Renewable    bool
+	MaxLeases    int
 	CAKeyPath    string
 	AllowedUsers []string
 	DefaultUser  string
@@ -31,6 +36,12 @@ func NormalizeSSHRole(r *SSHRole) {
 	}
 	if r.TTLSeconds <= 0 {
 		r.TTLSeconds = 3600
+	}
+	if r.DefaultTTL <= 0 {
+		r.DefaultTTL = r.TTLSeconds
+	}
+	if r.MaxTTL <= 0 {
+		r.MaxTTL = r.DefaultTTL
 	}
 	if r.KeyType == "" {
 		r.KeyType = SSHKeyTypeED25519

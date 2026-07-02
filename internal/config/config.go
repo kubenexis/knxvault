@@ -23,6 +23,10 @@ const (
 	defaultJobMasterKeyReencryptInterval = 1 * time.Minute
 	defaultRenewGrace                    = 72 * time.Hour
 	defaultRateLimitRPM                  = 300
+	defaultAuthLoginRateLimitRPM         = 30
+	defaultTokenCreateRateLimitRPM       = 20
+	defaultAuthLockoutThreshold          = 5
+	defaultAuthLockoutTTL                = 15 * time.Minute
 	defaultOIDCTokenTTL                  = 1 * time.Hour
 )
 
@@ -66,9 +70,16 @@ type Config struct {
 	ExposureWebhookURL string
 	RotationWebhookURL string
 
-	OIDCDefaultTTL         time.Duration
-	RateLimitEnabled       bool
-	RateLimitRPM           int
+	OIDCDefaultTTL          time.Duration
+	RateLimitEnabled        bool
+	RateLimitRPM            int
+	AuthLoginRateLimitRPM   int
+	TokenCreateRateLimitRPM int
+	AuthLockoutThreshold    int
+	AuthLockoutTTL          time.Duration
+	TenantMode              bool
+	RedisCacheURL           string
+
 	RequestSigningKey      string
 	RequestSigningRequired bool
 

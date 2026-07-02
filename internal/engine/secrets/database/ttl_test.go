@@ -21,11 +21,15 @@ func TestGenerateCredentialsCapsTTL(t *testing.T) {
 	if err := engine.SaveRole(ctx, database.RoleConfig{Name: "app", TTLSeconds: 60}); err != nil {
 		t.Fatalf("SaveRole() = %v", err)
 	}
-	result, err := engine.GenerateCredentials(ctx, database.CredsRequest{Role: "app", TTLSecond: 3600})
+	_, err = engine.GenerateCredentials(ctx, database.CredsRequest{Role: "app", TTLSecond: 3600})
+	if err == nil {
+		t.Fatal("expected max_ttl rejection when requested ttl exceeds role max")
+	}
+	result, err := engine.GenerateCredentials(ctx, database.CredsRequest{Role: "app", TTLSecond: 30})
 	if err != nil {
 		t.Fatalf("GenerateCredentials() = %v", err)
 	}
-	if result.TTLSeconds != 60 {
-		t.Fatalf("TTLSeconds = %d, want 60", result.TTLSeconds)
+	if result.TTLSeconds != 30 {
+		t.Fatalf("TTLSeconds = %d, want 30", result.TTLSeconds)
 	}
 }

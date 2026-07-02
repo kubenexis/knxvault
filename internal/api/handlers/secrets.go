@@ -38,6 +38,7 @@ func (h *SecretsHandler) Write(c *gin.Context) {
 		TTL:         req.Options.TTL,
 		CasVersion:  req.Options.CasVersion,
 		MaxVersions: req.Options.MaxVersions,
+		Labels:      req.Labels,
 	})
 	if err != nil {
 		_ = c.Error(err)
@@ -106,6 +107,7 @@ func (h *SecretsHandler) Read(c *gin.Context) {
 	resp.Metadata.Version = result.Version
 	resp.Metadata.CreatedAt = result.CreatedAt
 	resp.Metadata.TTL = result.TTL
+	resp.Metadata.Labels = result.Labels
 	c.JSON(http.StatusOK, resp)
 }
 
@@ -195,13 +197,13 @@ func queryVersion(c *gin.Context) int {
 }
 
 func toMetadataResponse(meta *secretsengine.PathMetadata) dto.KVMetadataResponse {
-	resp := dto.KVMetadataResponse{
+	return dto.KVMetadataResponse{
 		Path:           meta.Path,
 		CurrentVersion: meta.CurrentVersion,
 		MaxVersions:    meta.MaxVersions,
+		Labels:         meta.Labels,
 		Versions:       toVersionDTOs(meta.Versions),
 	}
-	return resp
 }
 
 func toVersionDTOs(versions []secretsengine.VersionMetadata) []dto.KVVersionInfo {

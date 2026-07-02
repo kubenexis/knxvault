@@ -155,5 +155,8 @@ func init() {
 	sysCmd.AddCommand(sysRaftAddNodeCmd)
 	sysCmd.AddCommand(sysRaftRemoveNodeCmd)
 	sysCmd.AddCommand(sysIssueListenerTLSCmd)
+	sysAuditCmd := &cobra.Command{Use: "audit", Short: "Audit administration"}
+	sysAuditCmd.AddCommand(auditPackCmd)
+	sysCmd.AddCommand(sysAuditCmd)
 	rootCmd.AddCommand(sysCmd)
 }

@@ -10,12 +10,16 @@ import (
 
 // RequestContext carries request metadata for policy condition evaluation.
 type RequestContext struct {
-	ClientIP  string
-	Namespace string
-	Resource  string
-	Action    string
-	AgentID   string
-	Now       time.Time
+	ClientIP       string
+	Namespace      string
+	Resource       string
+	Action         string
+	AgentID        string
+	Now            time.Time
+	Cluster        string
+	Environment    string
+	RequestPath    string
+	ResourceLabels map[string]string
 }
 
 // ConditionsMatch returns true when all policy conditions pass for the request.
@@ -56,6 +60,33 @@ func ConditionsMatch(conditions map[string]any, req RequestContext) bool {
 	}
 	if agentID, ok := conditions["agent_id"].(string); ok && agentID != "" {
 		if req.AgentID != agentID {
+			return false
+		}
+	}
+	if cluster, ok := conditions["cluster"].(string); ok && cluster != "" {
+		if req.Cluster != cluster {
+			return false
+		}
+	}
+	if env, ok := conditions["environment"].(string); ok && env != "" {
+		if req.Environment != env {
+			return false
+		}
+	}
+	if reqPath, ok := conditions["request_path"].(string); ok && reqPath != "" {
+		if req.RequestPath != reqPath && !strings.HasPrefix(req.RequestPath, reqPath) {
+			return false
+		}
+	}
+	if labelKey, ok := conditions["resource_label"].(string); ok && labelKey != "" {
+		if expected, ok := conditions["resource_label_value"].(string); ok {
+			if req.ResourceLabels[labelKey] != expected {
+				return false
+			}
+		}
+	}
+	if owner, ok := conditions["owner_match"].(string); ok && owner != "" {
+		if req.ResourceLabels["owner"] != owner {
 			return false
 		}
 	}
@@ -100,11 +131,15 @@ func PolicyMatches(policy domainauth.Policy, resource, action string, req Reques
 }
 
 func policyMatchesResourceAction(policy domainauth.Policy, resource, action string) bool {
+	actions := policy.Actions
+	if len(policy.Capabilities) > 0 {
+		actions = policy.Capabilities
+	}
 	for _, resPattern := range policy.Resources {
 		if !domainauth.MatchResource(resPattern, resource) {
 			continue
 		}
-		for _, actPattern := range policy.Actions {
+		for _, actPattern := range actions {
 			if domainauth.MatchAction(actPattern, action) {
 				return true
 			}

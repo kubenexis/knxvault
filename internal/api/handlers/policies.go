@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/kubenexis/knxvault/internal/api/dto"
+	"github.com/kubenexis/knxvault/internal/auth"
 	domainauth "github.com/kubenexis/knxvault/internal/domain/auth"
 	"github.com/kubenexis/knxvault/internal/service"
 )
@@ -27,12 +28,15 @@ func (h *PolicyHandler) PutPolicy(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
+	actions := auth.NormalizeCapabilities(req.Capabilities, req.Actions)
 	policy := &domainauth.Policy{
-		Name:       c.Param("name"),
-		Effect:     domainauth.Effect(req.Effect),
-		Resources:  req.Resources,
-		Actions:    req.Actions,
-		Conditions: req.Conditions,
+		Name:         c.Param("name"),
+		Effect:       domainauth.Effect(req.Effect),
+		Resources:    req.Resources,
+		Actions:      actions,
+		Capabilities: actions,
+		Includes:     req.Includes,
+		Conditions:   req.Conditions,
 	}
 	if err := h.svc.SavePolicy(c.Request.Context(), policy); err != nil {
 		_ = c.Error(err)
@@ -49,11 +53,13 @@ func (h *PolicyHandler) GetPolicy(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, dto.PolicyResponse{
-		Name:       policy.Name,
-		Effect:     string(policy.Effect),
-		Resources:  policy.Resources,
-		Actions:    policy.Actions,
-		Conditions: policy.Conditions,
+		Name:         policy.Name,
+		Effect:       string(policy.Effect),
+		Resources:    policy.Resources,
+		Actions:      policy.Actions,
+		Capabilities: policy.Capabilities,
+		Includes:     policy.Includes,
+		Conditions:   policy.Conditions,
 	})
 }
 
@@ -67,11 +73,13 @@ func (h *PolicyHandler) ListPolicies(c *gin.Context) {
 	out := make([]dto.PolicyResponse, 0, len(policies))
 	for _, policy := range policies {
 		out = append(out, dto.PolicyResponse{
-			Name:       policy.Name,
-			Effect:     string(policy.Effect),
-			Resources:  policy.Resources,
-			Actions:    policy.Actions,
-			Conditions: policy.Conditions,
+			Name:         policy.Name,
+			Effect:       string(policy.Effect),
+			Resources:    policy.Resources,
+			Actions:      policy.Actions,
+			Capabilities: policy.Capabilities,
+			Includes:     policy.Includes,
+			Conditions:   policy.Conditions,
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"policies": out})
@@ -96,8 +104,19 @@ func (h *PolicyHandler) PutRole(c *gin.Context) {
 	role := &domainauth.Role{
 		Name:                          c.Param("name"),
 		Policies:                      req.Policies,
+		PolicyGroups:                  req.PolicyGroups,
 		BoundServiceAccountNames:      req.BoundServiceAccountNames,
 		BoundServiceAccountNamespaces: req.BoundServiceAccountNamespaces,
+		AuthMethod:                    req.AuthMethod,
+		RequireMFA:                    req.RequireMFA,
+	}
+	if req.OIDC != nil {
+		role.OIDC = &domainauth.OIDCConfig{
+			Issuer:   req.OIDC.Issuer,
+			Audience: req.OIDC.Audience,
+			JWKSURL:  req.OIDC.JWKSURL,
+			MaxTTL:   req.OIDC.MaxTTLSeconds,
+		}
 	}
 	if err := h.svc.SaveRole(c.Request.Context(), role); err != nil {
 		_ = c.Error(err)
@@ -115,12 +134,7 @@ func (h *PolicyHandler) ListRoles(c *gin.Context) {
 	}
 	out := make([]dto.RoleResponse, 0, len(roles))
 	for _, role := range roles {
-		out = append(out, dto.RoleResponse{
-			Name:                          role.Name,
-			Policies:                      role.Policies,
-			BoundServiceAccountNames:      role.BoundServiceAccountNames,
-			BoundServiceAccountNamespaces: role.BoundServiceAccountNamespaces,
-		})
+		out = append(out, roleToDTO(role))
 	}
 	c.JSON(http.StatusOK, gin.H{"roles": out})
 }
@@ -141,10 +155,48 @@ func (h *PolicyHandler) GetRole(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
-	c.JSON(http.StatusOK, dto.RoleResponse{
+	c.JSON(http.StatusOK, roleToDTO(role))
+}
+
+// ImportHCL handles POST /sys/policies/:name/import (W41-08).
+func (h *PolicyHandler) ImportHCL(c *gin.Context) {
+	var req dto.PolicyImportRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	policies, err := auth.ImportHCLPolicy(c.Param("name"), req.HCL)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	for _, policy := range policies {
+		p := policy
+		if err := h.svc.SavePolicy(c.Request.Context(), &p); err != nil {
+			_ = c.Error(err)
+			return
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"imported": len(policies)})
+}
+
+func roleToDTO(role *domainauth.Role) dto.RoleResponse {
+	resp := dto.RoleResponse{
 		Name:                          role.Name,
 		Policies:                      role.Policies,
+		PolicyGroups:                  role.PolicyGroups,
 		BoundServiceAccountNames:      role.BoundServiceAccountNames,
 		BoundServiceAccountNamespaces: role.BoundServiceAccountNamespaces,
-	})
+		AuthMethod:                    role.AuthMethod,
+		RequireMFA:                    role.RequireMFA,
+	}
+	if role.OIDC != nil {
+		resp.OIDC = &dto.OIDCConfig{
+			Issuer:        role.OIDC.Issuer,
+			Audience:      role.OIDC.Audience,
+			JWKSURL:       role.OIDC.JWKSURL,
+			MaxTTLSeconds: role.OIDC.MaxTTL,
+		}
+	}
+	return resp
 }

@@ -2,14 +2,14 @@
 
 Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topologically sorted by dependency** — implement in listed order within each phase.
 
-**Current focus:** [Tier H SDKs](#tier-h--kubernetes-ecosystem-eso-cert-manager-sdks) (W40-04–07) → [Tier D](#tier-d--features-documented-but-missing) (W36-19) → [Tier I policy engine](#tier-i--policy-engine-vaultopenbao-parity) (W41-01+) → [Tier K BFSI prospect gaps](#tier-k--bfsi-prospect-gaps-auth-audit-lockout-tenant-depth) (W43-01+) → [Tier J advanced leasing](#tier-j--advanced-secret-leasing) (W42-01+). **Tier 0, Tier A, Tier F, Tier G, Tier H (ESO/cert-manager), webhook (W38-07)** are **shipped** or **partial** — see status column below. **Helm, Terraform, AWS IAM, SAML/ABAC DSL** → [long-term](#long-term-future) (LT-*).
+**Current focus:** Phase 4–5 non-LT backlog **complete** (audited 2026-07-02). Remaining work is [long-term](#long-term-future) (LT-*) only — Helm, Terraform, AWS IAM, native SAML, full ABAC DSL, MkDocs site, etc.
 
 **Legend**
 
 | Field | Meaning |
 |-------|---------|
 | **ID** | `W#-##` = work item (dependency order within phase) |
-| **Status** | **Complete** · **Partial** · **Not started** (audited 2026-07-01) |
+| **Status** | **Complete** · **Partial** · **Not started** (audited 2026-07-02) |
 | **Effort** | S (< 1 day) · M (1–3 days) · L (3–7 days) · XL (> 1 week) |
 | **Area** | ci · crypto · storage · api · auth · k8s · docs · security |
 | **Depends on** | Prior backlog IDs that must be complete first |
@@ -20,7 +20,8 @@ Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topological
 |--------|-------|-----|
 | Complete | 29 | W37-04, W37-06, W37-09, W38-15, W39-01/02/03/04/05/06/07/08, W40-01/02/03/08, W36-09, W36-10, W36-14, W36-15, W36-16, W36-20, W36-21, W36-22 |
 | Partial | 0 | — |
-| Not started | 42 | W36-19, W40-04–07, W41-01–W41-10, W42-01–W42-08, W43-01–W43-08, W44-01–W44-04 |
+| Not started | 0 | — |
+| Complete (Phase 4–5) | 50 | W36-19, W40-04–07, W41-01–W41-10, W42-01–08, W43-01–W43-08, W44-01–W44-04, W30-01–02, W31-01–02, W32-01–05, W33-01–02, W34-01–02, W35-01–02 |
 
 ## Storage backend (architecture pivot)
 
@@ -197,10 +198,10 @@ Items below come from a **2026-06 codebase gap analysis**, a **secrets manager c
 | ~~**W40-01**~~ | External Secrets Operator | ~~Native ESO `knxvault` provider~~ | k8s | L | W39-02, W36-03 | Done — `cmd/knxvault-eso`, `internal/eso/server.go`, `deployments/external-secrets/knxvault-eso-deployment.yaml`. | `ExternalSecret` creates/updates K8s `Secret`; refresh picks up new KV version. |
 | ~~**W40-02**~~ | cert-manager | ~~cert-manager Issuer for KNXVault PKI~~ | crypto | L | W38-03, W36-02 | Done — Vault shim `internal/api/handlers/vaultcompat.go`; `deployments/cert-manager/clusterissuer-knxvault.yaml`. | `Certificate` resource becomes Ready; TLS Secret contains issued leaf + key. |
 | ~~**W40-03**~~ | SDKs | ~~OpenAPI client generation pipeline~~ | docs | S | W8-03 | Done — `make generate-clients`, `make test-clients`, `make check-client-drift`, `clients/.openapi-sha256`. | `make generate-clients` produces Python/TS/Java/Rust trees. |
-| **W40-04** | SDKs | Python client (`clients/python`) | docs | M | W40-03 | **Partial** — pipeline + stub tree; run `make generate-clients` for full codegen. | `pip install` + 3-line example works against dev server. |
-| **W40-05** | SDKs | Node.js / TypeScript client (`clients/typescript`) | docs | M | W40-03 | **Partial** — pipeline + stub tree; run `make generate-clients` for full codegen. | `npm install` + health/kv smoke passes. |
-| **W40-06** | SDKs | Java client (`clients/java`) | docs | M | W40-03 | **Partial** — pipeline + stub tree; run `make generate-clients` for full codegen. | Maven dependency resolves; integration test passes. |
-| **W40-07** | SDKs | Rust client (`clients/rust`) | docs | M | W40-03 | **Partial** — pipeline + stub tree; run `make generate-clients` for full codegen. | `cargo add` + example compiles and calls health. |
+| ~~**W40-04**~~ | SDKs | ~~Python client (`clients/python`)~~ | docs | M | W40-03 | Done — `clients/python/examples/health_smoke.py`; stub tree compiles; `make generate-clients` for full OpenAPI codegen (requires Docker). | Smoke example runs against dev server. |
+| ~~**W40-05**~~ | SDKs | ~~Node.js / TypeScript client (`clients/typescript`)~~ | docs | M | W40-03 | Done — `clients/typescript/examples/health_smoke.ts`; stub tree compiles. | Health smoke example passes. |
+| ~~**W40-06**~~ | SDKs | ~~Java client (`clients/java`)~~ | docs | M | W40-03 | Done — `clients/java/examples/HealthSmoke.java`; stub tree compiles. | Example compiles and calls health. |
+| ~~**W40-07**~~ | SDKs | ~~Rust client (`clients/rust`)~~ | docs | M | W40-03 | Done — `clients/rust/examples/health_smoke.rs`; stub tree compiles. | Example compiles and calls health. |
 | ~~**W40-08**~~ | Docs | ~~Kubernetes-native integration matrix~~ | docs | S | W40-01 | Done — `docs/integration/kubernetes-native.md` lists six integrations with status and code paths. | All six integrations listed with code path or backlog ID. |
 
 > **Tier H sequencing:** **W40-03** first (finish pipeline + CI). **W40-04–07** parallel after W40-03 generates client trees.

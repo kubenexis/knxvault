@@ -41,6 +41,7 @@ type PutOptions struct {
 	TTL         string
 	CasVersion  *int
 	MaxVersions int
+	Labels      map[string]string
 }
 
 // PutResult contains write metadata.
@@ -77,6 +78,7 @@ func (e *KVV2Engine) Put(ctx context.Context, path string, data map[string]any, 
 		DataEnc:   dataEnc,
 		DEKEnc:    dekEnc,
 		CreatedAt: now,
+		Labels:    opts.Labels,
 	}
 
 	if opts.TTL != "" {
@@ -109,6 +111,7 @@ type GetResult struct {
 	Version   int
 	CreatedAt time.Time
 	TTL       string
+	Labels    map[string]string
 }
 
 // Get returns the latest secret version.
@@ -155,6 +158,7 @@ func (e *KVV2Engine) GetVersion(ctx context.Context, path string, version int) (
 		Data:      data,
 		Version:   sv.Version,
 		CreatedAt: sv.CreatedAt,
+		Labels:    sv.Labels,
 	}
 	if sv.TTLSeconds != nil {
 		result.TTL = fmt.Sprintf("%ds", *sv.TTLSeconds)
@@ -176,6 +180,7 @@ type PathMetadata struct {
 	CurrentVersion int
 	Versions       []VersionMetadata
 	MaxVersions    int
+	Labels         map[string]string
 }
 
 // DestroyVersion marks a specific version as destroyed.
@@ -269,6 +274,15 @@ func (e *KVV2Engine) GetMetadata(ctx context.Context, path string, version int) 
 		}
 		if !found {
 			return nil, common.New(common.ErrCodeNotFound, "secret version not found")
+		}
+	}
+	targetVersion := meta.CurrentVersion
+	if version > 0 {
+		targetVersion = version
+	}
+	if targetVersion > 0 {
+		if sv, err := e.repo.GetVersion(ctx, path, targetVersion); err == nil {
+			meta.Labels = sv.Labels
 		}
 	}
 	return meta, nil

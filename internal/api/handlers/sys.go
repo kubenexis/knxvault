@@ -154,7 +154,7 @@ func (h *SysHandler) ReportExposure(c *gin.Context) {
 	actions := make([]string, 0, 2)
 	if h.exposureAuto {
 		if req.LeaseID != "" && h.database != nil {
-			if err := h.database.Revoke(c.Request.Context(), req.LeaseID); err == nil {
+			if _, err := h.database.Revoke(c.Request.Context(), req.LeaseID); err == nil {
 				actions = append(actions, "lease_revoked")
 			}
 		}

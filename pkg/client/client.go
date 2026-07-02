@@ -648,6 +648,30 @@ func (c *Client) DelegateAgent(ctx context.Context, req AgentDelegateRequest) (*
 	return &out, nil
 }
 
+// GetRaw performs an authenticated GET returning raw response bytes.
+func (c *Client) GetRaw(ctx context.Context, path string, auth bool) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+path, nil)
+	if err != nil {
+		return nil, err
+	}
+	if auth && c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("request failed: status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	return body, nil
+}
+
 // AuditExport exports audit entries.
 func (c *Client) AuditExport(ctx context.Context, limit int) (*AuditExportResponse, error) {
 	path := "/audit/export"
@@ -767,6 +791,39 @@ func (c *Client) RunRotation(ctx context.Context, req RotationRunRequest) (*Rota
 		return nil, err
 	}
 	return &out, nil
+}
+
+// LeaseResponse is returned by GET /sys/leases/:id.
+type LeaseResponse struct {
+	LeaseID    string `json:"lease_id"`
+	Engine     string `json:"engine"`
+	Role       string `json:"role"`
+	Path       string `json:"path"`
+	TTLSeconds int    `json:"ttl_seconds"`
+	Renewable  bool   `json:"renewable"`
+	Revoked    bool   `json:"revoked"`
+}
+
+// ListLeases returns leases with optional query string (W42-02).
+func (c *Client) ListLeases(ctx context.Context, query string) (map[string]any, error) {
+	path := "/sys/leases"
+	if query != "" {
+		path += "?" + strings.TrimPrefix(query, "?")
+	}
+	var out map[string]any
+	if err := c.getJSON(ctx, path, true, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// SimulatePolicy runs POST /sys/policy/simulate (W41-04).
+func (c *Client) SimulatePolicy(ctx context.Context, req map[string]any) (map[string]any, error) {
+	var out map[string]any
+	if err := c.postJSON(ctx, "/sys/policy/simulate", true, req, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // IssueListenerTLS issues TLS material for the API listener.

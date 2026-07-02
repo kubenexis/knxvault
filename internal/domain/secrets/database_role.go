@@ -9,6 +9,11 @@ import (
 type DatabaseRole struct {
 	Name                 string
 	TTLSeconds           int
+	DefaultTTL           int
+	MaxTTL               int
+	Period               int
+	Renewable            bool
+	MaxLeases            int
 	UsernamePrefix       string
 	DefaultUsername      string
 	CreationStatements   []string

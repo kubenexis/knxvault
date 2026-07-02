@@ -106,6 +106,8 @@ Conditions restrict by source IP, time window, K8s namespace, path prefix, or `a
 
 Default bootstrap policy `admin` grants full access. Production clusters should define scoped policies per workload.
 
+**Policy engine guide:** See [`policy-engine.md`](policy-engine.md) for path-aware ACLs, capabilities, glob patterns, deny precedence, simulation, and HCL import (W41-01–10).
+
 ## Audit
 
 Every sensitive operation appends to the hash-chained audit log:

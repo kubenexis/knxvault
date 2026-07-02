@@ -67,6 +67,30 @@ func (h *PKIHandler) CreateIntermediate(c *gin.Context) {
 	c.JSON(http.StatusCreated, toCAResponse(result))
 }
 
+// IssueClientCert handles POST /pki/issue-client-cert (W34-02).
+func (h *PKIHandler) IssueClientCert(c *gin.Context) {
+	var req dto.IssueClientCertRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	result, err := h.svc.IssueCertificate(c.Request.Context(), pkiengine.IssueRequest{
+		Role:       req.Role,
+		CommonName: req.CommonName,
+		TTL:        req.TTL,
+	})
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusCreated, dto.IssueClientCertResponse{
+		CertPEM:       result.CertPEM,
+		PrivateKeyPEM: result.PrivateKeyPEM,
+		Serial:        result.Serial,
+		ExpiresAt:     result.ExpiresAt.Format(time.RFC3339),
+	})
+}
+
 // Issue handles POST /pki/issue.
 func (h *PKIHandler) Issue(c *gin.Context) {
 	var req dto.IssueCertRequest

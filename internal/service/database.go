@@ -51,11 +51,11 @@ func (s *DatabaseService) Renew(ctx context.Context, leaseID string, ttlSeconds 
 	return result, err
 }
 
-// Revoke revokes a lease.
-func (s *DatabaseService) Revoke(ctx context.Context, leaseID string) error {
-	err := s.engine.RevokeLease(ctx, leaseID)
+// Revoke revokes a lease and returns client-mode revocation SQL when applicable.
+func (s *DatabaseService) Revoke(ctx context.Context, leaseID string) (*databaseengine.RevokeResult, error) {
+	result, err := s.engine.RevokeLease(ctx, leaseID)
 	audithelper.Record(s.audit, ctx, "database.lease.revoke", "secrets/database/leases/"+leaseID, err, map[string]any{"lease_id": leaseID})
-	return err
+	return result, err
 }
 
 // RenewExpiring renews active leases expiring within the grace window.

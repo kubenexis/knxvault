@@ -15,6 +15,7 @@ import (
 	"github.com/kubenexis/knxvault/internal/crypto"
 	"github.com/kubenexis/knxvault/internal/domain/common"
 	domainsecrets "github.com/kubenexis/knxvault/internal/domain/secrets"
+	"github.com/kubenexis/knxvault/internal/engine/secrets/leaseutil"
 	"github.com/kubenexis/knxvault/internal/repository"
 	gossh "golang.org/x/crypto/ssh"
 )
@@ -57,6 +58,11 @@ func (e *Engine) Name() string {
 type RoleConfig struct {
 	Name         string
 	TTLSeconds   int
+	DefaultTTL   int
+	MaxTTL       int
+	Period       int
+	Renewable    *bool
+	MaxLeases    int
 	CAKeyPath    string
 	AllowedUsers []string
 	DefaultUser  string
@@ -69,9 +75,18 @@ func (e *Engine) SaveRole(ctx context.Context, cfg RoleConfig) error {
 	if e.roles == nil {
 		return common.New(common.ErrCodeInternal, "ssh role repository not configured")
 	}
+	renewable := true
+	if cfg.Renewable != nil {
+		renewable = *cfg.Renewable
+	}
 	role := &domainsecrets.SSHRole{
 		Name:         cfg.Name,
 		TTLSeconds:   cfg.TTLSeconds,
+		DefaultTTL:   cfg.DefaultTTL,
+		MaxTTL:       cfg.MaxTTL,
+		Period:       cfg.Period,
+		Renewable:    renewable,
+		MaxLeases:    cfg.MaxLeases,
 		CAKeyPath:    cfg.CAKeyPath,
 		AllowedUsers: append([]string(nil), cfg.AllowedUsers...),
 		DefaultUser:  cfg.DefaultUser,
@@ -108,7 +123,9 @@ type CredsResult struct {
 	SignedKey  string
 	Role       string
 	TTLSeconds int
+	MaxTTL     int
 	ExpiresAt  time.Time
+	Warnings   []string
 }
 
 // GenerateCredentials creates an ephemeral SSH key pair and signed user certificate.
@@ -125,6 +142,10 @@ func (e *Engine) GenerateCredentials(ctx context.Context, req CredsRequest) (*Cr
 		return nil, err
 	}
 	domainsecrets.NormalizeSSHRole(role)
+	tuning := domainsecrets.LeaseTuningFromSSHRole(role)
+	if err := leaseutil.CheckMaxLeases(ctx, e.leases, engineName, req.Role, tuning); err != nil {
+		return nil, err
+	}
 
 	username := strings.TrimSpace(req.Username)
 	if username == "" {
@@ -140,15 +161,9 @@ func (e *Engine) GenerateCredentials(ctx context.Context, req CredsRequest) (*Cr
 		return nil, common.New(common.ErrCodeValidation, fmt.Sprintf("username %q not allowed by role", username))
 	}
 
-	ttlSeconds := role.TTLSeconds
-	if req.TTLSecond > 0 {
-		ttlSeconds = req.TTLSecond
-	}
-	if role.TTLSeconds > 0 && ttlSeconds > role.TTLSeconds {
-		ttlSeconds = role.TTLSeconds
-	}
-	if ttlSeconds <= 0 {
-		return nil, common.New(common.ErrCodeValidation, "ttl must be positive")
+	ttlSeconds, err := tuning.ResolveIssueTTL(req.TTLSecond)
+	if err != nil {
+		return nil, common.Wrap(common.ErrCodeValidation, "invalid ttl", err)
 	}
 
 	caSigner, err := e.loadCASigner(ctx, role.CAKeyPath)
@@ -188,7 +203,7 @@ func (e *Engine) GenerateCredentials(ctx context.Context, req CredsRequest) (*Cr
 		TTLSeconds: ttlSeconds,
 		CreatedAt:  now,
 		ExpiresAt:  expiresAt,
-		Renewable:  true,
+		Renewable:  tuning.Renewable,
 	}
 	data := map[string]any{
 		"username":    username,
@@ -212,7 +227,9 @@ func (e *Engine) GenerateCredentials(ctx context.Context, req CredsRequest) (*Cr
 		SignedKey:  string(signedKey),
 		Role:       req.Role,
 		TTLSeconds: ttlSeconds,
+		MaxTTL:     tuning.MaxTTL,
 		ExpiresAt:  expiresAt,
+		Warnings:   domainsecrets.LeaseWarnings(now, expiresAt, ttlSeconds),
 	}, nil
 }
 
@@ -236,16 +253,12 @@ func (e *Engine) Renew(ctx context.Context, leaseID string, ttlSeconds int) (*Cr
 	if !lease.Renewable {
 		return nil, common.New(common.ErrCodeValidation, "lease is not renewable")
 	}
-	if ttlSeconds <= 0 {
-		ttlSeconds = lease.TTLSeconds
-	}
 	role, err := e.roles.Get(ctx, lease.RoleName)
 	if err != nil {
 		return nil, err
 	}
-	if role.TTLSeconds > 0 && ttlSeconds > role.TTLSeconds {
-		ttlSeconds = role.TTLSeconds
-	}
+	tuning := domainsecrets.LeaseTuningFromSSHRole(role)
+	ttlSeconds = tuning.ResolveRenewTTL(ttlSeconds, lease.TTLSeconds, now, lease.ExpiresAt)
 
 	latest, err := e.secrets.GetLatest(ctx, lease.Path)
 	if err != nil {
@@ -300,7 +313,9 @@ func (e *Engine) Renew(ctx context.Context, leaseID string, ttlSeconds int) (*Cr
 		SignedKey:  string(signedKey),
 		Role:       lease.RoleName,
 		TTLSeconds: ttlSeconds,
+		MaxTTL:     tuning.MaxTTL,
 		ExpiresAt:  expiresAt,
+		Warnings:   domainsecrets.LeaseWarnings(now, expiresAt, ttlSeconds),
 	}, nil
 }
 
@@ -327,6 +342,39 @@ func (e *Engine) RevokeLease(ctx context.Context, leaseID string) error {
 		return e.destroySecret(ctx, lease.Path)
 	}
 	return nil
+}
+
+// RenewExpiring renews active leases expiring within grace (W42-06).
+func (e *Engine) RenewExpiring(ctx context.Context, grace time.Duration, limit int) (int, error) {
+	if e.leases == nil {
+		return 0, common.New(common.ErrCodeInternal, "lease repository not configured")
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+	now := e.now().UTC()
+	deadline := now.Add(grace)
+	leases, err := e.leases.List(ctx)
+	if err != nil {
+		return 0, err
+	}
+	renewed := 0
+	for _, lease := range leases {
+		if renewed >= limit {
+			break
+		}
+		if lease.Engine != engineName || !lease.Active(now) || !lease.Renewable {
+			continue
+		}
+		if lease.ExpiresAt.After(deadline) {
+			continue
+		}
+		if _, err := e.Renew(ctx, lease.ID, lease.TTLSeconds); err != nil {
+			continue
+		}
+		renewed++
+	}
+	return renewed, nil
 }
 
 // CleanupExpired revokes expired ssh leases.

@@ -19,21 +19,26 @@ import (
 	"github.com/kubenexis/knxvault/internal/domain/common"
 )
 
-type jwksCache struct {
-	mu      sync.RWMutex
+type jwksCacheEntry struct {
 	keys    map[string]any
 	fetched time.Time
+}
+
+type jwksCache struct {
+	mu      sync.RWMutex
+	entries map[string]jwksCacheEntry
 	ttl     time.Duration
+	max     int
 }
 
 func newJWKSCache() *jwksCache {
-	return &jwksCache{keys: make(map[string]any), ttl: 15 * time.Minute}
+	return &jwksCache{entries: make(map[string]jwksCacheEntry), ttl: 15 * time.Minute, max: 32}
 }
 
 func (c *jwksCache) get(ctx context.Context, jwksURL string) (map[string]any, error) {
 	c.mu.RLock()
-	if time.Since(c.fetched) < c.ttl && len(c.keys) > 0 {
-		keys := c.keys
+	if entry, ok := c.entries[jwksURL]; ok && time.Since(entry.fetched) < c.ttl && len(entry.keys) > 0 {
+		keys := entry.keys
 		c.mu.RUnlock()
 		return keys, nil
 	}
@@ -44,8 +49,18 @@ func (c *jwksCache) get(ctx context.Context, jwksURL string) (map[string]any, er
 		return nil, err
 	}
 	c.mu.Lock()
-	c.keys = keys
-	c.fetched = time.Now().UTC()
+	if len(c.entries) >= c.max {
+		var oldestURL string
+		var oldest time.Time
+		for url, e := range c.entries {
+			if oldest.IsZero() || e.fetched.Before(oldest) {
+				oldest = e.fetched
+				oldestURL = url
+			}
+		}
+		delete(c.entries, oldestURL)
+	}
+	c.entries[jwksURL] = jwksCacheEntry{keys: keys, fetched: time.Now().UTC()}
 	c.mu.Unlock()
 	return keys, nil
 }
