@@ -656,6 +656,21 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BulkRevokeLeasesResponse"
+  /sys/auth/lockout:
+    delete:
+      tags: [sys]
+      summary: Clear login lockout for an identity (break-glass)
+      operationId: clearAuthLockout
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LockoutClearRequest"
+      responses:
+        "204":
+          description: Lockout cleared
   /sys/policy/simulate:
     post:
       tags: [sys]
@@ -1302,11 +1317,15 @@ components:
           type: array
           items: { type: string }
         resource: { type: string }
-        action: { type: string }
         capability: { type: string }
-        context:
+        client_ip: { type: string }
+        namespace: { type: string }
+        environment: { type: string }
+        cluster: { type: string }
+        request_path: { type: string }
+        resource_labels:
           type: object
-          additionalProperties: true
+          additionalProperties: { type: string }
     PolicySimulateResponse:
       type: object
       properties:

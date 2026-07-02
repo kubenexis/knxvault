@@ -10,6 +10,7 @@
 | OIDC role API | **Met** | W43-06 | — |
 | Tenant repo isolation | **Partial** | W32-03 | Policy-only for POC |
 | HCL import | **Met** | W41-08 | Subset only |
+| ABAC labels / environment | **Met** | W44-01/02 | — |
 | Shamir unseal | **Gap** | LT-* | Single-key unseal documented |
 
 ## Go / No-Go
