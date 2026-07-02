@@ -110,7 +110,9 @@ Conditions restrict by source IP, time window, K8s namespace, path prefix, or `a
 
 **AI agent delegation (W37-04):** Parent principals call `POST /auth/agent/delegate` to mint a non-renewable 15-minute token scoped by `path_prefix` (`agent/{id}/*` under `secrets/kv/`) and `allowed_actions`. Client-supplied `policies` must be a subset of the parent's resolved policies; omit the field to inherit parent policies. Delegation is audited (`auth.agent.delegate`) with `parent_identity_id` → `agent_id` linkage on `MachineIdentity`.
 
-**KV path normalization:** Secret API paths containing `..` are rejected before authorization. Invalid `?version=` on DELETE returns `400` instead of `500`.
+**KV path normalization:** Secret API paths containing `..` are rejected before authorization. Invalid `?version=` on DELETE returns `400` instead of `500`. Read-through cache entries are tagged with a per-path generation counter so concurrent writes cannot repopulate stale values.
+
+**Exposure reports:** `POST /sys/exposure/report` rejects duplicate HMAC signatures within a 5-minute replay window. Bulk lease revocation returns partial results when mid-batch failures occur after earlier revocations succeeded.
 
 **CSI mount audit (W39-02):** The CSI provider authenticates each mount with the workload ServiceAccount JWT (TokenReview on the API). After a successful read, the provider calls `POST /inject/csi/mount-audit` with the short-lived session token; audit action `csi.mount` records role, namespace, service account, and paths.
 
