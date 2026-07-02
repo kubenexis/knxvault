@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"io"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -17,7 +19,10 @@ const exposureSignatureHeader = "X-KNXVault-Exposure-Signature"
 
 // ExposureSigning verifies HMAC signatures on exposure reports.
 type ExposureSigning struct {
-	key []byte
+	key      []byte
+	seenMu   sync.Mutex
+	seen     map[string]time.Time
+	seenTTL  time.Duration
 }
 
 // NewExposureSigning constructs exposure report signing middleware.
@@ -25,7 +30,23 @@ func NewExposureSigning(key string) *ExposureSigning {
 	if key == "" {
 		return nil
 	}
-	return &ExposureSigning{key: []byte(key)}
+	return &ExposureSigning{key: []byte(key), seen: make(map[string]time.Time), seenTTL: 5 * time.Minute}
+}
+
+func (s *ExposureSigning) markSeen(signature string) bool {
+	now := time.Now()
+	s.seenMu.Lock()
+	defer s.seenMu.Unlock()
+	for sig, at := range s.seen {
+		if now.Sub(at) > s.seenTTL {
+			delete(s.seen, sig)
+		}
+	}
+	if _, ok := s.seen[signature]; ok {
+		return false
+	}
+	s.seen[signature] = now
+	return true
 }
 
 // Middleware validates the exposure report signature when configured.
@@ -54,6 +75,10 @@ func (s *ExposureSigning) Middleware() gin.HandlerFunc {
 		expected := hex.EncodeToString(mac.Sum(nil))
 		if !hmac.Equal([]byte(signature), []byte(expected)) {
 			abortUnauthorized(c, "invalid exposure signature")
+			return
+		}
+		if !s.markSeen(signature) {
+			abortUnauthorized(c, "exposure report replay detected")
 			return
 		}
 		c.Next()
