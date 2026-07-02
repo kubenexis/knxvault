@@ -18,13 +18,32 @@ func NewRepositoryRoleResolver(roles repository.RoleRepository) *RepositoryRoleR
 	return &RepositoryRoleResolver{roles: roles}
 }
 
-// PoliciesForRole returns policy names for a role.
+// PoliciesForRole returns policy names for a role (including policy_groups).
 func (r *RepositoryRoleResolver) PoliciesForRole(ctx context.Context, role string) []string {
 	stored, err := r.GetRole(ctx, role)
-	if err == nil && len(stored.Policies) > 0 {
-		return stored.Policies
+	if err == nil {
+		return flattenRolePolicies(stored.Policies, stored.PolicyGroups)
 	}
 	return PoliciesForRole(role)
+}
+
+func flattenRolePolicies(policies, groups []string) []string {
+	if len(groups) == 0 {
+		return policies
+	}
+	seen := make(map[string]struct{}, len(policies)+len(groups))
+	out := make([]string, 0, len(policies)+len(groups))
+	for _, name := range append(append([]string{}, policies...), groups...) {
+		if name == "" {
+			continue
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		out = append(out, name)
+	}
+	return out
 }
 
 // GetStoredRole returns a role persisted in the repository.

@@ -19,6 +19,7 @@ type RequestContext struct {
 	Cluster        string
 	Environment    string
 	RequestPath    string
+	RequestID      string
 	ResourceLabels map[string]string
 }
 
@@ -31,8 +32,8 @@ func ConditionsMatch(conditions map[string]any, req RequestContext) bool {
 		req.Now = time.Now().UTC()
 	}
 
-	if cidrs, ok := conditions["ip_cidr"].([]any); ok && len(cidrs) > 0 {
-		if !matchIPCIDR(cidrs, req.ClientIP) {
+	if raw, ok := conditions["ip_cidr"]; ok && raw != nil {
+		if !matchIPCIDRAny(raw, req.ClientIP) {
 			return false
 		}
 	}
@@ -91,6 +92,24 @@ func ConditionsMatch(conditions map[string]any, req RequestContext) bool {
 		}
 	}
 	return true
+}
+
+func matchIPCIDRAny(raw any, clientIP string) bool {
+	switch v := raw.(type) {
+	case []any:
+		return len(v) > 0 && matchIPCIDR(v, clientIP)
+	case []string:
+		if len(v) == 0 {
+			return true
+		}
+		anyList := make([]any, len(v))
+		for i, s := range v {
+			anyList[i] = s
+		}
+		return matchIPCIDR(anyList, clientIP)
+	default:
+		return true
+	}
 }
 
 func matchIPCIDR(cidrs []any, clientIP string) bool {

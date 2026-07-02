@@ -110,8 +110,9 @@ func fetchJWKS(ctx context.Context, url string) (map[string]any, error) {
 		}
 		if meta.Kid != "" {
 			out[meta.Kid] = pub
+		} else {
+			out[fmt.Sprintf("key-%d", len(out))] = pub
 		}
-		out["*"] = pub
 	}
 	if len(out) == 0 {
 		return nil, fmt.Errorf("no usable jwks keys")
@@ -174,13 +175,18 @@ func (v *OIDCValidator) Validate(ctx context.Context, cfg *domainauth.OIDCConfig
 			}
 		}
 		kid, _ := t.Header["kid"].(string)
-		if key, ok := keys[kid]; ok {
-			return key, nil
+		if kid != "" {
+			if key, ok := keys[kid]; ok {
+				return key, nil
+			}
+			return nil, fmt.Errorf("unknown kid %q", kid)
 		}
-		if key, ok := keys["*"]; ok {
-			return key, nil
+		if len(keys) == 1 {
+			for _, key := range keys {
+				return key, nil
+			}
 		}
-		return nil, fmt.Errorf("unknown kid %q", kid)
+		return nil, fmt.Errorf("jwt missing kid with %d jwks keys", len(keys))
 	}, jwt.WithValidMethods([]string{"RS256", "RS384", "RS512", "PS256", "PS384", "PS512"}))
 	if err != nil {
 		return "", nil, common.Wrap(common.ErrCodeUnauthorized, "invalid oidc jwt", err)

@@ -329,7 +329,8 @@ func (s *Service) LoginWithToken(ctx context.Context, token string) (*TokenRecor
 // LoginKubernetes validates a service account JWT and maps it to a role.
 func (s *Service) LoginKubernetes(ctx context.Context, role, jwtToken string) (string, *TokenRecord, error) {
 	auditCtx := loginAuditFromContext(ctx, "kubernetes")
-	if s.lockout != nil && s.lockout.IsLocked(LockoutKey("kubernetes", auditCtx.ClientIdentity)) {
+	lockKey := LoginLockoutKey("kubernetes", auditCtx)
+	if s.lockout != nil && s.lockout.IsLocked(lockKey) {
 		s.recordLoginAudit(ctx, false, auditCtx)
 		return "", nil, common.New(common.ErrCodeForbidden, "identity locked out")
 	}
@@ -351,7 +352,7 @@ func (s *Service) LoginKubernetes(ctx context.Context, role, jwtToken string) (s
 		auditCtx.FailureReason = err.Error()
 		s.recordLoginAudit(ctx, false, auditCtx)
 		if s.lockout != nil {
-			s.lockout.RecordFailure(LockoutKey("kubernetes", auditCtx.SourceIP))
+			s.lockout.RecordFailure(lockKey)
 		}
 		return "", nil, err
 	}
@@ -393,7 +394,7 @@ func (s *Service) LoginKubernetes(ctx context.Context, role, jwtToken string) (s
 		})
 	}
 	if s.lockout != nil {
-		s.lockout.RecordSuccess(LockoutKey("kubernetes", auditCtx.ClientIdentity))
+		s.lockout.RecordSuccess(lockKey)
 	}
 	s.recordLoginAudit(ctx, true, auditCtx)
 	return s.tokens.Issue(ctx, subject, policies)
@@ -402,7 +403,8 @@ func (s *Service) LoginKubernetes(ctx context.Context, role, jwtToken string) (s
 // LoginOIDC validates an OIDC JWT and maps it to a role.
 func (s *Service) LoginOIDC(ctx context.Context, role, jwtToken string) (string, *TokenRecord, error) {
 	auditCtx := loginAuditFromContext(ctx, "oidc")
-	if s.lockout != nil && s.lockout.IsLocked(LockoutKey("oidc", auditCtx.ClientIdentity)) {
+	lockKey := LoginLockoutKey("oidc", auditCtx)
+	if s.lockout != nil && s.lockout.IsLocked(lockKey) {
 		s.recordLoginAudit(ctx, false, auditCtx)
 		return "", nil, common.New(common.ErrCodeForbidden, "identity locked out")
 	}
@@ -449,7 +451,7 @@ func (s *Service) LoginOIDC(ctx context.Context, role, jwtToken string) (string,
 		auditCtx.FailureReason = err.Error()
 		s.recordLoginAudit(ctx, false, auditCtx)
 		if s.lockout != nil {
-			s.lockout.RecordFailure(LockoutKey("oidc", auditCtx.SourceIP))
+			s.lockout.RecordFailure(lockKey)
 		}
 		return "", nil, err
 	}
@@ -478,7 +480,7 @@ func (s *Service) LoginOIDC(ctx context.Context, role, jwtToken string) (string,
 	}
 	subjectLabel := OIDCSubjectLabel(oidcCfg.Issuer, subject)
 	if s.lockout != nil {
-		s.lockout.RecordSuccess(LockoutKey("oidc", subject))
+		s.lockout.RecordSuccess(lockKey)
 	}
 	s.recordLoginAudit(ctx, true, auditCtx)
 	return s.tokens.Create(ctx, subjectLabel, policies, ttl, true)

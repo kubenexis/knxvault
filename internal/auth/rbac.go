@@ -83,8 +83,9 @@ func (r *RBAC) Capabilities(policyNames []string) []string {
 		if !ok {
 			continue
 		}
+		actions := NormalizeCapabilities(policy.Capabilities, policy.Actions)
 		for _, resource := range policy.Resources {
-			for _, action := range policy.Actions {
+			for _, action := range actions {
 				cap := resource + ":" + action
 				if _, exists := seen[cap]; exists {
 					continue

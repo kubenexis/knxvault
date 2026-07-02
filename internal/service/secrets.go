@@ -159,6 +159,9 @@ func (s *SecretsService) DestroyVersion(ctx context.Context, path string, versio
 		return err
 	}
 	err = s.engine.DestroyVersion(ctx, path, version)
+	if err == nil {
+		s.invalidateCache(ctx, path)
+	}
 	audithelper.Record(s.audit, ctx, "secret.destroy", "secrets/kv/"+path, err, map[string]any{"version": version})
 	return err
 }

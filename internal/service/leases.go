@@ -143,13 +143,15 @@ func (s *LeaseService) revokeOne(ctx context.Context, id, engine string) error {
 	var err error
 	switch engine {
 	case "database":
-		if s.database != nil {
-			_, err = s.database.RevokeLease(ctx, id)
+		if s.database == nil {
+			return common.New(common.ErrCodeInternal, "database engine not configured")
 		}
+		_, err = s.database.RevokeLease(ctx, id)
 	case "ssh":
-		if s.ssh != nil {
-			err = s.ssh.RevokeLease(ctx, id)
+		if s.ssh == nil {
+			return common.New(common.ErrCodeInternal, "ssh engine not configured")
 		}
+		err = s.ssh.RevokeLease(ctx, id)
 	default:
 		err = common.New(common.ErrCodeValidation, "unsupported lease engine")
 	}

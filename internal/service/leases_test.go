@@ -45,3 +45,21 @@ func TestLeaseServiceGetAndList(t *testing.T) {
 		t.Fatalf("List() len = %d", len(list))
 	}
 }
+
+func TestLeaseServiceBulkRevokeRequiresEngine(t *testing.T) {
+	leases := memory.NewLeaseRepository()
+	now := time.Now().UTC()
+	lease := &domainsecrets.Lease{
+		ID: "l_db", Engine: "database", RoleName: "role",
+		Path: "database/creds/role/l_db", TTLSeconds: 3600,
+		CreatedAt: now, ExpiresAt: now.Add(time.Hour), Renewable: true,
+	}
+	if err := leases.Save(context.Background(), lease); err != nil {
+		t.Fatalf("Save() = %v", err)
+	}
+	svc := service.NewLeaseService(leases, nil, nil, auditsvc.NewService(memory.NewAuditRepository()))
+	_, err := svc.BulkRevoke(context.Background(), service.BulkRevokeRequest{Engine: "database"})
+	if err == nil {
+		t.Fatal("expected error when database engine not configured")
+	}
+}

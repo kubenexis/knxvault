@@ -25,6 +25,7 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 		r.Use(otelgin.Middleware("knxvault"))
 	}
 	r.Use(middleware.RequestID())
+	r.Use(middleware.EnvironmentHeader())
 	r.Use(middleware.SecurityHeaders(middleware.SecurityHeadersConfig{
 		CORSAllowedOrigins: deps.CORSAllowedOrigins,
 	}))

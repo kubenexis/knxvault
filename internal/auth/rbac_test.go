@@ -21,6 +21,20 @@ func TestRBACAuthorize(t *testing.T) {
 	}
 }
 
+func TestCapabilitiesIncludesCapabilityField(t *testing.T) {
+	rbac := auth.NewRBAC()
+	rbac.UpsertPolicy(domainauth.Policy{
+		Name:         "cap-only",
+		Effect:       domainauth.EffectAllow,
+		Resources:    []string{"secrets/kv/*"},
+		Capabilities: []string{"read"},
+	})
+	caps := rbac.Capabilities([]string{"cap-only"})
+	if len(caps) != 1 || caps[0] != "secrets/kv/*:read" {
+		t.Fatalf("Capabilities() = %v", caps)
+	}
+}
+
 func TestDenyOverridesAllow(t *testing.T) {
 	rbac := auth.NewRBAC()
 	rbac.UpsertPolicy(domainauth.Policy{
