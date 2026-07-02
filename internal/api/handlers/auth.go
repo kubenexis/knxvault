@@ -64,9 +64,9 @@ func (h *AuthHandler) LoginKubernetes(c *gin.Context) {
 
 	c.JSON(http.StatusOK, dto.LoginResponse{
 		ClientToken: token,
-		TTL:         int(h.ttl.Seconds()),
+		TTL:         int(time.Until(record.ExpiresAt).Seconds()),
 		Policies:    record.Policies,
-		Renewable:   true,
+		Renewable:   record.Renewable,
 	})
 }
 
@@ -201,8 +201,8 @@ func (h *AuthHandler) RevokeSelfToken(c *gin.Context) {
 
 func bearerToken(c *gin.Context) string {
 	authz := c.GetHeader("Authorization")
-	if strings.HasPrefix(authz, "Bearer ") {
-		return strings.TrimPrefix(authz, "Bearer ")
+	if strings.HasPrefix(strings.ToLower(authz), "bearer ") {
+		return strings.TrimSpace(authz[7:])
 	}
 	return authz
 }

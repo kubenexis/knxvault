@@ -156,6 +156,35 @@ func TestSecretsHandlerRejectsPathTraversal(t *testing.T) {
 	}
 }
 
+func TestSecretsHandlerReadInvalidVersionQuery(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	key := make([]byte, 32)
+	cryptoSvc, err := crypto.NewService(key)
+	if err != nil {
+		t.Fatalf("NewService() = %v", err)
+	}
+	tokenStore := auth.NewTokenStore(time.Hour)
+	_ = tokenStore.RegisterRootToken(context.Background(), "root-token", []string{"secrets-admin"})
+	authSvc := auth.NewService(tokenStore, auth.NewRBAC(), "")
+	secretsSvc := service.NewSecretsService(
+		secretsengine.NewKVV2Engine(memory.NewSecretRepository(), cryptoSvc),
+		auditsvc.NewService(memory.NewAuditRepository()),
+	)
+	handler := handlers.NewSecretsHandler(secretsSvc, nil)
+	r := gin.New()
+	r.Use(middleware.ErrorHandler())
+	r.Use(middleware.Auth(authSvc))
+	r.GET("/secrets/kv/*path", middleware.RequirePermission(authSvc, "secrets/kv", "read"), handler.Read)
+
+	req := httptest.NewRequest(http.MethodGet, "/secrets/kv/app/a?version=abc", nil)
+	req.Header.Set("Authorization", "Bearer root-token")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid version, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestSecretsHandlerDeleteInvalidVersion(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	key := make([]byte, 32)

@@ -3,6 +3,8 @@ package auth
 import (
 	"context"
 	"strings"
+
+	"github.com/kubenexis/knxvault/internal/domain/common"
 )
 
 type contextKey string
@@ -50,11 +52,21 @@ const NamespaceHeader = "X-KNX-Namespace"
 
 // RequestNamespace resolves the namespace for policy conditions from the header or K8s SA subject.
 func RequestNamespace(header, subject string) string {
-	if ns := strings.TrimSpace(header); ns != "" {
-		return ns
-	}
+	ns, _ := ResolveTenantNamespace(header, subject)
+	return ns
+}
+
+// ResolveTenantNamespace derives tenant namespace and rejects SA header spoofing.
+func ResolveTenantNamespace(header, subject string) (string, error) {
+	header = strings.TrimSpace(header)
 	if id, ok := ParseServiceAccountUsername(subject); ok {
-		return id.Namespace
+		if header != "" && header != id.Namespace {
+			return "", common.New(common.ErrCodeForbidden, "namespace header does not match service account")
+		}
+		return id.Namespace, nil
 	}
-	return ""
+	if header != "" {
+		return header, nil
+	}
+	return "", nil
 }

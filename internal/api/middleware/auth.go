@@ -42,10 +42,16 @@ func Auth(svc *auth.Service) gin.HandlerFunc {
 		})
 		env, _ := c.Get("knx_environment")
 		envStr, _ := env.(string)
+		ns, nsErr := auth.ResolveTenantNamespace(c.GetHeader(auth.NamespaceHeader), record.Subject)
+		if nsErr != nil {
+			_ = c.Error(nsErr)
+			c.Abort()
+			return
+		}
 		ctx = auth.WithRequestContext(ctx, auth.RequestContext{
 			ClientIP:    c.ClientIP(),
 			AgentID:     record.AgentID,
-			Namespace:   auth.RequestNamespace(c.GetHeader(auth.NamespaceHeader), record.Subject),
+			Namespace:   ns,
 			Environment: envStr,
 		})
 		c.Request = c.Request.WithContext(ctx)

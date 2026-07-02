@@ -106,7 +106,7 @@ Policies grant capabilities on path prefixes:
 
 Conditions restrict by source IP, time window, K8s namespace, path prefix, or `agent_id`. Evaluated in `internal/auth/evaluator.go` before handler execution.
 
-**Namespace condition:** Set `RequestContext.Namespace` from the `X-KNX-Namespace` request header or, for Kubernetes ServiceAccount tokens, from the `system:serviceaccount:{ns}:{name}` subject. Policies with `"namespace": "prod"` deny callers outside that namespace unless the header or SA subject matches.
+**Namespace condition:** Set `RequestContext.Namespace` from the `X-KNX-Namespace` request header or, for Kubernetes ServiceAccount tokens, from the `system:serviceaccount:{ns}:{name}` subject. ServiceAccount tokens **cannot** spoof another namespace via `X-KNX-Namespace`; a mismatched header returns `403`. Non-SA principals may still supply the header for ABAC evaluation.
 
 **AI agent delegation (W37-04):** Parent principals call `POST /auth/agent/delegate` to mint a non-renewable 15-minute token scoped by `path_prefix` (`agent/{id}/*` under `secrets/kv/`) and `allowed_actions`. Client-supplied `policies` must be a subset of the parent's resolved policies; omit the field to inherit parent policies. Delegation is audited (`auth.agent.delegate`) with `parent_identity_id` → `agent_id` linkage on `MachineIdentity`.
 

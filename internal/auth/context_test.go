@@ -6,8 +6,19 @@ import (
 	"github.com/kubenexis/knxvault/internal/auth"
 )
 
-func TestRequestNamespaceHeaderWins(t *testing.T) {
-	got := auth.RequestNamespace("staging", "system:serviceaccount:prod:app")
+func TestResolveTenantNamespaceRejectsSASpoofing(t *testing.T) {
+	_, err := auth.ResolveTenantNamespace("staging", "system:serviceaccount:prod:app")
+	if err == nil {
+		t.Fatal("expected namespace mismatch error for SA token")
+	}
+	got, err := auth.ResolveTenantNamespace("prod", "system:serviceaccount:prod:app")
+	if err != nil || got != "prod" {
+		t.Fatalf("matching header: ns=%q err=%v", got, err)
+	}
+}
+
+func TestRequestNamespaceHeaderWinsForNonSA(t *testing.T) {
+	got := auth.RequestNamespace("staging", "ci-bot")
 	if got != "staging" {
 		t.Fatalf("namespace = %q, want staging", got)
 	}

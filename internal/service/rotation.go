@@ -2,9 +2,12 @@ package service
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	auditsvc "github.com/kubenexis/knxvault/internal/audit"
+	"github.com/kubenexis/knxvault/internal/domain/common"
 	domainsecrets "github.com/kubenexis/knxvault/internal/domain/secrets"
 	secretsengine "github.com/kubenexis/knxvault/internal/engine/secrets"
 	"github.com/kubenexis/knxvault/internal/notify"
@@ -38,7 +41,7 @@ func NewRotationService(
 // PutPolicy stores or updates a rotation policy.
 func (s *RotationService) PutPolicy(ctx context.Context, policy *domainsecrets.RotationPolicy) error {
 	if s == nil || s.policies == nil {
-		return nil
+		return common.New(common.ErrCodeInternal, "rotation policy repository not configured")
 	}
 	policy.Enabled = true
 	err := s.policies.Save(ctx, policy)
@@ -49,7 +52,7 @@ func (s *RotationService) PutPolicy(ctx context.Context, policy *domainsecrets.R
 // DeletePolicy disables rotation for a path.
 func (s *RotationService) DeletePolicy(ctx context.Context, path string) error {
 	if s == nil || s.policies == nil {
-		return nil
+		return common.New(common.ErrCodeInternal, "rotation policy repository not configured")
 	}
 	err := s.policies.Delete(ctx, path)
 	audithelper.Record(s.audit, ctx, "rotation.policy.delete", "secrets/kv/"+path, err, nil)
@@ -74,16 +77,18 @@ func (s *RotationService) RunDue(ctx context.Context, now time.Time) (int, error
 		return 0, err
 	}
 	rotated := 0
+	var rotateErrs []error
 	for _, policy := range policies {
 		if !policy.Due(now) {
 			continue
 		}
 		if err := s.RotatePath(ctx, policy); err != nil {
+			rotateErrs = append(rotateErrs, fmt.Errorf("%s: %w", policy.Path, err))
 			continue
 		}
 		rotated++
 	}
-	return rotated, nil
+	return rotated, errors.Join(rotateErrs...)
 }
 
 // RotatePath rotates a single path per policy.
@@ -113,7 +118,9 @@ func (s *RotationService) RotatePath(ctx context.Context, policy *domainsecrets.
 		return err
 	}
 	policy.LastRotatedAt = time.Now().UTC()
-	_ = s.policies.Save(ctx, policy)
+	if err := s.policies.Save(ctx, policy); err != nil {
+		return fmt.Errorf("save rotation policy: %w", err)
+	}
 	if s.webhook != nil {
 		_ = s.webhook.Send(ctx, notify.Event{
 			Event:   "secret.rotate",

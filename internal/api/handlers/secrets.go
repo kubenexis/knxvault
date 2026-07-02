@@ -77,7 +77,11 @@ func (h *SecretsHandler) Read(c *gin.Context) {
 
 	if strings.HasSuffix(rawPath, "/metadata") {
 		path := strings.TrimSuffix(rawPath, "/metadata")
-		version := queryVersion(c)
+		version, verErr := queryVersion(c)
+		if verErr != nil {
+			_ = c.Error(verErr)
+			return
+		}
 		meta, err := h.svc.GetMetadata(c.Request.Context(), path, version)
 		if err != nil {
 			_ = c.Error(err)
@@ -98,7 +102,11 @@ func (h *SecretsHandler) Read(c *gin.Context) {
 		return
 	}
 
-	version := queryVersion(c)
+	version, verErr := queryVersion(c)
+	if verErr != nil {
+		_ = c.Error(verErr)
+		return
+	}
 	var result *secretsengine.GetResult
 	if version > 0 {
 		result, err = h.svc.GetVersion(c.Request.Context(), rawPath, version)
@@ -213,12 +221,19 @@ func secretPath(c *gin.Context) (string, error) {
 	return cleaned, nil
 }
 
-func queryVersion(c *gin.Context) int {
-	if v := c.Query("version"); v != "" {
-		version, _ := strconv.Atoi(v)
-		return version
+func queryVersion(c *gin.Context) (int, error) {
+	v := c.Query("version")
+	if v == "" {
+		return 0, nil
 	}
-	return 0
+	version, err := strconv.Atoi(v)
+	if err != nil {
+		return 0, common.New(common.ErrCodeValidation, "invalid version query parameter")
+	}
+	if version < 0 {
+		return 0, common.New(common.ErrCodeValidation, "version must be >= 0")
+	}
+	return version, nil
 }
 
 func toMetadataResponse(meta *secretsengine.PathMetadata) dto.KVMetadataResponse {

@@ -35,7 +35,7 @@ func SecurityHeaders(cfg SecurityHeadersConfig) gin.HandlerFunc {
 				c.Header("Access-Control-Allow-Origin", origin)
 				c.Header("Vary", "Origin")
 				c.Header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
-				c.Header("Access-Control-Allow-Headers", "Authorization,Content-Type,X-Request-ID,X-KNX-Namespace,X-KNX-Signature,X-KNX-Timestamp,X-KNX-Nonce")
+				c.Header("Access-Control-Allow-Headers", "Authorization,Content-Type,X-Request-ID,X-KNX-Namespace,X-KNX-Environment,X-KNXVault-Token,X-Vault-Token,X-KNXVault-Signature,X-KNXVault-Timestamp,X-KNX-Signature,X-KNX-Timestamp,X-KNX-Nonce")
 				c.Header("Access-Control-Max-Age", "600")
 			}
 		}

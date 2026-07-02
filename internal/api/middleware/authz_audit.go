@@ -61,7 +61,7 @@ func (a *AuthzAudit) recordDenied(c *gin.Context, principal auth.Principal, reso
 	details := map[string]any{
 		"resource":   resource,
 		"capability": capability,
-		"request_id": c.GetHeader("X-Request-ID"),
+		"request_id": requestID(c),
 		"source_ip":  c.ClientIP(),
 	}
 	if err != nil {
