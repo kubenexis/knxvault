@@ -180,24 +180,24 @@ func (v *OIDCValidator) Validate(ctx context.Context, cfg *domainauth.OIDCConfig
 			return "", nil, common.Wrap(common.ErrCodeUnauthorized, "jwks unavailable", keyErr)
 		}
 		parsed, parseErr = jwt.Parse(token, func(t *jwt.Token) (any, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodRSA); !ok {
-			if _, ok := t.Method.(*jwt.SigningMethodRSAPSS); !ok {
-				return nil, fmt.Errorf("unexpected signing method %v", t.Header["alg"])
+			if _, ok := t.Method.(*jwt.SigningMethodRSA); !ok {
+				if _, ok := t.Method.(*jwt.SigningMethodRSAPSS); !ok {
+					return nil, fmt.Errorf("unexpected signing method %v", t.Header["alg"])
+				}
 			}
-		}
-		kid, _ := t.Header["kid"].(string)
-		if kid != "" {
-			if key, ok := keys[kid]; ok {
-				return key, nil
+			kid, _ := t.Header["kid"].(string)
+			if kid != "" {
+				if key, ok := keys[kid]; ok {
+					return key, nil
+				}
+				return nil, fmt.Errorf("unknown kid %q", kid)
 			}
-			return nil, fmt.Errorf("unknown kid %q", kid)
-		}
-		if len(keys) == 1 {
-			for _, key := range keys {
-				return key, nil
+			if len(keys) == 1 {
+				for _, key := range keys {
+					return key, nil
+				}
 			}
-		}
-		return nil, fmt.Errorf("jwt missing kid with %d jwks keys", len(keys))
+			return nil, fmt.Errorf("jwt missing kid with %d jwks keys", len(keys))
 		}, jwt.WithValidMethods([]string{"RS256", "RS384", "RS512", "PS256", "PS384", "PS512"}), jwt.WithExpirationRequired())
 		if parseErr == nil {
 			break

@@ -19,10 +19,10 @@ const exposureSignatureHeader = "X-KNXVault-Exposure-Signature"
 
 // ExposureSigning verifies HMAC signatures on exposure reports.
 type ExposureSigning struct {
-	key      []byte
-	seenMu   sync.Mutex
-	seen     map[string]time.Time
-	seenTTL  time.Duration
+	key     []byte
+	seenMu  sync.Mutex
+	seen    map[string]time.Time
+	seenTTL time.Duration
 }
 
 // NewExposureSigning constructs exposure report signing middleware.
