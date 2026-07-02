@@ -84,6 +84,20 @@ func TestConditionsMatchNamespace(t *testing.T) {
 	}
 }
 
+func TestConditionsMatchResourceLabelRequiresValue(t *testing.T) {
+	policy := domainauth.Policy{
+		Name: "label-gated", Effect: domainauth.EffectAllow,
+		Resources: []string{"secrets/kv/*"}, Actions: []string{"read"},
+		Conditions: map[string]any{
+			"resource_label": "env",
+		},
+	}
+	req := auth.RequestContext{ResourceLabels: map[string]string{"env": "prod"}}
+	if auth.PolicyMatches(policy, "secrets/kv/app", "read", req) {
+		t.Fatal("expected missing resource_label_value to deny")
+	}
+}
+
 func TestConditionsMatchTimeWindow(t *testing.T) {
 	policy := domainauth.Policy{
 		Name:      "business-hours",
