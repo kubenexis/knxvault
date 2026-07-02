@@ -84,12 +84,12 @@ func ConditionsMatch(conditions map[string]any, req RequestContext) bool {
 		if !ok || expected == "" {
 			return false
 		}
-		if req.ResourceLabels[labelKey] != expected {
+		if req.ResourceLabels == nil || req.ResourceLabels[labelKey] != expected {
 			return false
 		}
 	}
 	if owner, ok := conditions["owner_match"].(string); ok && owner != "" {
-		if req.ResourceLabels["owner"] != owner {
+		if req.ResourceLabels == nil || req.ResourceLabels["owner"] != owner {
 			return false
 		}
 	}

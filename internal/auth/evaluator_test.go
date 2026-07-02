@@ -84,6 +84,18 @@ func TestConditionsMatchNamespace(t *testing.T) {
 	}
 }
 
+func TestConditionsMatchNilResourceLabelsDeniesOwnerMatch(t *testing.T) {
+	policy := domainauth.Policy{
+		Name: "owner-a", Effect: domainauth.EffectAllow,
+		Resources: []string{"secrets/kv/*"}, Actions: []string{"read"},
+		Conditions: map[string]any{"owner_match": "team-a"},
+	}
+	req := auth.RequestContext{}
+	if auth.PolicyMatches(policy, "secrets/kv/app", "read", req) {
+		t.Fatal("expected nil ResourceLabels to deny owner_match")
+	}
+}
+
 func TestConditionsMatchResourceLabelRequiresValue(t *testing.T) {
 	policy := domainauth.Policy{
 		Name: "label-gated", Effect: domainauth.EffectAllow,
