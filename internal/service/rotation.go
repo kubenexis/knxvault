@@ -44,6 +44,13 @@ func (s *RotationService) PutPolicy(ctx context.Context, policy *domainsecrets.R
 		return common.New(common.ErrCodeInternal, "rotation policy repository not configured")
 	}
 	policy.Enabled = true
+	if s.secrets != nil {
+		scoped, scopeErr := s.secrets.scopePath(ctx, policy.Path)
+		if scopeErr != nil {
+			return scopeErr
+		}
+		policy.Path = scoped
+	}
 	err := s.policies.Save(ctx, policy)
 	audithelper.Record(s.audit, ctx, "rotation.policy.set", "secrets/kv/"+policy.Path, err, nil)
 	return err
@@ -53,6 +60,13 @@ func (s *RotationService) PutPolicy(ctx context.Context, policy *domainsecrets.R
 func (s *RotationService) DeletePolicy(ctx context.Context, path string) error {
 	if s == nil || s.policies == nil {
 		return common.New(common.ErrCodeInternal, "rotation policy repository not configured")
+	}
+	if s.secrets != nil {
+		scoped, scopeErr := s.secrets.scopePath(ctx, path)
+		if scopeErr != nil {
+			return scopeErr
+		}
+		path = scoped
 	}
 	err := s.policies.Delete(ctx, path)
 	audithelper.Record(s.audit, ctx, "rotation.policy.delete", "secrets/kv/"+path, err, nil)

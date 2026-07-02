@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	auditsvc "github.com/kubenexis/knxvault/internal/audit"
@@ -20,6 +21,7 @@ type SecretsService struct {
 	audit      *auditsvc.Service
 	tenantMode bool
 	cache      cache.Store
+	cacheGen   sync.Map
 }
 
 // NewSecretsService constructs a secrets service.
@@ -45,10 +47,26 @@ func (s *SecretsService) cacheKey(path string, version int) string {
 	return fmt.Sprintf("kv:%s:v%d", path, version)
 }
 
+func (s *SecretsService) bumpCacheGen(path string) uint64 {
+	v, _ := s.cacheGen.LoadOrStore(path, uint64(0))
+	gen := v.(uint64) + 1
+	s.cacheGen.Store(path, gen)
+	return gen
+}
+
+func (s *SecretsService) cacheGenFor(path string) uint64 {
+	v, ok := s.cacheGen.Load(path)
+	if !ok {
+		return 0
+	}
+	return v.(uint64)
+}
+
 func (s *SecretsService) invalidateCache(ctx context.Context, path string) {
 	if s == nil || s.cache == nil {
 		return
 	}
+	s.bumpCacheGen(path)
 	s.cache.Delete(ctx, s.cacheKey(path, 0))
 	if s.engine == nil {
 		return
@@ -104,6 +122,7 @@ func (s *SecretsService) getVersion(ctx context.Context, path string, version in
 	if err != nil {
 		return nil, err
 	}
+	readGen := s.cacheGenFor(path)
 	if s.cache != nil {
 		if raw, ok := s.cache.Get(ctx, s.cacheKey(path, version)); ok {
 			var result secretsengine.GetResult
@@ -114,7 +133,7 @@ func (s *SecretsService) getVersion(ctx context.Context, path string, version in
 		}
 	}
 	result, err := s.engine.GetVersion(ctx, path, version)
-	if err == nil && s.cache != nil {
+	if err == nil && s.cache != nil && s.cacheGenFor(path) == readGen {
 		if raw, marshalErr := json.Marshal(result); marshalErr == nil {
 			s.cache.Set(ctx, s.cacheKey(path, version), raw, 5*time.Minute)
 		}
