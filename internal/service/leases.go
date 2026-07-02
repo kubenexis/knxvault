@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -134,6 +135,9 @@ func (s *LeaseService) BulkRevoke(ctx context.Context, req BulkRevokeRequest) (*
 	result := &BulkRevokeResult{}
 	for _, view := range leases {
 		if err := s.revokeOne(ctx, view.ID, view.Engine); err != nil {
+			if result.Revoked > 0 {
+				return result, fmt.Errorf("partial bulk revoke after %d leases: %w", result.Revoked, err)
+			}
 			return nil, err
 		}
 		result.Revoked++
