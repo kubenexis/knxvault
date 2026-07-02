@@ -105,14 +105,15 @@ func (s *PolicyService) LoadIntoRBAC(ctx context.Context) error {
 	if s.policies == nil || s.rbac == nil {
 		return nil
 	}
+	s.hashMu.Lock()
+	defer s.hashMu.Unlock()
+
 	policies, err := s.policies.List(ctx)
 	if err != nil {
 		return err
 	}
 	s.rbac.ReloadFromPersisted(policies)
-	s.hashMu.Lock()
 	s.policyHash = hashPolicies(policies)
-	s.hashMu.Unlock()
 	return nil
 }
 
