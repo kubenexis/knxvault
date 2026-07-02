@@ -79,7 +79,7 @@ When KNXVault runs in a Kubernetes cluster, `POST /auth/kubernetes` validates th
 
 **Auth method enforcement:** Roles with `auth_method: "oidc"` reject Kubernetes login; roles with `auth_method: "kubernetes"` reject OIDC login. K8s login resolves `policy_groups` the same way as OIDC.
 
-**OIDC JWT requirements:** OIDC login rejects JWTs without an `exp` claim. Machine identity revocation checks fail closed when the NHI backend is unavailable.
+**OIDC JWT requirements:** OIDC login rejects JWTs without an `exp` claim. Renewals cannot extend OIDC tokens beyond the role `max_ttl_seconds` cap stored as `max_expires_at`. JWKS fetches use a 10s HTTP timeout and refresh once on unknown `kid` during key rotation. Machine identity revocation checks fail closed when the NHI backend is unavailable.
 
 **Login lockout (W43-04):** Failed `/auth/kubernetes` and `/auth/oidc/*` attempts are tracked **per source IP** (`LoginLockoutKey`). After `KNXVAULT_AUTH_LOCKOUT_THRESHOLD` failures within the window, further logins from that IP are rejected until TTL expiry or successful login clears the counter.
 

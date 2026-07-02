@@ -65,12 +65,20 @@ func (c *jwksCache) get(ctx context.Context, jwksURL string) (map[string]any, er
 	return keys, nil
 }
 
+var jwksHTTPClient = &http.Client{Timeout: 10 * time.Second}
+
+func (c *jwksCache) invalidate(jwksURL string) {
+	c.mu.Lock()
+	delete(c.entries, jwksURL)
+	c.mu.Unlock()
+}
+
 func fetchJWKS(ctx context.Context, url string) (map[string]any, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := jwksHTTPClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch jwks: %w", err)
 	}
@@ -164,11 +172,14 @@ func (v *OIDCValidator) Validate(ctx context.Context, cfg *domainauth.OIDCConfig
 	if cfg.JWKSURL == "" {
 		return "", nil, common.New(common.ErrCodeValidation, "oidc jwks_url is required")
 	}
-	keys, err := v.cache.get(ctx, cfg.JWKSURL)
-	if err != nil {
-		return "", nil, common.Wrap(common.ErrCodeUnauthorized, "jwks unavailable", err)
-	}
-	parsed, err := jwt.Parse(token, func(t *jwt.Token) (any, error) {
+	var parsed *jwt.Token
+	var parseErr error
+	for attempt := 0; attempt < 2; attempt++ {
+		keys, keyErr := v.cache.get(ctx, cfg.JWKSURL)
+		if keyErr != nil {
+			return "", nil, common.Wrap(common.ErrCodeUnauthorized, "jwks unavailable", keyErr)
+		}
+		parsed, parseErr = jwt.Parse(token, func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodRSA); !ok {
 			if _, ok := t.Method.(*jwt.SigningMethodRSAPSS); !ok {
 				return nil, fmt.Errorf("unexpected signing method %v", t.Header["alg"])
@@ -187,9 +198,18 @@ func (v *OIDCValidator) Validate(ctx context.Context, cfg *domainauth.OIDCConfig
 			}
 		}
 		return nil, fmt.Errorf("jwt missing kid with %d jwks keys", len(keys))
-	}, jwt.WithValidMethods([]string{"RS256", "RS384", "RS512", "PS256", "PS384", "PS512"}), jwt.WithExpirationRequired())
-	if err != nil {
-		return "", nil, common.Wrap(common.ErrCodeUnauthorized, "invalid oidc jwt", err)
+		}, jwt.WithValidMethods([]string{"RS256", "RS384", "RS512", "PS256", "PS384", "PS512"}), jwt.WithExpirationRequired())
+		if parseErr == nil {
+			break
+		}
+		if attempt == 0 && strings.Contains(parseErr.Error(), "unknown kid") {
+			v.cache.invalidate(cfg.JWKSURL)
+			continue
+		}
+		return "", nil, common.Wrap(common.ErrCodeUnauthorized, "invalid oidc jwt", parseErr)
+	}
+	if parsed == nil {
+		return "", nil, common.New(common.ErrCodeUnauthorized, "invalid oidc jwt")
 	}
 	mapClaims, ok := parsed.Claims.(jwt.MapClaims)
 	if !ok || !parsed.Valid {

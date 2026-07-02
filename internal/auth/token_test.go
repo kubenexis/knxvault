@@ -238,13 +238,30 @@ func TestLoginKubernetesHS256Dev(t *testing.T) {
 	}
 }
 
+func TestTokenRenewRespectsMaxExpiresAt(t *testing.T) {
+	ctx := context.Background()
+	store := auth.NewTokenStore(24 * time.Hour)
+	maxAt := time.Now().UTC().Add(2 * time.Hour)
+	token, _, err := store.Create(ctx, "oidc-user", []string{"read"}, time.Hour, true, maxAt)
+	if err != nil {
+		t.Fatalf("Create() = %v", err)
+	}
+	renewed, err := store.Renew(ctx, token, 24*time.Hour)
+	if err != nil {
+		t.Fatalf("Renew() = %v", err)
+	}
+	if renewed.ExpiresAt.After(maxAt.Add(time.Second)) {
+		t.Fatalf("ExpiresAt = %v exceeds max %v", renewed.ExpiresAt, maxAt)
+	}
+}
+
 func TestTokenStoreReplicated(t *testing.T) {
 	ctx := context.Background()
 	repo := memory.NewTokenRepository()
 	store := auth.NewTokenStore(time.Hour)
 	store.SetRepository(repo)
 
-	token, _, err := store.Create(ctx, "bot", []string{"admin"}, time.Hour, false)
+	token, _, err := store.Create(ctx, "bot", []string{"admin"}, time.Hour, false, time.Time{})
 	if err != nil {
 		t.Fatalf("Create() = %v", err)
 	}

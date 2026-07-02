@@ -54,6 +54,15 @@ func (t *LockoutTracker) IsLocked(key string) bool {
 	return true
 }
 
+func (t *LockoutTracker) purgeExpiredLocked(now time.Time) {
+	for key, until := range t.locked {
+		if now.After(until) {
+			delete(t.locked, key)
+			delete(t.attempts, key)
+		}
+	}
+}
+
 // RecordFailure increments failures and locks when threshold exceeded.
 func (t *LockoutTracker) RecordFailure(key string) bool {
 	if t == nil {
@@ -61,6 +70,7 @@ func (t *LockoutTracker) RecordFailure(key string) bool {
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	t.purgeExpiredLocked(time.Now())
 	t.attempts[key]++
 	if t.attempts[key] >= t.threshold {
 		t.locked[key] = time.Now().Add(t.ttl)

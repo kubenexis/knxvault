@@ -49,11 +49,11 @@ func (s *TokenStore) SetRepository(repo repository.TokenRepository) {
 
 // Issue creates a new opaque client token.
 func (s *TokenStore) Issue(ctx context.Context, subject string, policies []string) (string, *TokenRecord, error) {
-	return s.Create(ctx, subject, policies, s.ttl, true)
+	return s.Create(ctx, subject, policies, s.ttl, true, time.Time{})
 }
 
 // Create issues a token with explicit TTL and renewability.
-func (s *TokenStore) Create(ctx context.Context, subject string, policies []string, ttl time.Duration, renewable bool) (string, *TokenRecord, error) {
+func (s *TokenStore) Create(ctx context.Context, subject string, policies []string, ttl time.Duration, renewable bool, maxExpiresAt time.Time) (string, *TokenRecord, error) {
 	if ttl <= 0 {
 		ttl = s.ttl
 	}
@@ -68,6 +68,12 @@ func (s *TokenStore) Create(ctx context.Context, subject string, policies []stri
 		Policies:  policies,
 		ExpiresAt: time.Now().UTC().Add(ttl),
 		Renewable: renewable,
+	}
+	if !maxExpiresAt.IsZero() {
+		record.MaxExpiresAt = maxExpiresAt
+		if record.ExpiresAt.After(maxExpiresAt) {
+			record.ExpiresAt = maxExpiresAt
+		}
 	}
 	if err := s.save(ctx, record); err != nil {
 		return "", nil, err
@@ -94,7 +100,11 @@ func (s *TokenStore) Renew(ctx context.Context, token string, increment time.Dur
 	if time.Now().UTC().After(record.ExpiresAt) {
 		return nil, common.New(common.ErrCodeUnauthorized, "token expired")
 	}
-	record.ExpiresAt = time.Now().UTC().Add(increment)
+	newExpiry := time.Now().UTC().Add(increment)
+	if !record.MaxExpiresAt.IsZero() && newExpiry.After(record.MaxExpiresAt) {
+		newExpiry = record.MaxExpiresAt
+	}
+	record.ExpiresAt = newExpiry
 	if err := s.save(ctx, *record); err != nil {
 		return nil, err
 	}
@@ -514,7 +524,8 @@ func (s *Service) LoginOIDC(ctx context.Context, role, jwtToken string) (string,
 		s.lockout.RecordSuccess(lockKey)
 	}
 	s.recordLoginAudit(ctx, true, auditCtx)
-	return s.tokens.Create(ctx, subjectLabel, policies, ttl, true)
+	maxAt := time.Now().UTC().Add(ttl)
+	return s.tokens.Create(ctx, subjectLabel, policies, ttl, true, maxAt)
 }
 
 func (s *Service) validateKubernetesJWT(ctx context.Context, role, jwtToken string) (ServiceAccountIdentity, string, error) {
@@ -640,7 +651,7 @@ func (s *Service) CreateToken(ctx context.Context, subject string, policies []st
 	if len(policies) == 0 {
 		return "", nil, common.New(common.ErrCodeValidation, "policies are required")
 	}
-	return s.tokens.Create(ctx, subject, policies, ttl, renewable)
+	return s.tokens.Create(ctx, subject, policies, ttl, renewable, time.Time{})
 }
 
 // RenewToken extends the caller token TTL.

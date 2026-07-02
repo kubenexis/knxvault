@@ -49,13 +49,29 @@ func CheckMFA(requireMFA bool, claims map[string]any) error {
 	if !requireMFA {
 		return nil
 	}
-	if acr, _ := claims["acr"].(string); acr == "mfa" || acr == "urn:mace:incommon:iap:silver" {
-		return nil
-	}
-	if amr, ok := claims["amr"].([]any); ok {
-		for _, v := range amr {
-			if s, ok := v.(string); ok && (s == "mfa" || s == "otp" || s == "hwk") {
+	if acr, ok := claims["acr"]; ok {
+		switch v := acr.(type) {
+		case string:
+			if v == "mfa" || v == "urn:mace:incommon:iap:silver" {
 				return nil
+			}
+		case float64:
+			if v >= 2 {
+				return nil
+			}
+		}
+	}
+	if amr, ok := claims["amr"]; ok {
+		switch v := amr.(type) {
+		case string:
+			if v == "mfa" || v == "otp" || v == "hwk" {
+				return nil
+			}
+		case []any:
+			for _, item := range v {
+				if s, ok := item.(string); ok && (s == "mfa" || s == "otp" || s == "hwk") {
+					return nil
+				}
 			}
 		}
 	}

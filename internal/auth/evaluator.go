@@ -80,10 +80,12 @@ func ConditionsMatch(conditions map[string]any, req RequestContext) bool {
 		}
 	}
 	if labelKey, ok := conditions["resource_label"].(string); ok && labelKey != "" {
-		if expected, ok := conditions["resource_label_value"].(string); ok {
-			if req.ResourceLabels[labelKey] != expected {
-				return false
-			}
+		expected, ok := conditions["resource_label_value"].(string)
+		if !ok || expected == "" {
+			return false
+		}
+		if req.ResourceLabels[labelKey] != expected {
+			return false
 		}
 	}
 	if owner, ok := conditions["owner_match"].(string); ok && owner != "" {

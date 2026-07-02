@@ -89,7 +89,7 @@ func TestAuthMiddlewareNamespaceFromSubject(t *testing.T) {
 
 func issueTestToken(t *testing.T, store *auth.TokenStore, subject string, policies []string) string {
 	t.Helper()
-	token, _, err := store.Create(context.Background(), subject, policies, time.Hour, true)
+	token, _, err := store.Create(context.Background(), subject, policies, time.Hour, true, time.Time{})
 	if err != nil {
 		t.Fatalf("Create() = %v", err)
 	}

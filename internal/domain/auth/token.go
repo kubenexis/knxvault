@@ -15,6 +15,7 @@ type ClientToken struct {
 	AgentID          string    `json:"agent_id,omitempty"`
 	AllowedActions   []string  `json:"allowed_actions,omitempty"`
 	PathPrefix       string    `json:"path_prefix,omitempty"`
+	MaxExpiresAt     time.Time `json:"max_expires_at,omitempty"`
 }
 
 // Active reports whether the token is valid at the given time.

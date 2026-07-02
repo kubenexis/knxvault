@@ -1,6 +1,10 @@
 package service
 
-import "context"
+import (
+	"context"
+
+	"github.com/kubenexis/knxvault/internal/domain/common"
+)
 
 // KVSecretReader adapts SecretsService to inject.SecretReader.
 type KVSecretReader struct {
@@ -15,7 +19,7 @@ func NewKVSecretReader(svc *SecretsService) *KVSecretReader {
 // ReadSecret fetches the latest KV secret data.
 func (r *KVSecretReader) ReadSecret(ctx context.Context, path string) (map[string]any, error) {
 	if r.svc == nil {
-		return nil, nil
+		return nil, common.New(common.ErrCodeInternal, "secrets service not configured")
 	}
 	result, err := r.svc.Get(ctx, path)
 	if err != nil {
