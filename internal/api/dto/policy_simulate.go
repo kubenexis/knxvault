@@ -9,8 +9,8 @@ type PolicySimulateRequest struct {
 	Namespace   string         `json:"namespace,omitempty"`
 	Environment string         `json:"environment,omitempty"`
 	Cluster     string         `json:"cluster,omitempty"`
-	RequestPath string         `json:"request_path,omitempty"`
-	Conditions  map[string]any `json:"conditions,omitempty"`
+	RequestPath    string            `json:"request_path,omitempty"`
+	ResourceLabels map[string]string `json:"resource_labels,omitempty"`
 }
 
 // PolicySimulateResponse returns simulation outcome.

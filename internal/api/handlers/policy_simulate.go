@@ -27,13 +27,14 @@ func (h *PolicySimulateHandler) Simulate(c *gin.Context) {
 		return
 	}
 	reqCtx := auth.RequestContext{
-		ClientIP:    req.ClientIP,
-		Namespace:   req.Namespace,
-		Environment: req.Environment,
-		Cluster:     req.Cluster,
-		RequestPath: req.RequestPath,
-		Resource:    req.Resource,
-		Action:      req.Capability,
+		ClientIP:       req.ClientIP,
+		Namespace:      req.Namespace,
+		Environment:    req.Environment,
+		Cluster:        req.Cluster,
+		RequestPath:    req.RequestPath,
+		ResourceLabels: req.ResourceLabels,
+		Resource:       req.Resource,
+		Action:         req.Capability,
 	}
 	result := h.auth.SimulatePolicy(c.Request.Context(), req.Policies, req.Resource, req.Capability, reqCtx)
 	c.JSON(http.StatusOK, dto.PolicySimulateResponse{

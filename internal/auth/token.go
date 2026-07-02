@@ -360,7 +360,7 @@ func (s *Service) LoginKubernetes(ctx context.Context, role, jwtToken string) (s
 	auditCtx.ClientIdentity = subject
 	auditCtx.Namespace = identity.Namespace
 	if err != nil {
-		auditCtx.FailureReason = err.Error()
+		auditCtx.FailureReason = "kubernetes jwt validation failed"
 		s.recordLoginAudit(ctx, false, auditCtx)
 		s.noteLockoutFailure(ctx, lockKey, auditCtx)
 		return "", nil, err
@@ -386,7 +386,7 @@ func (s *Service) LoginKubernetes(ctx context.Context, role, jwtToken string) (s
 		return "", nil, common.New(common.ErrCodeForbidden, "role does not allow kubernetes login")
 	}
 	if err := MatchServiceAccountBinding(storedRole, identity); err != nil {
-		auditCtx.FailureReason = err.Error()
+		auditCtx.FailureReason = "service account binding mismatch"
 		s.recordLoginAudit(ctx, false, auditCtx)
 		s.noteLockoutFailure(ctx, lockKey, auditCtx)
 		return "", nil, err
@@ -474,13 +474,13 @@ func (s *Service) LoginOIDC(ctx context.Context, role, jwtToken string) (string,
 	subject, claims, err := s.oidc.Validate(ctx, oidcCfg, jwtToken)
 	auditCtx.ClientIdentity = subject
 	if err != nil {
-		auditCtx.FailureReason = err.Error()
+		auditCtx.FailureReason = "oidc jwt validation failed"
 		s.recordLoginAudit(ctx, false, auditCtx)
 		s.noteLockoutFailure(ctx, lockKey, auditCtx)
 		return "", nil, err
 	}
 	if err := CheckMFA(requireMFA, claims); err != nil {
-		auditCtx.FailureReason = err.Error()
+		auditCtx.FailureReason = "mfa required for administrative role"
 		s.recordLoginAudit(ctx, false, auditCtx)
 		s.noteLockoutFailure(ctx, lockKey, auditCtx)
 		return "", nil, err

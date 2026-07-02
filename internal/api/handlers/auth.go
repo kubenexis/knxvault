@@ -197,7 +197,8 @@ func (h *AuthHandler) ClearLockout(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
-	h.auth.ClearLockout(req.AuthMethod, req.SourceIP)
+	principal, _ := auth.PrincipalFromContext(c.Request.Context())
+	h.auth.ClearLockout(c.Request.Context(), principal.Subject, req.AuthMethod, req.SourceIP)
 	c.Status(http.StatusNoContent)
 }
 

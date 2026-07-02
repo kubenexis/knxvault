@@ -97,4 +97,30 @@ func TestPolicySimulateAllowDenyAndCondition(t *testing.T) {
 	if condResp.Allowed {
 		t.Fatal("expected environment condition to deny prod")
 	}
+
+	labelBody, _ := json.Marshal(dto.PolicySimulateRequest{
+		Policies:       []string{"owner-a"},
+		Resource:       "secrets/kv/app/x",
+		Capability:     "read",
+		ResourceLabels: map[string]string{"owner": "team-b"},
+	})
+	rbac.UpsertPolicy(domainauth.Policy{
+		Name: "owner-a", Effect: domainauth.EffectAllow,
+		Resources: []string{"secrets/kv/*"}, Actions: []string{"read"},
+		Conditions: map[string]any{"owner_match": "team-a"},
+	})
+	req = httptest.NewRequest(http.MethodPost, "/sys/policy/simulate", bytes.NewReader(labelBody))
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("label status = %d", rec.Code)
+	}
+	var labelResp dto.PolicySimulateResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &labelResp); err != nil {
+		t.Fatalf("decode label: %v", err)
+	}
+	if labelResp.Allowed {
+		t.Fatal("expected owner_match to deny team-b label")
+	}
 }

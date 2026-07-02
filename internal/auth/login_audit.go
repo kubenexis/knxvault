@@ -62,11 +62,19 @@ func (s *Service) recordLockoutAudit(ctx context.Context, lockKey string, auditC
 }
 
 // ClearLockout removes lockout state for an identity (W43-04 break-glass).
-func (s *Service) ClearLockout(authMethod, sourceIP string) {
+func (s *Service) ClearLockout(ctx context.Context, actor, authMethod, sourceIP string) {
 	if s == nil || s.lockout == nil {
 		return
 	}
-	s.lockout.Clear(LockoutKey(authMethod, sourceIP))
+	key := LockoutKey(authMethod, sourceIP)
+	s.lockout.Clear(key)
+	if s.audit != nil {
+		_ = s.audit.Record(ctx, actor, "auth.lockout.clear", "auth/"+authMethod, "success", map[string]any{
+			"auth_method": authMethod,
+			"source_ip":   sourceIP,
+			"lockout_key": key,
+		})
+	}
 }
 
 // CheckMFA validates OIDC MFA claims for roles with require_mfa (W44-03).
