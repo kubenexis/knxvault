@@ -64,13 +64,13 @@ func TestServiceForwardsAuditEntryToSIEM(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
-	if got["Actor"] != "siem-actor" || got["Action"] != "sys.seal" {
+	if got["actor"] != "siem-actor" || got["action"] != "sys.seal" {
 		t.Fatalf("forwarded payload = %#v", got)
 	}
-	if got["Resource"] != "sys/seal" || got["Status"] != "success" {
+	if got["resource"] != "sys/seal" || got["status"] != "success" {
 		t.Fatalf("forwarded payload = %#v", got)
 	}
-	if got["Hash"] == "" || got["Hash"] == nil {
+	if got["hash"] == "" || got["hash"] == nil {
 		t.Fatalf("expected hash in forwarded entry: %#v", got)
 	}
 }
