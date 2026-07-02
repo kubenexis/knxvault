@@ -26,13 +26,7 @@ func EnrichKVResourceLabels(resolver KVLabelResolver) gin.HandlerFunc {
 			c.Next()
 			return
 		}
-		path := rawPath
-		if strings.HasSuffix(path, "/metadata") {
-			path = strings.TrimSuffix(path, "/metadata")
-		}
-		if strings.HasSuffix(path, "/versions") {
-			path = strings.TrimSuffix(path, "/versions")
-		}
+		path := strings.TrimSuffix(strings.TrimSuffix(rawPath, "/metadata"), "/versions")
 		labels, err := resolver.LabelsForPath(c.Request.Context(), path)
 		if err != nil || len(labels) == 0 {
 			c.Next()

@@ -138,12 +138,6 @@ func (s *PolicyService) SyncRBAC(ctx context.Context) error {
 	return nil
 }
 
-func (s *PolicyService) invalidatePolicyHash() {
-	s.hashMu.Lock()
-	s.policyHash = ""
-	s.hashMu.Unlock()
-}
-
 func hashPolicies(policies []*domainauth.Policy) string {
 	if len(policies) == 0 {
 		return ""

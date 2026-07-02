@@ -28,7 +28,7 @@ func (r *minimalRedis) Get(ctx context.Context, key string) ([]byte, bool) {
 	if err != nil {
 		return nil, false
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	if err := writeCommand(conn, "GET", key); err != nil {
 		return nil, false
 	}
@@ -40,7 +40,7 @@ func (r *minimalRedis) Set(ctx context.Context, key string, value []byte, ttl ti
 	if err != nil {
 		return
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	if ttl > 0 {
 		_ = writeCommand(conn, "SET", key, string(value), "EX", fmt.Sprintf("%d", int(ttl.Seconds())))
 		return
@@ -53,7 +53,7 @@ func (r *minimalRedis) Delete(ctx context.Context, key string) {
 	if err != nil {
 		return
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	_ = writeCommand(conn, "DEL", key)
 }
 
@@ -64,9 +64,9 @@ func (r *minimalRedis) dial(ctx context.Context) (net.Conn, error) {
 
 func writeCommand(w io.Writer, parts ...string) error {
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("*%d\r\n", len(parts)))
+	_, _ = fmt.Fprintf(&b, "*%d\r\n", len(parts))
 	for _, p := range parts {
-		b.WriteString(fmt.Sprintf("$%d\r\n%s\r\n", len(p), p))
+		_, _ = fmt.Fprintf(&b, "$%d\r\n%s\r\n", len(p), p)
 	}
 	_, err := w.Write([]byte(b.String()))
 	return err
@@ -81,7 +81,9 @@ func readBulkString(r *bufio.Reader) ([]byte, bool) {
 		return nil, false
 	}
 	var n int
-	fmt.Sscanf(strings.TrimSpace(line), "$%d", &n)
+	if _, err := fmt.Sscanf(strings.TrimSpace(line), "$%d", &n); err != nil {
+		return nil, false
+	}
 	if n <= 0 {
 		return nil, false
 	}
