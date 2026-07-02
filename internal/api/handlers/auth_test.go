@@ -137,13 +137,16 @@ func TestAuthHandlerDelegateAgent(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	tokenStore := auth.NewTokenStore(time.Hour)
-	_ = tokenStore.RegisterRootToken(context.Background(), "root-token", []string{"secrets-admin"})
+	_ = tokenStore.RegisterRootToken(context.Background(), "delegator-token", []string{"agent-delegator"})
 	authSvc := auth.NewService(tokenStore, auth.NewRBAC(), "")
 	handler := handlers.NewAuthHandler(authSvc, time.Hour)
 
 	r := gin.New()
 	r.Use(middleware.Auth(authSvc), middleware.ErrorHandler())
-	r.POST("/auth/agent/delegate", handler.DelegateAgent)
+	r.POST("/auth/agent/delegate",
+		middleware.RequirePermission(authSvc, "auth/agent", "write"),
+		handler.DelegateAgent,
+	)
 
 	body, _ := json.Marshal(dto.AgentDelegateRequest{
 		AgentID:        "bot-1",
@@ -151,7 +154,7 @@ func TestAuthHandlerDelegateAgent(t *testing.T) {
 		AllowedActions: []string{"read"},
 	})
 	req := httptest.NewRequest(http.MethodPost, "/auth/agent/delegate", bytes.NewReader(body))
-	req.Header.Set("Authorization", "Bearer root-token")
+	req.Header.Set("Authorization", "Bearer delegator-token")
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -164,5 +167,60 @@ func TestAuthHandlerDelegateAgent(t *testing.T) {
 	}
 	if resp.ClientToken == "" || resp.Renewable {
 		t.Fatalf("unexpected response: %+v", resp)
+	}
+}
+
+func TestAuthHandlerDelegateAgentRequiresPermission(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tokenStore := auth.NewTokenStore(time.Hour)
+	_ = tokenStore.RegisterRootToken(context.Background(), "reader-token", []string{"secrets-reader"})
+	authSvc := auth.NewService(tokenStore, auth.NewRBAC(), "")
+	handler := handlers.NewAuthHandler(authSvc, time.Hour)
+
+	r := gin.New()
+	r.Use(middleware.Auth(authSvc), middleware.ErrorHandler())
+	r.POST("/auth/agent/delegate",
+		middleware.RequirePermission(authSvc, "auth/agent", "write"),
+		handler.DelegateAgent,
+	)
+
+	body, _ := json.Marshal(dto.AgentDelegateRequest{
+		AgentID: "bot-1", PathPrefix: "agent/bot-1", AllowedActions: []string{"read"},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/auth/agent/delegate", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer reader-token")
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403 body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAuthHandlerClearLockout(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tokenStore := auth.NewTokenStore(time.Hour)
+	_ = tokenStore.RegisterRootToken(context.Background(), "admin-token", []string{"admin"})
+	authSvc := auth.NewService(tokenStore, auth.NewRBAC(), "")
+	authSvc.SetLockoutTracker(auth.NewLockoutTracker(1, time.Minute))
+	handler := handlers.NewAuthHandler(authSvc, time.Hour)
+
+	r := gin.New()
+	r.Use(middleware.Auth(authSvc), middleware.ErrorHandler())
+	r.DELETE("/sys/auth/lockout",
+		middleware.RequirePermission(authSvc, "sys/auth", "sudo"),
+		handler.ClearLockout,
+	)
+
+	body, _ := json.Marshal(dto.LockoutClearRequest{AuthMethod: "token", SourceIP: "10.0.0.1"})
+	req := httptest.NewRequest(http.MethodDelete, "/sys/auth/lockout", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer admin-token")
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d body = %s", rec.Code, rec.Body.String())
 	}
 }

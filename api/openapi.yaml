@@ -1420,6 +1420,18 @@ components:
           type: object
           additionalProperties: true
         hash: { type: string }
+        auth_method: { type: string }
+        source_ip: { type: string }
+        client_identity: { type: string }
+        failure_reason: { type: string }
+        request_id: { type: string }
+        namespace: { type: string }
+    LockoutClearRequest:
+      type: object
+      required: [auth_method, source_ip]
+      properties:
+        auth_method: { type: string }
+        source_ip: { type: string }
     AuditExportResponse:
       type: object
       properties:
