@@ -83,7 +83,7 @@ Version-controlled documentation for architects, operators, developers, and inte
 | [Lab E2E e2e-test01](engineering/lab-e2e-test01.md) | QA / SRE | Single-node Raft smoke on `192.168.137.131` (PASS 20/20) |
 | [Contributing](engineering/contributing.md) | Contributors | PR workflow, licenses, code standards |
 | [Licensing policy](licensing.md) | Contributors | SPDX allow-list and exceptions |
-| [Backlog](backlog.md) | Maintainers | Phased work items (W1–W29 complete) |
+| [Backlog](backlog.md) | Maintainers | Phased work items; **P0:** operator CRDs replace cert-manager (W30-01–10) |
 | [LLD alignment matrix](product/lld-alignment.md) | Maintainers | LLD § → code traceability |
 | [Secrets manager checklist](product/secrets-manager-checklist.md) | Architects | Capability matrix vs evaluation criteria |
 | [BFSI POC traceability matrix](product/bfsi-poc-traceability.md) | Architects / prospects | BFSI must-have requirements → evidence, gaps, waivers |

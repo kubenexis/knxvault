@@ -2,26 +2,28 @@
 
 Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topologically sorted by dependency** — implement in listed order within each phase.
 
-**Current focus:** Phase 4–5 near-term backlog is **largely shipped** (code-audited 2026-07-02, updated 2026-07-02). **33 items Complete**, **11 Partial**, **2 Not started** among Phase 5 / Tier I–L items below. Remaining near-term work is mostly **tenant depth**, **operator/HSM**, and **mTLS polish**. Long-term packaging and cloud engines remain [LT-*](#long-term-future).
+**Current focus (2026-07-16):** **P0 — replace cert-manager** with a first-class KNXVault Kubernetes operator (CRD automation: CA + Certificate → `kubernetes.io/tls` Secret). Prefer KNXVault PKI + operator for **all** in-cluster / internal-CA TLS use cases; keep cert-manager only as optional legacy (ACME/public CAs out of scope). Remaining Phase 5 work also includes tenant depth, HSM, mTLS polish. Long-term packaging and cloud engines remain [LT-*](#long-term-future).
 
 **Legend**
 
 | Field | Meaning |
 |-------|---------|
 | **ID** | `W#-##` = work item (dependency order within phase) |
-| **Status** | **Complete** · **Partial** · **Not started** (code-audited 2026-07-02) |
+| **Priority** | **P0** (current focus) · **P1** (next) · **P2** (later) — omit when complete |
+| **Status** | **Complete** · **Partial** · **Not started** (core audit 2026-07-02; P0 operator program added 2026-07-16) |
 | **Effort** | S (< 1 day) · M (1–3 days) · L (3–7 days) · XL (> 1 week) |
 | **Area** | ci · crypto · storage · api · auth · k8s · docs · security |
 | **Depends on** | Prior backlog IDs that must be complete first |
 
-**Phase 4–5 status summary** (verified against codebase)
+**Phase 4–5 status summary** (verified against codebase + P0 operator expansion)
 
 | Status | Count | IDs |
 |--------|-------|-----|
 | Complete (Tier 0 / Phase 4 core) | 29 | W37-04, W37-06, W37-09, W38-15, W39-01–08, W40-01–03, W40-08, W36-09, W36-10, W36-14, W36-15, W36-16, W36-20, W36-21, W36-22 |
 | Complete (Phase 5 / Tiers I–L) | 33 | W36-19, W41-01–04, W41-06–10, W42-01–08, W43-01–08, W44-01–04, W32-02, W31-01, W40-04–07 |
 | Partial | 11 | W30-01, W32-01, W32-03–05, W33-01–02, W34-01–02, W35-01–02 |
-| Not started | 2 | W30-02, W31-02 |
+| Not started (P0 operator program) | 9 | **W30-02–W30-10** |
+| Not started (other) | 1 | W31-02 |
 | Long-term only | 14 | LT-01–LT-14 |
 
 ## Storage backend (architecture pivot)
