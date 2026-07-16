@@ -40,6 +40,7 @@ Version-controlled documentation for architects, operators, developers, and inte
 
 | Document | Audience | Description |
 |----------|----------|-------------|
+| [**Operator runbook (end-to-end)**](operations/operator-runbook.md) | Operators | **Start here:** what knxvault is, keys, install, unseal, apps, day-2, incidents |
 | [Day-2 operations](operations/day2.md) | Operators | Renewal, rotation, monitoring, upgrades |
 | [PKI administration](operations/pki-administration.md) | Operators | CA hierarchy, issuance recipes, renewal, CRL/OCSP |
 | [PKI Kubernetes integration](operations/pki-kubernetes.md) | Operators | Operator CRDs, Ingress TLS, optional cert-manager |

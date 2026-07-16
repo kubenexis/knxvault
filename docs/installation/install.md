@@ -92,6 +92,8 @@ docker run --rm -p 8200:8200 \
   knxvault:0.4.5 serve
 ```
 
+For a full operator narrative (keys, unseal, apps, day-2) see the [end-to-end operator runbook](../operations/operator-runbook.md).
+
 ## Option 3: Kubernetes (production HA)
 
 Production deployments use a **3-replica StatefulSet** with Dragonboat Raft. A single lab node is **not** sufficient for production HA smoke (three peers need scheduling capacity and PVCs). For single-host validation use Option 1 single-node Raft or the [lab E2E](../engineering/lab-e2e-test01.md).

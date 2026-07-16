@@ -2,6 +2,8 @@
 
 Production checklist for KNXVault operators. Complements the [security model](../architecture/security-model.md).
 
+> **End-to-end narrative** (what knxvault is, generate/protect keys, install, unseal, day-2): [Operator runbook](operator-runbook.md).
+
 ## 1. Never put passwords in database role `config`
 
 Database roles store **SQL templates and tuning only**. Credential material belongs elsewhere.
