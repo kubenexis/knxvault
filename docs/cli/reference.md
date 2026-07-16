@@ -34,7 +34,7 @@ token: dev-root-token
 | `health` | `GET /health` |
 | `status` | `GET /ready` |
 | `auth login [--token]` | `POST /auth/token` |
-| `kv get <path> [--show-secrets]` | Read a KV secret (values redacted by default) |
+| `kv get <path> [--show-secrets]` | Read a KV secret (values **`[REDACTED]`** by default; stderr hints to use `--show-secrets`) |
 | `kv put <path> key=value...` | Write a KV secret |
 | `pki root --name --common-name [--ttl] [--key-bits]` | Create a self-signed root CA |
 | `pki issue --role --common-name [--dns] [--ttl] [--auto-renew]` | Issue a leaf certificate |
@@ -72,7 +72,7 @@ knxvault-cli doctor --json   # healthy:true, fail:0
 
 knxvault-cli auth login --token dev-root-token
 knxvault-cli kv put app/db password=s3cret
-knxvault-cli kv get app/db                 # values redacted → [REDACTED]
+knxvault-cli kv get app/db                 # JSON values → [REDACTED]; stderr: use --show-secrets
 knxvault-cli kv get app/db --show-secrets  # plaintext (avoid shared logs)
 knxvault-cli pki issue --role root --common-name app.example.com --dns app.example.com --auto-renew
 knxvault-cli sys seal

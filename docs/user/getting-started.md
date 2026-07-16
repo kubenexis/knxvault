@@ -75,14 +75,15 @@ Kubernetes workloads use `POST /auth/kubernetes` with a ServiceAccount JWT. In-c
 
 # Default: secret values are redacted (safe for terminals and logs)
 ./bin/knxvault-cli kv get app/db
-# → "password": "[REDACTED]"
+# stdout → "password": "[REDACTED]"
+# stderr → note: secret values redacted; use --show-secrets to reveal
 
 # Reveal plaintext only when you need it
 ./bin/knxvault-cli kv get app/db --show-secrets
 # → "password": "s3cret"
 ```
 
-> **CLI redaction:** `kv get` without `--show-secrets` returns `[REDACTED]` for values. This is intentional and matches lab E2E expectations. Use `--show-secrets` for automation that needs real values; avoid piping that output into shared logs.
+> **CLI redaction:** `kv get` without `--show-secrets` returns `[REDACTED]` for values and prints a one-line **stderr** hint. This is intentional. Use `--show-secrets` for automation that needs real values; avoid piping that output into shared logs. The HTTP API still returns plaintext (protect the channel).
 
 **API:**
 

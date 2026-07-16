@@ -80,10 +80,11 @@ endef
 # =============================================================================
 
 .PHONY: all
-all: ## Run fmt, vet, lint, gosec, licenses, scan, test, test-integration, build, and sbom
+all: ## Run fmt, vet, lint, docs-lint, gosec, licenses, scan, test, test-integration, build, and sbom
 	$(MAKE) --no-print-directory fmt
 	$(MAKE) --no-print-directory vet
 	$(MAKE) --no-print-directory lint
+	$(MAKE) --no-print-directory docs-lint
 	$(MAKE) --no-print-directory gosec
 	$(MAKE) --no-print-directory licenses
 	$(MAKE) --no-print-directory scan
@@ -98,7 +99,7 @@ all: ## Run fmt, vet, lint, gosec, licenses, scan, test, test-integration, build
 # Go quality
 # =============================================================================
 
-.PHONY: fmt vet lint gosec semgrep licenses test test-integration build build-cli build-csi build-webhook build-eso generate-clients test-clients check-client-drift sbom scan tidy install-tools docker-build clean
+.PHONY: fmt vet lint docs-lint gosec semgrep licenses test test-integration build build-cli build-csi build-webhook build-eso generate-clients test-clients check-client-drift sbom scan tidy install-tools docker-build clean
 
 fmt: ## Check Go formatting (gofmt)
 	$(call log,Checking gofmt)
@@ -123,6 +124,11 @@ lint: ## Run golangci-lint
 		exit 1; \
 	}
 	GOTOOLCHAIN=$(GO_TOOLCHAIN) $(GOLANGCI_LINT) run ./...
+
+docs-lint: ## Fail bare `kv get` docs without redaction/--show-secrets context
+	$(call log,Checking kv get documentation)
+	$(call require_cmd,bash)
+	@bash scripts/check-kv-get-docs.sh
 
 gosec: ## Run gosec security scanner (W11-02)
 	$(call log,Running gosec)

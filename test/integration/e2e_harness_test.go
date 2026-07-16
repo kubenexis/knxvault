@@ -1,6 +1,7 @@
 package integration_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -148,7 +149,19 @@ func (e *daemonEnv) runCLI(args ...string) []byte {
 	return e.runCLIEnv(nil, args...)
 }
 
+// runCLIWithStderr runs the CLI and returns stdout and stderr separately (stdout stays JSON-clean).
+func (e *daemonEnv) runCLIWithStderr(args ...string) (stdout []byte, stderr string) {
+	e.t.Helper()
+	return e.runCLIEnvWithStderr(nil, args...)
+}
+
 func (e *daemonEnv) runCLIEnv(extraEnv []string, args ...string) []byte {
+	e.t.Helper()
+	out, _ := e.runCLIEnvWithStderr(extraEnv, args...)
+	return out
+}
+
+func (e *daemonEnv) runCLIEnvWithStderr(extraEnv []string, args ...string) (stdout []byte, stderr string) {
 	e.t.Helper()
 	cmd := exec.Command(e.cliBin, args...)
 	env := append(os.Environ(), extraEnv...)
@@ -159,15 +172,13 @@ func (e *daemonEnv) runCLIEnv(extraEnv []string, args ...string) []byte {
 		env = append(env, "KNXVAULT_TOKEN="+e.token)
 	}
 	cmd.Env = env
+	var stderrBuf bytes.Buffer
+	cmd.Stderr = &stderrBuf
 	out, err := cmd.Output()
 	if err != nil {
-		var stderr []byte
-		if ee, ok := err.(*exec.ExitError); ok {
-			stderr = ee.Stderr
-		}
-		e.t.Fatalf("knxvault-cli %s: %v\nstderr: %s", strings.Join(args, " "), err, stderr)
+		e.t.Fatalf("knxvault-cli %s: %v\nstderr: %s", strings.Join(args, " "), err, stderrBuf.String())
 	}
-	return out
+	return out, stderrBuf.String()
 }
 
 func e2eBins(t *testing.T) (serverBin, cliBin string) {

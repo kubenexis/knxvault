@@ -1290,7 +1290,9 @@ knxvault pki crl generate
 
 ```bash
 knxvault kv put secret/data/prod/db password=SuperSecret123
+# Default CLI output redacts values ([REDACTED]); use --show-secrets for plaintext
 knxvault kv get secret/data/prod/db
+knxvault kv get secret/data/prod/db --show-secrets
 knxvault kv list secret/
 knxvault kv versions secret/data/prod/db
 knxvault kv delete secret/data/prod/db --version 2

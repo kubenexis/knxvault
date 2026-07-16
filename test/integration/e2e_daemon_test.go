@@ -92,13 +92,17 @@ func TestE2EDaemonCLIWorkflow(t *testing.T) {
 		t.Fatalf("secret password = %q, want %q (data=%v)", got, secretValue, secret.Data)
 	}
 
-	// Default kv get redacts values.
+	// Default kv get redacts values and hints on stderr.
 	var redacted struct {
 		Data map[string]any `json:"data"`
 	}
-	parseCLIJSON(t, env.runCLI("kv", "get", secretPath), &redacted)
+	stdout, stderr := env.runCLIWithStderr("kv", "get", secretPath)
+	parseCLIJSON(t, stdout, &redacted)
 	if redacted.Data["password"] != "[REDACTED]" {
 		t.Fatalf("redacted password = %v, want [REDACTED]", redacted.Data["password"])
+	}
+	if !strings.Contains(stderr, "--show-secrets") {
+		t.Fatalf("stderr missing redaction hint: %q", stderr)
 	}
 }
 

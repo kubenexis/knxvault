@@ -70,13 +70,19 @@ export KNXVAULT_ROOT_TOKEN=dev-root-token
 export KNXVAULT_ADDR=http://localhost:8200
 export KNXVAULT_TOKEN=dev-root-token
 ./bin/knxvault-cli health
+./bin/knxvault-cli doctor --json
 ./bin/knxvault-cli kv put test/key value=hello
+# Default CLI output redacts values ([REDACTED]); stderr hints to use --show-secrets
 ./bin/knxvault-cli kv get test/key
+./bin/knxvault-cli kv get test/key --show-secrets
 ```
 
 ### Single-node Raft manual test
 
 ```bash
+export KNXVAULT_MASTER_KEY=$(openssl rand -base64 32)
+export KNXVAULT_UNSEAL_KEY=$(openssl rand -base64 32)   # required; must differ from master
+export KNXVAULT_ROOT_TOKEN=dev-root-token
 export KNXVAULT_RAFT_ENABLED=true
 export KNXVAULT_RAFT_NODE_ID=1
 export KNXVAULT_RAFT_ADDRESS=127.0.0.1:63001
@@ -92,8 +98,19 @@ export KNXVAULT_RAFT_INITIAL_MEMBERS=1=127.0.0.1:63001
 - For API tests, use `httptest` or the integration harness in `test/integration/`
 - Raft state machine changes require snapshot round-trip tests in `internal/raft/`
 
+## Documentation lint
+
+Bare `kv get` examples must document redaction or use `--show-secrets` (see `scripts/check-kv-get-docs.sh`):
+
+```bash
+make docs-lint
+```
+
+Included in `make all` after `lint`.
+
 ## Related documents
 
 - [Manual testing strategy](manual-testing-strategy.md)
 - [Development guide](development.md)
 - [Contributing](contributing.md)
+- [CLI reference](../cli/reference.md) — `kv get` redaction / `--show-secrets`
