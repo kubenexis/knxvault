@@ -127,6 +127,16 @@ scp bin/knxvault bin/knxvault-cli root@192.168.137.131:/opt/knxvault/
 # Lab node — clean raft dir, new keys, start, smoke (see Environment + Checks)
 ```
 
+## Doc updates driven by this E2E
+
+Learnings from this run were folded into user/admin docs:
+
+- [Installation guide](../installation/install.md) — single-node Raft env, unseal required, post-install verify
+- [Kubernetes deploy](../deploy/kubernetes.md) + [`secret.yaml`](../../deployments/k8s/secret.yaml) — `KNXVAULT_UNSEAL_KEY`
+- [Getting started](../user/getting-started.md) — `doctor`, KV redaction / `--show-secrets`
+- [Operator security](../operations/operator-security.md) — master vs unseal custody
+- [Deploy 3-node recipe](../recipes/deploy-3-node-cluster.md) — generate unseal; CrashLoop troubleshooting
+
 ## See also
 
 - [Local dev single-node recipe](../recipes/local-dev-single-node.md)

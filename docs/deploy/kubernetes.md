@@ -20,11 +20,22 @@ Update `deployments/k8s/statefulset.yaml` `image:` to match your tag.
 
 ## Configure secrets
 
-Edit [`deployments/k8s/secret.yaml`](../../deployments/k8s/secret.yaml):
+Edit [`deployments/k8s/secret.yaml`](../../deployments/k8s/secret.yaml) before apply. The StatefulSet injects **all** keys via `envFrom.secretRef`.
 
-1. `KNXVAULT_MASTER_KEY` — `openssl rand -base64 32`
-2. `KNXVAULT_ROOT_TOKEN` — strong bootstrap token
-3. `KNXVAULT_AUDIT_SIGNING_KEY` — optional HMAC key for audit export integrity
+| Key | Required | How to generate | Notes |
+|-----|----------|-----------------|-------|
+| `KNXVAULT_MASTER_KEY` | **Yes** | `openssl rand -base64 32` | Envelope encryption (DEK wrapping). Never commit real values. |
+| `KNXVAULT_UNSEAL_KEY` | **Yes** (Raft STS) | `openssl rand -base64 32` | **Must differ from master.** Startup fails if unset or equal: `unseal key is required when raft is enabled`. Used for seal/unseal, not envelope crypto. |
+| `KNXVAULT_ROOT_TOKEN` | **Yes** (bootstrap) | strong random token | Rotate after scoped policies exist. |
+| `KNXVAULT_AUDIT_SIGNING_KEY` | Recommended | `openssl rand -base64 32` | Tamper-evident audit export HMAC. |
+
+```bash
+# Example (do not paste into git — set in a private Secret / sealed-secrets / external secrets)
+openssl rand -base64 32   # master
+openssl rand -base64 32   # unseal (run again; must not match master)
+```
+
+> **Topology:** Production HA is a **3-replica** StatefulSet. A single-node cluster cannot provide Raft quorum for failover tests. For single-host smoke, use bare-metal/Docker single-node Raft ([install guide](../installation/install.md), [lab E2E](../engineering/lab-e2e-test01.md)).
 
 > **Note:** `deployments/k8s/legacy/deployment.yaml` is deprecated (single Deployment without Raft). Use the StatefulSet flow below for production.
 
@@ -50,7 +61,16 @@ The StatefulSet runs **3 replicas** with Dragonboat Raft (`KNXVAULT_RAFT_ENABLED
 | `service-raft.yaml` | Headless Service for stable Raft DNS |
 | `service.yaml` | HTTP Service for API traffic |
 
-Readiness (`GET /ready`) includes `raft_enabled`, `raft_ready`, and `leader` when HA is active. Prometheus exposes `knxvault_raft_leader`, `knxvault_raft_term`, and `knxvault_raft_commit_index`.
+Readiness (`GET /ready`) includes production fields when HA is active:
+
+| Field | Operator meaning |
+|-------|------------------|
+| `status` | `ready` when the pod can accept traffic |
+| `sealed` | Must be `false` for writes |
+| `raft_enabled` / `raft_ready` | Raft configured and cluster usable |
+| `leader` | This pod is the Raft leader (background jobs run here) |
+
+Prometheus exposes `knxvault_raft_leader`, `knxvault_raft_term`, and `knxvault_raft_commit_index`.
 
 See [`docs/storage/dragonboat.md`](../storage/dragonboat.md) for Raft configuration details.
 
@@ -80,7 +100,7 @@ Optional hardening on secured routes (see ConfigMap / Secret):
 | Probe | Path | Purpose |
 |-------|------|---------|
 | Liveness | `GET /health` | Process is alive |
-| Readiness | `GET /ready` | Raft leader elected (when enabled) |
+| Readiness | `GET /ready` | Unsealed; Raft ready / leader elected when HA is enabled |
 
 ## Metrics
 
@@ -90,10 +110,19 @@ Prometheus scrape annotations are set on the pod template. See [`docs/metrics.md
 
 ```bash
 kubectl -n knxvault port-forward svc/knxvault 8200:8200
-curl -s http://localhost:8200/health
-curl -s http://localhost:8200/ready
-curl -s http://localhost:8200/metrics | head
+export KNXVAULT_ADDR=http://localhost:8200
+export KNXVAULT_TOKEN=<bootstrap-root-token>
+
+curl -s "$KNXVAULT_ADDR/health"   # healthy
+curl -s "$KNXVAULT_ADDR/ready"    # ready, sealed:false, raft_ready:true
+# Prefer doctor when the CLI is available (host or debug pod):
+# knxvault-cli doctor --json   # healthy:true, fail:0
+# Expect a warn if traffic is plain HTTP — terminate TLS at ingress in production.
+
+curl -s "$KNXVAULT_ADDR/metrics" | head -n 5
 ```
+
+Also confirm pods are not crash-looping on missing unseal (check logs for `unseal key is required when raft is enabled`).
 
 ## Legacy Deployment manifest
 

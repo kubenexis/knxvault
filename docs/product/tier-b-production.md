@@ -39,7 +39,7 @@ Operational seal blocks mutating secured routes with `503 unavailable`. Reads an
 
 | Variable | Description |
 |----------|-------------|
-| `KNXVAULT_UNSEAL_KEY` | Base64 unseal key; defaults to master key when unset |
+| `KNXVAULT_UNSEAL_KEY` | Base64 unseal key; **required when Raft is enabled** and **must differ from master** (startup fails if unset or equal) |
 
 CLI: `knxvault-cli sys seal`, `knxvault-cli sys unseal <key>`.
 

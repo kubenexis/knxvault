@@ -27,9 +27,10 @@ In another terminal:
 export KNXVAULT_ADDR=http://localhost:8200
 export KNXVAULT_TOKEN=dev-root-token
 
-./bin/knxvault-cli doctor
+./bin/knxvault-cli doctor --json   # healthy:true, fail:0
 ./bin/knxvault-cli kv put dev/hello value=world
-./bin/knxvault-cli kv get dev/hello --show-secrets
+./bin/knxvault-cli kv get dev/hello                 # [REDACTED]
+./bin/knxvault-cli kv get dev/hello --show-secrets  # plaintext
 ```
 
 ## Optional: single-node Raft
@@ -48,9 +49,10 @@ export KNXVAULT_RAFT_DATA_DIR=/tmp/knxvault-raft
 
 ./bin/knxvault serve
 curl -s http://localhost:8200/ready | jq .
+# expect: ready, sealed:false, raft_enabled:true, raft_ready:true, leader:true
 ```
 
-Lab single-node E2E on bare metal (e.g. `192.168.137.131`): [lab-e2e-test01.md](../engineering/lab-e2e-test01.md).
+Lab single-node E2E on bare metal (e.g. `192.168.137.131`): [lab-e2e-test01.md](../engineering/lab-e2e-test01.md). Post-install verify fields: [Installation](../installation/install.md#post-install-verify).
 
 ## Dev-only Kubernetes auth
 

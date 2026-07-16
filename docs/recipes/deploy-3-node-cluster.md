@@ -46,17 +46,24 @@ Edit `deployments/k8s/statefulset.yaml` and set `image:` to your tag.
 
 ## Step 2 — Generate secrets
 
+Raft requires **master** and a **distinct unseal** key. Pods crash-loop with `unseal key is required when raft is enabled` if unseal is missing.
+
 ```bash
 export KNXVAULT_MASTER_KEY=$(openssl rand -base64 32)
+export KNXVAULT_UNSEAL_KEY=$(openssl rand -base64 32)   # must differ from master
 export KNXVAULT_ROOT_TOKEN=$(openssl rand -hex 32)
 export KNXVAULT_AUDIT_SIGNING_KEY=$(openssl rand -hex 32)
 
-echo "Save these securely — they are required for backup restore and audit verify."
+# Sanity: reject accidental identical keys
+[ "$KNXVAULT_MASTER_KEY" != "$KNXVAULT_UNSEAL_KEY" ] || { echo "master and unseal must differ"; exit 1; }
+
+echo "Save these securely — master is required for backup restore; unseal for seal/unseal and Raft startup."
 ```
 
-Edit `deployments/k8s/secret.yaml`:
+Edit `deployments/k8s/secret.yaml` (all keys are injected via `envFrom.secretRef`):
 
 - `KNXVAULT_MASTER_KEY` — envelope encryption key (32 bytes, base64)
+- `KNXVAULT_UNSEAL_KEY` — **required** with Raft; must differ from master
 - `KNXVAULT_ROOT_TOKEN` — bootstrap admin token (rotate after setup)
 - `KNXVAULT_AUDIT_SIGNING_KEY` — optional; enables signed audit export heads
 
@@ -111,9 +118,9 @@ for i in 0 1 2; do
 done
 ```
 
-Expected:
+Expected on `/ready`:
 
-- All pods: `raft_enabled: true`, `raft_ready: true`
+- All pods: `status: ready`, `sealed: false`, `raft_enabled: true`, `raft_ready: true`
 - Exactly one pod: `leader: true`
 
 Check Prometheus metrics:
@@ -126,9 +133,10 @@ curl -s $KNXVAULT_ADDR/metrics | grep knxvault_raft_leader
 CLI smoke test:
 
 ```bash
-knxvault-cli doctor
+knxvault-cli doctor --json   # healthy:true, fail:0 (http warn ok until TLS is enabled)
 knxvault-cli kv put cluster/bootstrap value=ok
-knxvault-cli kv get cluster/bootstrap --show-secrets
+knxvault-cli kv get cluster/bootstrap                 # [REDACTED]
+knxvault-cli kv get cluster/bootstrap --show-secrets  # plaintext
 ```
 
 ## Step 5 — Post-deploy hardening
@@ -143,9 +151,11 @@ knxvault-cli kv get cluster/bootstrap --show-secrets
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
 | Pod stuck `Pending` | No StorageClass / PVC quota | Check `kubectl describe pvc` |
+| CrashLoop: `unseal key is required when raft is enabled` | Missing / equal `KNXVAULT_UNSEAL_KEY` in Secret | Set distinct base64-32 unseal in `secret.yaml` |
 | `raft_ready: false` | `INITIAL_MEMBERS` mismatch | Align IDs with pod ordinals +1 |
 | Two leaders in metrics | Scraping stale target | Confirm per-pod scrape; only one `leader=1` |
 | `KNXVAULT_RAFT_NODE_ID must be > 0` | Raft on without node ID | Use StatefulSet (auto-derive) or set ID explicitly |
+| Single-node lab only | Not enough nodes for 3-replica STS | Use [local-dev single-node](local-dev-single-node.md) or [lab E2E](../engineering/lab-e2e-test01.md) |
 
 ## Related recipes
 

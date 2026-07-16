@@ -11,6 +11,34 @@ export KNXVAULT_ADDR=http://localhost:8200
 export KNXVAULT_TOKEN=dev-root-token   # bootstrap token
 ```
 
+## 0. Verify the deployment
+
+Before writing secrets, confirm the server is healthy. Prefer `doctor` as the single gate used in lab and production smoke tests.
+
+```bash
+./bin/knxvault-cli health          # liveness → status healthy
+./bin/knxvault-cli status          # readiness → status ready
+./bin/knxvault-cli doctor --json   # full report
+```
+
+Expect `"healthy": true` and `"fail": 0`. Common checks:
+
+| Check | Meaning |
+|-------|---------|
+| `server.health` / `server.readiness` | API is up and accepting traffic |
+| `server.sealed` | Vault is unsealed (writes allowed) |
+| `server.raft` | Raft ready when HA/persistent Raft is enabled |
+| `auth.token` | Your token is valid |
+| `cli.config.tls` **warn** | API is plain HTTP — expected in local lab; use HTTPS in production |
+
+HTTP equivalents:
+
+```bash
+curl -s "$KNXVAULT_ADDR/health"
+curl -s "$KNXVAULT_ADDR/ready"
+# With Raft, expect sealed:false, raft_ready:true, and leader:true on the leader node
+```
+
 ## Core concepts
 
 | Concept | Description |
@@ -30,6 +58,12 @@ curl -s -X POST $KNXVAULT_ADDR/auth/token \
   -d "{\"token\":\"$KNXVAULT_TOKEN\"}"
 ```
 
+Or:
+
+```bash
+./bin/knxvault-cli auth login --token "$KNXVAULT_TOKEN"
+```
+
 Kubernetes workloads use `POST /auth/kubernetes` with a ServiceAccount JWT. In-cluster **TokenReview** is used automatically in production. `KNXVAULT_JWT_SECRET` is for local dev only.
 
 ## 2. Store and read a secret
@@ -38,8 +72,17 @@ Kubernetes workloads use `POST /auth/kubernetes` with a ServiceAccount JWT. In-c
 
 ```bash
 ./bin/knxvault-cli kv put app/db password=s3cret host=db.internal
+
+# Default: secret values are redacted (safe for terminals and logs)
 ./bin/knxvault-cli kv get app/db
+# → "password": "[REDACTED]"
+
+# Reveal plaintext only when you need it
+./bin/knxvault-cli kv get app/db --show-secrets
+# → "password": "s3cret"
 ```
+
+> **CLI redaction:** `kv get` without `--show-secrets` returns `[REDACTED]` for values. This is intentional and matches lab E2E expectations. Use `--show-secrets` for automation that needs real values; avoid piping that output into shared logs.
 
 **API:**
 
@@ -50,7 +93,7 @@ curl -s -X POST $KNXVAULT_ADDR/secrets/kv/app/db \
   -H 'Content-Type: application/json' \
   -d '{"data":{"password":"s3cret"},"options":{"ttl":"24h"}}'
 
-# Read latest version
+# Read latest version (API returns plaintext data; protect the response channel)
 curl -s $KNXVAULT_ADDR/secrets/kv/app/db \
   -H "Authorization: Bearer $KNXVAULT_TOKEN"
 ```
@@ -58,6 +101,8 @@ curl -s $KNXVAULT_ADDR/secrets/kv/app/db \
 KVv2 supports versioning, TTL expiration, and check-and-set via the `options` block.
 
 ## 3. Create a PKI hierarchy
+
+The **issue role name is the CA name** you created (for example `dev-root`).
 
 ```bash
 # Root CA (self-signed trust anchor)
@@ -77,6 +122,13 @@ curl -s -X POST $KNXVAULT_ADDR/pki/issue \
     "ttl": "720h",
     "auto_renew": true
   }'
+```
+
+CLI equivalent:
+
+```bash
+./bin/knxvault-cli pki root --name dev-root --common-name "KNXVault Root CA" --ttl 8760h
+./bin/knxvault-cli pki issue --role dev-root --common-name api.example.com --dns api.example.com --ttl 720h
 ```
 
 Set `"auto_renew": true` to track the certificate for background renewal by the Raft leader.
@@ -152,6 +204,7 @@ Use `POST /inject/render` from an init container or sidecar. See [Secrets inject
 ## Next steps
 
 - [Dummies guide](dummies-guide.md) — concepts, Kubernetes use cases, and security overview
+- [Installation guide](../installation/install.md) — local, Docker, Kubernetes; Raft unseal requirements
 - [Recipes index](../recipes/README.md) — step-by-step guides for production tasks
 - [CLI reference](../cli/reference.md)
 - [API reference](../api/reference.md)

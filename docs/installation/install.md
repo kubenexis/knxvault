@@ -7,11 +7,13 @@ Install KNXVault as a local binary, container, or 3-node Kubernetes Raft cluster
 | Requirement | Version | Notes |
 |-------------|---------|-------|
 | Go | 1.26+ | For building from source (`GOTOOLCHAIN=go1.26.4`) |
-| OpenSSL | 3.x | Required for PKI operations |
-| Kubernetes | 1.28+ | For production HA deployment |
+| OpenSSL | 3.x | Required for PKI operations (host or image must provide `openssl` on `PATH`) |
+| Kubernetes | 1.28+ | For production HA deployment (**3 nodes** for Raft quorum) |
 | Docker | optional | For `make docker-build` |
 
 ## Option 1: Local binary (development)
+
+In-memory mode (data lost on restart). Suitable for local CLI exploration:
 
 ```bash
 git clone https://github.com/your-org/knxvault.git
@@ -23,31 +25,38 @@ export KNXVAULT_ROOT_TOKEN=dev-root-token
 ./bin/knxvault serve
 ```
 
-Verify:
-
-```bash
-curl -s http://localhost:8200/health
-open http://localhost:8200/swagger   # or visit in browser
-```
-
 Without `KNXVAULT_RAFT_ENABLED`, the server uses **in-memory** repositories. Data is lost on restart.
 
 When `/etc/knxvault.conf` exists, `knxvault serve` loads it automatically. Override with `knxvault -c /path/knxvault.conf serve`. See [Configuration reference](configuration.md).
 
-### Single-node Raft (persistent local dev)
+### Single-node Raft (persistent local / lab)
+
+Use this for persistent local dev or a **single bare-metal lab host**. This is **not** HA: failover and multi-replica quorum still require three Raft peers (Option 3 or multi-process Profile A in [manual testing](../engineering/manual-testing-strategy.md)).
+
+When Raft is enabled, **`KNXVAULT_UNSEAL_KEY` is required** at startup and must be a base64-encoded 32-byte key **different from** `KNXVAULT_MASTER_KEY`. If it is unset (or equal to the master key), `serve` exits immediately with:
+
+```text
+unseal key is required when raft is enabled (set KNXVAULT_UNSEAL_KEY)
+```
 
 ```bash
+export KNXVAULT_MASTER_KEY=$(openssl rand -base64 32)
+export KNXVAULT_UNSEAL_KEY=$(openssl rand -base64 32)   # required; must differ from master
+export KNXVAULT_ROOT_TOKEN=dev-root-token
 export KNXVAULT_RAFT_ENABLED=true
 export KNXVAULT_RAFT_NODE_ID=1
 export KNXVAULT_RAFT_ADDRESS=127.0.0.1:63001
-export KNXVAULT_RAFT_DATA_DIR=/tmp/knxvault-raft
+export KNXVAULT_RAFT_DATA_DIR=/tmp/knxvault-raft   # or a durable path such as /var/lib/knxvault/raft
 export KNXVAULT_RAFT_INITIAL_MEMBERS=1=127.0.0.1:63001
 
 ./bin/knxvault serve
-curl -s http://localhost:8200/ready | jq
 ```
 
+Bare-metal lab smoke (host binary, single-node Raft): [Lab E2E e2e-test01](../engineering/lab-e2e-test01.md).
+
 ## Option 2: Docker
+
+In-memory (or default) container:
 
 ```bash
 make docker-build
@@ -58,11 +67,28 @@ docker run --rm -p 8200:8200 \
   knxvault:0.4.5 serve
 ```
 
-For persistent Raft data, mount a volume at `/var/lib/knxvault/raft` and set the `KNXVAULT_RAFT_*` variables.
+For **persistent single-node Raft**, mount a data volume and set unseal + Raft env (unseal must differ from master):
 
-## Option 3: Kubernetes (production)
+```bash
+MASTER=$(openssl rand -base64 32)
+UNSEAL=$(openssl rand -base64 32)
 
-Production deployments use a **3-replica StatefulSet** with Dragonboat Raft.
+docker run --rm -p 8200:8200 \
+  -v knxvault-raft:/var/lib/knxvault/raft \
+  -e KNXVAULT_MASTER_KEY="$MASTER" \
+  -e KNXVAULT_UNSEAL_KEY="$UNSEAL" \
+  -e KNXVAULT_ROOT_TOKEN=dev-root-token \
+  -e KNXVAULT_RAFT_ENABLED=true \
+  -e KNXVAULT_RAFT_NODE_ID=1 \
+  -e KNXVAULT_RAFT_ADDRESS=127.0.0.1:63001 \
+  -e KNXVAULT_RAFT_DATA_DIR=/var/lib/knxvault/raft \
+  -e KNXVAULT_RAFT_INITIAL_MEMBERS=1=127.0.0.1:63001 \
+  knxvault:0.4.5 serve
+```
+
+## Option 3: Kubernetes (production HA)
+
+Production deployments use a **3-replica StatefulSet** with Dragonboat Raft. A single lab node is **not** sufficient for production HA smoke (three peers need scheduling capacity and PVCs). For single-host validation use Option 1 single-node Raft or the [lab E2E](../engineering/lab-e2e-test01.md).
 
 ```bash
 make docker-build
@@ -81,11 +107,50 @@ kubectl apply -f deployments/k8s/service.yaml
 
 Before applying, edit [`deployments/k8s/secret.yaml`](../../deployments/k8s/secret.yaml):
 
-1. `KNXVAULT_MASTER_KEY` — `openssl rand -base64 32`
-2. `KNXVAULT_ROOT_TOKEN` — strong bootstrap token
-3. `KNXVAULT_AUDIT_SIGNING_KEY` — optional audit export HMAC key
+1. `KNXVAULT_MASTER_KEY` — `openssl rand -base64 32` (envelope encryption)
+2. `KNXVAULT_UNSEAL_KEY` — `openssl rand -base64 32` (**required** with Raft; **must differ** from master)
+3. `KNXVAULT_ROOT_TOKEN` — strong bootstrap token
+4. `KNXVAULT_AUDIT_SIGNING_KEY` — optional audit export HMAC key
 
-Full details: [Kubernetes deployment](../deploy/kubernetes.md).
+The StatefulSet loads all Secret keys via `envFrom.secretRef`. Full details: [Kubernetes deployment](../deploy/kubernetes.md).
+
+## Post-install verify
+
+Run after every install (local, Docker, or port-forward to the Service). Prefer the CLI when available.
+
+```bash
+export KNXVAULT_ADDR=http://localhost:8200
+export KNXVAULT_TOKEN=dev-root-token   # or your bootstrap token
+
+# 1. Liveness
+curl -s "$KNXVAULT_ADDR/health"
+# expect: "status":"healthy"
+
+# 2. Readiness — production fields when Raft is on
+curl -s "$KNXVAULT_ADDR/ready"
+# expect: "status":"ready", "sealed":false
+# with Raft: "raft_enabled":true, "raft_ready":true, "leader":true (on the leader)
+
+# 3. Full operator/CLI gate (recommended)
+./bin/knxvault-cli doctor --json
+# expect: "healthy": true, "fail": 0
+# lab-only warn: API traffic over http (use https in production)
+```
+
+| Field on `/ready` | Meaning |
+|-------------------|---------|
+| `status` | `ready` when the node can accept traffic |
+| `sealed` | Must be `false` for writes |
+| `raft_enabled` | Dragonboat backend is configured |
+| `raft_ready` | Raft cluster has a leader / is usable |
+| `leader` | This process is the Raft leader (jobs run here) |
+
+Also confirm OpenAPI and metrics if you expose them operationally:
+
+```bash
+curl -sf -o /dev/null -w "%{http_code}\n" "$KNXVAULT_ADDR/openapi.yaml"   # 200
+curl -sf "$KNXVAULT_ADDR/metrics" | head -n 5
+```
 
 ## Post-install bootstrap
 
@@ -111,7 +176,9 @@ Or use the CLI:
 export KNXVAULT_ADDR=$ADDR
 export KNXVAULT_TOKEN=$TOKEN
 ./bin/knxvault-cli health
+./bin/knxvault-cli doctor
 ./bin/knxvault-cli kv put app/demo key=value
+./bin/knxvault-cli kv get app/demo --show-secrets
 ```
 
 See [Getting started](../user/getting-started.md) for PKI and dynamic secrets workflows.
@@ -122,6 +189,8 @@ A Helm chart is deferred to long-term future. Use raw manifests in [`deployments
 
 ## Next steps
 
-- [Configuration reference](configuration.md) — all environment variables
+- [Configuration reference](configuration.md) — all environment variables (including unseal + Raft)
+- [Local dev single-node recipe](../recipes/local-dev-single-node.md)
+- [Operator security](../operations/operator-security.md) — key custody checklist
 - [Day-2 operations](../operations/day2.md) — backup, monitoring, upgrades
 - [Security model](../architecture/security-model.md) — hardening checklist

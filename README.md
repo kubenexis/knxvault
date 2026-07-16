@@ -12,6 +12,8 @@ Lightweight, production-grade secrets management and PKI built in Go.
 
 ## Quick start
 
+Default quick start uses **in-memory** storage (`KNXVAULT_RAFT_ENABLED` unset). Data is lost on restart.
+
 ```bash
 make all
 export KNXVAULT_MASTER_KEY=$(openssl rand -base64 32)
@@ -19,12 +21,25 @@ export KNXVAULT_ROOT_TOKEN=dev-root-token
 ./bin/knxvault serve
 ```
 
+**Raft (production storage / single-node lab):** set `KNXVAULT_RAFT_ENABLED=true` **and** a dedicated `KNXVAULT_UNSEAL_KEY` (`openssl rand -base64 32`) that **must differ** from the master key. Startup fails without it. Full env: [Installation](docs/installation/install.md#single-node-raft-persistent-local--lab) · [Configuration](docs/installation/configuration.md).
+
 API documentation: [http://localhost:8200/swagger](http://localhost:8200/swagger)  
 Metrics: [http://localhost:8200/metrics](http://localhost:8200/metrics)
+
+Post-start check:
+
+```bash
+export KNXVAULT_ADDR=http://localhost:8200
+export KNXVAULT_TOKEN=dev-root-token
+./bin/knxvault-cli doctor --json   # healthy:true, fail:0
+```
 
 ### Example workflow
 
 ```bash
+export KNXVAULT_ADDR=http://localhost:8200
+export KNXVAULT_TOKEN=dev-root-token
+
 # Authenticate (bootstrap root token)
 curl -s -X POST http://localhost:8200/auth/token \
   -H 'Content-Type: application/json' \
@@ -42,7 +57,8 @@ curl -s -X POST http://localhost:8200/secrets/kv/app/db \
   -H 'Content-Type: application/json' \
   -d '{"data":{"password":"s3cret"},"options":{"ttl":"24h"}}'
 
-# Read a secret
+# Read a secret (API). CLI redacts by default: knxvault-cli kv get app/db
+# Plaintext via CLI: knxvault-cli kv get app/db --show-secrets
 curl -s http://localhost:8200/secrets/kv/app/db \
   -H "Authorization: Bearer dev-root-token"
 ```
@@ -56,6 +72,8 @@ docker run --rm -p 8200:8200 \
   -e KNXVAULT_ROOT_TOKEN=dev-root-token \
   knxvault:0.4.5 serve
 ```
+
+For containerized **Raft**, also pass `KNXVAULT_UNSEAL_KEY` (≠ master) and the `KNXVAULT_RAFT_*` variables — see [Installation](docs/installation/install.md#option-2-docker).
 
 ## Kubernetes
 

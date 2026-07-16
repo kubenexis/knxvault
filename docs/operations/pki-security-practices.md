@@ -86,7 +86,7 @@ knxvault-cli sys seal    # blocks mutating operations
 knxvault-cli sys unseal "<base64-unseal-key>"
 ```
 
-Seal does not erase keys; it blocks writes until unseal. Configure `KNXVAULT_UNSEAL_KEY` separate from master key when possible.
+Seal does not erase keys; it blocks writes until unseal. When Raft is enabled, **`KNXVAULT_UNSEAL_KEY` is required** at startup and **must differ** from `KNXVAULT_MASTER_KEY`. Configure and back up unseal with the same custody as the master key — not optional in production Raft.
 
 ## Certificate content
 

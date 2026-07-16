@@ -32,18 +32,24 @@ curl -s -X POST "$KNXVAULT_ADDR/sys/unseal" \
   -d '{"key":"'"$KNXVAULT_UNSEAL_KEY"'"}' | jq .
 ```
 
-With Raft enabled, unseal key must differ from master key.
+With Raft enabled, **`KNXVAULT_UNSEAL_KEY` is required at process start** and **must differ from the master key**. Startup fails with `unseal key is required when raft is enabled` if it is unset. Store unseal with the same custody as master ([operator security](../operations/operator-security.md#5-master-key-and-unseal-key-custody)).
 
 ## Verify
 
 ```bash
-knxvault-cli kv put seal/test value=ok   # should succeed after unseal
+curl -s "$KNXVAULT_ADDR/ready" | jq .   # sealed:false
+knxvault-cli doctor --json              # server.sealed ok
+knxvault-cli kv put seal/test value=ok  # should succeed after unseal
+knxvault-cli kv get seal/test --show-secrets
 ```
 
 ## Related recipes
 
 - [Master key rotation](master-key-rotation.md)
+- [Deploy 3-node cluster](deploy-3-node-cluster.md)
 
 ## See also
 
 - [Envelope encryption](../architecture/envelope-encryption.md)
+- [Installation guide](../installation/install.md)
+- [Configuration reference](../installation/configuration.md)

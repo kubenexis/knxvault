@@ -46,14 +46,24 @@ No data loss expected. Leader may transfer during the outage.
 **Actions:**
 
 1. Restore at least **2 of 3** nodes with intact PVCs
-2. If PVCs are corrupted, restore from backup:
+2. If PVCs are corrupted, restore from backup on a **fresh single-node** recovery process (then re-expand). Serve will not start under Raft without master + unseal:
 
 ```bash
-# On a fresh single-node cluster for disaster recovery
+# Fresh single-node recovery host (or temporary single-replica)
+export KNXVAULT_MASTER_KEY="$(cat /secure/master.key)"          # same key used when backup was taken
+export KNXVAULT_UNSEAL_KEY="$(cat /secure/unseal.key)"          # required; must differ from master
+export KNXVAULT_ROOT_TOKEN="$(cat /secure/root.token)"
 export KNXVAULT_RAFT_ENABLED=true
 export KNXVAULT_RAFT_NODE_ID=1
-# ... other Raft vars ...
+export KNXVAULT_RAFT_ADDRESS=127.0.0.1:63001
+export KNXVAULT_RAFT_DATA_DIR=/var/lib/knxvault/raft-recovery
+export KNXVAULT_RAFT_INITIAL_MEMBERS=1=127.0.0.1:63001
 
+./bin/knxvault serve &
+# wait for /ready: sealed:false, raft_ready:true
+export KNXVAULT_ADDR=http://127.0.0.1:8200
+export KNXVAULT_TOKEN="$KNXVAULT_ROOT_TOKEN"
+./bin/knxvault-cli doctor --json
 ./bin/knxvault-cli backup restore -f knxvault-backup.json
 ```
 
@@ -103,9 +113,11 @@ kubectl -n knxvault exec knxvault-0 -- df -h /var/lib/knxvault/raft
 
 ## Recovery verification checklist
 
-- [ ] `/ready` returns 200 on all replicas
+- [ ] `/health` returns `status: healthy` on each replica
+- [ ] `/ready` returns 200 with `sealed: false`, `raft_ready: true` on all replicas
 - [ ] Exactly one `knxvault_raft_leader = 1`
-- [ ] Write + read secret round-trip succeeds
+- [ ] `knxvault-cli doctor --json` reports `healthy: true`, `fail: 0` (TLS warn ok only if intentional)
+- [ ] Write + read secret round-trip succeeds (`kv put` / `kv get --show-secrets`)
 - [ ] Background jobs running (check leader pod logs for lease cleanup)
 - [ ] `knxvault_raft_commit_index` increasing under load
 
@@ -114,4 +126,6 @@ kubectl -n knxvault exec knxvault-0 -- df -h /var/lib/knxvault/raft
 - [Dragonboat storage](../../storage/dragonboat.md)
 - [Raft HA & recovery](../../storage/raft-ha-and-recovery.md) — how snapshots, quorum, and partitions work in code
 - [Backup & restore](../../deploy/backup-restore.md)
+- [Installation guide](../../installation/install.md) — unseal + single-node Raft env
+- [Operator security](../operator-security.md) — master vs unseal custody
 - [Scaling runbook](scaling.md)

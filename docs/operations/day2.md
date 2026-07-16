@@ -6,15 +6,22 @@ Ongoing operational tasks for running KNXVault in production.
 
 ## Health monitoring
 
-| Check | Endpoint | Expected |
-|-------|----------|----------|
-| Liveness | `GET /health` | `200`, status `ok` |
-| Readiness | `GET /ready` | `200`, `raft_ready: true`, `leader` set |
+| Check | Endpoint / command | Expected |
+|-------|--------------------|----------|
+| Liveness | `GET /health` | `200`, `status: healthy` |
+| Readiness | `GET /ready` | `200`, `status: ready`, `sealed: false`; with Raft: `raft_ready: true` and exactly one leader cluster-wide |
+| Operator gate | `knxvault-cli doctor --json` | `healthy: true`, `fail: 0` (HTTP TLS warn is lab-only) |
 | Metrics | `GET /metrics` | Prometheus text format |
+
+| `/ready` field | Meaning |
+|----------------|---------|
+| `sealed` | Must be `false` for writes |
+| `raft_enabled` / `raft_ready` | Raft configured and cluster usable |
+| `leader` | This process runs background jobs |
 
 Key metrics: `knxvault_raft_leader`, `knxvault_raft_commit_index`, `knxvault_http_request_duration_seconds`, `knxvault_rate_limited_total`.
 
-See [Prometheus metrics](../metrics.md) and the [Grafana dashboard](../../deployments/grafana/knxvault-overview.json).
+See [Prometheus metrics](../metrics.md) and the [Grafana dashboard](../../deployments/grafana/knxvault-overview.json). Post-install sequence: [Installation — verify](../installation/install.md#post-install-verify).
 
 ## Backup schedule
 

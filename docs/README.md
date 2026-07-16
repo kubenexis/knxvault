@@ -21,8 +21,8 @@ Version-controlled documentation for architects, operators, developers, and inte
 
 | Document | Audience | Description |
 |----------|----------|-------------|
-| [Installation guide](installation/install.md) | Operators | Binary, Docker, Kubernetes quick start |
-| [Configuration reference](installation/configuration.md) | Operators | `/etc/knxvault.conf`, environment variables, and tuning |
+| [Installation guide](installation/install.md) | Operators | Binary, Docker, Kubernetes; Raft unseal; post-install verify |
+| [Configuration reference](installation/configuration.md) | Operators | `/etc/knxvault.conf`, environment variables (incl. required unseal with Raft) |
 
 ## Deployment & integration
 
@@ -44,7 +44,7 @@ Version-controlled documentation for architects, operators, developers, and inte
 | [PKI administration](operations/pki-administration.md) | Operators | CA hierarchy, issuance recipes, renewal, CRL/OCSP |
 | [PKI Kubernetes integration](operations/pki-kubernetes.md) | Operators | Ingress TLS, cert-manager, CronJob issuance patterns |
 | [PKI security best practices](operations/pki-security-practices.md) | Security / SRE | Trust hierarchy, key handling, access control |
-| [Operator security](operations/operator-security.md) | Operators | Credential placement, audit rules, storage classification |
+| [Operator security](operations/operator-security.md) | Operators | Credential placement, master/unseal custody, audit rules |
 | [Runbook: CA compromise](operations/runbooks/ca-compromise.md) | SRE | CA key compromise recovery |
 | [Runbook: Raft failover](operations/runbooks/raft-failover.md) | SRE | Leader loss, quorum loss, recovery |
 | [Runbook: Scaling](operations/runbooks/scaling.md) | SRE | Horizontal scaling and capacity |
@@ -68,8 +68,8 @@ Version-controlled documentation for architects, operators, developers, and inte
 | Document | Audience | Description |
 |----------|----------|-------------|
 | [Dummies guide](user/dummies-guide.md) | DevOps / platform engineers | Plain-language intro: K8s use cases, with/without KNXVault, security benefits |
-| [Getting started](user/getting-started.md) | Users | Core concepts and first workflows |
-| [CLI reference](cli/reference.md) | Users / operators | `knxvault-cli` commands |
+| [Getting started](user/getting-started.md) | Users | Doctor verify, KV redaction, PKI, first workflows |
+| [CLI reference](cli/reference.md) | Users / operators | `knxvault-cli` commands (`doctor`, `kv get --show-secrets`) |
 | [API reference](api/reference.md) | Integrators | REST endpoints and error codes |
 | [OpenAPI spec](../api/openapi.yaml) | Integrators | Machine-readable API (also at `/openapi.yaml`) |
 

@@ -63,16 +63,38 @@ The following are **not encrypted** at the storage layer by design:
 
 Secret **values**, CA **private keys**, and generated DB credentials are encrypted before replication ([ADR-0004](../adr/0004-encrypt-before-replication.md)).
 
+## 5. Master key and unseal key custody
+
+Two distinct operational secrets. Do not conflate them.
+
+| Secret | Purpose | Raft requirement |
+|--------|---------|------------------|
+| `KNXVAULT_MASTER_KEY` | Envelope encryption (wraps DEKs for secrets and CA private keys) | Required for production storage |
+| `KNXVAULT_UNSEAL_KEY` | Operational seal/unseal (`POST /sys/seal`, `POST /sys/unseal`) | **Required at process start** when `KNXVAULT_RAFT_ENABLED=true` |
+
+**Rules:**
+
+1. Generate each with high entropy: `openssl rand -base64 32`.
+2. When Raft is enabled, unseal **must not equal** master. Startup fails if unseal is missing or identical to master (`unseal key is required when raft is enabled`).
+3. Store both in a sealed Kubernetes Secret, sealed-secrets, or external KMS — never in ConfigMaps, Git, or chat.
+4. Back up both with the same custody as the master key; losing unseal blocks recovery from a sealed state.
+5. Unseal is **not** used for envelope encryption (see [envelope encryption](../architecture/envelope-encryption.md)).
+6. After install, run `knxvault-cli doctor --json` and confirm `server.sealed` is ok and `healthy` is true.
+
+K8s template: [`deployments/k8s/secret.yaml`](../../deployments/k8s/secret.yaml). Recipe: [Seal and unseal](../recipes/seal-and-unseal.md).
+
 ## Bootstrap hardening checklist
 
 - [ ] Replace bootstrap root token with scoped policies and roles
 - [ ] Store `KNXVAULT_MASTER_KEY` in a sealed K8s Secret or external KMS
-- [ ] Enable TLS at ingress
+- [ ] Store `KNXVAULT_UNSEAL_KEY` separately from master (required with Raft; never equal master)
+- [ ] Enable TLS at ingress (or server TLS); plain HTTP triggers a `doctor` warn
 - [ ] Restrict `/metrics` with NetworkPolicy
 - [ ] Set `KNXVAULT_AUDIT_SIGNING_KEY`
 - [ ] Enable `KNXVAULT_RATE_LIMIT_ENABLED` in production
 - [ ] Store admin DB credentials in KV, not in database role config
 - [ ] Schedule encrypted backups (`scripts/backup.sh` or CLI)
+- [ ] Post-deploy verify: `/health`, `/ready` (`sealed:false`, `raft_ready:true`), `doctor --json` (`fail:0`)
 
 ## PKI-specific guidance
 
@@ -81,6 +103,8 @@ See [PKI security best practices](pki-security-practices.md) for trust hierarchy
 ## Related documents
 
 - [Security model](../architecture/security-model.md)
+- [Installation guide](../installation/install.md)
+- [Configuration reference](../installation/configuration.md)
 - [Database credentials](../deploy/database-credentials.md)
 - [Day-2 operations](day2.md)
 - [ADR-0004: Encrypt before replication](../adr/0004-encrypt-before-replication.md)

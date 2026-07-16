@@ -66,18 +66,22 @@ token: dev-root-token
 ## Examples
 
 ```bash
+# Post-install / Day-2 gate (prefer --json in automation)
 knxvault-cli doctor
-knxvault-cli doctor --json
+knxvault-cli doctor --json   # healthy:true, fail:0
+
 knxvault-cli auth login --token dev-root-token
 knxvault-cli kv put app/db password=s3cret
-knxvault-cli kv get app/db
-knxvault-cli kv get app/db --show-secrets
+knxvault-cli kv get app/db                 # values redacted → [REDACTED]
+knxvault-cli kv get app/db --show-secrets  # plaintext (avoid shared logs)
 knxvault-cli pki issue --role root --common-name app.example.com --dns app.example.com --auto-renew
 knxvault-cli sys seal
-knxvault-cli sys unseal "$(cat unseal.key)"
+knxvault-cli sys unseal "$(cat unseal.key)"   # key from KNXVAULT_UNSEAL_KEY material
 knxvault-cli backup create -o backup.json
 ```
 
 ## Server binary
 
 The server is `knxvault` (not `knxvault-cli`). Start it with `knxvault serve`. Configuration is documented in [Configuration reference](../installation/configuration.md).
+
+When Raft is enabled, the server process requires `KNXVAULT_UNSEAL_KEY` (distinct from `KNXVAULT_MASTER_KEY`) at startup — see [Installation](../installation/install.md) and [Operator security](../operations/operator-security.md).

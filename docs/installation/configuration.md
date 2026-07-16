@@ -140,10 +140,11 @@ KNXVAULT_RAFT_INITIAL_MEMBERS: "1=knxvault-0.knxvault-raft:63001,2=knxvault-1.kn
 # Node IDs: derived from KNXVAULT_POD_NAME in the StatefulSet (knxvault-0 → 1, etc.)
 ```
 
-Secrets (never in ConfigMap):
+Secrets (never in ConfigMap) — see also [`deployments/k8s/secret.yaml`](../../deployments/k8s/secret.yaml):
 
 ```yaml
 KNXVAULT_MASTER_KEY: "<base64-32-bytes>"
+KNXVAULT_UNSEAL_KEY: "<base64-32-bytes-distinct-from-master>"  # required with Raft
 KNXVAULT_ROOT_TOKEN: "<bootstrap-token>"
 KNXVAULT_AUDIT_SIGNING_KEY: "<audit-hmac>"
 ```
@@ -155,6 +156,7 @@ Kubernetes auth uses in-cluster **TokenReview** automatically — do not set `KN
 | Variable | Guidance |
 |----------|----------|
 | `KNXVAULT_MASTER_KEY` | Never commit to git; use K8s Secret or KMS |
+| `KNXVAULT_UNSEAL_KEY` | **Required when Raft is enabled**; generate separately from master; same custody as master; not for envelope encryption |
 | `KNXVAULT_ROOT_TOKEN` | Rotate after bootstrap; replace with scoped tokens |
 | `KNXVAULT_JWT_SECRET` | Dev-only HS256 K8s auth; production uses in-cluster TokenReview |
 | `KNXVAULT_K8S_AUTH_INSECURE` | Never enable when Raft/production is on |

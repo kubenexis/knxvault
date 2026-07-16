@@ -111,7 +111,7 @@ curl -s -X POST "$KNXVAULT_ADDR/audit/verify" \
 ## Disaster recovery workflow
 
 1. Provision fresh 3-node cluster (same K8s manifests).
-2. Set **original** `KNXVAULT_MASTER_KEY` and root token in `secret.yaml`.
+2. Set **original** `KNXVAULT_MASTER_KEY`, distinct `KNXVAULT_UNSEAL_KEY` (required with Raft), and root token in `secret.yaml`.
 3. Wait for pods Ready.
 4. `backup restore` from latest off-site archive.
 5. Verify KV, PKI, policies; re-enable audit forwarding.
