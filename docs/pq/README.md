@@ -12,6 +12,7 @@ This section captures the **assessment**, **discussion**, and **planned way forw
 
 | Document | Description |
 |----------|-------------|
+| [**Design & architecture discussion**](design-and-architecture-discussion.md) | Full narrative of the PQ design discussion, decisions, and open questions |
 | [Current state](current-state.md) | What algorithms KNXVault uses today and PQ implications |
 | [Roadmap & way forward](roadmap.md) | Phased approach (PQ-0 … PQ-5), priority order, what not to do |
 | [Dual crypto planes](dual-crypto-planes.md) | Classical + PQ coexistence; abstraction; Harbor/K8s compatibility |

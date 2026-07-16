@@ -33,7 +33,7 @@ Design background: [README](README.md), [roadmap](roadmap.md), [dual-crypto-plan
 
 | ID | Priority | Status | Effort | Title | Description | Acceptance |
 |----|----------|--------|--------|-------|-------------|------------|
-| **PQ-01** | P0 | Complete | S | PQ docs section | This `docs/pq/` tree: state, roadmap, dual-plane, generations, backlog | Linked from docs index + security model |
+| **PQ-01** | P0 | Complete | S | PQ docs section | This `docs/pq/` tree: state, roadmap, dual-plane, generations, design discussion, backlog | Linked from docs index + security model |
 | **PQ-02** | P0 | Not started | S | Security model PQ stance | Explicit at-rest AES-256 vs non-PQ PKI/TLS in [security-model](../architecture/security-model.md) | Section + link to `docs/pq/` |
 | **PQ-03** | P0 | Not started | S | Operator runbook pointer | Day-0/Day-2 mention crypto generations as future; Harbor stays classical | Short subsection or link |
 | **PQ-04** | P0 | Not started | M | Classical PKI harden guide | Recommend RSA-4096 and/or ECDSA-P384 for new CAs; short leaf TTL; intermediate pattern | Doc + optional default tweak (non-breaking) |
