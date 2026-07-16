@@ -468,6 +468,19 @@ Source: [`docs/audit/formal-10cycle-full-codebase-2026-07-16.md`](audit/formal-1
 
 ---
 
+
+### W51 — 5-cycle security auditor (2026-07-16)
+
+| ID | Sev | Status | Title |
+|----|-----|--------|-------|
+| ~~W51-01~~ | High | Complete | SignCSR enforces role AllowedDomains/MaxTTL |
+| ~~W51-02~~ | High | Complete | RequireKVAccess fail-closed |
+| ~~W51-03~~ | High | Complete | ClientCertFingerprint SHA-256 |
+| ~~W51-04~~ | Medium | Complete | ACME ValidateDirectoryURL + ESO path + agent .. + audit redact |
+| W51-05 | Medium | Open | SignCSR IP SAN role constraints (residual) |
+
+Report: `docs/audit/formal-5cycle-security-auditor-2026-07-16.md`.
+
 ## Long-term future
 
 Deferred packaging and ecosystem work — not scheduled for Tier 0 / Phase 4–5 near-term delivery. Revisit after **W37** checklist items and **W36** hardening stabilize.

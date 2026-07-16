@@ -58,6 +58,21 @@ func TestRequirePKISignCapabilityFallback(t *testing.T) {
 	}
 }
 
+func TestRequireKVAccessFailClosedNilService(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(middleware.ErrorHandler())
+	r.GET("/secrets/kv/*path", middleware.RequireKVAccess(nil, auth.CapRead, nil), func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+	req := httptest.NewRequest(http.MethodGet, "/secrets/kv/app", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code == http.StatusOK {
+		t.Fatal("nil auth must fail closed for KV access")
+	}
+}
+
 func TestAuthAcceptsVaultTokenHeader(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	store := auth.NewTokenStore(time.Hour)

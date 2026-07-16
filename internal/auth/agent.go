@@ -156,13 +156,19 @@ func ParseAgentDelegateTTL(raw string) (time.Duration, error) {
 
 func normalizeAgentPathPrefix(prefix, agentID string) string {
 	prefix = strings.Trim(strings.TrimSpace(prefix), "/")
+	// Reject path traversal in delegated agent scopes.
+	if strings.Contains(prefix, "..") {
+		prefix = ""
+	}
 	if prefix == "" {
 		prefix = "agent/" + agentID
 	}
 	if !strings.HasPrefix(prefix, "agent/") {
 		prefix = "agent/" + prefix
 	}
-	return prefix + "/"
+	// Collapse accidental double slashes and trailing dots.
+	prefix = strings.ReplaceAll(prefix, "//", "/")
+	return strings.Trim(prefix, "/") + "/"
 }
 
 // ActionAllowedForPrincipal checks delegated action constraints when present.

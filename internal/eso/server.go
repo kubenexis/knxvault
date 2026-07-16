@@ -84,6 +84,11 @@ func (s *Server) handleFetch(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "path is required", http.StatusBadRequest)
 		return
 	}
+	// Path traversal / absolute path rejection (same policy as vault KV admin paths).
+	if err := validateESOPath(req.Path); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	role := req.Role
 	if role == "" {
 		role = s.cfg.Role
@@ -116,6 +121,17 @@ func (s *Server) handleFetch(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(FetchResponse{Data: data})
+}
+
+func validateESOPath(path string) error {
+	p := strings.TrimSpace(path)
+	if p == "" {
+		return fmt.Errorf("path is required")
+	}
+	if strings.Contains(p, "..") || strings.HasPrefix(p, "/") {
+		return fmt.Errorf("path must be a relative KV path without .. segments")
+	}
+	return nil
 }
 
 func (s *Server) resolveToken(ctx context.Context, role string, r *http.Request) (string, error) {

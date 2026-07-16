@@ -7,9 +7,21 @@ import (
 	"strings"
 )
 
-// ValidateOutboundURL rejects SSRF-prone destinations for webhooks and ACME dirs (W50-07).
+// ValidateOutboundURL rejects SSRF-prone destinations for webhooks (W50-07).
 // Allows http/https only; blocks loopback, link-local, private RFC1918, metadata IPs.
+// Resolves hostnames and fail-closes on DNS failure (webhook posts).
 func ValidateOutboundURL(raw string) error {
+	return validateOutboundURL(raw, true)
+}
+
+// ValidateDirectoryURL applies static SSRF checks for ACME directory URLs without
+// requiring DNS resolution (admin-configured directories may be mock/lab hostnames).
+// Still blocks private IP literals and metadata hostnames.
+func ValidateDirectoryURL(raw string) error {
+	return validateOutboundURL(raw, false)
+}
+
+func validateOutboundURL(raw string, resolveDNS bool) error {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return fmt.Errorf("url is required")
@@ -38,11 +50,12 @@ func ValidateOutboundURL(raw string) error {
 		}
 		return nil
 	}
-	// Hostname: resolve and check all answers.
+	if !resolveDNS {
+		return nil
+	}
+	// Hostname: resolve and check all answers (webhooks).
 	ips, err := net.LookupIP(host)
 	if err != nil {
-		// DNS failure is not necessarily SSRF; allow and let dial fail (or reject if prefer fail-closed).
-		// Prefer fail-closed for webhooks.
 		return fmt.Errorf("url host resolve failed: %w", err)
 	}
 	for _, ip := range ips {

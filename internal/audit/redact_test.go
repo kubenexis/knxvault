@@ -28,6 +28,13 @@ func TestSanitizeDetailsRedactsSensitiveKeys(t *testing.T) {
 	if out["role"] != "readonly" {
 		t.Fatalf("role = %v", out["role"])
 	}
+	in2 := map[string]any{"client_token": "t", "jwt": "j", "secret_id": "s", "master_key": "m"}
+	out2 := audit.SanitizeDetails(in2)
+	for _, k := range []string{"client_token", "jwt", "secret_id", "master_key"} {
+		if out2[k] != "[REDACTED]" {
+			t.Fatalf("%s = %v", k, out2[k])
+		}
+	}
 }
 
 func TestRejectSensitiveDetails(t *testing.T) {

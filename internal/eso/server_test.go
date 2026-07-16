@@ -70,3 +70,15 @@ func TestServerFetchMissingPath(t *testing.T) {
 		t.Fatalf("status = %d", rec.Code)
 	}
 }
+
+func TestServerFetchRejectsPathTraversal(t *testing.T) {
+	server := eso.NewServer(eso.Config{})
+	body := []byte(`{"path":"../../etc/passwd"}`)
+	req := httptest.NewRequest(http.MethodPost, "/fetch", bytes.NewReader(body))
+	req.Header.Set("X-KNXVault-Token", "tok")
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+}

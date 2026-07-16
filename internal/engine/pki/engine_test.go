@@ -1,6 +1,9 @@
 package pki_test
 
 import (
+	"crypto/x509/pkix"
+	"crypto/rsa"
+	"crypto/rand"
 	"context"
 	"crypto/x509"
 	"encoding/pem"
@@ -258,5 +261,59 @@ func TestEngineGenerateCRLIncludesRevokedEntry(t *testing.T) {
 	}
 	if len(crl.RevokedCertificateEntries) != 1 {
 		t.Fatalf("revoked entries = %d, want 1", len(crl.RevokedCertificateEntries))
+	}
+}
+
+func TestEngineSignCSREnforcesRoleDomains(t *testing.T) {
+	engine := testPKIEngine(t)
+	engine.SetBackend(pkibackend.NewNativeBackend())
+	ctx := context.Background()
+	if _, err := engine.CreateRoot(ctx, pkiengine.CreateRootRequest{
+		Name: "csr-root", CommonName: "CSR Root", TTL: "30d",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	roleRepo := memory.NewPKIRoleRepository()
+	if err := roleRepo.Save(ctx, &domainpki.Role{
+		Name: "web", CAName: "csr-root",
+		AllowedDomains: []string{"example.com"}, AllowSubdomains: true,
+		MaxTTLSeconds: 3600, KeyUsage: domainpki.RoleUsageServer,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	engine.SetPKIRoleRepository(roleRepo)
+
+	// Build a CSR for evil.other.com
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	csrDER, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{
+		Subject:  pkix.Name{CommonName: "evil.other.com"},
+		DNSNames: []string{"evil.other.com"},
+	}, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrDER})
+	if _, err := engine.SignCSR(ctx, pkiengine.SignCSRRequest{Role: "web", CSRPEM: string(csrPEM), TTL: "30m"}); err == nil {
+		t.Fatal("expected domain rejection for CSR")
+	}
+
+	// Allowed CSR
+	csrDER2, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{
+		Subject:  pkix.Name{CommonName: "app.example.com"},
+		DNSNames: []string{"app.example.com"},
+	}, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	csrPEM2 := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrDER2})
+	res, err := engine.SignCSR(ctx, pkiengine.SignCSRRequest{Role: "web", CSRPEM: string(csrPEM2), TTL: "30m"})
+	if err != nil {
+		t.Fatalf("allowed CSR: %v", err)
+	}
+	if res.CertPEM == "" {
+		t.Fatal("empty cert")
 	}
 }

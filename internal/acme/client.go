@@ -129,6 +129,13 @@ func (c *Client) Issue(ctx context.Context, req OrderRequest) (*Result, error) {
 	if c.cfg.SkipTLSVerify && PublicLEHost(c.cfg.DirectoryURL) {
 		return nil, fmt.Errorf("skipTLSVerify is not allowed for public Let's Encrypt directories")
 	}
+	// SSRF: block private IP literals and metadata hosts on directory URL.
+	// Lab SkipTLSVerify (Pebble on loopback) is allowed to use private hosts.
+	if !c.cfg.SkipTLSVerify {
+		if err := ValidateDirectoryURL(c.cfg.DirectoryURL); err != nil {
+			return nil, fmt.Errorf("acme directory url: %w", err)
+		}
+	}
 	names := uniqueNames(req.CommonName, req.DNSNames)
 	if len(names) == 0 {
 		return nil, fmt.Errorf("at least one domain required")

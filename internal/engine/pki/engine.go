@@ -627,6 +627,8 @@ type SignCSRResult struct {
 }
 
 // SignCSR signs a PEM CSR using the CA bound to a PKI role.
+// When a PKI role defines AllowedDomains / MaxTTL, CSR names and TTL are enforced
+// the same way as IssueCertificate (security audit: CSR path must not bypass role policy).
 func (e *Engine) SignCSR(ctx context.Context, req SignCSRRequest) (*SignCSRResult, error) {
 	if e.crypto == nil || e.caRepo == nil || e.backend == nil {
 		return nil, common.New(common.ErrCodeInternal, "pki engine not fully configured")
@@ -641,8 +643,10 @@ func (e *Engine) SignCSR(ctx context.Context, req SignCSRRequest) (*SignCSRResul
 	if caName == "" {
 		caName = "root"
 	}
+	var pkiRole *domainpki.Role
 	if e.roleRepo != nil && req.Role != "" {
 		if role, err := e.roleRepo.Get(ctx, req.Role); err == nil && role != nil {
+			pkiRole = role
 			caName = role.CAName
 		}
 	}
@@ -652,11 +656,23 @@ func (e *Engine) SignCSR(ctx context.Context, req SignCSRRequest) (*SignCSRResul
 		return nil, err
 	}
 
+	if pkiRole != nil {
+		if err := validateCSRAgainstRole(pkiRole, req.CSRPEM, req.TTL); err != nil {
+			return nil, err
+		}
+	}
+
 	ttl := 720 * time.Hour
 	if req.TTL != "" {
 		ttl, err = utils.ParseTTL(req.TTL)
 		if err != nil {
 			return nil, common.Wrap(common.ErrCodeValidation, "invalid ttl", err)
+		}
+	}
+	if pkiRole != nil && pkiRole.MaxTTLSeconds > 0 {
+		max := time.Duration(pkiRole.MaxTTLSeconds) * time.Second
+		if ttl > max {
+			ttl = max
 		}
 	}
 
@@ -697,6 +713,9 @@ func (e *Engine) SignCSR(ctx context.Context, req SignCSRRequest) (*SignCSRResul
 }
 
 func validateIssueAgainstRole(role *domainpki.Role, req IssueRequest) error {
+	if cn := strings.TrimSpace(req.CommonName); cn != "" && !role.AllowedDomain(cn) {
+		return common.New(common.ErrCodeValidation, fmt.Sprintf("common name %q not allowed by role", cn))
+	}
 	for _, dns := range req.DNSNames {
 		if !role.AllowedDomain(dns) {
 			return common.New(common.ErrCodeValidation, fmt.Sprintf("dns name %q not allowed by role", dns))
@@ -708,6 +727,48 @@ func validateIssueAgainstRole(role *domainpki.Role, req IssueRequest) error {
 			return common.Wrap(common.ErrCodeValidation, "invalid ttl", err)
 		}
 		if int(ttl.Seconds()) > role.MaxTTLSeconds {
+			return common.New(common.ErrCodeValidation, "ttl exceeds role maximum")
+		}
+	}
+	return nil
+}
+
+// validateCSRAgainstRole enforces AllowedDomains and MaxTTL on CSR contents before signing.
+func validateCSRAgainstRole(role *domainpki.Role, csrPEM, ttl string) error {
+	if role == nil {
+		return nil
+	}
+	block, _ := pem.Decode([]byte(csrPEM))
+	if block == nil {
+		return common.New(common.ErrCodeValidation, "invalid csr pem")
+	}
+	csr, err := x509.ParseCertificateRequest(block.Bytes)
+	if err != nil {
+		return common.Wrap(common.ErrCodeValidation, "parse csr", err)
+	}
+	if err := csr.CheckSignature(); err != nil {
+		return common.Wrap(common.ErrCodeValidation, "invalid csr signature", err)
+	}
+	// Collect names: CN + DNS SANs (IP SANs not constrained by AllowedDomains today — document residual).
+	names := make([]string, 0, 1+len(csr.DNSNames))
+	if cn := strings.TrimSpace(csr.Subject.CommonName); cn != "" {
+		names = append(names, cn)
+	}
+	names = append(names, csr.DNSNames...)
+	if len(role.AllowedDomains) > 0 && len(names) == 0 {
+		return common.New(common.ErrCodeValidation, "csr has no common name or dns names to validate against role")
+	}
+	for _, name := range names {
+		if !role.AllowedDomain(name) {
+			return common.New(common.ErrCodeValidation, fmt.Sprintf("csr name %q not allowed by role", name))
+		}
+	}
+	if ttl != "" && role.MaxTTLSeconds > 0 {
+		d, err := utils.ParseTTL(ttl)
+		if err != nil {
+			return common.Wrap(common.ErrCodeValidation, "invalid ttl", err)
+		}
+		if int(d.Seconds()) > role.MaxTTLSeconds {
 			return common.New(common.ErrCodeValidation, "ttl exceeds role maximum")
 		}
 	}

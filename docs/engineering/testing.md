@@ -30,7 +30,14 @@ Tests live next to source files (`*_test.go`). Repository fakes in `internal/rep
 make test-coverage   # COVERAGE_MIN=80 on operator pure-logic + acme
 ```
 
-The gate covers `internal/operator/{renew,secretutil,statusutil,reconcileutil,certlogic}` and `internal/acme`. Broader packages (auth, middleware, handlers) are improved best-effort beyond the gate. Formal 10-cycle bugfix log: [`docs/audit/formal-10cycle-bugfix-coverage-2026-07-16.md`](../audit/formal-10cycle-bugfix-coverage-2026-07-16.md).
+The gate covers `internal/operator/{renew,secretutil,statusutil,reconcileutil,certlogic}` and `internal/acme`. Broader packages (auth, middleware, handlers) are improved best-effort beyond the gate.
+
+Formal audit logs:
+
+- [10-cycle bugfix](../audit/formal-10cycle-bugfix-coverage-2026-07-16.md)
+- [5-cycle security auditor (PKI + Go)](../audit/formal-5cycle-security-auditor-2026-07-16.md)
+
+Security persona skill: `.grok/skills/knxvault-security-auditor/` (`/knxvault-security-auditor`).
 
 ## Integration tests
 

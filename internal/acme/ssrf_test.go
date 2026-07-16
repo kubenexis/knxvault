@@ -64,3 +64,17 @@ func TestIsBlockedIPExportedViaValidate(t *testing.T) {
 	// Link-local multicast representation rarely used as host; loopback covered above.
 	_ = net.IPv4(127, 0, 0, 1)
 }
+
+func TestValidateDirectoryURLBlocksPrivateIPLiteral(t *testing.T) {
+	t.Parallel()
+	if err := acme.ValidateDirectoryURL("https://127.0.0.1:14000/dir"); err == nil {
+		t.Fatal("expected private directory IP blocked")
+	}
+	if err := acme.ValidateDirectoryURL("https://acme-v02.api.letsencrypt.org/directory"); err != nil {
+		t.Fatalf("public LE directory: %v", err)
+	}
+	// Non-resolving hostname is OK for directory (static check only).
+	if err := acme.ValidateDirectoryURL("https://example.invalid/dir"); err != nil {
+		t.Fatalf("hostname directory: %v", err)
+	}
+}

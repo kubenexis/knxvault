@@ -13,7 +13,9 @@ import (
 func RequireKVAccess(svc *auth.Service, capability string, audit *AuthzAudit) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if svc == nil {
-			c.Next()
+			// Fail closed (aligned with Auth / RequirePathCapability).
+			_ = c.Error(common.New(common.ErrCodeUnavailable, "auth service not configured"))
+			c.Abort()
 			return
 		}
 		cap := capability

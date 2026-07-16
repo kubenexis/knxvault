@@ -1,8 +1,11 @@
 package middleware
 
 import (
+	"crypto/sha256"
 	"crypto/x509"
+	"encoding/hex"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -37,7 +40,7 @@ func MTLSForPaths(required bool, prefixes ...string) gin.HandlerFunc {
 		}
 		path := c.Request.URL.Path
 		for _, prefix := range prefixes {
-			if len(prefix) > 0 && (path == prefix || len(path) > len(prefix) && path[:len(prefix)] == prefix) {
+			if prefix != "" && (path == prefix || strings.HasPrefix(path, prefix+"/")) {
 				base(c)
 				return
 			}
@@ -54,7 +57,7 @@ func ClientCertSubject(c *gin.Context) string {
 	return c.Request.TLS.PeerCertificates[0].Subject.CommonName
 }
 
-// ClientCertFingerprint returns the SHA-256 fingerprint of the leaf client cert.
+// ClientCertFingerprint returns the SHA-256 fingerprint (hex) of the leaf client cert.
 func ClientCertFingerprint(c *gin.Context) string {
 	if c.Request.TLS == nil || len(c.Request.TLS.PeerCertificates) == 0 {
 		return ""
@@ -63,22 +66,9 @@ func ClientCertFingerprint(c *gin.Context) string {
 }
 
 func certFingerprint(cert *x509.Certificate) string {
-	sum := cert.Signature
-	if len(sum) == 0 {
+	if cert == nil || len(cert.Raw) == 0 {
 		return ""
 	}
-	// Use raw cert bytes for stable identity.
-	raw := cert.Raw
-	if len(raw) == 0 {
-		return ""
-	}
-	h := append([]byte(nil), raw[:mtlsMin(8, len(raw))]...)
-	return string(h)
-}
-
-func mtlsMin(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
+	sum := sha256.Sum256(cert.Raw)
+	return hex.EncodeToString(sum[:])
 }
