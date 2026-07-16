@@ -8,7 +8,7 @@
 |-------|-------|
 | **Result** | **PASS** (20 / 20 checks) — historical |
 | **Date (UTC)** | 2026-07-16T02:07:26Z |
-| **Host** | `e2e-test01.smartedge.local` (`192.168.137.131`) |
+| **Host** | `e2e-test01.example.local` (`192.168.137.131`) |
 | **Binary** | `knxvault` / `knxvault-cli` **0.4.5** @ commit `b973d53` |
 | **Mode** | Single-node Dragonboat Raft (host process, not K8s STS) |
 | **Unseal** | Full-key `POST /sys/unseal` (not multi-share) |
