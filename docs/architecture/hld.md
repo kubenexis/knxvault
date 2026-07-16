@@ -8,7 +8,8 @@ KNXVault is a lightweight, self-hosted secrets management and PKI system written
 |------|----------------|
 | **Security-first** | Envelope encryption, opaque tokens, hash-chained audit logs, OpenSSL sandboxing |
 | **Simplicity** | Thin service layers, explicit configuration, minimal runtime dependencies |
-| **Kubernetes-native** | ServiceAccount JWT auth, sidecar injection, Raft StatefulSet HA |
+| **Kubernetes-native** | SA JWT auth, CSI, ESO, **knxvault-operator CRDs**, Raft StatefulSet HA |
+| **Product-profile adapters** | Native services are authoritative; thin `/v1/*` profiles (e.g. Vault for cert-manager) map foreign wire formats only |
 | **Observability** | Prometheus metrics, structured logging, optional OpenTelemetry tracing |
 | **Permissive licensing** | Apache-2.0 project; SPDX allow-list enforced in CI |
 
@@ -16,19 +17,22 @@ KNXVault is a lightweight, self-hosted secrets management and PKI system written
 
 ### In scope (current release)
 
-- **Secrets:** KVv2 with versioning, TTL, and check-and-set; dynamic database credentials with leases
-- **PKI:** Root and intermediate CAs, leaf issuance, revocation (CRL), renewal, basic OCSP
-- **Auth:** Bootstrap root token, opaque client tokens, Kubernetes ServiceAccount JWT login
+- **Secrets:** KVv2 with versioning, TTL, and check-and-set; dynamic database / SSH credentials with leases
+- **PKI:** Root and intermediate CAs, leaf issue/renew, **CSR sign** (`POST /pki/sign`), revocation (CRL), basic OCSP
+- **Auth:** Bootstrap root token, opaque client tokens, Kubernetes ServiceAccount JWT, **AppRole** (Vault-profile login), OIDC
 - **Authorization:** RBAC policies with path, IP, time, and namespace conditions
-- **Storage:** Dragonboat Raft cluster with Pebble WAL (production); in-memory (dev/tests)
-- **Operations:** Encrypted backup/restore, audit export with HMAC signatures, CLI tooling
-- **Deployment:** Docker image, raw Kubernetes manifests (StatefulSet + headless Service)
+- **TLS automation (K8s):** **knxvault-operator** CRDs replace cert-manager for vault-issued TLS
+- **Vault product profile:** cert-manager-compatible `/v1/sys/health`, auth mounts, `/v1/<mount>/sign/<role>` (`internal/compat/vault`)
+- **Storage:** Dragonboat Raft + Pebble (production); in-memory (dev/tests); optional Valkey read cache
+- **Operations:** Encrypted backup/restore, seal/unseal, audit export, CLI (`doctor`, KV redaction)
+- **Deployment:** Docker image, raw Kubernetes manifests (StatefulSet + headless Service), CSI / ESO / operator / webhook
 
 ### Out of scope (deferred)
 
-- Full HashiCorp Vault feature parity (plugins, complex secret engines)
-- Helm chart and Terraform provider (long-term future)
-- HSM integration, multi-tenancy, Valkey cache, full mTLS (Phase 4)
+- Full HashiCorp Vault feature parity (plugins, arbitrary secret engines under `/v1`)
+- Helm chart and Terraform provider (long-term)
+- PKCS#11 HSM-backed CA keys (stub / design only)
+- ACME / public CAs (Let’s Encrypt) — not part of the cert-manager replacement claim
 - GUI
 
 ## Logical architecture
@@ -38,14 +42,17 @@ graph TB
     subgraph Clients
         CLI[knxvault-cli]
         Apps[Applications / CI]
-        K8s[Kubernetes API]
+        Op[knxvault-operator]
+        CM[cert-manager optional]
+        CSI[CSI / ESO]
     end
 
     subgraph KNXVault["KNXVault cluster (3-node Raft)"]
-        API[REST API :8200]
+        API[Native REST API :8200]
+        V1[Vault product profile /v1/*]
         MW[Auth · RBAC · Rate limit · Audit]
         SVC[Service layer]
-        ENG[Engines: PKI · KVv2 · Database]
+        ENG[Engines: PKI · KVv2 · Database · SSH]
         CRYPTO[Envelope crypto + OpenSSL]
         RAFT[Dragonboat state machine]
     end
@@ -56,24 +63,39 @@ graph TB
 
     CLI --> API
     Apps --> API
-    K8s --> API
+    Op --> API
+    CSI --> API
+    CM --> V1
+    V1 --> SVC
     API --> MW --> SVC --> ENG
     ENG --> CRYPTO
     SVC --> RAFT --> PVC
-    ENG --> CRYPTO
 ```
 
 ## Major components
 
 | Component | Responsibility |
 |-----------|----------------|
-| **REST API** (`internal/api`) | Gin router, DTOs, middleware, OpenAPI |
-| **Service layer** (`internal/service`) | Orchestration, audit hooks, transactions |
-| **Engines** (`internal/engine`) | PKI, KVv2, database credential generation |
-| **Crypto** (`internal/crypto`) | Master key, AES-256-GCM envelope, OpenSSL wrapper |
+| **REST API** (`internal/api`) | Gin router, DTOs, middleware, OpenAPI, native paths |
+| **Vault product profile** (`internal/compat/vault` + handlers) | cert-manager Vault issuer wire format only |
+| **Service layer** (`internal/service`) | Orchestration, audit hooks (sole business façade) |
+| **Engines** (`internal/engine`) | PKI, KVv2, database, SSH credential generation |
+| **Auth** (`internal/auth`) | Tokens, K8s, OIDC, AppRole, RBAC, lockout |
+| **Operator** (`internal/operator`) | CRDs → issue/renew/sign → TLS Secret or status-only |
+| **Crypto** (`internal/crypto`) | Master key, AES-256-GCM envelope, OpenSSL / native backends |
 | **Raft** (`internal/raft`) | Replicated state machine, leader election |
 | **Repositories** (`internal/repository`) | Dragonboat adapters; memory for tests |
 | **Background jobs** | Lease cleanup, CRL refresh, cert renewal (Raft leader only) |
+
+### Product profiles (compatibility adapters)
+
+Foreign products (cert-manager’s Vault issuer today; others later) must **not** fork core engines. Pattern:
+
+1. **Native services** implement the real operations (PKI sign, auth login, seal state).
+2. **`internal/compat/<product>`** maps request/response shapes and status codes.
+3. **HTTP handlers** stay thin adapters over services.
+
+Full Vault clone is explicitly **not** a goal. See [cert-manager recipe](../recipes/cert-manager-integration.md) and [Replace cert-manager](../operations/pki-replace-cert-manager.md).
 
 ## Storage
 
@@ -88,9 +110,18 @@ See [Dragonboat storage](../storage/dragonboat.md) and [ADR-0001](../adr/0001-dr
 | Dev / CI | 1 | In-memory or single-node Raft | Local development, unit tests |
 | Production HA | 3 | 3-node Raft StatefulSet | Quorum-backed consistency |
 
+## TLS automation decision
+
+| Need | Recommended path |
+|------|------------------|
+| New clusters, vault-issued TLS only | **knxvault-operator** CRDs (no cert-manager) |
+| Existing cert-manager GitOps / Ingress | Optional **Vault product profile** (`ClusterIssuer` type `vault`) |
+| Public CA / ACME | Outside KNXVault (use cert-manager ACME or other) |
+
 ## Related documents
 
 - [System diagrams](diagrams.md) — detailed data flows
 - [Low-Level Design](../lld.md) — full specification
 - [Security model](security-model.md) — threat model and controls
+- [Phase 4–5 design](../design/phase4-ecosystem.md) — operator + ecosystem roadmap status
 - [Installation guide](../installation/install.md) — getting a cluster running

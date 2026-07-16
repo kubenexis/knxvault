@@ -65,9 +65,13 @@ All X.509 operations execute via the OpenSSL CLI in an isolated temporary direct
 |--------|----------|---------------|--------|
 | Bootstrap root token | Initial admin | `KNXVAULT_ROOT_TOKEN` | Production |
 | Opaque client tokens | Automation, CLI | `POST /auth/token/create`, renew, revoke | Production |
-| Kubernetes ServiceAccount | In-cluster workloads | TokenReview (in-cluster) | **Production** |
+| Kubernetes ServiceAccount | In-cluster workloads / operator / CSI | TokenReview; `POST /auth/kubernetes` or `/v1/auth/kubernetes/login` | **Production** |
+| AppRole | cert-manager / external Vault clients | `POST /sys/auth/approle` then `/v1/auth/approle/login` | **Production** (in-memory registry; not Raft-replicated yet) |
+| OIDC | Human / federated IdP | `POST /auth/oidc/:role` | Production |
 | Kubernetes JWT (HS256) | Local dev only | `KNXVAULT_JWT_SECRET` | Dev-only |
-| K8s login bypass | Local dev only | `KNXVAULT_K8S_AUTH_INSECURE=true` | Dev-only (never with Raft); parses JWT `sub` without verification |
+| K8s login bypass | Local dev only | `KNXVAULT_K8S_AUTH_INSECURE=true` | Dev-only (never with Raft) |
+
+**Vault product profile tokens:** cert-manager and Vault clients may send `X-Vault-Token` (accepted by auth middleware alongside `Authorization: Bearer` and `X-KNXVault-Token`).
 
 ### Kubernetes authentication (production)
 
@@ -81,7 +85,7 @@ When KNXVault runs in a Kubernetes cluster, `POST /auth/kubernetes` validates th
 
 **OIDC JWT requirements:** OIDC login rejects JWTs without an `exp` claim. Renewals cannot extend OIDC tokens beyond the role `max_ttl_seconds` cap stored as `max_expires_at`. JWKS fetches use a 10s HTTP timeout and refresh once on unknown `kid` during key rotation. Machine identity revocation checks fail closed when the NHI backend is unavailable.
 
-**Login lockout (W43-04):** Failed `/auth/kubernetes`, `/auth/oidc/*`, and `/auth/token` attempts are tracked **per source IP** (`LoginLockoutKey`). After `KNXVAULT_AUTH_LOCKOUT_THRESHOLD` failures within the window, further logins from that IP are rejected until TTL expiry, successful login, or admin clear. Lockout emits `auth.lockout` audit events; admin clear emits `auth.lockout.clear`. Break-glass clear: `DELETE /sys/auth/lockout` with `{"auth_method":"kubernetes","source_ip":"10.0.0.1"}` (requires `sys/auth` sudo).
+**Login lockout (W43-04):** Failed `/auth/kubernetes`, `/auth/oidc/*`, `/auth/token`, and AppRole login attempts are tracked **per source IP** (`LoginLockoutKey`). After `KNXVAULT_AUTH_LOCKOUT_THRESHOLD` failures within the window, further logins from that IP are rejected until TTL expiry, successful login, or admin clear. Lockout emits `auth.lockout` audit events; admin clear emits `auth.lockout.clear`. Break-glass clear: `DELETE /sys/auth/lockout` with `{"auth_method":"kubernetes","source_ip":"10.0.0.1"}` (requires `sys/auth` sudo).
 
 **ABAC attributes (W44-02):** Send `X-KNX-Environment` and optional `X-KNX-Cluster` on API requests when policies use `environment` or `cluster` conditions. Gin route template and URL path are available as `request_path` in policy evaluation.
 
@@ -185,8 +189,20 @@ KNXVault provides auditability and encryption primitives suitable for regulated 
 
 Phase 4 may add compliance export bundles; see [Phase 4 design](../design/phase4-ecosystem.md).
 
+## Kubernetes TLS automation security notes
+
+| Control | Guidance |
+|---------|----------|
+| **Prefer operator over long-lived vault tokens in cert-manager** | Operator uses SA JWT → scoped policies; avoid static root tokens |
+| **AppRole secret_id** | Store only in K8s Secrets; register via `POST /sys/auth/approle` (sudo); rotate by re-register |
+| **Certificate delivery `None`** | Avoid putting leaf private keys in etcd when apps can use CSI/API |
+| **Issuer Ready** | Operator marks Issuer Ready only when vault CA exists — prevents silent misconfig |
+| **Operational seal** | `POST /sys/seal` blocks mutating APIs; cert-manager health returns 503 until unseal |
+
 ## Related documents
 
+- [Replace cert-manager](../operations/pki-replace-cert-manager.md)
+- [cert-manager Vault profile](../recipes/cert-manager-integration.md)
 - [Runbook: CA compromise](../operations/runbooks/ca-compromise.md)
 - [Configuration reference](../installation/configuration.md)
 - [Licensing policy](../licensing.md)

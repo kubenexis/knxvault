@@ -8,14 +8,17 @@ Visual reference for KNXVault components and data flows. Diagrams use [Mermaid](
 graph TD
     subgraph API["API layer (internal/api)"]
         Router[Gin router]
-        Handlers[Handlers]
+        Handlers[Native handlers]
+        VaultH[Vault profile handlers]
         Middleware[Auth · RBAC · Rate limit · Signing · Logging]
         DTO[DTOs]
+        Compat[internal/compat/vault mapping]
     end
 
-    subgraph Service["Service layer (internal/service)"]
+    subgraph Service["Service layer (internal/service) — façade"]
         PKISvc[PKI service]
         SecSvc[Secrets service]
+        AuthSvc[Auth service]
         AuditSvc[Audit service]
     end
 
@@ -23,19 +26,31 @@ graph TD
         PKIEng[PKI engine]
         KVEng[KVv2 engine]
         DBEng[Database creds engine]
+        SSHEng[SSH engine]
+    end
+
+    subgraph K8sProduct["Kubernetes products"]
+        Operator[knxvault-operator]
+        CSI[CSI provider]
+        ESO[ESO webhook]
     end
 
     subgraph Infra["Infrastructure"]
         Crypto[Envelope crypto]
-        OpenSSL[OpenSSL wrapper]
+        OpenSSL[OpenSSL / native PKI]
         RaftSM[Raft state machine]
         Jobs[Background jobs]
     end
 
-    Router --> Middleware --> Handlers --> DTO
-    Handlers --> PKISvc & SecSvc & AuditSvc
+    Router --> Middleware --> Handlers & VaultH
+    Handlers --> DTO
+    VaultH --> Compat --> PKISvc & AuthSvc
+    Handlers --> PKISvc & SecSvc & AuthSvc & AuditSvc
+    Operator -->|native /pki/* + /auth/kubernetes| PKISvc
+    CSI --> SecSvc
+    ESO --> SecSvc
     PKISvc --> PKIEng
-    SecSvc --> KVEng & DBEng
+    SecSvc --> KVEng & DBEng & SSHEng
     PKIEng & KVEng --> Crypto
     PKIEng --> OpenSSL
     PKISvc & SecSvc & AuditSvc --> RaftSM
@@ -67,25 +82,70 @@ sequenceDiagram
     API-->>C: 200 JSON response
 ```
 
-## PKI certificate issuance
+## PKI certificate issuance (native)
 
 ```mermaid
 sequenceDiagram
-    participant C as Client
+    participant C as Client / Operator
     participant API as REST API
     participant PKI as PKI engine
-    participant SSL as OpenSSL
+    participant SSL as OpenSSL / native
     participant Raft as Raft cluster
 
-    C->>API: POST /pki/issue
-    API->>PKI: IssueCertificate
-    PKI->>Raft: ca.get_by_id (read)
-    PKI->>SSL: genrsa + req + x509 (sandboxed temp dir)
+    C->>API: POST /pki/issue or /pki/sign or /pki/renew
+    API->>PKI: IssueCertificate / SignCSR / Renew
+    PKI->>Raft: ca.get_by_name (read)
+    PKI->>SSL: genrsa + req + x509 or SignCSR
     SSL-->>PKI: PEM cert + key
-    PKI->>PKI: Encrypt private key (envelope)
-    PKI->>Raft: issued.save (if auto_renew)
-    PKI-->>API: Certificate bundle
-    API-->>C: 200 JSON response
+    PKI->>PKI: Encrypt private key (envelope) when storing
+    PKI->>Raft: issued.save (if auto_renew / tracked)
+    PKI-->>API: Certificate bundle + ca_id when applicable
+    API-->>C: 200 / 201 JSON response
+```
+
+## Operator TLS path (preferred — no cert-manager)
+
+```mermaid
+sequenceDiagram
+    participant CR as KNXVaultCertificate
+    participant Op as knxvault-operator
+    participant Auth as POST /auth/kubernetes
+    participant V as KNXVault PKI
+    participant Sec as kubernetes.io/tls Secret
+
+    CR->>Op: Reconcile
+    Op->>Auth: SA JWT → client token
+    Auth-->>Op: token
+    Op->>V: GET CA by name (Issuer Ready)
+    Op->>V: POST /pki/issue or /renew or /sign
+    V-->>Op: cert + key + serial + caId
+    alt delivery Secret
+        Op->>Sec: Write tls.crt / tls.key + annotations
+    else delivery None
+        Op-->>CR: Status only (no key in etcd)
+    end
+    Op-->>CR: Ready + serial + caId
+```
+
+## cert-manager Vault profile (optional legacy)
+
+```mermaid
+sequenceDiagram
+    participant CM as cert-manager Vault issuer
+    participant V1 as /v1/* profile
+    participant Map as internal/compat/vault
+    participant Svc as Auth + PKI services
+
+    CM->>V1: GET /v1/sys/health
+    V1-->>CM: 200 / 429 / 503
+    CM->>V1: POST /v1/auth/.../login or X-Vault-Token
+    V1->>Map: auth envelope
+    Map->>Svc: LoginKubernetes / LoginAppRole
+    Svc-->>CM: client_token
+    CM->>V1: POST /v1/pki/sign/role (CSR + SANs)
+    V1->>Map: SignRequest → SignResult
+    Map->>Svc: SignCSR
+    Svc-->>CM: data.certificate + issuing_ca + ca_chain
 ```
 
 ## 3-node Raft topology (Kubernetes)
@@ -112,25 +172,24 @@ graph LR
 
 Only the **Raft leader** runs background jobs (lease cleanup, CRL refresh, cert renewal). Any replica can serve linearizable reads and propose writes.
 
-## Secrets injection (sidecar)
+## Secrets injection
+
+**Primary:** Secrets Store CSI provider (`knxvault-csi`). Sidecar/init remain fallbacks.
 
 ```mermaid
 graph LR
     subgraph Pod
-        Init[init container]
-        Side[sidecar injector]
+        CSI[CSI volume]
         App[application]
-        Vol[emptyDir volume]
     end
 
-    KNX[KNXVault API] -->|POST /inject/render| Init
-    KNX -->|POST /inject/render| Side
-    Init --> Vol
-    Side --> Vol
-    Vol --> App
+    SA[Pod ServiceAccount] -->|JWT| Auth[POST /auth/kubernetes]
+    Auth --> KNX[KNXVault]
+    KNX -->|mount files| CSI
+    CSI --> App
 ```
 
-See [Secrets injection](../deploy/secrets-injection.md) for manifest examples.
+See [Secrets injection](../deploy/secrets-injection.md) and [CSI install](../deploy/csi-install.md).
 
 ## Observability path
 

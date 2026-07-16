@@ -103,9 +103,21 @@ See `deployments/operator/migration/`. Map `Certificate` → `KNXVaultCertificat
 ## Lab e2e
 
 ```bash
+# Full suite (core + Vault profile + operator) — recommended
+bash scripts/lab-full-e2e.sh 192.168.137.131
+# or: make lab-full-e2e
+
+# Operator-only smoke
 bash scripts/lab-operator-e2e.sh 192.168.137.131
-# 192.168.137.37 when SSH available
 ```
+
+Last full run: [lab-full-e2e.md](../engineering/lab-full-e2e.md) (38/38 PASS).
+
+## Optional: keep cert-manager
+
+If GitOps still depends on cert-manager `Certificate` resources, point a Vault-type Issuer at KNXVault’s product profile (`GET /v1/sys/health`, auth, sign). That path is **compatibility**, not the preferred architecture.
+
+Recipe: [cert-manager integration](../recipes/cert-manager-integration.md).
 
 ## Metrics
 
@@ -117,6 +129,9 @@ bash scripts/lab-operator-e2e.sh 192.168.137.131
 ## See also
 
 - [PKI Kubernetes](pki-kubernetes.md)
+- [PKI administration](pki-administration.md) — intermediate CA, CSR sign
+- [System diagrams](../architecture/diagrams.md) — operator + Vault profile sequences
 - [Kubernetes-native integrations](../integration/kubernetes-native.md)
+- [Phase 4–5 design](../design/phase4-ecosystem.md)
 - [Installation](../installation/install.md)
 - [Backlog](../backlog.md)

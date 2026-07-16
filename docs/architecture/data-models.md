@@ -73,6 +73,25 @@ Persisted issuance policy binding a role name to a CA and domain constraints.
 
 **Raft ops:** `revoke.save`, `revoke.is`, `revoke.list_by_ca`
 
+### Role resolution for issue / sign
+
+| Input `role` | Behavior |
+|--------------|----------|
+| Matches a **PKI role** record | Use that role’s `CAName` and domain constraints |
+| No PKI role, but CA **name** exists | Treat `role` as CA name (common Vault/cert-manager pattern) |
+| Neither | Validation / not-found error |
+
+CSR sign (`POST /pki/sign` and Vault profile `POST /v1/<mount>/sign/<role>`) uses the same resolution. Issue returns `ca_id` so the operator can renew via `POST /pki/renew`.
+
+### Operator CRD status fields (Kubernetes, not Raft)
+
+| CRD field | Meaning |
+|-----------|---------|
+| `status.caId` | Vault CA UUID used for renew |
+| `status.serial` | Leaf serial |
+| `status.conditions` | Ready / Issuing / failures |
+| Secret annotations | serial, not-after, ca-id, revision (when delivery=Secret) |
+
 ## Secrets
 
 ### Secret version (`internal/domain/secrets/version.go`)

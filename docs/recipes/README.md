@@ -88,7 +88,8 @@ Step-by-step guides for common tasks. Each recipe is self-contained: prerequisit
 | [CSI driver integration](csi-driver-integration.md) | Mount KV secrets as pod volumes |
 | [Mutating webhook injection](mutating-webhook-csi-injection.md) | Annotation-based CSI volume injection |
 | [External Secrets Operator](external-secrets-operator.md) | Sync KV to native Kubernetes Secrets |
-| [cert-manager integration](cert-manager-integration.md) | Automated TLS from KNXVault PKI |
+| [cert-manager integration](cert-manager-integration.md) | Optional Vault product profile (`/v1/*`) for legacy cert-manager |
+| [Replace cert-manager (operator)](../operations/pki-replace-cert-manager.md) | **Preferred** TLS automation via CRDs |
 
 ### Secret engines
 

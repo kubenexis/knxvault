@@ -21,7 +21,7 @@ This guide is for engineers who:
 - Want to understand **secrets managers** (like HashiCorp Vault) without drowning in enterprise jargon
 - Are building a career in **platform engineering** — the team that makes other teams productive and secure
 
-KNXVault is a **self-hosted secrets management and PKI system** written in Go. It gives you Vault-class patterns (central store, dynamic credentials, audit, RBAC) with a smaller footprint and **first-class Kubernetes integration** (CSI driver, ServiceAccount auth, ESO webhook).
+KNXVault is a **self-hosted secrets management and PKI system** written in Go. It gives you Vault-class patterns (central store, dynamic credentials, audit, RBAC) with a smaller footprint and **first-class Kubernetes integration** (CSI driver, ServiceAccount auth, ESO webhook, and a **native operator** that issues TLS Secrets without cert-manager).
 
 You do not need to be a cryptographer to use it well. You do need to care about **least privilege**, **short-lived credentials**, and **traceability** — skills that distinguish strong infrastructure engineers.
 
@@ -85,7 +85,7 @@ KNXVault is **not** a drop-in replacement for every HashiCorp Vault plugin. It *
 | 2 | **Over-privileged workloads** | App pod can read all namespace Secrets | ServiceAccount → scoped token; RBAC path rules |
 | 3 | **Database credential sprawl** | One shared DB user per app forever | Dynamic creds: unique user per lease, TTL, auto-revoke |
 | 4 | **SSH key sharing** | Same private key on laptops and jump boxes | SSH engine: short-lived **signed certificates** |
-| 5 | **TLS manual toil** | openssl commands, calendar reminders | PKI engine + cert-manager integration |
+| 5 | **TLS manual toil** | openssl commands, calendar reminders | PKI engine + **knxvault-operator** CRDs (cert-manager optional) |
 | 6 | **No proof of access** | “Trust us, we’re careful” | Hash-chained audit + export + SIEM forwarding |
 | 7 | **Secret leakage at rest** | etcd base64 is not encryption | Envelope encryption **before** Raft replication |
 | 8 | **Single point of failure** | One VM with a `.env` file | 3-node Raft quorum, backup/restore, failover |
@@ -138,7 +138,8 @@ KNXVault is **not** a drop-in replacement for every HashiCorp Vault plugin. It *
 | **CSI provider** | Delivers secrets as **files** in the pod (preferred) |
 | **Mutating webhook** | Optional: add CSI volumes from pod annotations |
 | **ESO adapter** | Syncs to native `Secret` when a chart requires it |
-| **cert-manager** | Requests TLS certs from KNXVault PKI |
+| **knxvault-operator** | **Preferred:** CRDs → vault PKI → `kubernetes.io/tls` Secrets (no cert-manager) |
+| **cert-manager** | Optional legacy: Vault issuer against KNXVault `/v1/*` profile |
 | **ServiceAccount** | Pod identity for authentication — no static vault password in the image |
 
 ---
@@ -156,6 +157,8 @@ KNXVault is **not** a drop-in replacement for every HashiCorp Vault plugin. It *
 | **Seal** | Emergency pause button for writes |
 | **Raft** | Consensus protocol keeping 3 nodes in sync |
 | **Envelope encryption** | Data encrypted with a random key; that key encrypted with master key |
+| **Operator CRD** | Kubernetes object (`KNXVaultCertificate`) that asks KNXVault for a TLS cert |
+| **Vault product profile** | Thin `/v1/*` API that looks like HashiCorp Vault for cert-manager only |
 
 ---
 
@@ -278,22 +281,24 @@ KNXVault is **not** a drop-in replacement for every HashiCorp Vault plugin. It *
   Risks: key on laptop, expired cert outage, no central CRL
 ```
 
-#### With KNXVault
+#### With KNXVault (preferred: operator)
 
 ```
-  cert-manager                KNXVault PKI
-  ┌────────────┐  CSR sign   ┌────────────┐
-  │ Certificate│ ──────────▶ │ CA + issue │
-  │  resource  │ ◀────────── │ + auto_renew│
-  └─────┬──────┘  leaf cert  └────────────┘
-        │
-        ▼
-  TLS Secret → Ingress
+  knxvault-operator           KNXVault PKI
+  ┌────────────────┐  issue   ┌────────────┐
+  │ KNXVault       │ ────────▶│ CA + issue │
+  │ Certificate CR │ ◀────────│ + renew    │
+  └───────┬────────┘  leaf    └────────────┘
+          │
+          ▼
+  kubernetes.io/tls Secret → Ingress / Pods
 
   Revocation: POST /pki/revoke → CRL updated
 ```
 
-**Recipe:** [PKI issue and revoke](../recipes/pki-issue-and-revoke.md), [cert-manager integration](../recipes/cert-manager-integration.md)
+Optional: existing cert-manager can still use the Vault product profile (`/v1/*`).
+
+**Recipes:** [Replace cert-manager](../operations/pki-replace-cert-manager.md), [PKI issue and revoke](../recipes/pki-issue-and-revoke.md), [cert-manager integration](../recipes/cert-manager-integration.md)
 
 ---
 
@@ -423,7 +428,8 @@ No system is magic. **You** still must protect `KNXVAULT_MASTER_KEY`, rotate boo
 | App config (API keys, feature flags) | CSI volume, optional ESO | KVv2, RBAC, rotation | [KV lifecycle](../recipes/kv-secrets-lifecycle.md) |
 | Postgres / CNPG app access | Job or managed mode | Database engine, leases | [Postgres creds](../recipes/dynamic-postgres-credentials.md) |
 | Batch ETL to warehouse | CronJob SA | KV + scoped role | [K8s SA auth](../recipes/kubernetes-serviceaccount-auth.md) |
-| Ingress TLS | cert-manager | PKI + Vault API shim | [cert-manager](../recipes/cert-manager-integration.md) |
+| Ingress TLS | knxvault-operator CRDs | PKI issue/renew/sign → Secret | [Replace cert-manager](../operations/pki-replace-cert-manager.md) |
+| Ingress TLS (legacy) | cert-manager | Vault product profile `/v1/*` | [cert-manager](../recipes/cert-manager-integration.md) |
 | GitOps without secrets in repo | CSI / ESO | Central store, version history | [CSI](../recipes/csi-driver-integration.md) |
 | Human break-glass DB access | CLI + OIDC | OIDC auth, audit | [OIDC](../recipes/oidc-authentication.md) |
 | On-call SSH | sshd + CA trust | SSH signed certs | [SSH creds](../recipes/dynamic-ssh-credentials.md) |
@@ -571,7 +577,8 @@ curl -s -X PUT $KNXVAULT_ADDR/sys/policies/demo-reader \
 |----------|---------|
 | [Recipes index](../recipes/README.md) | Step-by-step tasks |
 | [Getting started](getting-started.md) | Short hands-on tutorial |
-| [Kubernetes-native integrations](../integration/kubernetes-native.md) | CSI, ESO, webhook, cert-manager |
+| [Kubernetes-native integrations](../integration/kubernetes-native.md) | CSI, ESO, operator, webhook, optional cert-manager |
+| [Replace cert-manager](../operations/pki-replace-cert-manager.md) | Operator-first TLS automation |
 | [Security model](../architecture/security-model.md) | Threat model and controls |
 | [Manual testing strategy](../engineering/manual-testing-strategy.md) | Validate before production |
 

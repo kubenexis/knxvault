@@ -6,15 +6,15 @@ Version-controlled documentation for architects, operators, developers, and inte
 
 | Document | Audience | Description |
 |----------|----------|-------------|
-| [High-Level Design](architecture/hld.md) | Architects | Goals, scope, component overview |
+| [High-Level Design](architecture/hld.md) | Architects | Goals, scope, operator + Vault product profile |
 | [Low-Level Design](lld.md) | Engineers | Full technical specification (§1–12) |
-| [System diagrams](architecture/diagrams.md) | Architects | Mermaid architecture and data-flow views |
-| [Data models](architecture/data-models.md) | Engineers | Domain entities and Raft persistence |
-| [Security model](architecture/security-model.md) | Security / SRE | Threat model, crypto, auth, audit |
+| [System diagrams](architecture/diagrams.md) | Architects | Mermaid: layers, operator TLS, Vault profile, Raft |
+| [Data models](architecture/data-models.md) | Engineers | Domain entities, PKI role resolution, operator status |
+| [Security model](architecture/security-model.md) | Security / SRE | Threat model, crypto, auth (incl. AppRole), audit |
 | [Envelope encryption](architecture/envelope-encryption.md) | Engineers / Security | AES-GCM envelope, DEKs, nonces, master key rotation |
 | [Dragonboat storage](storage/dragonboat.md) | Engineers | Raft topology, command catalog, snapshots |
 | [Raft HA & recovery](storage/raft-ha-and-recovery.md) | Engineers / SRE | Snapshots, quorum, membership, DR, partitions |
-| [Phase 4 design](design/phase4-ecosystem.md) | Engineers | Ecosystem roadmap and wave breakdown |
+| [Phase 4–5 design](design/phase4-ecosystem.md) | Engineers | **W30 complete**; remaining ecosystem waves |
 | [ADRs](adr/README.md) | Engineers | Architecture decision records |
 
 ## Installation & configuration
@@ -32,7 +32,7 @@ Version-controlled documentation for architects, operators, developers, and inte
 | [Backup & restore](deploy/backup-restore.md) | Operators | Encrypted snapshots and migration |
 | [Secrets injection](deploy/secrets-injection.md) | Integrators | **CSI Driver (primary)**, sidecar/init fallbacks |
 | [CSI install runbook](deploy/csi-install.md) | Operators | Production CSI driver + provider setup |
-| [Kubernetes-native integrations](integration/kubernetes-native.md) | Architects | CSI, ESO, cert-manager, webhook, SDKs matrix |
+| [Kubernetes-native integrations](integration/kubernetes-native.md) | Architects | CSI, ESO, **operator**, optional cert-manager, webhook, SDKs |
 | [Database credentials](deploy/database-credentials.md) | Operators | Generator-only mode, admin cred patterns |
 | [Integration overview](integration/overview.md) | Integrators | K8s auth, CI/CD, client SDK patterns |
 
@@ -69,7 +69,7 @@ Version-controlled documentation for architects, operators, developers, and inte
 | Document | Audience | Description |
 |----------|----------|-------------|
 | [Dummies guide](user/dummies-guide.md) | DevOps / platform engineers | Plain-language intro: K8s use cases, with/without KNXVault, security benefits |
-| [Getting started](user/getting-started.md) | Users | Doctor verify, KV redaction, PKI, first workflows |
+| [Getting started](user/getting-started.md) | Users | Doctor, KV redaction, root/intermediate PKI, operator pointer |
 | [CLI reference](cli/reference.md) | Users / operators | `knxvault-cli` commands (`doctor`, `kv get --show-secrets`) |
 | [API reference](api/reference.md) | Integrators | REST endpoints and error codes |
 | [OpenAPI spec](../api/openapi.yaml) | Integrators | Machine-readable API (also at `/openapi.yaml`) |
@@ -81,10 +81,11 @@ Version-controlled documentation for architects, operators, developers, and inte
 | [Development guide](engineering/development.md) | Contributors | Local setup, `make` targets, layout |
 | [Testing guide](engineering/testing.md) | Contributors | Unit, integration, and Raft tests |
 | [Manual testing strategy](engineering/manual-testing-strategy.md) | QA / SRE | Network disruption (MT-01), rotation latency (MT-02) |
-| [Lab E2E e2e-test01](engineering/lab-e2e-test01.md) | QA / SRE | Single-node Raft smoke on `192.168.137.131` (PASS 20/20) |
+| [Lab full E2E](engineering/lab-full-e2e.md) | QA / SRE | **Complete** suite on 131: core + vaultcompat + operator (PASS 38/38) |
+| [Lab E2E e2e-test01](engineering/lab-e2e-test01.md) | QA / SRE | Core-only historical smoke (PASS 20/20) |
 | [Contributing](engineering/contributing.md) | Contributors | PR workflow, licenses, code standards |
 | [Licensing policy](licensing.md) | Contributors | SPDX allow-list and exceptions |
-| [Backlog](backlog.md) | Maintainers | Phased work items; **P0:** operator CRDs replace cert-manager (W30-01–10) |
+| [Backlog](backlog.md) | Maintainers | Phased work items; W30 operator + Vault profile **shipped** |
 | [LLD alignment matrix](product/lld-alignment.md) | Maintainers | LLD § → code traceability |
 | [Secrets manager checklist](product/secrets-manager-checklist.md) | Architects | Capability matrix vs evaluation criteria |
 | [BFSI POC traceability matrix](product/bfsi-poc-traceability.md) | Architects / prospects | BFSI must-have requirements → evidence, gaps, waivers |

@@ -52,7 +52,10 @@ export KNXVAULT_RAFT_INITIAL_MEMBERS=1=127.0.0.1:63001
 ./bin/knxvault serve
 ```
 
-Bare-metal lab smoke (host binary, single-node Raft): [Lab E2E e2e-test01](../engineering/lab-e2e-test01.md).
+Bare-metal lab smoke (host binary, single-node Raft):
+
+- **Full suite (core + Vault profile + operator):** `make lab-full-e2e` → [lab-full-e2e.md](../engineering/lab-full-e2e.md)
+- Core-only historical record: [Lab E2E e2e-test01](../engineering/lab-e2e-test01.md)
 
 ## Option 2: Docker
 
@@ -168,6 +171,17 @@ curl -s -X PUT $ADDR/sys/policies/app-reader \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"paths":{"secrets/kv/app/*":{"capabilities":["read"]}}}'
+
+# Optional: Vault product profile health (cert-manager Ready probe)
+curl -sS -o /dev/null -w "%{http_code}\n" "$ADDR/v1/sys/health"   # expect 200
+```
+
+For **Kubernetes TLS without cert-manager**, install the operator CRDs after the vault cluster is healthy:
+
+```bash
+kubectl apply -f deployments/operator/crds/
+kubectl apply -f deployments/operator/rbac.yaml
+# see docs/operations/pki-replace-cert-manager.md
 ```
 
 Or use the CLI:

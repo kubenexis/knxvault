@@ -51,15 +51,31 @@ Full PKI operations (CA hierarchy, issuance, trust bundles, Kubernetes integrati
 
 | Guide | Topics |
 |-------|--------|
-| [PKI administration](pki-administration.md) | Root/intermediate/leaf recipes, import/export, renewal, revocation |
-| [PKI Kubernetes integration](pki-kubernetes.md) | Ingress TLS, CronJob issuance, cert-manager (W40-02) |
+| [PKI administration](pki-administration.md) | Root/intermediate/leaf recipes, import/export, renewal, revocation, CSR sign |
+| [Replace cert-manager](pki-replace-cert-manager.md) | **Preferred** — knxvault-operator CRDs, no cert-manager |
+| [PKI Kubernetes integration](pki-kubernetes.md) | Ingress TLS, CronJob, operator, optional Vault profile |
+| [cert-manager recipe](../recipes/cert-manager-integration.md) | Optional legacy Vault issuer (`/v1/*`) |
 | [PKI security best practices](pki-security-practices.md) | Trust hierarchy, key handling, production checklist |
 
 ### Certificate renewal (summary)
 
-Issue certificates with `"auto_renew": true`. The Raft leader job calls `RenewExpiring` every `KNXVAULT_JOB_CERT_RENEW_INTERVAL` (default 1h) for certs expiring within `KNXVAULT_RENEW_GRACE` (default 72h).
+| Path | How renewal works |
+|------|-------------------|
+| **API / auto_renew** | Issue with `"auto_renew": true`. Raft leader job `RenewExpiring` every `KNXVAULT_JOB_CERT_RENEW_INTERVAL` (default 1h) within `KNXVAULT_RENEW_GRACE` (default 72h). |
+| **Operator CRD** | `KNXVaultCertificate` renews when within `renewBefore`; prefers `POST /pki/renew` when `status.caId` + serial are set |
+| **Manual** | `POST /pki/renew` with `ca_id`, `serial`, and `ttl` |
 
-Manual renew: `POST /pki/renew` with `ca_id`, `serial`, and `ttl`. CRL: `GET /pki/crl/:id`. OCSP: `POST /pki/ocsp/:id`.
+CRL: `GET /pki/crl/:id`. OCSP: `POST /pki/ocsp/:id`. CSR sign (operator / Vault profile): `POST /pki/sign` or `POST /v1/<mount>/sign/<role>`.
+
+### Operator health (lab / production)
+
+```bash
+# Full lab suite (core + vaultcompat + operator)
+make lab-full-e2e LAB_HOST=192.168.137.131
+# or: bash scripts/lab-full-e2e.sh
+```
+
+See [Lab full E2E](../engineering/lab-full-e2e.md).
 
 ## Lease management
 

@@ -103,7 +103,9 @@ KVv2 supports versioning, TTL expiration, and check-and-set via the `options` bl
 
 ## 3. Create a PKI hierarchy
 
-The **issue role name is the CA name** you created (for example `dev-root`).
+The **issue role** is usually the **CA name** you created (for example `dev-root` or an intermediate). Optional persisted PKI roles can map a role name to a different CA.
+
+### Dev: root → leaf
 
 ```bash
 # Root CA (self-signed trust anchor)
@@ -132,9 +134,55 @@ CLI equivalent:
 ./bin/knxvault-cli pki issue --role dev-root --common-name api.example.com --dns api.example.com --ttl 720h
 ```
 
+### Production-shaped: root → intermediate → leaf
+
+```bash
+# Long-lived root (sign intermediates only)
+curl -s -X POST $KNXVAULT_ADDR/pki/root \
+  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"prod-root","common_name":"Prod Root CA","ttl":"87600h"}'
+
+# Operational intermediate
+curl -s -X POST $KNXVAULT_ADDR/pki/intermediate \
+  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "prod-intermediate",
+    "parent_name": "prod-root",
+    "common_name": "Prod Intermediate CA",
+    "ttl": "43800h"
+  }'
+
+# Leaves signed by the intermediate
+curl -s -X POST $KNXVAULT_ADDR/pki/issue \
+  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "role": "prod-intermediate",
+    "common_name": "api.example.com",
+    "dns_names": ["api.example.com"],
+    "ttl": "720h",
+    "auto_renew": true
+  }'
+```
+
 Set `"auto_renew": true` to track the certificate for background renewal by the Raft leader.
 
-Detailed recipes (intermediate CA, trust bundles, Kubernetes): [PKI administration](../operations/pki-administration.md).
+### Kubernetes TLS (preferred)
+
+Use **knxvault-operator** CRDs (`KNXVaultCA`, `KNXVaultClusterIssuer`, `KNXVaultCertificate`) so workloads get `kubernetes.io/tls` Secrets **without cert-manager**:
+
+```bash
+kubectl apply -f deployments/operator/crds/
+kubectl apply -f deployments/operator/samples/certificate-example.yaml
+```
+
+Guide: [Replace cert-manager](../operations/pki-replace-cert-manager.md).
+
+If you already run cert-manager, the optional [Vault product profile](../recipes/cert-manager-integration.md) (`/v1/sys/health`, `/v1/pki/sign/...`) remains supported.
+
+Detailed recipes (trust bundles, CRL/OCSP): [PKI administration](../operations/pki-administration.md).
 
 ## 4. Define access control
 
@@ -206,6 +254,8 @@ Use `POST /inject/render` from an init container or sidecar. See [Secrets inject
 
 - [Dummies guide](dummies-guide.md) — concepts, Kubernetes use cases, and security overview
 - [Installation guide](../installation/install.md) — local, Docker, Kubernetes; Raft unseal requirements
+- [Replace cert-manager](../operations/pki-replace-cert-manager.md) — operator CRDs for TLS Secrets
+- [cert-manager Vault profile](../recipes/cert-manager-integration.md) — optional legacy path
 - [Recipes index](../recipes/README.md) — step-by-step guides for production tasks
 - [CLI reference](../cli/reference.md)
 - [API reference](../api/reference.md)

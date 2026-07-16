@@ -322,16 +322,22 @@ knxvault/
 
 - **`cmd/knxvault/`**: Contains the `main()` function and command setup (Cobra for CLI if extended). Initializes config, DI (wire or manual), and starts the HTTP server.
 
-- **`internal/api/`**: All HTTP concerns. Handlers are thin (delegate to services). DTOs are separate from domain models for API evolution flexibility.
+- **`internal/api/`**: All HTTP concerns. Handlers are thin (delegate to services). Includes native routes and Vault product profile handlers (`vaultcompat`). DTOs are separate from domain models for API evolution flexibility.
+
+- **`internal/compat/vault/`**: Pure request/response mapping for the cert-manager Vault issuer profile (health codes, auth envelopes, sign body). No business logic — services remain authoritative.
+
+- **`internal/operator/`**: knxvault-operator controllers, CRD APIs (`v1alpha1`), vaultiface client, certlogic helpers. Reconciles CAs and Certificates to native PKI APIs.
 
 - **`internal/domain/`**: Pure business logic entities. No dependencies on frameworks or infrastructure. Examples:
   - `CA`, `Certificate`, `SecretVersion`, `Policy`.
 
 - **`internal/engine/`**: Implements core domain use cases. Follows the "Engine" concept from Vault for extensibility (e.g., new secret engines can be registered via interface).
 
-- **`internal/service/`**: Higher-level orchestration. Handles transactions, audit calls, validation across engines.
+- **`internal/service/`**: Higher-level orchestration. Handles transactions, audit calls, validation across engines — the **façade** for all HTTP adapters and the operator.
 
-- **`internal/crypto/openssl/`**: Critical security component. Contains safe wrappers for `os/exec.Command` with context timeout, input validation, and secure temp dir management.
+- **`internal/auth/`**: Tokens, Kubernetes/OIDC/AppRole login, RBAC, lockout.
+
+- **`internal/crypto/openssl/`**: Critical security component. Contains safe wrappers for `os/exec.Command` with context timeout, input validation, and secure temp dir management. Native x509 backend also available.
 
 - **`internal/raft/`**: Dragonboat `NodeHost`, `VaultStateMachine`, command catalog, leader election for background jobs.
 - **`internal/repository/`**: Repository interfaces with Dragonboat adapters for production, in-memory for tests.
@@ -340,7 +346,7 @@ knxvault/
 
 - **`internal/infra/`**: Kubernetes client (`client-go`), OpenTelemetry setup, Valkey cache client (optional).
 
-- **`deployments/helm/`**: Complete Helm chart for Kubernetes deployment.
+- **`deployments/`**: Raw Kubernetes manifests (`k8s/`, `operator/`, `csi/`, `cert-manager/`, `external-secrets/`). Helm chart deferred.
 
 ### 3.3 Domain-Driven Design Considerations
 
@@ -858,10 +864,12 @@ spec:
 
 ### 6.4 Secrets Injection Patterns
 
-1. **Secrets Store CSI Driver** (**primary, first-class**): KNXVault ships a [CSI provider](https://secrets-store-csi-driver.sigs.k8s.io/) (`knxvault-csi`) so workloads mount KV secrets as volumes via `SecretProviderClass`. Pod `ServiceAccount` identity is exchanged at mount time (TokenReview) — no cluster-wide static vault tokens in the provider. Supports optional sync to native Kubernetes `Secret` and [auto-rotation](https://secrets-store-csi-driver.sigs.k8s.io/topics/secret-auto-rotation.html) when KV versions change. Manifests: `deployments/csi/`; backlog **W39-01–W39-08**.
-2. **Sidecar Agent** (fallback): curl/init sidecar calling `POST /inject/render` into a shared `emptyDir` — for clusters without CSI or quick prototypes.
-3. **Init Container**: One-time render at pod startup (same API as sidecar).
-4. **Mutating Webhook** (optional): Auto-inject CSI volume + `SecretProviderClass` from pod annotations — convenience layer after CSI baseline ships (**W38-07**).
+1. **Secrets Store CSI Driver** (**primary, first-class**): KNXVault ships a [CSI provider](https://secrets-store-csi-driver.sigs.k8s.io/) (`knxvault-csi`) so workloads mount KV secrets as volumes via `SecretProviderClass`. Pod `ServiceAccount` identity is exchanged at mount time (TokenReview) — no cluster-wide static vault tokens in the provider. Supports optional sync to native Kubernetes `Secret` and [auto-rotation](https://secrets-store-csi-driver.sigs.k8s.io/topics/secret-auto-rotation.html) when KV versions change. Manifests: `deployments/csi/`.
+2. **knxvault-operator** (**primary for vault-issued TLS**): CRDs reconcile CA/Issuer/Certificate → optional `kubernetes.io/tls` Secrets without cert-manager. Manifests: `deployments/operator/`. See [Replace cert-manager](operations/pki-replace-cert-manager.md).
+3. **External Secrets Operator** webhook adapter: sync KV to native Secrets when charts require `envFrom`. Manifests: `deployments/external-secrets/`.
+4. **Sidecar / init** (fallback): `POST /inject/render` into a shared `emptyDir`.
+5. **Mutating Webhook** (optional): Auto-inject CSI volume + `SecretProviderClass` from pod annotations.
+6. **cert-manager** (optional legacy): Vault issuer against KNXVault `/v1/*` product profile — not required when using the operator.
 
 ### 6.5 Resource Limits, Probes & Best Practices
 
@@ -1133,27 +1141,32 @@ KNXVault follows a phased approach aligned with the HLD, prioritizing core value
 - Passes external security review.
 - Dynamic secret rotation demonstrated.
 
-### 9.4 Phase 3: Advanced & Ecosystem
+### 9.4 Phase 3–5: Advanced & Ecosystem
 
-**Duration**: 8–12 weeks  
-**Goal**: Full maturity and ecosystem integration.
+**Goal**: Full maturity and ecosystem integration. Status as of 2026-07:
 
-**Features**:
+**Shipped (product surface):**
+
+- **knxvault-operator** CRDs (`KNXVaultCA`, Issuer/ClusterIssuer, Certificate, CertificateRequest) — **primary cert-manager replacement** for vault-issued TLS (W30 + hardening).
+- **Vault product profile** for optional cert-manager: `GET /v1/sys/health`, Kubernetes/AppRole/token auth, `POST /v1/<mount>/sign/<role>` via `internal/compat/vault` façade (not a full Vault clone).
+- CSI provider, ESO webhook adapter, mutating webhook (optional).
+- Dynamic database + SSH engines, advanced RBAC, Valkey optional read cache.
+- Server TLS + Raft peer mTLS; seal/unseal; encrypted backup/restore; lab full E2E.
+
+**Still open / deferred:**
 
 - Terraform provider.
-- Kubernetes Operator (for CRD-based management of CAs, roles, etc.).
-- HSM support via OpenSSL engine.
-- Advanced dynamic secret engines (AWS, cloud OAuth, etc.).
-- Multi-tenancy / namespace isolation.
-- Performance optimizations and caching layer (Valkey, Apache 2.0).
-- Full mTLS enforcement + client certificate management.
-- Disaster recovery automation.
-- Compliance certifications support (audit packs).
-- **Helm chart** (install packaging, values, hooks) — deferred from Phase 1; see `deployments/helm/` when implemented.
+- PKCS#11 HSM-backed CA keys (engine stub only).
+- Full client mTLS requirement on all secured routes.
+- Cross-cluster DR automation and compliance audit packs.
+- **Helm chart** — deferred; raw manifests under `deployments/`.
+- Full Vault plugin system / complete `/v1` secrets engines.
+
+**Design rule for compatibility:** foreign product wire formats map through thin adapters onto **native services**; see [Phase 4–5 design](design/phase4-ecosystem.md) and [HLD](architecture/hld.md).
 
 **Success Criteria**:
 
-- Production adoption readiness.
+- Production adoption readiness for secrets + PKI + K8s TLS automation without cert-manager.
 - Community/contributor-friendly codebase.
 - Comprehensive documentation and examples.
 

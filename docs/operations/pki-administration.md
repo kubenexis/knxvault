@@ -24,10 +24,11 @@ export TOKEN=<pki-admin-token>
 | Term | Meaning |
 |------|---------|
 | **Root CA** | Self-signed trust anchor (`POST /pki/root`) |
-| **Intermediate CA** | Subordinate CA signed by a parent (`POST /pki/intermediate`) |
-| **Issuing role** | The `role` field on `POST /pki/issue` — resolves to a **CA name** or an optional persisted **PKI role** that maps to a CA |
+| **Intermediate CA** | Subordinate CA signed by a parent (`POST /pki/intermediate`) — **supported and recommended for production** |
+| **Issuing role** | The `role` field on `POST /pki/issue` and `/pki/sign` — resolves to a **CA name** or an optional persisted **PKI role** that maps to a CA |
 | **Leaf certificate** | End-entity cert + private key returned by `POST /pki/issue` |
-| **Auto-renew** | Background leader job renews tracked certs before expiry |
+| **CSR sign** | `POST /pki/sign` (native) or Vault profile `POST /v1/<mount>/sign/<role>` — signs a client-supplied CSR (no new private key from vault) |
+| **Auto-renew** | Background leader job renews tracked certs; operator uses `status.caId` + `/pki/renew` |
 
 ### CA hierarchy (recommended production)
 
@@ -137,6 +138,24 @@ Response:
 | `private_key_pem` | **Protect immediately** — only transit over TLS; prefer short-lived delivery |
 | `serial` | Track for revocation |
 | `expires_at` | Monitor; auto-renew uses Raft leader job when `auto_renew: true` |
+| `ca_id` | UUID of signing CA — required for `POST /pki/renew` and operator status |
+
+### CSR sign (operator / external clients)
+
+When the client already holds the private key (CertificateRequest pattern):
+
+```bash
+curl -s -X POST $KNXVAULT_ADDR/pki/sign \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "role": "prod-intermediate",
+    "csr": "'"$(cat leaf.csr)"'",
+    "ttl": "720h"
+  }' | jq
+```
+
+Vault / cert-manager clients use the same backend via `/v1/pki/sign/<role>` (see [cert-manager recipe](../recipes/cert-manager-integration.md)).
 
 **CLI equivalent:**
 
