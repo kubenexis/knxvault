@@ -377,25 +377,52 @@ Gaps between **`docs/lld.md`** and the codebase not fully covered by Tier 0 or W
 
 ## Phase 5 — Ecosystem (planned)
 
-High-level scope from LLD §9.4. Phase 3 is complete; Phase 4 hardening recommended first. Detailed design in [`docs/design/phase4-ecosystem.md`](design/phase4-ecosystem.md).
+High-level scope from LLD §9.4. Phase 3–4 core is largely complete. Detailed design: [`docs/design/phase4-ecosystem.md`](design/phase4-ecosystem.md).
 
-| ID | Status | Title | Area | Effort | Depends on | Description | Acceptance criteria |
-|----|--------|-------|------|--------|------------|-------------|---------------------|
-| **W30-01** | Partial | Kubernetes Operator scaffold | k8s | L | W29 | `cmd/operator/main.go`, CRD manifest `deployments/operator/crd-knxvault-ca.yaml`. **Gap:** no kubebuilder/controller-runtime project or Go CRD types. | CRDs apply cleanly; scaffold compiles. |
-| **W30-02** | Not started | Operator reconciliation loop | k8s | L | W30-01 | `internal/operator/operator.go` is a stub (sleep + print; no controller-runtime). | Create CA via CRD → visible in API; e2e test passes. |
-| ~~**W31-01**~~ | Complete | OpenSSL engine abstraction | crypto | M | W3-03 | Done — `Engine` interface + `CLIEngine` in `internal/crypto/openssl/engine.go`; mock tests. | Unit tests with mock engine. |
-| **W31-02** | Not started | PKCS#11 HSM integration | crypto | L | W31-01 | Stub only — `pkcs11_stub.go`; `deps.go` supports `native`/`openssl` only. | Root CA created on SoftHSM; documented config. |
-| **W32-01** | Partial | Multi-tenancy policy model | auth | M | W41-01, W36-14 | Namespace condition + `ResolveTenantNamespace` (SA spoofing blocked). **Gap:** no automatic namespace-scoped policy isolation beyond evaluator. | Cross-tenant access denied in tests. |
-| ~~**W32-02**~~ | Complete | Tenant-aware API enforcement | api | M | W32-01 | Done — `TenantEnforcement` middleware; `KNXVAULT_TENANT_MODE`; `test/integration/tenant_test.go`. | Integration tests for tenant boundaries. |
-| **W32-03** | Partial | Tenant-scoped repository isolation | storage | L | W32-01 | `tenantrepo.WrapSecret` exists (`internal/repository/tenant/secret.go`). **Gap:** not wired in `deps.go`; isolation is service-layer path scoping. | Cross-tenant `Get` returns `404` even if policy misconfigured; Raft ops carry tenant key. |
-| **W32-04** | Partial | Tenant isolation across services and engines | api | L | W32-03 | KV tenant scoping in `SecretsService` + rotation paths. **Gap:** DB, SSH, PKI, inject, CSI not fully tenant-scoped. | Integration test: tenant A token cannot read tenant B KV path via any API surface. |
-| **W32-05** | Partial | Multi-tenant isolation test matrix | ci | M | W32-04 | `test/integration/tenant_test.go` (3 KV cases). **Gap:** no matrix for policy deny, CSI, backup export, or CSV artifact. | `make test-integration` tenant suite; CSV report for compliance packs (**W35-02**). |
-| **W33-01** | Partial | Valkey read cache | storage | M | W26 | Done for KV — `internal/cache/valkey.go`, `KNXVAULT_VALKEY_CACHE_URL`, wired in `deps.go`. **Gap:** CA, CRL, policies not cached; no cache-hit metrics. | Cache hit metrics; fallback on miss. |
-| **W33-02** | Partial | Cache invalidation on write | storage | S | W33-01 | KV `invalidateCache` on write/destroy (`secrets.go`). **Gap:** not Raft-commit-wide across all cached resource types. | Write → read sees fresh data. |
-| **W34-01** | Partial | Server mTLS | security | M | W5-03 | Server TLS + `MTLSRequired` on KV writes (`tlsconfig.go`, `mtls.go`). **Gap:** not enforced on all secured/admin routes (superseded in part by **W37-01**). | mTLS handshake test; opt-in flag. |
-| **W34-02** | Partial | Client cert issuance API | security | M | W34-01 | Done — `POST /pki/issue-client-cert`. **Gap:** no cert-based authentication method for API consumers. | Issue + authenticate with client cert. |
-| **W35-01** | Partial | DR automation | ops | L | W27 | `scripts/dr-failover.sh` (restore via `/sys/restore`). **Gap:** no cross-cluster backup replication. | DR drill documented and tested. |
-| **W35-02** | Partial | Compliance audit packs | docs | M | W14 | Done — `GET /sys/audit/pack`, `auditpack.go`, CLI. **Gap:** audit export + manifest only; no SOC2/PCI/ISO control-mapping bundles. | Pack generation CLI command. |
+### P0 — Native CRD automation (replace cert-manager)
+
+**Product goal:** For **any TLS issued by KNXVault PKI**, clusters do **not** need cert-manager. KNXVault remains the CA; a first-class **operator** owns Kubernetes desired-state (CRDs → issue/renew → `kubernetes.io/tls` Secret). cert-manager’s Vault issuer shim (**W40-02**) becomes **optional legacy** for environments that already run cert-manager; ACME/public CAs remain out of scope (LT / external tooling).
+
+**Principle:** Vault pods do **not** write Kubernetes Secrets. The **operator** is the only K8s citizen; it authenticates with ServiceAccount JWT → `POST /auth/kubernetes` (same pattern as CSI/ESO).
+
+**Implement in order:** W30-01 → W30-02 → W30-03 → W30-04 → W30-07 (minimum viable “no cert-manager”), then W30-05/06/08/09, then W30-10.
+
+| ID | Priority | Status | Title | Area | Effort | Depends on | Description | Acceptance criteria |
+|----|----------|--------|-------|------|--------|------------|-------------|---------------------|
+| **W30-01** | **P0** | Partial | Operator controller-runtime scaffold | k8s | L | W29, W36-02 | Replace stub with real **controller-runtime** (or kubebuilder) project: Go API types under `internal/operator/apis/`, regenerated CRDs, `make build-operator`, Deployment/RBAC under `deployments/operator/`. Existing: `cmd/operator/main.go`, thin `crd-knxvault-ca.yaml`. **Apache-2.0** controller-runtime / client-go only. | Operator binary builds statically; CRDs apply; manager starts against kind; no sleep-stub main path. |
+| **W30-02** | **P0** | Not started | Reconcile `KNXVaultCA` → PKI API | k8s | L | W30-01, W5-01 | Expand `KNXVaultCA` schema (`type: root\|intermediate`, `commonName`, `ttl`, `keyBits`, `parentRef`). Reconcile → `POST /pki/root` / `POST /pki/intermediate`. Status: Ready conditions, `caId`, serial, `notAfter`. | Apply CA CR → CA visible via API; Ready=True; second reconcile is no-op; failure sets Ready=False with reason. |
+| **W30-03** | **P0** | Not started | `KNXVaultCertificate` CRD + TLS Secret materialization | k8s | L | W30-02, W5-03, W36-03 | **Core cert-manager replacement.** CR fields: `secretName`, `issuerRef` (CA/Issuer), `commonName`, `dnsNames`, `ipAddresses`, `usages` (server/client), `duration`, `renewBefore`, privateKey size. Reconcile: SA auth → `POST /pki/issue` → create/patch `kubernetes.io/tls` Secret (`tls.crt`, `tls.key`, optional `ca.crt`) with ownerReference. Prefer **operator-owned renew** (`auto_renew: false` at issue). | Certificate CR → Secret usable by Ingress; status Ready + serial + notAfter; delete CR optionally GC Secret (finalizer policy documented). |
+| **W30-04** | **P0** | Not started | Certificate renew lifecycle, status, metrics | k8s | M | W30-03 | Requeue at `notAfter - renewBefore`; re-issue or `POST /pki/renew`; bump `status.revision`; conditions `Issuing` / `Ready`; Prometheus: issue/renew/error counters, Secret age. | Cert rotates before expiry without manual Job; metrics scraped; unit tests for requeue math. |
+| **W30-05** | **P0** | Not started | `KNXVaultIssuer` / ClusterIssuer + multi-namespace | k8s | M | W30-03 | Namespaced **Issuer** and cluster-scoped **ClusterIssuer** (or equivalent) referencing vault CA/role. Certificates in app namespaces use `issuerRef` across namespaces. Operator RBAC: secrets in target ns; vault role `cert-operator`. | App in `default` issues via ClusterIssuer in `knxvault`; RBAC least-privilege documented. |
+| **W30-06** | **P0** | Not started | Optional Ingress / Gateway annotation shim | k8s | M | W30-03, W30-05 | Watch Ingress (and optionally Gateway) TLS hosts + annotation (e.g. `knxvault.kubenexis.dev/issuer`) → auto-create/update `KNXVaultCertificate` (cert-manager ingress-shim parity). Feature-gated. | Annotated Ingress gets Secret without hand-written Certificate CR; flag to disable. |
+| **W30-07** | **P0** | Not started | Operator e2e (kind): no cert-manager | ci | M | W30-04, W30-05 | `scripts/test-operator-kind.sh` (+ Go tests): install vault + operator CRDs; apply CA + Certificate; assert Secret; optional curl TLS or Ingress. **cert-manager not installed.** Document in `docs/engineering/development.md`. | Script green on kind; CI/docs gate: “KNXVault PKI TLS without cert-manager”. |
+| **W30-08** | **P0** | Not started | Docs: operator-first PKI; cert-manager optional | docs | S | W30-03 | Rewrite [`pki-kubernetes.md`](operations/pki-kubernetes.md), [`kubernetes-native.md`](integration/kubernetes-native.md), install/README: **primary path = operator CRDs**; CronJob = break-glass; cert-manager Vault shim = legacy optional. Product claim: *For any TLS issued by KNXVault PKI, cert-manager is not required.* | New operators onboard without cert-manager; matrix rows updated. |
+| **W30-09** | **P0** | Not started | cert-manager → KNXVaultCertificate migration guide | docs | M | W30-05, W30-08 | Recipe: map cert-manager `Certificate`/`Issuer` → KNXVault CRs (same `secretName`/dnsNames); dual-run; uninstall cert-manager. Example conversion table + sample manifests. | Doc + example YAMLs under `deployments/operator/migration/`; dry-run checklist. |
+| **W30-10** | **P0** | Not started | Optional `KNXVaultCertificateRequest` (CSR sign) | k8s | M | W30-03 | CSR-based flow for agents/devices that supply CSR (parity with some cert-manager CertificateRequest uses). Reconcile → vault sign API / issue-from-CSR if available; else document gap + API extension. | CSR CR → signed cert Secret or status failure with clear reason; e2e optional. |
+
+> **P0 non-goals:** ACME / Let’s Encrypt / DNS-01 (remain external or LT). Do not vendor cert-manager. Do not teach Raft pods to call the Kubernetes apiserver for Secrets.
+
+> **P0 sequencing note:** W40-02 (cert-manager Vault shim) stays **Complete** for compatibility but is **not** the preferred integration once W30-03+ ship.
+
+### Other Phase 5 items
+
+| ID | Priority | Status | Title | Area | Effort | Depends on | Description | Acceptance criteria |
+|----|----------|--------|-------|------|--------|------------|-------------|---------------------|
+| ~~**W31-01**~~ | — | Complete | OpenSSL engine abstraction | crypto | M | W3-03 | Done — `Engine` interface + `CLIEngine` in `internal/crypto/openssl/engine.go`; mock tests. | Unit tests with mock engine. |
+| **W31-02** | P1 | Not started | PKCS#11 HSM integration | crypto | L | W31-01 | Stub only — `pkcs11_stub.go`; `deps.go` supports `native`/`openssl` only. Complements operator CA CRs with HSM-backed roots. | Root CA created on SoftHSM; documented config. |
+| **W32-01** | P1 | Partial | Multi-tenancy policy model | auth | M | W41-01, W36-14 | Namespace condition + `ResolveTenantNamespace` (SA spoofing blocked). **Gap:** no automatic namespace-scoped policy isolation beyond evaluator. | Cross-tenant access denied in tests. |
+| ~~**W32-02**~~ | — | Complete | Tenant-aware API enforcement | api | M | W32-01 | Done — `TenantEnforcement` middleware; `KNXVAULT_TENANT_MODE`; `test/integration/tenant_test.go`. | Integration tests for tenant boundaries. |
+| **W32-03** | P1 | Partial | Tenant-scoped repository isolation | storage | L | W32-01 | `tenantrepo.WrapSecret` exists (`internal/repository/tenant/secret.go`). **Gap:** not wired in `deps.go`; isolation is service-layer path scoping. | Cross-tenant `Get` returns `404` even if policy misconfigured; Raft ops carry tenant key. |
+| **W32-04** | P1 | Partial | Tenant isolation across services and engines | api | L | W32-03 | KV tenant scoping in `SecretsService` + rotation paths. **Gap:** DB, SSH, PKI, inject, CSI not fully tenant-scoped. | Integration test: tenant A token cannot read tenant B KV path via any API surface. |
+| **W32-05** | P1 | Partial | Multi-tenant isolation test matrix | ci | M | W32-04 | `test/integration/tenant_test.go` (3 KV cases). **Gap:** no matrix for policy deny, CSI, backup export, or CSV artifact. | `make test-integration` tenant suite; CSV report for compliance packs (**W35-02**). |
+| **W33-01** | P2 | Partial | Valkey read cache | storage | M | W26 | Done for KV — `internal/cache/valkey.go`, `KNXVAULT_VALKEY_CACHE_URL`, wired in `deps.go`. **Gap:** CA, CRL, policies not cached; no cache-hit metrics. | Cache hit metrics; fallback on miss. |
+| **W33-02** | P2 | Partial | Cache invalidation on write | storage | S | W33-01 | KV `invalidateCache` on write/destroy (`secrets.go`). **Gap:** not Raft-commit-wide across all cached resource types. | Write → read sees fresh data. |
+| **W34-01** | P1 | Partial | Server mTLS | security | M | W5-03 | Server TLS + `MTLSRequired` on KV writes (`tlsconfig.go`, `mtls.go`). **Gap:** not enforced on all secured/admin routes (superseded in part by **W37-01**). | mTLS handshake test; opt-in flag. |
+| **W34-02** | P1 | Partial | Client cert issuance API | security | M | W34-01 | Done — `POST /pki/issue-client-cert`. **Gap:** no cert-based authentication method for API consumers. | Issue + authenticate with client cert. |
+| **W35-01** | P2 | Partial | DR automation | ops | L | W27 | `scripts/dr-failover.sh` (restore via `/sys/restore`). **Gap:** no cross-cluster backup replication. | DR drill documented and tested. |
+| **W35-02** | P2 | Partial | Compliance audit packs | docs | M | W14 | Done — `GET /sys/audit/pack`, `auditpack.go`, CLI. **Gap:** audit export + manifest only; no SOC2/PCI/ISO control-mapping bundles. | Pack generation CLI command. |
+
+> **Phase 5 dependency note:** **P0 W30-*** is current focus (cert-manager avoidance). **W32-*** (multi-tenancy) should follow for multi-team issuers. **W31-02** (HSM) pairs with production CA CRs. **W36-13** (token persistence) should precede full **W34-02** (client cert API auth).
 
 ---
 
