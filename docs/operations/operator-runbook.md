@@ -25,6 +25,7 @@ Day-2  =  everything after acceptance (restarts, backups, upgrades, incidents)
 | TLS without cert-manager | [Replace cert-manager](pki-replace-cert-manager.md) |
 | Day-2 tables | [Day-2 operations](day2.md) |
 | Lab proof | [E2E and lab tests](../engineering/e2e-and-lab-tests.md) |
+| Post-quantum (future) | [docs/pq/](../pq/README.md) — dual planes, g1/g2; Harbor stays classical (**g1**) |
 
 ---
 
