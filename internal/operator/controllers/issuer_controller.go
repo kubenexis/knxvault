@@ -8,19 +8,20 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/kubenexis/knxvault/internal/acme"
 	v1alpha1 "github.com/kubenexis/knxvault/internal/operator/apis/v1alpha1"
 	"github.com/kubenexis/knxvault/internal/operator/reconcileutil"
 	"github.com/kubenexis/knxvault/internal/operator/statusutil"
 	"github.com/kubenexis/knxvault/internal/operator/vaultiface"
 )
 
-// IssuerReconciler marks namespaced issuers Ready when vault CA exists.
+// IssuerReconciler marks namespaced issuers Ready when backend is available.
 type IssuerReconciler struct {
 	client.Client
 	Vault vaultiface.API
 }
 
-// Reconcile validates issuer against vault.
+// Reconcile validates issuer against vault / ACME directory / self-signed.
 func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var iss v1alpha1.KNXVaultIssuer
 	if err := r.Get(ctx, req.NamespacedName, &iss); err != nil {
@@ -29,17 +30,21 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 		return ctrl.Result{}, err
 	}
-	if iss.Spec.VaultCAName == "" {
-		iss.Status.Conditions = statusutil.ReadyFalse(iss.Status.Conditions, reconcileutil.ReasonInvalidSpec, "vaultCAName required")
+	resolved, err := v1alpha1.ResolveIssuerSpec(iss.Spec)
+	if err != nil {
+		iss.Status.Conditions = statusutil.ReadyFalse(iss.Status.Conditions, reconcileutil.ReasonInvalidSpec, err.Error())
+		iss.Status.Mode = ""
 		_ = r.Status().Update(ctx, &iss)
 		return reconcileutil.ErrorResult(1), nil
 	}
-	if err := ensureVaultCA(ctx, r.Vault, r.Client, iss.Namespace, iss.Spec.VaultCAName, iss.Spec.CARef); err != nil {
+	if err := ensureIssuerReady(ctx, r.Vault, r.Client, iss.Namespace, resolved); err != nil {
 		iss.Status.Conditions = statusutil.ReadyFalse(iss.Status.Conditions, reconcileutil.ReasonPendingIssuer, err.Error())
+		iss.Status.Mode = resolved.Mode
 		_ = r.Status().Update(ctx, &iss)
 		return reconcileutil.ErrorResult(2), nil
 	}
-	iss.Status.Conditions = statusutil.ReadyTrue(iss.Status.Conditions, reconcileutil.ReasonConfigured, "vault CA present")
+	iss.Status.Mode = resolved.Mode
+	iss.Status.Conditions = statusutil.ReadyTrue(iss.Status.Conditions, reconcileutil.ReasonConfigured, "issuer ready")
 	return ctrl.Result{}, r.Status().Update(ctx, &iss)
 }
 
@@ -50,13 +55,13 @@ func (r *IssuerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-// ClusterIssuerReconciler marks cluster issuers Ready when vault CA exists.
+// ClusterIssuerReconciler marks cluster issuers Ready when backend is available.
 type ClusterIssuerReconciler struct {
 	client.Client
 	Vault vaultiface.API
 }
 
-// Reconcile validates cluster issuer against vault.
+// Reconcile validates cluster issuer.
 func (r *ClusterIssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var iss v1alpha1.KNXVaultClusterIssuer
 	if err := r.Get(ctx, req.NamespacedName, &iss); err != nil {
@@ -65,17 +70,21 @@ func (r *ClusterIssuerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 		return ctrl.Result{}, err
 	}
-	if iss.Spec.VaultCAName == "" {
-		iss.Status.Conditions = statusutil.ReadyFalse(iss.Status.Conditions, reconcileutil.ReasonInvalidSpec, "vaultCAName required")
+	resolved, err := v1alpha1.ResolveClusterIssuerSpec(iss.Spec)
+	if err != nil {
+		iss.Status.Conditions = statusutil.ReadyFalse(iss.Status.Conditions, reconcileutil.ReasonInvalidSpec, err.Error())
+		iss.Status.Mode = ""
 		_ = r.Status().Update(ctx, &iss)
 		return reconcileutil.ErrorResult(1), nil
 	}
-	if err := ensureVaultCA(ctx, r.Vault, r.Client, "", iss.Spec.VaultCAName, iss.Spec.CARef); err != nil {
+	if err := ensureIssuerReady(ctx, r.Vault, r.Client, "", resolved); err != nil {
 		iss.Status.Conditions = statusutil.ReadyFalse(iss.Status.Conditions, reconcileutil.ReasonPendingIssuer, err.Error())
+		iss.Status.Mode = resolved.Mode
 		_ = r.Status().Update(ctx, &iss)
 		return reconcileutil.ErrorResult(2), nil
 	}
-	iss.Status.Conditions = statusutil.ReadyTrue(iss.Status.Conditions, reconcileutil.ReasonConfigured, "vault CA present")
+	iss.Status.Mode = resolved.Mode
+	iss.Status.Conditions = statusutil.ReadyTrue(iss.Status.Conditions, reconcileutil.ReasonConfigured, "issuer ready")
 	return ctrl.Result{}, r.Status().Update(ctx, &iss)
 }
 
@@ -86,15 +95,39 @@ func (r *ClusterIssuerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
+func ensureIssuerReady(ctx context.Context, vault vaultiface.API, c client.Client, ns string, resolved v1alpha1.ResolvedIssuer) error {
+	switch resolved.Mode {
+	case v1alpha1.IssuerModeVault:
+		return ensureVaultCA(ctx, vault, c, ns, resolved.VaultCA, resolved.CARef)
+	case v1alpha1.IssuerModeSelfSigned:
+		return nil
+	case v1alpha1.IssuerModeACME:
+		if resolved.ACME == nil {
+			return fmt.Errorf("acme config required")
+		}
+		if !resolved.ACME.HTTP01 && resolved.ACME.DNS01 == nil {
+			return fmt.Errorf("acme issuer requires http01 and/or dns01")
+		}
+		// Directory probe when server set (skip for empty = will use LE default at issue time).
+		cfg := acme.Config{DirectoryURL: resolved.ACME.Server, SkipTLSVerify: resolved.ACME.SkipTLSVerify}
+		cli := acme.NewClient(cfg, nil, nil)
+		info := cli.ProbeDirectory(ctx)
+		if resolved.ACME.Server != "" && !info.Ready {
+			return fmt.Errorf("acme directory: %s", info.Message)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unknown mode %s", resolved.Mode)
+	}
+}
+
 func ensureVaultCA(ctx context.Context, vault vaultiface.API, c client.Client, ns, vaultCAName string, ref *v1alpha1.IssuerRef) error {
 	if vault == nil {
 		return fmt.Errorf("vault client not configured")
 	}
-	// Prefer vault truth.
 	if _, err := vault.GetCAByName(ctx, vaultCAName); err == nil {
 		return nil
 	}
-	// Optional: CR Ready is a soft signal while CA is provisioning.
 	if ref != nil && ref.Name != "" {
 		var ca v1alpha1.KNXVaultCA
 		key := client.ObjectKey{Name: ref.Name, Namespace: ref.Namespace}
@@ -104,10 +137,10 @@ func ensureVaultCA(ctx context.Context, vault vaultiface.API, c client.Client, n
 		if err := c.Get(ctx, key, &ca); err == nil {
 			for _, cond := range ca.Status.Conditions {
 				if cond.Type == v1alpha1.ConditionReady && cond.Status == "True" {
-					// CR ready but vault lookup failed — still fail hard for issuer.
-					break
+					return nil
 				}
 			}
+			return fmt.Errorf("CA %s not Ready yet", ref.Name)
 		}
 	}
 	return fmt.Errorf("vault CA %q not found", vaultCAName)

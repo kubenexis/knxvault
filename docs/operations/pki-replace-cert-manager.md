@@ -1,7 +1,7 @@
 # Replacing cert-manager with KNXVault
 
-**Status:** Complete (W30 + P0/P1/P2 operator hardening).  
-**Claim:** For **any TLS issued by KNXVault PKI**, you do **not** need cert-manager.
+**Status:** Complete (W30 + multi-issuer ACME/SelfSigned).  
+**Claim:** KNXVault **replaces cert-manager** for private CA, self-signed, and ACME (public) certificate automation in Kubernetes — you do **not** need the cert-manager controller.
 
 ## Architecture
 
@@ -22,7 +22,7 @@ flowchart LR
 | **knxvault-operator** | CRD automation, leader-elected, Secret or status-only delivery |
 | **cert-manager** | Optional legacy only (Vault shim) |
 
-ACME / public CAs remain out of scope.
+ACME uses `golang.org/x/crypto/acme` (HTTP-01 + DNS-01 Cloudflare/webhook). See [support matrix](certificate-support-matrix.md).
 
 ## Install
 
@@ -54,7 +54,7 @@ Bind the operator ServiceAccount to a vault role that can `pki` read/write (issu
 | CRD | Purpose |
 |-----|---------|
 | `KNXVaultCA` | Root/intermediate CA (idempotent by vault name) |
-| `KNXVaultIssuer` / `KNXVaultClusterIssuer` | Ready only when **vault CA exists** (`GET /pki/ca/by-name/:name`) |
+| `KNXVaultIssuer` / `KNXVaultClusterIssuer` | Multi-issuer: **Vault** / **ACME** / **SelfSigned** |
 | `KNXVaultCertificate` | Leaf + delivery `Secret` (default) or `None` |
 | `KNXVaultCertificateRequest` | **True CSR sign** via `POST /pki/sign`, else issue fallback |
 

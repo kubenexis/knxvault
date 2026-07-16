@@ -157,12 +157,14 @@ test: ## Run unit tests
 	$(call require_cmd,go)
 	$(GO) test $$(go list ./... | grep -v '/test/integration') -count=1
 
-test-coverage: ## Coverage gate ≥COVERAGE_MIN% on renew/secretutil/statusutil; controllers+vaultiface reported
-	$(call log,Running coverage gate (min $(COVERAGE_MIN)% on renew/secretutil/statusutil))
+test-coverage: ## Coverage gate ≥COVERAGE_MIN% on pure operator/acme packages
+	$(call log,Running coverage gate (min $(COVERAGE_MIN)% on pure logic packages))
 	$(call require_cmd,go)
 	@$(GO) test ./internal/operator/renew ./internal/operator/secretutil ./internal/operator/statusutil \
 		./internal/operator/reconcileutil ./internal/operator/certlogic \
+		./internal/acme \
 		-count=1 -covermode=atomic -coverprofile=coverage-operator.out; \
+	$(GO) test ./internal/operator/cmcompat ./internal/operator/apis/v1alpha1 -count=1 -cover 2>&1 | tail -6; \
 	pct=$$($(GO) tool cover -func=coverage-operator.out | awk '/^total:/{gsub(/%/,"",$$3); print $$3}'); \
 	echo "operator pure-logic coverage: $${pct}% (min $(COVERAGE_MIN)%)"; \
 	awk -v p="$${pct}" -v m="$(COVERAGE_MIN)" 'BEGIN{ if ((p+0) < (m+0)) { print "coverage below gate" > "/dev/stderr"; exit 1 } }'; \

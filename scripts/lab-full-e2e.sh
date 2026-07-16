@@ -51,10 +51,12 @@ ssh "root@${HOST}" 'chmod +x /opt/knxvault/knxvault /opt/knxvault/knxvault-cli /
 /opt/knxvault/knxvault-cli -version 2>/dev/null || true'
 
 echo "==> operator CRDs + RBAC"
+ssh "root@${HOST}" 'rm -rf /tmp/knxvault-operator-deploy'
 scp -r "$ROOT/deployments/operator" "root@${HOST}:/tmp/knxvault-operator-deploy"
 ssh "root@${HOST}" 'kubectl get ns knxvault >/dev/null 2>&1 || kubectl create ns knxvault
 kubectl apply -f /tmp/knxvault-operator-deploy/crds/
-kubectl apply -f /tmp/knxvault-operator-deploy/rbac.yaml'
+kubectl apply -f /tmp/knxvault-operator-deploy/rbac.yaml
+ls /tmp/knxvault-operator-deploy/samples/'
 
 echo "==> start vault (fresh single-node Raft) + operator"
 ssh "root@${HOST}" "bash -s" <<REMOTE
@@ -279,6 +281,35 @@ else
   kubectl get knxvaultclusterissuer platform -o yaml 2>/dev/null | tail -25 || true
   kubectl -n default get knxvaultcertificate app-tls -o yaml 2>/dev/null | tail -30 || true
   tail -30 /var/log/knxvault/full-e2e-operator.log 2>/dev/null || true
+fi
+
+# --- D. Multi-issuer self-signed (no cert-manager, no public ACME needed) ---
+echo "SECTION|multi-issuer"
+kubectl delete knxvaultcertificate selfsigned-demo -n default --ignore-not-found >/dev/null 2>&1 || true
+kubectl delete knxvaultclusterissuer selfsigned --ignore-not-found >/dev/null 2>&1 || true
+kubectl delete secret selfsigned-demo-tls -n default --ignore-not-found >/dev/null 2>&1 || true
+kubectl apply -f /tmp/knxvault-operator-deploy/samples/selfsigned-certificate.yaml >/dev/null
+SS_OK=0
+for i in $(seq 1 40); do
+  mode=$(kubectl get knxvaultclusterissuer selfsigned -o jsonpath='{.status.mode}' 2>/dev/null || true)
+  ready=$(kubectl get knxvaultclusterissuer selfsigned -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)
+  serial=$(kubectl -n default get knxvaultcertificate selfsigned-demo -o jsonpath='{.status.serial}' 2>/dev/null || true)
+  if [ "$ready" = "True" ] && [ "$mode" = "SelfSigned" ] && [ -n "$serial" ] && kubectl -n default get secret selfsigned-demo-tls >/dev/null 2>&1; then
+    SS_OK=1
+    break
+  fi
+  sleep 2
+done
+if [ "$SS_OK" = "1" ]; then
+  pass "selfSigned ClusterIssuer Ready mode=SelfSigned"
+  pass "selfSigned Certificate serial"
+  pass "selfSigned TLS Secret"
+else
+  fail "selfSigned ClusterIssuer Ready mode=SelfSigned"
+  fail "selfSigned Certificate serial"
+  fail "selfSigned TLS Secret"
+  kubectl get knxvaultclusterissuer selfsigned -o yaml 2>/dev/null | tail -20 || true
+  kubectl -n default get knxvaultcertificate selfsigned-demo -o yaml 2>/dev/null | tail -20 || true
 fi
 
 echo "SUMMARY|PASS=$PASS FAIL=$FAIL"

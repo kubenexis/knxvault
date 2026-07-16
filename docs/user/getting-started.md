@@ -169,18 +169,20 @@ curl -s -X POST $KNXVAULT_ADDR/pki/issue \
 
 Set `"auto_renew": true` to track the certificate for background renewal by the Raft leader.
 
-### Kubernetes TLS (preferred)
+### Kubernetes TLS (preferred — no cert-manager)
 
-Use **knxvault-operator** CRDs (`KNXVaultCA`, `KNXVaultClusterIssuer`, `KNXVaultCertificate`) so workloads get `kubernetes.io/tls` Secrets **without cert-manager**:
+Use **knxvault-operator** multi-issuer CRDs so workloads get `kubernetes.io/tls` Secrets **without cert-manager**:
 
 ```bash
 kubectl apply -f deployments/operator/crds/
+# Private CA path
 kubectl apply -f deployments/operator/samples/certificate-example.yaml
+# Or self-signed lab certs
+kubectl apply -f deployments/operator/samples/selfsigned-certificate.yaml
+# Or ACME (Let's Encrypt) — see acme-clusterissuer-example.yaml
 ```
 
-Guide: [Replace cert-manager](../operations/pki-replace-cert-manager.md).
-
-If you already run cert-manager, the optional [Vault product profile](../recipes/cert-manager-integration.md) (`/v1/sys/health`, `/v1/pki/sign/...`) remains supported.
+Guides: [Replace cert-manager](../operations/pki-replace-cert-manager.md), [support matrix](../operations/certificate-support-matrix.md).
 
 Detailed recipes (trust bundles, CRL/OCSP): [PKI administration](../operations/pki-administration.md).
 

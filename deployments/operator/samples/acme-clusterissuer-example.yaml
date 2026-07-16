@@ -1,0 +1,27 @@
+# ACME ClusterIssuer example (Let's Encrypt staging).
+# Requires: public DNS for DNS-01 or HTTP-01 reachable on port 80.
+# Set KNXVAULT_ACME_HTTP01_ADDR=:8082 on the operator for embedded HTTP-01 solver.
+apiVersion: knxvault.kubenexis.dev/v1alpha1
+kind: KNXVaultClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: ops@example.com
+    http01: true
+    # dns01:
+    #   provider: cloudflare
+    #   apiTokenSecretRef:
+    #     name: cloudflare-api-token
+    #     key: api-token
+    #   zoneID: ""
+---
+# DNS-01 webhook example:
+# spec:
+#   acme:
+#     server: https://acme-v02.api.letsencrypt.org/directory
+#     email: ops@example.com
+#     dns01:
+#       provider: webhook
+#       webhookURL: http://dns-webhook.knxvault.svc/present

@@ -63,10 +63,18 @@ spec:
           properties:
             spec:
               type: object
-              required: [vaultCAName]
               properties:
-                vaultCAName: { type: string, minLength: 1 }
+                vaultCAName: { type: string }
                 caRef:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                vault:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                acme:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                selfSigned:
                   type: object
                   x-kubernetes-preserve-unknown-fields: true
             status:
@@ -97,10 +105,18 @@ spec:
           properties:
             spec:
               type: object
-              required: [vaultCAName]
               properties:
-                vaultCAName: { type: string, minLength: 1 }
+                vaultCAName: { type: string }
                 caRef:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                vault:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                acme:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                selfSigned:
                   type: object
                   x-kubernetes-preserve-unknown-fields: true
             status:

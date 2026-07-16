@@ -7,7 +7,8 @@ Design outline for ecosystem integration, hardware security, and operational mat
 | **Phase 3 (Dragonboat)** | Complete |
 | **Phase 4 hardening** | Largely shipped |
 | **P0 W30 operator / cert-manager replacement** | **Complete** (including P0–P2 hardening) |
-| **Vault product profile (cert-manager)** | **Shipped** — full issuer profile via façade |
+| **Vault product profile (cert-manager dual-run)** | **Shipped** — full issuer profile via façade |
+| **Multi-issuer ACME / SelfSigned** | **Shipped** — operator replaces cert-manager for public TLS too |
 | **Authoritative backlog** | [`docs/backlog.md`](../backlog.md) |
 
 ## Goals

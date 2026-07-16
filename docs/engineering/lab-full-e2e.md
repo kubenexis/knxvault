@@ -2,10 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Result** | **PASS** (38 / 38 checks) |
-| **Date (UTC)** | 2026-07-16T05:46:26Z |
+| **Result** | **PASS** (41 / 41 checks) |
+| **Date (UTC)** | 2026-07-16T06:07:44Z |
 | **Host** | `e2e-test01` (`192.168.137.131`) |
-| **Binary** | `knxvault` / `knxvault-cli` / `knxvault-operator` **0.4.5** @ commit `67d546d` |
+| **Binary** | `knxvault` / `knxvault-cli` / `knxvault-operator` **0.4.5** (multi-issuer) |
 | **Mode** | Single-node Dragonboat Raft (host process) + operator against local API |
 | **Script** | `scripts/lab-full-e2e.sh` |
 
@@ -14,8 +14,9 @@
 | Section | Checks | Purpose |
 |---------|--------|---------|
 | **core** | 20 | CLI health/status/doctor, auth, PKI, KV redaction, metrics/openapi, env-only CLI |
-| **vaultcompat** | 14 | cert-manager Vault profile: `/v1/sys/health`, AppRole register/login, sign (issue+CSR), custom mount, AppRole token sign |
-| **operator** | 4 | ClusterIssuer Ready, Certificate serial+caId, TLS Secret + annotations |
+| **vaultcompat** | 14 | Vault product profile: health, AppRole, sign (issue+CSR), custom mount |
+| **operator** | 4 | Vault-mode ClusterIssuer Ready, Certificate serial+caId, TLS Secret |
+| **multi-issuer** | 3 | SelfSigned ClusterIssuer + Certificate + Secret (no cert-manager) |
 
 ## Re-run
 
@@ -40,8 +41,8 @@ Artifacts on the lab node:
 ## Last run summary
 
 ```
-SUMMARY|PASS=38 FAIL=0
-FULL LAB E2E PASS on 192.168.137.131 (commit 67d546d)
+SUMMARY|PASS=41 FAIL=0
+FULL LAB E2E PASS on 192.168.137.131
 ```
 
 ### vaultcompat highlights

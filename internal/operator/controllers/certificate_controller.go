@@ -70,17 +70,17 @@ func (r *CertificateReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{RequeueAfter: dec.RequeueAfter}, nil
 	}
 
-	cert.Status.Conditions = statusutil.SetCondition(cert.Status.Conditions, v1alpha1.ConditionIssuing, "True", reconcileutil.ReasonIssuing, "contacting vault")
+	cert.Status.Conditions = statusutil.SetCondition(cert.Status.Conditions, v1alpha1.ConditionIssuing, "True", reconcileutil.ReasonIssuing, "issuing certificate")
 	_ = r.Status().Update(ctx, &cert)
 
-	role, err := ResolveVaultRole(ctx, r.Client, cert.Namespace, cert.Spec.IssuerRef)
+	resolved, err := ResolveIssuerFromRef(ctx, r.Client, cert.Namespace, cert.Spec.IssuerRef)
 	if err != nil {
 		res := failCert(&cert, "certificate", reconcileutil.ReasonIssuerNotReady, err.Error())
 		_ = r.Status().Update(ctx, &cert)
 		return res, nil
 	}
 
-	result, err := r.issueOrRenew(ctx, &cert, role, dec)
+	result, err := r.issueOrRenewMulti(ctx, &cert, resolved, dec)
 	if err != nil {
 		res := failCert(&cert, "certificate", reconcileutil.ReasonVaultError, err.Error())
 		_ = r.Status().Update(ctx, &cert)
@@ -88,8 +88,11 @@ func (r *CertificateReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	roleCAID := ""
-	if ca, e := r.Vault.GetCAByName(ctx, role); e == nil {
-		roleCAID = ca.ID
+	role := resolved.VaultCA
+	if resolved.Mode == v1alpha1.IssuerModeVault && role != "" && r.Vault != nil {
+		if ca, e := r.Vault.GetCAByName(ctx, role); e == nil {
+			roleCAID = ca.ID
+		}
 	}
 	caID := certlogic.ResolveCAID(result.CAID, cert.Status.CAID, roleCAID)
 	newRev := cert.Status.Revision + 1
@@ -105,6 +108,9 @@ func (r *CertificateReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	cert.Status.NotBefore = metav1.Now().UTC().Format(time.RFC3339)
 	cert.Status.CAID = caID
 	cert.Status.VaultRole = role
+	if cert.Status.VaultRole == "" {
+		cert.Status.VaultRole = resolved.Mode
+	}
 	cert.Status.Revision = newRev
 	cert.Status.FailureCount = 0
 	cert.Status.LastFailure = ""
@@ -123,9 +129,10 @@ func (r *CertificateReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	return ctrl.Result{RequeueAfter: d2.RequeueAfter}, nil
 }
 
-func (r *CertificateReconciler) issueOrRenew(ctx context.Context, cert *v1alpha1.KNXVaultCertificate, role string, dec certlogic.Decision) (*vaultiface.CertResult, error) {
+func (r *CertificateReconciler) issueOrRenewMulti(ctx context.Context, cert *v1alpha1.KNXVaultCertificate, resolved v1alpha1.ResolvedIssuer, dec certlogic.Decision) (*vaultiface.CertResult, error) {
 	logger := log.FromContext(ctx)
-	if certlogic.PreferRenew(cert.Status.Serial, cert.Status.CAID) {
+	// Renew only for vault-backed certs with caId.
+	if resolved.Mode == v1alpha1.IssuerModeVault && certlogic.PreferRenew(cert.Status.Serial, cert.Status.CAID) && r.Vault != nil {
 		result, err := r.Vault.Renew(ctx, cert.Status.CAID, cert.Status.Serial, dec.TTL)
 		if err == nil {
 			metrics.RenewsTotal.Inc()
@@ -133,7 +140,8 @@ func (r *CertificateReconciler) issueOrRenew(ctx context.Context, cert *v1alpha1
 		}
 		logger.Info("renew failed, falling back to issue", "err", err.Error())
 	}
-	result, err := r.Vault.Issue(ctx, role, cert.Spec.CommonName, dec.TTL, cert.Spec.DNSNames, cert.Spec.IPAddresses, dec.KeyBits, dec.ClientUsage)
+	result, err := IssueFromResolved(ctx, r.Client, r.Vault, cert.Namespace, resolved,
+		cert.Spec.CommonName, cert.Spec.DNSNames, cert.Spec.IPAddresses, dec.TTL, dec.KeyBits, dec.ClientUsage)
 	if err != nil {
 		return nil, err
 	}

@@ -21,8 +21,8 @@ KNXVault is a lightweight, self-hosted secrets management and PKI system written
 - **PKI:** Root and intermediate CAs, leaf issue/renew, **CSR sign** (`POST /pki/sign`), revocation (CRL), basic OCSP
 - **Auth:** Bootstrap root token, opaque client tokens, Kubernetes ServiceAccount JWT, **AppRole** (Vault-profile login), OIDC
 - **Authorization:** RBAC policies with path, IP, time, and namespace conditions
-- **TLS automation (K8s):** **knxvault-operator** CRDs replace cert-manager for vault-issued TLS
-- **Vault product profile:** cert-manager-compatible `/v1/sys/health`, auth mounts, `/v1/<mount>/sign/<role>` (`internal/compat/vault`)
+- **TLS automation (K8s):** **knxvault-operator** multi-issuer CRDs (Vault PKI, **ACME**, **SelfSigned**) replace cert-manager for private and public TLS
+- **Vault product profile:** optional dual-run with cert-manager (`/v1/*`); prefer operator
 - **Storage:** Dragonboat Raft + Pebble (production); in-memory (dev/tests); optional Valkey read cache
 - **Operations:** Encrypted backup/restore, seal/unseal, audit export, CLI (`doctor`, KV redaction)
 - **Deployment:** Docker image, raw Kubernetes manifests (StatefulSet + headless Service), CSI / ESO / operator / webhook
@@ -32,7 +32,7 @@ KNXVault is a lightweight, self-hosted secrets management and PKI system written
 - Full HashiCorp Vault feature parity (plugins, arbitrary secret engines under `/v1`)
 - Helm chart and Terraform provider (long-term)
 - PKCS#11 HSM-backed CA keys (stub / design only)
-- ACME / public CAs (Let’s Encrypt) — not part of the cert-manager replacement claim
+- Third-party enterprise CAs (Venafi, AWS PCA, …) — future external issuer plugin
 - GUI
 
 ## Logical architecture
@@ -114,9 +114,11 @@ See [Dragonboat storage](../storage/dragonboat.md) and [ADR-0001](../adr/0001-dr
 
 | Need | Recommended path |
 |------|------------------|
-| New clusters, vault-issued TLS only | **knxvault-operator** CRDs (no cert-manager) |
-| Existing cert-manager GitOps / Ingress | Optional **Vault product profile** (`ClusterIssuer` type `vault`) |
-| Public CA / ACME | Outside KNXVault (use cert-manager ACME or other) |
+| Private CA TLS | Operator **Vault** issuer mode |
+| Public TLS (Let's Encrypt) | Operator **ACME** issuer mode (HTTP-01 / DNS-01) |
+| Lab / no external CA | Operator **SelfSigned** mode |
+| Existing cert-manager GitOps | Migrate with `cmcompat` or temporary Vault `/v1/*` profile |
+| Support matrix | [Certificate support matrix](../operations/certificate-support-matrix.md) |
 
 ## Related documents
 

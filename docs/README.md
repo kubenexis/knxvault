@@ -43,7 +43,9 @@ Version-controlled documentation for architects, operators, developers, and inte
 | [Day-2 operations](operations/day2.md) | Operators | Renewal, rotation, monitoring, upgrades |
 | [PKI administration](operations/pki-administration.md) | Operators | CA hierarchy, issuance recipes, renewal, CRL/OCSP |
 | [PKI Kubernetes integration](operations/pki-kubernetes.md) | Operators | Operator CRDs, Ingress TLS, optional cert-manager |
-| [Replace cert-manager](operations/pki-replace-cert-manager.md) | Operators | **W30** — use KNXVault without cert-manager |
+| [Replace cert-manager](operations/pki-replace-cert-manager.md) | Operators | Operator multi-issuer (Vault/ACME/SelfSigned) — no cert-manager |
+| [Certificate support matrix](operations/certificate-support-matrix.md) | Architects / Operators | What replaces cert-manager (claim gate) |
+| [Multi-issuer ACME design](design/multi-issuer-acme.md) | Engineers | ACME + multi-issuer architecture |
 | [PKI security best practices](operations/pki-security-practices.md) | Security / SRE | Trust hierarchy, key handling, access control |
 | [Operator security](operations/operator-security.md) | Operators | Credential placement, master/unseal custody, audit rules |
 | [Runbook: CA compromise](operations/runbooks/ca-compromise.md) | SRE | CA key compromise recovery |

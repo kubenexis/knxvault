@@ -34,24 +34,29 @@ type Config struct {
 	MetricsAddr   string
 	ProbeAddr     string
 	IngressShim   bool
-	LeaderElect   bool
-	LeaderElectID string
-	LeaderElectNS string
+	GatewayShim   bool
+	// ACMEHTTP01Addr when set serves /.well-known/acme-challenge/ for HTTP-01.
+	ACMEHTTP01Addr string
+	LeaderElect    bool
+	LeaderElectID  string
+	LeaderElectNS  string
 }
 
 // ConfigFromEnv loads configuration from environment.
 func ConfigFromEnv() Config {
 	return Config{
-		VaultAddr:     envOr("KNXVAULT_ADDR", "http://knxvault.knxvault.svc:8200"),
-		VaultToken:    strings.TrimSpace(os.Getenv("KNXVAULT_TOKEN")),
-		K8sRole:       envOr("KNXVAULT_K8S_ROLE", "knxvault-operator"),
-		SATokenPath:   envOr("KNXVAULT_SA_TOKEN_FILE", "/var/run/secrets/kubernetes.io/serviceaccount/token"),
-		MetricsAddr:   envOr("KNXVAULT_OPERATOR_METRICS_ADDR", ":8080"),
-		ProbeAddr:     envOr("KNXVAULT_OPERATOR_PROBE_ADDR", ":8081"),
-		IngressShim:   strings.EqualFold(os.Getenv("KNXVAULT_OPERATOR_INGRESS_SHIM"), "true"),
-		LeaderElect:   !strings.EqualFold(os.Getenv("KNXVAULT_OPERATOR_LEADER_ELECT"), "false"),
-		LeaderElectID: envOr("KNXVAULT_OPERATOR_LEADER_ELECT_ID", "knxvault-operator"),
-		LeaderElectNS: envOr("KNXVAULT_OPERATOR_LEADER_ELECT_NAMESPACE", "knxvault"),
+		VaultAddr:      envOr("KNXVAULT_ADDR", "http://knxvault.knxvault.svc:8200"),
+		VaultToken:     strings.TrimSpace(os.Getenv("KNXVAULT_TOKEN")),
+		K8sRole:        envOr("KNXVAULT_K8S_ROLE", "knxvault-operator"),
+		SATokenPath:    envOr("KNXVAULT_SA_TOKEN_FILE", "/var/run/secrets/kubernetes.io/serviceaccount/token"),
+		MetricsAddr:    envOr("KNXVAULT_OPERATOR_METRICS_ADDR", ":8080"),
+		ProbeAddr:      envOr("KNXVAULT_OPERATOR_PROBE_ADDR", ":8081"),
+		IngressShim:    strings.EqualFold(os.Getenv("KNXVAULT_OPERATOR_INGRESS_SHIM"), "true"),
+		GatewayShim:    strings.EqualFold(os.Getenv("KNXVAULT_OPERATOR_GATEWAY_SHIM"), "true"),
+		ACMEHTTP01Addr: strings.TrimSpace(os.Getenv("KNXVAULT_ACME_HTTP01_ADDR")),
+		LeaderElect:    !strings.EqualFold(os.Getenv("KNXVAULT_OPERATOR_LEADER_ELECT"), "false"),
+		LeaderElectID:  envOr("KNXVAULT_OPERATOR_LEADER_ELECT_ID", "knxvault-operator"),
+		LeaderElectNS:  envOr("KNXVAULT_OPERATOR_LEADER_ELECT_NAMESPACE", "knxvault"),
 	}
 }
 
@@ -126,6 +131,16 @@ func Run() error {
 		Enabled: cfg.IngressShim,
 	}).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("ingress controller: %w", err)
+	}
+	if cfg.GatewayShim {
+		if err := (&controllers.GatewayReconciler{
+			Client:  mgr.GetClient(),
+			Scheme:  mgr.GetScheme(),
+			Enabled: true,
+		}).SetupWithManager(mgr); err != nil {
+			// Gateway API CRDs may be absent on the cluster; do not block operator start.
+			ctrl.Log.Info("gateway shim disabled (Gateway API not available)", "err", err.Error())
+		}
 	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

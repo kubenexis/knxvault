@@ -1,0 +1,24 @@
+# Self-signed multi-issuer example (no vault CA, no cert-manager).
+apiVersion: knxvault.kubenexis.dev/v1alpha1
+kind: KNXVaultClusterIssuer
+metadata:
+  name: selfsigned
+spec:
+  selfSigned:
+    ttl: 2160h
+---
+apiVersion: knxvault.kubenexis.dev/v1alpha1
+kind: KNXVaultCertificate
+metadata:
+  name: selfsigned-demo
+  namespace: default
+spec:
+  secretName: selfsigned-demo-tls
+  commonName: demo.local
+  dnsNames:
+    - demo.local
+  duration: 720h
+  renewBefore: 168h
+  issuerRef:
+    kind: KNXVaultClusterIssuer
+    name: selfsigned

@@ -53,15 +53,48 @@ func (in *KNXVaultCAList) DeepCopy() *KNXVaultCAList {
 
 func (in *KNXVaultCAList) DeepCopyObject() runtime.Object { return in.DeepCopy() }
 
+func deepCopyIssuerExtras(inVault *VaultIssuerSpec, inACME *ACMEIssuerSpec, inSelf *SelfSignedIssuerSpec, inCARef *IssuerRef) (outVault *VaultIssuerSpec, outACME *ACMEIssuerSpec, outSelf *SelfSignedIssuerSpec, outCARef *IssuerRef) {
+	if inCARef != nil {
+		p := *inCARef
+		outCARef = &p
+	}
+	if inVault != nil {
+		v := *inVault
+		if inVault.CARef != nil {
+			p := *inVault.CARef
+			v.CARef = &p
+		}
+		outVault = &v
+	}
+	if inACME != nil {
+		a := *inACME
+		if inACME.PrivateKeySecretRef != nil {
+			p := *inACME.PrivateKeySecretRef
+			a.PrivateKeySecretRef = &p
+		}
+		if inACME.DNS01 != nil {
+			d := *inACME.DNS01
+			if inACME.DNS01.APITokenSecretRef != nil {
+				p := *inACME.DNS01.APITokenSecretRef
+				d.APITokenSecretRef = &p
+			}
+			a.DNS01 = &d
+		}
+		outACME = &a
+	}
+	if inSelf != nil {
+		s := *inSelf
+		outSelf = &s
+	}
+	return outVault, outACME, outSelf, outCARef
+}
+
 func (in *KNXVaultIssuer) DeepCopyInto(out *KNXVaultIssuer) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
 	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
 	out.Spec = in.Spec
-	if in.Spec.CARef != nil {
-		p := *in.Spec.CARef
-		out.Spec.CARef = &p
-	}
+	out.Spec.Vault, out.Spec.ACME, out.Spec.SelfSigned, out.Spec.CARef = deepCopyIssuerExtras(in.Spec.Vault, in.Spec.ACME, in.Spec.SelfSigned, in.Spec.CARef)
 	out.Status = in.Status
 	if in.Status.Conditions != nil {
 		out.Status.Conditions = append([]Condition(nil), in.Status.Conditions...)
@@ -107,10 +140,7 @@ func (in *KNXVaultClusterIssuer) DeepCopyInto(out *KNXVaultClusterIssuer) {
 	out.TypeMeta = in.TypeMeta
 	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
 	out.Spec = in.Spec
-	if in.Spec.CARef != nil {
-		p := *in.Spec.CARef
-		out.Spec.CARef = &p
-	}
+	out.Spec.Vault, out.Spec.ACME, out.Spec.SelfSigned, out.Spec.CARef = deepCopyIssuerExtras(in.Spec.Vault, in.Spec.ACME, in.Spec.SelfSigned, in.Spec.CARef)
 	out.Status = in.Status
 	if in.Status.Conditions != nil {
 		out.Status.Conditions = append([]Condition(nil), in.Status.Conditions...)

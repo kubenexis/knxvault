@@ -25,7 +25,11 @@ func TestIssuerAndClusterIssuer(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "c"},
 		Spec:       v1alpha1.KNXVaultClusterIssuerSpec{VaultCAName: "root"},
 	}
-	c := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(iss, ci).WithObjects(iss, ci).Build()
+	self := &v1alpha1.KNXVaultClusterIssuer{
+		ObjectMeta: metav1.ObjectMeta{Name: "self"},
+		Spec:       v1alpha1.KNXVaultClusterIssuerSpec{SelfSigned: &v1alpha1.SelfSignedIssuerSpec{}},
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(iss, ci, self).WithObjects(iss, ci, self).Build()
 	v := vaultiface.NewFake()
 	_, _ = v.CreateRoot(context.Background(), "root", "Root", "8760h", 2048)
 	_, err := (&IssuerReconciler{Client: c, Vault: v}).Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "ns", Name: "i"}})
@@ -35,5 +39,16 @@ func TestIssuerAndClusterIssuer(t *testing.T) {
 	_, err = (&ClusterIssuerReconciler{Client: c, Vault: v}).Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Name: "c"}})
 	if err != nil {
 		t.Fatal(err)
+	}
+	_, err = (&ClusterIssuerReconciler{Client: c, Vault: v}).Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Name: "self"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out v1alpha1.KNXVaultClusterIssuer
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "self"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Status.Mode != v1alpha1.IssuerModeSelfSigned {
+		t.Fatalf("mode=%s", out.Status.Mode)
 	}
 }

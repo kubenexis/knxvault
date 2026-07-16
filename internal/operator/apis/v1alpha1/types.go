@@ -14,6 +14,16 @@ const (
 // AnnotationIngressIssuer triggers Certificate creation from Ingress.
 const AnnotationIngressIssuer = "knxvault.kubenexis.dev/issuer"
 
+// AnnotationGatewayIssuer triggers Certificate creation from Gateway TLS.
+const AnnotationGatewayIssuer = "knxvault.kubenexis.dev/issuer"
+
+// Issuer kinds / modes for multi-issuer (vault | acme | selfSigned).
+const (
+	IssuerModeVault      = "Vault"
+	IssuerModeACME       = "ACME"
+	IssuerModeSelfSigned = "SelfSigned"
+)
+
 // IssuerRef references a CA or Issuer for certificate issuance.
 type IssuerRef struct {
 	Kind      string `json:"kind"`
@@ -64,15 +74,64 @@ type KNXVaultCAList struct {
 	Items           []KNXVaultCA `json:"items"`
 }
 
-// KNXVaultIssuerSpec references a vault CA for namespaced issuance.
-type KNXVaultIssuerSpec struct {
+// VaultIssuerSpec issues from KNXVault PKI (private CA).
+type VaultIssuerSpec struct {
 	VaultCAName string     `json:"vaultCAName"`
 	CARef       *IssuerRef `json:"caRef,omitempty"`
+}
+
+// ACMEDNS01Spec configures DNS-01 solvers.
+type ACMEDNS01Spec struct {
+	// Provider: memory | webhook | cloudflare
+	Provider        string `json:"provider,omitempty"`
+	WebhookURL      string `json:"webhookURL,omitempty"`
+	APITokenSecretRef *SecretKeyRef `json:"apiTokenSecretRef,omitempty"`
+	ZoneID          string `json:"zoneID,omitempty"`
+}
+
+// SecretKeyRef points at a key in a Secret.
+type SecretKeyRef struct {
+	Name string `json:"name"`
+	Key  string `json:"key,omitempty"`
+}
+
+// ACMEIssuerSpec configures ACME (Let's Encrypt / Pebble / other RFC 8555).
+type ACMEIssuerSpec struct {
+	// Server is the ACME directory URL (default Let's Encrypt production).
+	Server string `json:"server,omitempty"`
+	Email  string `json:"email,omitempty"`
+	// PrivateKeySecretRef stores the ACME account key (optional; generated if missing).
+	PrivateKeySecretRef *SecretKeyRef `json:"privateKeySecretRef,omitempty"`
+	// Solvers
+	HTTP01 bool          `json:"http01,omitempty"`
+	DNS01  *ACMEDNS01Spec `json:"dns01,omitempty"`
+	// SkipTLSVerify for lab ACME (Pebble); never for public LE.
+	SkipTLSVerify bool `json:"skipTLSVerify,omitempty"`
+}
+
+// SelfSignedIssuerSpec issues self-signed leaves (no external CA).
+type SelfSignedIssuerSpec struct {
+	// TTL default certificate lifetime (Go duration), optional.
+	TTL string `json:"ttl,omitempty"`
+}
+
+// KNXVaultIssuerSpec is multi-issuer: exactly one of vault / acme / selfSigned
+// (or legacy vaultCAName for backward compatibility).
+type KNXVaultIssuerSpec struct {
+	// Legacy single-field vault CA (when Vault/ACME/SelfSigned nil).
+	VaultCAName string     `json:"vaultCAName,omitempty"`
+	CARef       *IssuerRef `json:"caRef,omitempty"`
+
+	Vault      *VaultIssuerSpec      `json:"vault,omitempty"`
+	ACME       *ACMEIssuerSpec       `json:"acme,omitempty"`
+	SelfSigned *SelfSignedIssuerSpec `json:"selfSigned,omitempty"`
 }
 
 // KNXVaultIssuerStatus is issuer readiness.
 type KNXVaultIssuerStatus struct {
 	Conditions []Condition `json:"conditions,omitempty"`
+	// Mode is Vault | ACME | SelfSigned once resolved.
+	Mode string `json:"mode,omitempty"`
 }
 
 // KNXVaultIssuer is a namespaced issuer.
@@ -90,15 +149,20 @@ type KNXVaultIssuerList struct {
 	Items           []KNXVaultIssuer `json:"items"`
 }
 
-// KNXVaultClusterIssuerSpec is cluster-scoped issuer config.
+// KNXVaultClusterIssuerSpec is cluster-scoped multi-issuer config.
 type KNXVaultClusterIssuerSpec struct {
-	VaultCAName string     `json:"vaultCAName"`
+	VaultCAName string     `json:"vaultCAName,omitempty"`
 	CARef       *IssuerRef `json:"caRef,omitempty"`
+
+	Vault      *VaultIssuerSpec      `json:"vault,omitempty"`
+	ACME       *ACMEIssuerSpec       `json:"acme,omitempty"`
+	SelfSigned *SelfSignedIssuerSpec `json:"selfSigned,omitempty"`
 }
 
 // KNXVaultClusterIssuerStatus is cluster issuer readiness.
 type KNXVaultClusterIssuerStatus struct {
 	Conditions []Condition `json:"conditions,omitempty"`
+	Mode       string      `json:"mode,omitempty"`
 }
 
 // KNXVaultClusterIssuer is cluster-scoped.
