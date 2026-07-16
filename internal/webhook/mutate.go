@@ -36,6 +36,9 @@ func MutatePod(pod *corev1.Pod) (bool, error) {
 	if mountPath == "" {
 		mountPath = defaultMountPath
 	}
+	if !strings.HasPrefix(mountPath, "/") || strings.Contains(mountPath, "..") {
+		return false, fmt.Errorf("%s must be an absolute path without .. segments", annotationMountPath)
+	}
 	for _, vol := range pod.Spec.Volumes {
 		if vol.CSI != nil && vol.CSI.Driver == csiDriverName && vol.CSI.VolumeAttributes["secretProviderClass"] == spc {
 			return false, nil

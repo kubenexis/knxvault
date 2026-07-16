@@ -21,6 +21,10 @@ func NewPolicySimulateHandler(svc *auth.Service) *PolicySimulateHandler {
 
 // Simulate handles POST /sys/policy/simulate.
 func (h *PolicySimulateHandler) Simulate(c *gin.Context) {
+	if h == nil || h.auth == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"message": "auth not configured"})
+		return
+	}
 	var req dto.PolicySimulateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		_ = c.Error(err)

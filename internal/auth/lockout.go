@@ -7,11 +7,12 @@ import (
 
 // LockoutTracker tracks failed login attempts and temporary lockouts (W43-04).
 type LockoutTracker struct {
-	mu        sync.Mutex
-	attempts  map[string]int
-	locked    map[string]time.Time
-	threshold int
-	ttl       time.Duration
+	mu         sync.Mutex
+	attempts   map[string]int
+	locked     map[string]time.Time
+	threshold  int
+	ttl        time.Duration
+	maxEntries int
 }
 
 // NewLockoutTracker constructs a lockout tracker.
@@ -23,10 +24,11 @@ func NewLockoutTracker(threshold int, ttl time.Duration) *LockoutTracker {
 		ttl = 15 * time.Minute
 	}
 	return &LockoutTracker{
-		attempts:  make(map[string]int),
-		locked:    make(map[string]time.Time),
-		threshold: threshold,
-		ttl:       ttl,
+		attempts:   make(map[string]int),
+		locked:     make(map[string]time.Time),
+		threshold:  threshold,
+		ttl:        ttl,
+		maxEntries: 50000,
 	}
 }
 
@@ -81,12 +83,29 @@ func (t *LockoutTracker) RecordFailure(key string) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.purgeExpiredLocked(time.Now())
+	if _, ok := t.attempts[key]; !ok && t.maxEntries > 0 && len(t.attempts) >= t.maxEntries {
+		// Bound memory under credential-stuffing: drop half of non-locked attempt counters.
+		t.evictAttemptsLocked()
+	}
 	t.attempts[key]++
 	if t.attempts[key] >= t.threshold {
 		t.locked[key] = time.Now().Add(t.ttl)
 		return true
 	}
 	return false
+}
+
+func (t *LockoutTracker) evictAttemptsLocked() {
+	// Prefer keeping keys that are currently locked.
+	for k := range t.attempts {
+		if _, locked := t.locked[k]; locked {
+			continue
+		}
+		delete(t.attempts, k)
+		if len(t.attempts) < t.maxEntries/2 {
+			return
+		}
+	}
 }
 
 // RecordSuccess clears failure counters for the identity.

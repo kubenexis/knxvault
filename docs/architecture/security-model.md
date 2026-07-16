@@ -116,6 +116,12 @@ Tokens carry a TTL (`KNXVAULT_TOKEN_TTL`, default 24h). The bootstrap **root tok
 - Client cert fingerprint is real SHA-256 hex of leaf DER.
 - Agent path prefixes reject `..`; audit redact covers `jwt` / `client_token` / keys.
 
+**3-cycle technical review** ([report](../audit/formal-3cycle-tech-review-2026-07-16.md)):
+
+- `ParseTTL` rejects non-positive / absurd durations; admin tokens clamp to 30d max.
+- Backup create validates JSON; HTTP-01 tokens and webhook mount paths reject path tricks.
+- Login lockout map bounded under credential stuffing.
+
 ### Trusted proxies and login lockout (W50-18)
 
 Gin does **not** trust `X-Forwarded-For` unless you set **`KNXVAULT_TRUSTED_PROXIES`** to load-balancer CIDRs. Without it, lockout keys use the TCP peer address. When identity is known (SA subject / OIDC sub), lockout prefers the identity key over IP so shared NATs cannot bypass per-principal lockouts as easily.

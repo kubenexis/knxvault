@@ -62,3 +62,19 @@ func TestHandleAdmissionReview(t *testing.T) {
 		t.Fatalf("unexpected response: %+v", out.Response)
 	}
 }
+
+func TestMutatePodRejectsTraversalMountPath(t *testing.T) {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{
+				"knxvault.io/inject":                 "true",
+				"knxvault.io/secret-provider-class":  "spc",
+				"knxvault.io/inject-mount-path":      "/mnt/../etc",
+			},
+		},
+		Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "app"}}},
+	}
+	if _, err := webhook.MutatePod(pod); err == nil {
+		t.Fatal("expected mount path rejection")
+	}
+}

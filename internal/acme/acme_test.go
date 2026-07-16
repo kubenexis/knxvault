@@ -555,3 +555,19 @@ func TestBuildSolversAndFactory(t *testing.T) {
 		t.Fatal("expected unknown kind")
 	}
 }
+
+func TestHTTP01RejectsPathToken(t *testing.T) {
+	m := acme.NewMemoryHTTP01()
+	if err := m.Present(context.Background(), "x.com", "../evil", "ka"); err == nil {
+		t.Fatal("expected path token rejected")
+	}
+	if err := m.Present(context.Background(), "x.com", "good-token", "ka"); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/acme-challenge/../evil", nil)
+	rec := httptest.NewRecorder()
+	m.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d", rec.Code)
+	}
+}

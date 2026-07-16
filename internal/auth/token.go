@@ -662,6 +662,9 @@ func (s *Service) Capabilities(principal Principal) []string {
 	return s.rbac.Capabilities(principal.Policies)
 }
 
+// MaxClientTokenTTL is the hard cap for admin-created tokens (defense in depth).
+const MaxClientTokenTTL = 30 * 24 * time.Hour
+
 // CreateToken issues a scoped client token (admin).
 func (s *Service) CreateToken(ctx context.Context, subject string, policies []string, ttl time.Duration, renewable bool) (string, *TokenRecord, error) {
 	if subject == "" {
@@ -670,11 +673,20 @@ func (s *Service) CreateToken(ctx context.Context, subject string, policies []st
 	if len(policies) == 0 {
 		return "", nil, common.New(common.ErrCodeValidation, "policies are required")
 	}
+	if ttl > MaxClientTokenTTL {
+		ttl = MaxClientTokenTTL
+	}
+	if ttl <= 0 && s.tokens != nil {
+		// TokenStore.Create applies its default when ttl <= 0.
+	}
 	return s.tokens.Create(ctx, subject, policies, ttl, renewable, time.Time{})
 }
 
 // RenewToken extends the caller token TTL.
 func (s *Service) RenewToken(ctx context.Context, token string, increment time.Duration) (*TokenRecord, error) {
+	if increment > MaxClientTokenTTL {
+		increment = MaxClientTokenTTL
+	}
 	return s.tokens.Renew(ctx, token, increment)
 }
 

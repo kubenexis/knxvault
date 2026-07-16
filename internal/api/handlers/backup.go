@@ -1,13 +1,17 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/base64"
+	"encoding/json"
+	"io"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/kubenexis/knxvault/internal/api/dto"
 	"github.com/kubenexis/knxvault/internal/backup"
+	"github.com/kubenexis/knxvault/internal/domain/common"
 	"github.com/kubenexis/knxvault/internal/service"
 )
 
@@ -27,7 +31,17 @@ func NewBackupHandler(svc *service.BackupService) *BackupHandler {
 // Create handles POST /sys/backup.
 func (h *BackupHandler) Create(c *gin.Context) {
 	var req dto.BackupCreateRequest
-	_ = c.ShouldBindJSON(&req)
+	body, err := io.ReadAll(io.LimitReader(c.Request.Body, 1<<20))
+	if err != nil {
+		_ = c.Error(common.Wrap(common.ErrCodeValidation, "read body", err))
+		return
+	}
+	if len(bytes.TrimSpace(body)) > 0 {
+		if err := json.Unmarshal(body, &req); err != nil {
+			_ = c.Error(common.Wrap(common.ErrCodeValidation, "invalid backup request json", err))
+			return
+		}
+	}
 
 	data, err := h.svc.Create(c.Request.Context(), backup.ExportOptions{
 		IncludeAudit: req.IncludeAudit,

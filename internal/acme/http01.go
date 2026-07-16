@@ -2,6 +2,7 @@ package acme
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -22,6 +23,9 @@ func NewMemoryHTTP01() *MemoryHTTP01 {
 
 // Present stores the challenge response.
 func (m *MemoryHTTP01) Present(_ context.Context, _, token, keyAuth string) error {
+	if err := validateHTTP01Token(token); err != nil {
+		return err
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.auth == nil {
@@ -56,7 +60,7 @@ func (m *MemoryHTTP01) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	token := strings.TrimPrefix(r.URL.Path, prefix)
 	token = strings.Trim(token, "/")
-	if token == "" {
+	if token == "" || validateHTTP01Token(token) != nil {
 		http.NotFound(w, r)
 		return
 	}
@@ -67,4 +71,19 @@ func (m *MemoryHTTP01) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/plain")
 	_, _ = w.Write([]byte(keyAuth))
+}
+
+func validateHTTP01Token(token string) error {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return fmt.Errorf("http-01 token required")
+	}
+	// Tokens must be a single path segment (ACME base64url-ish).
+	if strings.ContainsAny(token, "/\\") || strings.Contains(token, "..") {
+		return fmt.Errorf("http-01 token must not contain path separators")
+	}
+	if len(token) > 256 {
+		return fmt.Errorf("http-01 token too long")
+	}
+	return nil
 }
