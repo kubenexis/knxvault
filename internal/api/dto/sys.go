@@ -23,8 +23,31 @@ type RotateMasterKeyResponse struct {
 }
 
 // UnsealRequest is POST /sys/unseal.
+// Provide either Key (full unseal key, base64) or Share (Shamir share, base64).
 type UnsealRequest struct {
-	Key string `json:"key"`
+	Key   string `json:"key,omitempty"`
+	Share string `json:"share,omitempty"`
+}
+
+// UnsealResponse is returned after unseal attempts (including multi-share progress).
+type UnsealResponse struct {
+	Sealed   bool `json:"sealed"`
+	Progress int  `json:"progress,omitempty"`
+	Threshold int `json:"threshold,omitempty"`
+}
+
+// SplitUnsealRequest is POST /sys/generate-unseal-shares (admin).
+// Key is the full unseal key (base64); operator splits offline-capable and stores shares securely.
+type SplitUnsealRequest struct {
+	Key       string `json:"key"`
+	Shares    int    `json:"shares"`    // n
+	Threshold int    `json:"threshold"` // t
+}
+
+// SplitUnsealResponse returns base64 Shamir shares (operator must store offline).
+type SplitUnsealResponse struct {
+	Shares    []string `json:"shares"`
+	Threshold int      `json:"threshold"`
 }
 
 // RaftAddNodeRequest is POST /sys/raft/add-node.

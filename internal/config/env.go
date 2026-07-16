@@ -191,6 +191,13 @@ func overlayEnv(cfg Config) (Config, error) {
 	if v := os.Getenv("KNXVAULT_UNSEAL_KEY"); v != "" {
 		cfg.UnsealKey = strings.TrimSpace(v)
 	}
+	if v := os.Getenv("KNXVAULT_UNSEAL_THRESHOLD"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_UNSEAL_THRESHOLD: %w", err)
+		}
+		cfg.UnsealThreshold = n
+	}
 	if v := os.Getenv("KNXVAULT_JOB_MASTER_KEY_REENCRYPT_INTERVAL"); v != "" {
 		d, err := time.ParseDuration(v)
 		if err != nil {

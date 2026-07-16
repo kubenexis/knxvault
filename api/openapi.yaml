@@ -121,7 +121,7 @@ paths:
   /sys/unseal:
     post:
       tags: [sys]
-      summary: Unseal vault
+      summary: Unseal vault (full key or Shamir share)
       operationId: unsealVault
       requestBody:
         required: true
@@ -131,7 +131,34 @@ paths:
               $ref: "#/components/schemas/UnsealRequest"
       responses:
         "200":
-          description: Vault unsealed
+          description: Unseal progress or unsealed
+  /sys/generate-unseal-shares:
+    post:
+      tags: [sys]
+      summary: Split unseal key into Shamir shares
+      operationId: generateUnsealShares
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key, shares, threshold]
+              properties:
+                key:
+                  type: string
+                  description: Base64 full unseal key
+                shares:
+                  type: integer
+                  minimum: 2
+                threshold:
+                  type: integer
+                  minimum: 1
+      responses:
+        "200":
+          description: Base64 Shamir shares
   /sys/raft/add-node:
     post:
       tags: [sys]
@@ -175,6 +202,19 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/K8sLoginRequest"
+      responses:
+        "200":
+          description: Client token issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+  /auth/cert:
+    post:
+      tags: [auth]
+      summary: Client certificate (mTLS) login
+      description: Uses TLS peer certificate CN or first DNS SAN as role identity.
+      operationId: loginCert
       responses:
         "200":
           description: Client token issued
@@ -1148,11 +1188,13 @@ components:
           type: integer
     UnsealRequest:
       type: object
-      required: [key]
       properties:
         key:
           type: string
-          description: Base64-encoded unseal key
+          description: Base64-encoded full unseal key (single-key path)
+        share:
+          type: string
+          description: Base64-encoded Shamir share (multi-share path)
     RaftAddNodeRequest:
       type: object
       required: [node_id, address]

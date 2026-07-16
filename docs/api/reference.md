@@ -81,7 +81,8 @@ Errors:
 | POST | `/sys/rotation/run` | Yes | Orchestrate KV rotation, DB lease renewal, PKI renewal |
 | POST | `/sys/rotate-master-key` | Yes | Rotate envelope master key |
 | POST | `/sys/seal` | Yes | Seal vault (block mutating operations) |
-| POST | `/sys/unseal` | No | Unseal vault (`{"key":"<base64>"}`) |
+| POST | `/sys/unseal` | No | Unseal vault (`{"key":"<base64>"}` full key, or `{"share":"<base64>"}` Shamir share with progress) |
+| POST | `/sys/generate-unseal-shares` | Yes | Split unseal key into Shamir shares (`shares`, `threshold`) |
 | POST | `/sys/raft/add-node` | Yes | Add Raft member (when Raft enabled) |
 | POST | `/sys/raft/remove-node` | Yes | Remove Raft member |
 | PUT | `/sys/kv-rotation` | Yes | Configure scheduled KV rotation |
@@ -109,6 +110,7 @@ Errors:
 |--------|------|------|-------------|
 | POST | `/auth/kubernetes` | No | K8s SA JWT → client token |
 | POST | `/auth/oidc/:role` | No | OIDC login |
+| POST | `/auth/cert` | No | mTLS client certificate → client token (CN/DNS SAN → role policies) |
 | POST | `/auth/token` | No | Validate opaque token |
 | POST | `/auth/token/create` | Yes | Issue scoped client token |
 | POST | `/auth/token/renew` | Yes | Renew client token |

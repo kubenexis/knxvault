@@ -12,8 +12,9 @@ import (
 
 // DatabaseService coordinates dynamic database credential operations.
 type DatabaseService struct {
-	engine *databaseengine.Engine
-	audit  *auditsvc.Service
+	engine     *databaseengine.Engine
+	audit      *auditsvc.Service
+	tenantMode bool
 }
 
 // NewDatabaseService constructs a database credentials service.
@@ -21,20 +22,44 @@ func NewDatabaseService(engine *databaseengine.Engine, audit *auditsvc.Service) 
 	return &DatabaseService{engine: engine, audit: audit}
 }
 
+// SetTenantMode enables tenant-scoped role names (W32-04 / W53).
+func (s *DatabaseService) SetTenantMode(enabled bool) {
+	if s != nil {
+		s.tenantMode = enabled
+	}
+}
+
 // SaveRole stores database role configuration.
 func (s *DatabaseService) SaveRole(ctx context.Context, cfg databaseengine.RoleConfig) error {
-	err := s.engine.SaveRole(ctx, cfg)
+	name, err := scopeResourceName(ctx, s.tenantMode, cfg.Name)
+	if err != nil {
+		return err
+	}
+	cfg.Name = name
+	err = s.engine.SaveRole(ctx, cfg)
 	audithelper.Record(s.audit, ctx, "database.role.write", "secrets/database/roles/"+cfg.Name, err, nil)
 	return err
 }
 
 // GetRole returns database role configuration.
 func (s *DatabaseService) GetRole(ctx context.Context, name string) (*domainsecrets.DatabaseRole, error) {
+	name, err := scopeResourceName(ctx, s.tenantMode, name)
+	if err != nil {
+		return nil, err
+	}
+	if err := assertTenantAccess(ctx, s.tenantMode, name); err != nil {
+		return nil, err
+	}
 	return s.engine.GetRole(ctx, name)
 }
 
 // GenerateCredentials issues short-lived credentials.
 func (s *DatabaseService) GenerateCredentials(ctx context.Context, req databaseengine.CredsRequest) (*databaseengine.CredsResult, error) {
+	role, err := scopeResourceName(ctx, s.tenantMode, req.Role)
+	if err != nil {
+		return nil, err
+	}
+	req.Role = role
 	result, err := s.engine.GenerateCredentials(ctx, req)
 	details := map[string]any{"role": req.Role}
 	if result != nil {

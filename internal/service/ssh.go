@@ -12,8 +12,9 @@ import (
 
 // SSHService coordinates dynamic OpenSSH credential operations.
 type SSHService struct {
-	engine *sshengine.Engine
-	audit  *auditsvc.Service
+	engine     *sshengine.Engine
+	audit      *auditsvc.Service
+	tenantMode bool
 }
 
 // NewSSHService constructs an SSH credentials service.
@@ -21,20 +22,44 @@ func NewSSHService(engine *sshengine.Engine, audit *auditsvc.Service) *SSHServic
 	return &SSHService{engine: engine, audit: audit}
 }
 
+// SetTenantMode enables tenant-scoped role names (W32-04 / W53).
+func (s *SSHService) SetTenantMode(enabled bool) {
+	if s != nil {
+		s.tenantMode = enabled
+	}
+}
+
 // SaveRole stores SSH role configuration.
 func (s *SSHService) SaveRole(ctx context.Context, cfg sshengine.RoleConfig) error {
-	err := s.engine.SaveRole(ctx, cfg)
+	name, err := scopeResourceName(ctx, s.tenantMode, cfg.Name)
+	if err != nil {
+		return err
+	}
+	cfg.Name = name
+	err = s.engine.SaveRole(ctx, cfg)
 	audithelper.Record(s.audit, ctx, "ssh.role.write", "secrets/ssh/roles/"+cfg.Name, err, nil)
 	return err
 }
 
 // GetRole returns SSH role configuration.
 func (s *SSHService) GetRole(ctx context.Context, name string) (*domainsecrets.SSHRole, error) {
+	name, err := scopeResourceName(ctx, s.tenantMode, name)
+	if err != nil {
+		return nil, err
+	}
+	if err := assertTenantAccess(ctx, s.tenantMode, name); err != nil {
+		return nil, err
+	}
 	return s.engine.GetRole(ctx, name)
 }
 
 // GenerateCredentials issues short-lived SSH credentials.
 func (s *SSHService) GenerateCredentials(ctx context.Context, req sshengine.CredsRequest) (*sshengine.CredsResult, error) {
+	role, err := scopeResourceName(ctx, s.tenantMode, req.Role)
+	if err != nil {
+		return nil, err
+	}
+	req.Role = role
 	result, err := s.engine.GenerateCredentials(ctx, req)
 	details := map[string]any{"role": req.Role}
 	if result != nil {

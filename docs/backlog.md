@@ -413,12 +413,12 @@ High-level scope from LLD §9.4. Phase 3–4 core is largely complete. Detailed 
 | **W32-01** | P1 | Partial | Multi-tenancy policy model | auth | M | W41-01, W36-14 | Namespace condition + `ResolveTenantNamespace` (SA spoofing blocked). **Gap:** no automatic namespace-scoped policy isolation beyond evaluator. | Cross-tenant access denied in tests. |
 | ~~**W32-02**~~ | — | Complete | Tenant-aware API enforcement | api | M | W32-01 | Done — `TenantEnforcement` middleware; `KNXVAULT_TENANT_MODE`; `test/integration/tenant_test.go`. | Integration tests for tenant boundaries. |
 | **W32-03** | P1 | Partial | Tenant-scoped repository isolation | storage | L | W32-01 | `tenantrepo.WrapSecret` exists (`internal/repository/tenant/secret.go`). **Gap:** not wired in `deps.go`; isolation is service-layer path scoping. | Cross-tenant `Get` returns `404` even if policy misconfigured; Raft ops carry tenant key. |
-| **W32-04** | P1 | Partial | Tenant isolation across services and engines | api | L | W32-03 | KV tenant scoping in `SecretsService` + rotation paths. **Gap:** DB, SSH, PKI, inject, CSI not fully tenant-scoped. | Integration test: tenant A token cannot read tenant B KV path via any API surface. |
+| ~~**W32-04**~~ | P1 | Complete | Tenant isolation across services and engines | api | L | W32-03 | Done (W53) — KV + DB/SSH/PKI `SetTenantMode` + `scopeResourceName`. Inject uses tenant-scoped SecretsService. **Residual:** CSI path matrix / lease ID tenant prefix. | Unit + integration tenant suite. |
 | **W32-05** | P1 | Partial | Multi-tenant isolation test matrix | ci | M | W32-04 | `test/integration/tenant_test.go` (3 KV cases). **Gap:** no matrix for policy deny, CSI, backup export, or CSV artifact. | `make test-integration` tenant suite; CSV report for compliance packs (**W35-02**). |
 | **W33-01** | P2 | Partial | Valkey read cache | storage | M | W26 | Done for KV — `internal/cache/valkey.go`, `KNXVAULT_VALKEY_CACHE_URL`, wired in `deps.go`. **Gap:** CA, CRL, policies not cached; no cache-hit metrics. | Cache hit metrics; fallback on miss. |
 | **W33-02** | P2 | Partial | Cache invalidation on write | storage | S | W33-01 | KV `invalidateCache` on write/destroy (`secrets.go`). **Gap:** not Raft-commit-wide across all cached resource types. | Write → read sees fresh data. |
 | **W34-01** | P1 | Partial | Server mTLS | security | M | W5-03 | Server TLS + `MTLSRequired` on KV writes (`tlsconfig.go`, `mtls.go`). **Gap:** not enforced on all secured/admin routes (superseded in part by **W37-01**). | mTLS handshake test; opt-in flag. |
-| **W34-02** | P1 | Partial | Client cert issuance API | security | M | W34-01 | Done — `POST /pki/issue-client-cert`. **Gap:** no cert-based authentication method for API consumers. | Issue + authenticate with client cert. |
+| ~~**W34-02**~~ | P1 | Complete | Client cert issuance + API login | security | M | W34-01 | Done — `POST /pki/issue-client-cert` + `POST /auth/cert` (mTLS CN/SAN → role policies, W53). **Residual:** dedicated trust store beyond TLS handshake. | Issue + authenticate with client cert. |
 | **W35-01** | P2 | Partial | DR automation | ops | L | W27 | `scripts/dr-failover.sh` (restore via `/sys/restore`). **Gap:** no cross-cluster backup replication. | DR drill documented and tested. |
 | **W35-02** | P2 | Partial | Compliance audit packs | docs | M | W14 | Done — `GET /sys/audit/pack`, `auditpack.go`, CLI. **Gap:** audit export + manifest only; no SOC2/PCI/ISO control-mapping bundles. | Pack generation CLI command. |
 
@@ -462,7 +462,7 @@ Source: [`docs/audit/formal-10cycle-full-codebase-2026-07-16.md`](audit/formal-1
 | ~~**W50-25**~~ | P2 | Complete | OpenAPI full route parity | api | M | W8-03 | Done — vault-compat + auth/sys paths added (best-effort). | Spec closer to router. |
 | ~~**W50-26**~~ | P2 | Complete | Root token short TTL / rotation recipe | auth | S | W7 | Done — default 72h root TTL + docs. | Shorter default. |
 | ~~**W50-27**~~ | P2 | Complete | Audit forwarder queue/metrics | ops | M | W14 | Done — bounded queue + sent/dropped/failed metrics. | Bounded queue. |
-| ~~**W50-28**~~ | P2 | Complete | Unseal multi-share / lockout | security | L | W37 | Done — progressive unseal backoff + Retry-After (multi-share still future). | Progressive delay. |
+| ~~**W50-28**~~ | P2 | Complete | Unseal multi-share / lockout | security | L | W37 | Done — progressive backoff + Shamir multi-share (`KNXVAULT_UNSEAL_THRESHOLD`, share submit, generate-unseal-shares, W53). | Progressive delay + t-of-n unseal. |
 | ~~**W50-29**~~ | P2 | Complete | Vaultcompat path-scoped pki capability | auth | M | W41 | Done — RequirePKISignCapability with pki write fallback. | Path capability. |
 | ~~**W50-30**~~ | P2 | Complete | ACME account key + sealed-read tests | ci | M | W50-07, W50-03 | Done — unit tests for account key + seal guard reads; Pebble e2e remains optional lab. | Tests green. |
 
@@ -493,9 +493,24 @@ Report: `docs/audit/formal-5cycle-security-auditor-2026-07-16.md`.
 | ~~W52-05~~ | High | Complete | RateLimitEnabled default true |
 | ~~W52-06~~ | High | Complete | HTTPS required for CSI/SDK non-loopback |
 | ~~W51-05~~ | Medium | Complete | IP SANs require allowed_domains * |
-| W52-R | — | Residual | Multi-tenant, HSM, multi-share unseal, AppRole Raft |
+| ~~W52-R~~ | — | Complete (W53) | Multi-tenant non-KV, Shamir unseal, AppRole Raft, client-cert login, shared rate/lockout — see W53 |
 
 Report: `docs/audit/formal-security-remediation-w52-2026-07-16.md`.
+
+
+### W53 — Residual security features (2026-07-16)
+
+| ID | Status | Title |
+|----|--------|-------|
+| ~~W53-01~~ | Complete | Multi-tenant isolation for DB/SSH/PKI (`tenantMode` + scope) |
+| ~~W53-02~~ | Complete | Shamir multi-share unseal (`internal/crypto/shamir`, SubmitShare) |
+| ~~W53-03~~ | Complete | AppRole Raft replication (`sys/internal/approles` encrypted blob) |
+| ~~W53-04~~ | Complete | Client-cert API login (`POST /auth/cert`) |
+| ~~W53-05~~ | Complete | Cluster-shared rate-limit / lockout (Valkey `cache.Store`) |
+
+Report: `docs/audit/formal-w53-residual-features-2026-07-16.md`.
+
+**Still residual (product):** HSM PKCS#11 (**W31-02**), tenant-scoped CSI/lease matrix, atomic INCR for shared counters, AppRole follower push-notify.
 
 ## Long-term future
 

@@ -87,6 +87,8 @@ type Dependencies struct {
 	TokenTTL               time.Duration
 
 	RateLimiter        *middleware.RateLimiter
+	SharedRateLimiter  *middleware.SharedRateLimiter
+	SharedLockout      *auth.SharedLockoutTracker
 	AuthLoginLimiter   *middleware.RateLimiter
 	TokenCreateLimiter *middleware.RateLimiter
 	RequestSigning     *middleware.RequestSigning
@@ -190,6 +192,9 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 			return nil, fmt.Errorf("unseal key must not equal master key")
 		}
 		deps.Seal = NewSealState(unsealKey)
+		if cfg.UnsealThreshold > 1 {
+			deps.Seal.SetUnsealThreshold(cfg.UnsealThreshold)
+		}
 		if cfg.Raft.DataDir != "" {
 			deps.Seal.SetStateFile(filepath.Join(cfg.Raft.DataDir, "seal.state"))
 			sys.SetStatePath(filepath.Join(cfg.Raft.DataDir, "init.state"))
@@ -221,24 +226,33 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 		}
 	}
 
+	deps.CacheStore = cache.NewValkeyStore(cfg.ValkeyCacheURL)
 	if deps.PKIEngine != nil {
 		deps.PKIService = service.NewPKIService(deps.PKIEngine, deps.AuditService)
+		if cfg.TenantMode {
+			deps.PKIService.SetTenantMode(true)
+		}
 	}
 	if deps.SecretsEngine != nil {
 		deps.SecretsService = service.NewSecretsService(deps.SecretsEngine, deps.AuditService)
 		if cfg.TenantMode {
 			deps.SecretsService.SetTenantMode(true)
 		}
-		deps.CacheStore = cache.NewValkeyStore(cfg.ValkeyCacheURL)
 		deps.SecretsService.SetCache(deps.CacheStore)
 		renderer := inject.NewRenderer(service.NewKVSecretReader(deps.SecretsService))
 		deps.InjectService = service.NewInjectService(renderer, deps.AuditService)
 	}
 	if deps.DatabaseEngine != nil {
 		deps.DatabaseService = service.NewDatabaseService(deps.DatabaseEngine, deps.AuditService)
+		if cfg.TenantMode {
+			deps.DatabaseService.SetTenantMode(true)
+		}
 	}
 	if deps.SSHEngine != nil {
 		deps.SSHService = service.NewSSHService(deps.SSHEngine, deps.AuditService)
+		if cfg.TenantMode {
+			deps.SSHService.SetTenantMode(true)
+		}
 	}
 
 	tokenStore := auth.NewTokenStore(cfg.TokenTTL)
@@ -297,8 +311,13 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 	deps.ExposureWebhook = notify.NewWebhook(cfg.ExposureWebhookURL)
 
 	deps.AuthService = auth.NewService(tokenStore, rbac, cfg.JWTSecret)
+	approleStore := deps.AuthService.EnsureAppRoleStore()
 	if cfg.Raft.DataDir != "" {
-		deps.AuthService.EnsureAppRoleStore().SetPersistPath(filepath.Join(cfg.Raft.DataDir, "approles.json"))
+		approleStore.SetPersistPath(filepath.Join(cfg.Raft.DataDir, "approles.json"))
+	}
+	// Raft-replicated AppRole blob when secret repo + crypto available (W53).
+	if deps.SecretRepo != nil && deps.Crypto != nil {
+		approleStore.AttachRaftBackend(deps.SecretRepo, deps.Crypto)
 	}
 	deps.AuthService.SetRBACSyncer(deps.PolicyService)
 	deps.AuthService.SetRBACSyncFailClosed(cfg.RBACSyncFailClosed)
@@ -306,7 +325,10 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 	deps.AuthService.SetOIDCValidator(auth.NewOIDCValidator(), cfg.OIDCDefaultTTL)
 	deps.AuthService.SetMachineIdentityRecorder(deps.MachineIdentityService)
 	deps.AuthService.SetAuditRecorder(deps.AuditService)
-	deps.AuthService.SetLockoutTracker(auth.NewLockoutTracker(cfg.AuthLockoutThreshold, cfg.AuthLockoutTTL))
+	// Cluster-shared lockout via Valkey when configured (falls back to in-process).
+	sharedLock := auth.NewSharedLockoutTracker(cfg.AuthLockoutThreshold, cfg.AuthLockoutTTL, deps.CacheStore)
+	deps.AuthService.SetLockoutTracker(sharedLock)
+	deps.SharedLockout = sharedLock
 	deps.AuthzAudit = middleware.NewAuthzAudit(deps.AuditService)
 	var tokenReviewer k8s.TokenReviewer
 	if reviewer, err := k8s.NewInClusterTokenReviewer(); err == nil {
@@ -372,7 +394,9 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 		}
 	}
 
-	deps.RateLimiter = middleware.NewRateLimiter(cfg.RateLimitRPM, cfg.RateLimitEnabled)
+	// Shared rate limiters use Valkey when available (W53).
+	deps.SharedRateLimiter = middleware.NewSharedRateLimiter(cfg.RateLimitRPM, cfg.RateLimitEnabled, deps.CacheStore)
+	deps.RateLimiter = deps.SharedRateLimiter.Local()
 	deps.AuthLoginLimiter = middleware.NewRateLimiter(cfg.AuthLoginRateLimitRPM, true)
 	deps.TokenCreateLimiter = middleware.NewRateLimiter(cfg.TokenCreateRateLimitRPM, true)
 	deps.RequestSigning = middleware.NewRequestSigning(cfg.RequestSigningKey, cfg.RequestSigningRequired)

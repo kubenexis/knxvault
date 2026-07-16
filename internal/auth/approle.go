@@ -21,12 +21,13 @@ type AppRole struct {
 	secretHash string
 }
 
-// AppRoleStore holds AppRole definitions. Optionally file-persisted (W50-04);
-// full Raft multi-node replication remains a follow-up.
+// AppRoleStore holds AppRole definitions. Optionally file-persisted (W50-04)
+// and/or Raft-replicated via SecretRepository (W53).
 type AppRoleStore struct {
 	mu          sync.RWMutex
 	roles       map[string]AppRole // key: role_id
 	persistPath string
+	replicator  *AppRoleReplicator
 }
 
 // NewAppRoleStore constructs an empty AppRole store.

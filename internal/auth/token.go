@@ -255,8 +255,17 @@ type Service struct {
 	oidcTTL            time.Duration
 	nhi                MachineIdentityRecorder
 	audit              AuditRecorder
-	lockout            *LockoutTracker
+	lockout            Lockout
 	approles           *AppRoleStore
+}
+
+// Lockout is the lockout tracker abstraction (local or cluster-shared).
+type Lockout interface {
+	IsLocked(key string) bool
+	IsLockedAny(keys ...string) bool
+	RecordFailure(key string) bool
+	RecordSuccess(key string)
+	Clear(key string)
 }
 
 // RoleResolver resolves role names to policy names.
@@ -327,8 +336,8 @@ func (s *Service) SetAuditRecorder(recorder AuditRecorder) {
 	s.audit = recorder
 }
 
-// SetLockoutTracker configures identity lockout after failed logins.
-func (s *Service) SetLockoutTracker(tracker *LockoutTracker) {
+// SetLockoutTracker configures identity lockout after failed logins (local or shared).
+func (s *Service) SetLockoutTracker(tracker Lockout) {
 	s.lockout = tracker
 }
 

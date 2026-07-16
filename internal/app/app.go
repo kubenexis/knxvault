@@ -85,6 +85,7 @@ func New(ctx context.Context, cfg config.Config, log *zap.Logger) (*App, error) 
 		HAStatus:             deps,
 		IsLeader:             deps.IsLeader,
 		RateLimiter:          deps.RateLimiter,
+		SharedRateLimiter:    deps.SharedRateLimiter,
 		AuthLoginLimiter:     deps.AuthLoginLimiter,
 		TokenCreateLimiter:   deps.TokenCreateLimiter,
 		RequestSigning:       deps.RequestSigning,

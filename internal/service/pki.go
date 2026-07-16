@@ -15,8 +15,9 @@ import (
 
 // PKIService coordinates PKI operations with audit logging.
 type PKIService struct {
-	engine *pkiengine.Engine
-	audit  *auditsvc.Service
+	engine     *pkiengine.Engine
+	audit      *auditsvc.Service
+	tenantMode bool
 }
 
 // NewPKIService constructs a PKI service.
@@ -24,8 +25,20 @@ func NewPKIService(engine *pkiengine.Engine, audit *auditsvc.Service) *PKIServic
 	return &PKIService{engine: engine, audit: audit}
 }
 
+// SetTenantMode enables tenant-scoped CA/role names (W32-04 / W53).
+func (s *PKIService) SetTenantMode(enabled bool) {
+	if s != nil {
+		s.tenantMode = enabled
+	}
+}
+
 // CreateRoot creates a root CA.
 func (s *PKIService) CreateRoot(ctx context.Context, req pkiengine.CreateRootRequest) (*pkiengine.CAResult, error) {
+	name, err := scopeResourceName(ctx, s.tenantMode, req.Name)
+	if err != nil {
+		return nil, err
+	}
+	req.Name = name
 	result, err := s.engine.CreateRoot(ctx, req)
 	audithelper.Record(s.audit, ctx, "pki.root.create", "pki/"+req.Name, err, nil)
 	return result, err
@@ -33,6 +46,18 @@ func (s *PKIService) CreateRoot(ctx context.Context, req pkiengine.CreateRootReq
 
 // CreateIntermediate creates an intermediate CA.
 func (s *PKIService) CreateIntermediate(ctx context.Context, req pkiengine.CreateIntermediateRequest) (*pkiengine.CAResult, error) {
+	name, err := scopeResourceName(ctx, s.tenantMode, req.Name)
+	if err != nil {
+		return nil, err
+	}
+	req.Name = name
+	if req.ParentName != "" {
+		parent, err := scopeResourceName(ctx, s.tenantMode, req.ParentName)
+		if err != nil {
+			return nil, err
+		}
+		req.ParentName = parent
+	}
 	result, err := s.engine.CreateIntermediate(ctx, req)
 	audithelper.Record(s.audit, ctx, "pki.intermediate.create", "pki/"+req.Name, err, nil)
 	return result, err
@@ -40,6 +65,11 @@ func (s *PKIService) CreateIntermediate(ctx context.Context, req pkiengine.Creat
 
 // IssueCertificate issues a leaf certificate.
 func (s *PKIService) IssueCertificate(ctx context.Context, req pkiengine.IssueRequest) (*pkiengine.IssueResult, error) {
+	role, err := scopeResourceName(ctx, s.tenantMode, req.Role)
+	if err != nil {
+		return nil, err
+	}
+	req.Role = role
 	result, err := s.engine.IssueCertificate(ctx, req)
 	audithelper.Record(s.audit, ctx, "pki.issue", "pki/"+req.Role, err, map[string]any{"common_name": req.CommonName})
 	return result, err
@@ -47,6 +77,11 @@ func (s *PKIService) IssueCertificate(ctx context.Context, req pkiengine.IssueRe
 
 // SignCSR signs a PEM CSR for a PKI role.
 func (s *PKIService) SignCSR(ctx context.Context, req pkiengine.SignCSRRequest) (*pkiengine.SignCSRResult, error) {
+	role, err := scopeResourceName(ctx, s.tenantMode, req.Role)
+	if err != nil {
+		return nil, err
+	}
+	req.Role = role
 	result, err := s.engine.SignCSR(ctx, req)
 	audithelper.Record(s.audit, ctx, "pki.sign", "pki/"+req.Role, err, nil)
 	return result, err
@@ -59,6 +94,13 @@ func (s *PKIService) GetCA(ctx context.Context, id uuid.UUID) (*domainpki.CA, er
 
 // GetCAByName returns a CA by vault name.
 func (s *PKIService) GetCAByName(ctx context.Context, name string) (*domainpki.CA, error) {
+	name, err := scopeResourceName(ctx, s.tenantMode, name)
+	if err != nil {
+		return nil, err
+	}
+	if err := assertTenantAccess(ctx, s.tenantMode, name); err != nil {
+		return nil, err
+	}
 	return s.engine.GetCAByName(ctx, name)
 }
 

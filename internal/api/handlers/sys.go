@@ -16,6 +16,7 @@ import (
 
 	"github.com/kubenexis/knxvault/internal/api/dto"
 	"github.com/kubenexis/knxvault/internal/auth"
+	"github.com/kubenexis/knxvault/internal/crypto/shamir"
 	"github.com/kubenexis/knxvault/internal/domain/common"
 	pkiengine "github.com/kubenexis/knxvault/internal/engine/pki"
 	"github.com/kubenexis/knxvault/internal/notify"
@@ -29,6 +30,12 @@ type SealController interface {
 	Sealed() bool
 	Seal()
 	Unseal(key []byte) bool
+}
+
+// MultiShareUnsealer is optional Shamir share support on the seal controller.
+type MultiShareUnsealer interface {
+	SubmitShare(share []byte) (unsealed bool, have, need int, errMsg string)
+	UnsealProgress() (have, need int)
 }
 
 // RaftMembership controls cluster membership changes.
@@ -220,7 +227,7 @@ func (h *SysHandler) Seal(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"sealed": true})
 }
 
-// Unseal handles POST /sys/unseal.
+// Unseal handles POST /sys/unseal (full key or Shamir share).
 func (h *SysHandler) Unseal(c *gin.Context) {
 	if h.seal == nil {
 		_ = c.Error(common.New(common.ErrCodeInternal, "seal not configured"))
@@ -231,11 +238,6 @@ func (h *SysHandler) Unseal(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
-	raw, err := base64.StdEncoding.DecodeString(req.Key)
-	if err != nil {
-		_ = c.Error(common.Wrap(common.ErrCodeValidation, "invalid base64 unseal key", err))
-		return
-	}
 	// W50-28: progressive backoff between failed unseal attempts.
 	if ra, ok := h.seal.(interface{ UnsealRetryAfter() time.Duration }); ok {
 		if wait := ra.UnsealRetryAfter(); wait > 0 {
@@ -244,11 +246,68 @@ func (h *SysHandler) Unseal(c *gin.Context) {
 			return
 		}
 	}
+	// Multi-share path
+	if req.Share != "" {
+		raw, err := base64.StdEncoding.DecodeString(req.Share)
+		if err != nil {
+			_ = c.Error(common.Wrap(common.ErrCodeValidation, "invalid base64 unseal share", err))
+			return
+		}
+		ms, ok := h.seal.(MultiShareUnsealer)
+		if !ok {
+			_ = c.Error(common.New(common.ErrCodeValidation, "multi-share unseal not supported"))
+			return
+		}
+		unsealed, have, need, errMsg := ms.SubmitShare(raw)
+		if errMsg != "" && !unsealed {
+			_ = c.Error(common.New(common.ErrCodeValidation, errMsg))
+			return
+		}
+		c.JSON(http.StatusOK, dto.UnsealResponse{Sealed: !unsealed, Progress: have, Threshold: need})
+		return
+	}
+	if req.Key == "" {
+		_ = c.Error(common.New(common.ErrCodeValidation, "key or share is required"))
+		return
+	}
+	raw, err := base64.StdEncoding.DecodeString(req.Key)
+	if err != nil {
+		_ = c.Error(common.Wrap(common.ErrCodeValidation, "invalid base64 unseal key", err))
+		return
+	}
 	if !h.seal.Unseal(raw) {
 		_ = c.Error(common.New(common.ErrCodeValidation, "invalid unseal key"))
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"sealed": false})
+	c.JSON(http.StatusOK, dto.UnsealResponse{Sealed: false})
+}
+
+// GenerateUnsealShares splits a provided unseal key into Shamir shares (admin).
+func (h *SysHandler) GenerateUnsealShares(c *gin.Context) {
+	var req dto.SplitUnsealRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	if req.Shares < 2 || req.Threshold < 1 || req.Threshold > req.Shares {
+		_ = c.Error(common.New(common.ErrCodeValidation, "need 1 <= threshold <= shares and shares >= 2"))
+		return
+	}
+	raw, err := base64.StdEncoding.DecodeString(req.Key)
+	if err != nil || len(raw) == 0 {
+		_ = c.Error(common.New(common.ErrCodeValidation, "key must be base64-encoded unseal secret"))
+		return
+	}
+	parts, err := shamir.Split(raw, req.Shares, req.Threshold)
+	if err != nil {
+		_ = c.Error(common.Wrap(common.ErrCodeValidation, "split unseal key", err))
+		return
+	}
+	out := make([]string, len(parts))
+	for i, p := range parts {
+		out[i] = base64.StdEncoding.EncodeToString(p)
+	}
+	c.JSON(http.StatusOK, dto.SplitUnsealResponse{Shares: out, Threshold: req.Threshold})
 }
 
 func (h *SysHandler) requireRaftLeader(c *gin.Context) bool {

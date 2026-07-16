@@ -24,6 +24,7 @@ See [`config/knxvault.example.yaml`](../../config/knxvault.example.yaml) for the
 | `KNXVAULT_MASTER_KEY` | — | **Yes** (prod) | Base64-encoded 32-byte master key |
 | `KNXVAULT_MASTER_KEY_FILE` | — | Alt. to above | Path to base64 key file (takes priority) |
 | `KNXVAULT_UNSEAL_KEY` | — | **Yes when Raft enabled** | Base64 unseal key for seal/unseal; **must differ from master key** when `KNXVAULT_RAFT_ENABLED=true` (startup fails if unset or equal). Not used for envelope encryption. |
+| `KNXVAULT_UNSEAL_THRESHOLD` | `1` | No | Shamir threshold **t** (shares required to unseal). `1` = single full key; `t>1` requires `POST /sys/unseal` with successive `share` values |
 | `KNXVAULT_JOB_MASTER_KEY_REENCRYPT_INTERVAL` | `1m` | No | Leader job interval for DEK re-encryption after rotation |
 | `KNXVAULT_OPENSSL_BINARY` | `openssl` | No | OpenSSL executable path |
 | `KNXVAULT_OPENSSL_TIMEOUT` | `60s` | No | Max OpenSSL command duration |
@@ -79,13 +80,15 @@ Jobs run on the **Raft leader** when Raft is enabled.
 | `KNXVAULT_AUDIT_SIGNING_KEY` | — | HMAC key for audit export and per-entry signatures |
 | `KNXVAULT_AUDIT_FORWARD_URL` | — | HTTP sink for async audit entry forwarding |
 | `KNXVAULT_CORS_ALLOWED_ORIGINS` | — | Comma-separated origins for CORS (e.g. `https://app.example.com`) |
-| `KNXVAULT_RATE_LIMIT_ENABLED` | `false` | Per-token/IP rate limiting |
+| `KNXVAULT_RATE_LIMIT_ENABLED` | `true` | Per-token/IP rate limiting (W52-05) |
 | `KNXVAULT_RATE_LIMIT_RPM` | `300` | Requests per minute per client |
+| `KNXVAULT_VALKEY_CACHE_URL` | — | Valkey URL for KV cache + **cluster-shared** rate limit and auth lockout (W53) |
+| `KNXVAULT_TENANT_MODE` | `false` | Tenant namespace scoping for KV + DB/SSH/PKI resources (W32-04 / W53) |
 | `KNXVAULT_REQUEST_SIGNING_KEY` | — | HMAC key for `X-KNX-Signature` header |
 | `KNXVAULT_REQUEST_SIGNING_REQUIRED` | `false` | Reject unsigned requests when true |
 | `KNXVAULT_TLS_CERT` | — | HTTPS server certificate PEM path |
 | `KNXVAULT_TLS_KEY` | — | HTTPS server private key PEM path |
-| `KNXVAULT_MTLS_REQUIRED` | `false` | Require client certificates on KV write routes |
+| `KNXVAULT_MTLS_REQUIRED` | `false` | Require client certificates on KV write routes (also enables peer certs for `POST /auth/cert`) |
 | `KNXVAULT_MTLS_CA` | — | Client CA bundle when mTLS is enabled |
 | `KNXVAULT_OIDC_DEFAULT_TTL` | `1h` | Default OIDC-issued client token TTL |
 | `KNXVAULT_JOB_KV_ROTATION_INTERVAL` | `5m` | Leader job for scheduled KV rotation |

@@ -42,6 +42,7 @@ type RouterDeps struct {
 	MTLSRequired         bool
 	TokenTTL             time.Duration
 	RateLimiter          *middleware.RateLimiter
+	SharedRateLimiter    *middleware.SharedRateLimiter
 	AuthLoginLimiter     *middleware.RateLimiter
 	TokenCreateLimiter   *middleware.RateLimiter
 	RequestSigning       *middleware.RequestSigning

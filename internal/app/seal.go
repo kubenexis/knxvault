@@ -6,7 +6,13 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/kubenexis/knxvault/internal/crypto/shamir"
 )
+
+func combineShares(list [][]byte) ([]byte, error) {
+	return shamir.Combine(list)
+}
 
 // SealState tracks operational seal status (distinct from envelope crypto.Seal).
 type SealState struct {
@@ -17,6 +23,9 @@ type SealState struct {
 	failCount    int
 	lastFail     time.Time
 	maxFailDelay time.Duration
+	// Multi-share (Shamir) unseal: threshold t of n shares.
+	threshold int
+	pending   map[byte][]byte // x -> full share bytes
 }
 
 // NewSealState constructs seal state with the configured unseal key.
@@ -24,11 +33,25 @@ type SealState struct {
 // a matching unseal is presented.
 func NewSealState(unsealKey []byte) *SealState {
 	key := append([]byte(nil), unsealKey...)
-	s := &SealState{unsealKey: key}
+	s := &SealState{unsealKey: key, threshold: 1, pending: make(map[byte][]byte)}
 	if len(key) > 0 {
 		s.sealed = true
 	}
 	return s
+}
+
+// SetUnsealThreshold configures Shamir threshold (t). Values <=1 keep single-key unseal.
+func (s *SealState) SetUnsealThreshold(t int) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if t < 1 {
+		t = 1
+	}
+	s.threshold = t
+	s.pending = make(map[byte][]byte)
 }
 
 // SetStateFile enables durable seal flag persistence (path to a small marker file).
@@ -78,7 +101,7 @@ func (s *SealState) Seal() {
 	s.persistLocked()
 }
 
-// Unseal restores service when the key matches.
+// Unseal restores service when the full unseal key matches.
 // Failed attempts apply progressive backoff (W50-28) before accepting another try.
 func (s *SealState) Unseal(key []byte) bool {
 	if s == nil || len(s.unsealKey) == 0 {
@@ -94,9 +117,75 @@ func (s *SealState) Unseal(key []byte) bool {
 		s.lastFail = time.Now()
 		return false
 	}
+	return s.markUnsealedLocked()
+}
+
+// UnsealProgress reports Shamir share progress (have, need).
+func (s *SealState) UnsealProgress() (have, need int) {
+	if s == nil {
+		return 0, 1
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	need = s.threshold
+	if need < 1 {
+		need = 1
+	}
+	return len(s.pending), need
+}
+
+// SubmitShare adds a Shamir share. When threshold shares are collected and
+// combine to the unseal key, the vault unseals.
+func (s *SealState) SubmitShare(share []byte) (unsealed bool, have, need int, errMsg string) {
+	if s == nil || len(s.unsealKey) == 0 {
+		return false, 0, 1, "unseal not configured"
+	}
+	if len(share) < 2 {
+		return false, 0, 1, "invalid share"
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	need = s.threshold
+	if need < 1 {
+		need = 1
+	}
+	if wait := s.unsealBackoffLocked(time.Now()); wait > 0 {
+		return false, len(s.pending), need, "unseal rate limited"
+	}
+	x := share[0]
+	cp := append([]byte(nil), share...)
+	s.pending[x] = cp
+	have = len(s.pending)
+	if have < need {
+		return false, have, need, ""
+	}
+	// Collect shares and try combine.
+	list := make([][]byte, 0, have)
+	for _, sh := range s.pending {
+		list = append(list, sh)
+	}
+	// Import shamir at package level - need to add import
+	combined, err := combineShares(list)
+	if err != nil {
+		s.failCount++
+		s.lastFail = time.Now()
+		return false, have, need, "share combine failed"
+	}
+	if len(combined) != len(s.unsealKey) || subtle.ConstantTimeCompare(combined, s.unsealKey) != 1 {
+		s.failCount++
+		s.lastFail = time.Now()
+		s.pending = make(map[byte][]byte)
+		return false, 0, need, "invalid shares"
+	}
+	s.pending = make(map[byte][]byte)
+	return s.markUnsealedLocked(), need, need, ""
+}
+
+func (s *SealState) markUnsealedLocked() bool {
 	s.failCount = 0
 	s.lastFail = time.Time{}
 	s.sealed = false
+	s.pending = make(map[byte][]byte)
 	s.persistLocked()
 	return true
 }

@@ -66,7 +66,8 @@ All X.509 operations execute via the OpenSSL CLI in an isolated temporary direct
 | Bootstrap root token | Initial admin | `KNXVAULT_ROOT_TOKEN` | Production |
 | Opaque client tokens | Automation, CLI | `POST /auth/token/create`, renew, revoke | Production |
 | Kubernetes ServiceAccount | In-cluster workloads / operator / CSI | TokenReview; `POST /auth/kubernetes` or `/v1/auth/kubernetes/login` | **Production** |
-| AppRole | cert-manager / external Vault clients | `POST /sys/auth/approle` then `/v1/auth/approle/login` | **Production** (in-memory registry; not Raft-replicated yet) |
+| AppRole | cert-manager / external Vault clients | `POST /sys/auth/approle` then `/v1/auth/approle/login` | **Production** (file + Raft-replicated encrypted blob at `sys/internal/approles`) |
+| Client certificate (mTLS) | Mutual-TLS API clients | `POST /auth/cert` with peer cert; CN/DNS SAN → role policies | **Production** (W34-02 / W53; chain trust is TLS handshake) |
 | OIDC | Human / federated IdP | `POST /auth/oidc/:role` | Production |
 | Kubernetes JWT (HS256) | Local dev only | `KNXVAULT_JWT_SECRET` | Dev-only |
 | K8s login bypass | Local dev only | `KNXVAULT_K8S_AUTH_INSECURE=true` | Dev-only (never with Raft) |
@@ -85,7 +86,7 @@ When KNXVault runs in a Kubernetes cluster, `POST /auth/kubernetes` validates th
 
 **OIDC JWT requirements:** OIDC login rejects JWTs without an `exp` claim. Renewals cannot extend OIDC tokens beyond the role `max_ttl_seconds` cap stored as `max_expires_at`. JWKS fetches use a 10s HTTP timeout and refresh once on unknown `kid` during key rotation. Machine identity revocation checks fail closed when the NHI backend is unavailable.
 
-**Login lockout (W43-04):** Failed `/auth/kubernetes`, `/auth/oidc/*`, `/auth/token`, and AppRole login attempts are tracked **per source IP** (`LoginLockoutKey`). After `KNXVAULT_AUTH_LOCKOUT_THRESHOLD` failures within the window, further logins from that IP are rejected until TTL expiry, successful login, or admin clear. Lockout emits `auth.lockout` audit events; admin clear emits `auth.lockout.clear`. Break-glass clear: `DELETE /sys/auth/lockout` with `{"auth_method":"kubernetes","source_ip":"10.0.0.1"}` (requires `sys/auth` sudo).
+**Login lockout (W43-04 / W53):** Failed `/auth/kubernetes`, `/auth/oidc/*`, `/auth/token`, `/auth/cert`, and AppRole login attempts are tracked with identity-preferring keys (`LoginLockoutKey`). After `KNXVAULT_AUTH_LOCKOUT_THRESHOLD` failures within the window, further logins are rejected until TTL expiry, successful login, or admin clear. When `KNXVAULT_VALKEY_CACHE_URL` is set, lockout counters are **cluster-shared** via Valkey (`SharedLockoutTracker`); otherwise process-local. Lockout emits `auth.lockout` audit events; admin clear emits `auth.lockout.clear`. Break-glass clear: `DELETE /sys/auth/lockout` with `{"auth_method":"kubernetes","source_ip":"10.0.0.1"}` (requires `sys/auth` sudo).
 
 **ABAC attributes (W44-02):** Send `X-KNX-Environment` and optional `X-KNX-Cluster` on API requests when policies use `environment` or `cluster` conditions. Gin route template and URL path are available as `request_path` in policy evaluation.
 
@@ -129,6 +130,14 @@ Tokens carry a TTL (`KNXVAULT_TOKEN_TTL`, default 24h). The bootstrap **root tok
 - Vault-compat sign requires path-scoped policies (`pki/sign/*` / `pki/*`), not bare `pki` write.
 - Rate limits on by default; CSI/SDK require HTTPS (loopback http allowed); OCSP rate-limited.
 - Agent delegation requires explicit policy list; insecure K8s auth needs lab flag.
+
+**W53 residual features** ([report](../audit/formal-w53-residual-features-2026-07-16.md)):
+
+- **Multi-tenant non-KV isolation:** with `KNXVAULT_TENANT_MODE=true`, DB/SSH/PKI role and CA names are scoped by tenant namespace (same model as KV paths).
+- **Shamir multi-share unseal:** `KNXVAULT_UNSEAL_THRESHOLD` + `POST /sys/unseal` with `share` (base64); admin split via `POST /sys/generate-unseal-shares`.
+- **AppRole Raft replication:** encrypted `sys/internal/approles` blob via SecretRepository (Dragonboat when Raft on); file persist still used when data dir set.
+- **Client-cert API login:** `POST /auth/cert` maps mTLS peer CN/DNS SAN → role policies → opaque token.
+- **Cluster-shared rate limit / lockout:** Valkey-backed counters when `KNXVAULT_VALKEY_CACHE_URL` is set (best-effort get/set, not atomic INCR).
 
 ### Trusted proxies and login lockout (W50-18)
 

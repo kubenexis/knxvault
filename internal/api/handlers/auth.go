@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"crypto/x509"
 	"net/http"
 	"strings"
 	"time"
@@ -62,6 +63,29 @@ func (h *AuthHandler) LoginKubernetes(c *gin.Context) {
 		return
 	}
 
+	c.JSON(http.StatusOK, dto.LoginResponse{
+		ClientToken: token,
+		TTL:         int(time.Until(record.ExpiresAt).Seconds()),
+		Policies:    record.Policies,
+		Renewable:   record.Renewable,
+	})
+}
+
+// LoginCert handles POST /auth/cert — TLS client certificate authentication (W34-02 / W53).
+func (h *AuthHandler) LoginCert(c *gin.Context) {
+	var certs []*x509.Certificate
+	if c.Request.TLS != nil {
+		certs = c.Request.TLS.PeerCertificates
+	}
+	ctx := auth.WithLoginAuditContext(c.Request.Context(), c.ClientIP(), c.GetHeader("X-Request-ID"))
+	token, record, err := h.auth.LoginWithClientCert(ctx, certs, auth.CertLoginOptions{
+		DefaultPolicies: nil,
+		RequireVerified: true,
+	})
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
 	c.JSON(http.StatusOK, dto.LoginResponse{
 		ClientToken: token,
 		TTL:         int(time.Until(record.ExpiresAt).Seconds()),

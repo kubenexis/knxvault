@@ -58,6 +58,8 @@ type Config struct {
 	JobKVRotationInterval         time.Duration
 	JobMasterKeyReencryptInterval time.Duration
 	UnsealKey                     string
+	// UnsealThreshold is Shamir t (shares required). <=1 means single-key unseal.
+	UnsealThreshold int
 	RenewGrace                    time.Duration
 
 	TLSCertFile  string
