@@ -8,9 +8,7 @@ import (
 )
 
 func TestMarkInitializedRejectsSecondCall(t *testing.T) {
-	if sys.Initialized() {
-		t.Skip("bootstrap state already set in this process")
-	}
+	sys.ResetForTest()
 	if err := sys.MarkInitialized("abc123"); err != nil {
 		t.Fatalf("MarkInitialized() = %v", err)
 	}

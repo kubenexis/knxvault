@@ -2,8 +2,10 @@ package operator
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -13,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	"github.com/kubenexis/knxvault/internal/acme"
 	v1alpha1 "github.com/kubenexis/knxvault/internal/operator/apis/v1alpha1"
 	"github.com/kubenexis/knxvault/internal/operator/controllers"
 	"github.com/kubenexis/knxvault/internal/operator/vaultiface"
@@ -92,6 +95,22 @@ func Run() error {
 	}
 
 	vault := vaultiface.NewHTTPWithSA(cfg.VaultAddr, cfg.VaultToken, cfg.K8sRole, cfg.SATokenPath)
+
+	// W50-07: process-wide HTTP-01 challenge presenter + optional listener.
+	if cfg.ACMEHTTP01Addr != "" {
+		controllers.SharedHTTP01 = acme.NewMemoryHTTP01()
+		go func() {
+			srv := &http.Server{
+				Addr:              cfg.ACMEHTTP01Addr,
+				Handler:           controllers.SharedHTTP01,
+				ReadHeaderTimeout: 10 * time.Second,
+			}
+			ctrl.Log.Info("ACME HTTP-01 solver listening", "addr", cfg.ACMEHTTP01Addr)
+			if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				ctrl.Log.Error(err, "ACME HTTP-01 listener failed")
+			}
+		}()
+	}
 
 	if err := (&controllers.CAReconciler{
 		Client: mgr.GetClient(),

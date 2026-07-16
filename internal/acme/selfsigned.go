@@ -58,9 +58,7 @@ func (s *SelfSignedIssuer) Issue(_ context.Context, req OrderRequest) (*Result, 
 		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
 		DNSNames:     uniqueNames(cn, req.DNSNames),
-	}
-	for _, ip := range parseIPs(nil) {
-		tmpl.IPAddresses = append(tmpl.IPAddresses, ip)
+		IPAddresses:  parseIPs(req.IPAddresses),
 	}
 	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
 	if err != nil {
@@ -100,7 +98,15 @@ func uniqueNames(cn string, dns []string) []string {
 	return out
 }
 
-func parseIPs(_ []string) []net.IP { return nil }
+func parseIPs(addrs []string) []net.IP {
+	var out []net.IP
+	for _, a := range addrs {
+		if ip := net.ParseIP(strings.TrimSpace(a)); ip != nil {
+			out = append(out, ip)
+		}
+	}
+	return out
+}
 
 func formatSerial(n *big.Int) string {
 	b := n.Bytes()

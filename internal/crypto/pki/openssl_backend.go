@@ -48,12 +48,16 @@ func (b *OpenSSLBackend) CreateRoot(ctx context.Context, req RootRequest) (certP
 		return nil, nil, fmt.Errorf("generate root key: %w", err)
 	}
 
+	subj, err := subjectDN(req.CommonName)
+	if err != nil {
+		return nil, nil, err
+	}
 	res, err := b.openssl.SafeExec(ctx, []string{
 		"req", "-new", "-x509",
 		"-key", ws.path("ca.key"),
 		"-out", ws.path("ca.crt"),
 		"-days", fmt.Sprintf("%d", days),
-		"-subj", subjectDN(req.CommonName),
+		"-subj", subj,
 		"-sha256",
 	}, nil)
 	if err != nil || res.ExitCode != 0 {
@@ -98,11 +102,15 @@ func (b *OpenSSLBackend) CreateIntermediate(ctx context.Context, req Intermediat
 		return nil, nil, fmt.Errorf("generate intermediate key: %w", err)
 	}
 
+	subj, err := subjectDN(req.CommonName)
+	if err != nil {
+		return nil, nil, err
+	}
 	if _, err := b.openssl.SafeExec(ctx, []string{
 		"req", "-new",
 		"-key", ws.path("int.key"),
 		"-out", ws.path("int.csr"),
-		"-subj", subjectDN(req.CommonName),
+		"-subj", subj,
 		"-sha256",
 	}, nil); err != nil {
 		return nil, nil, fmt.Errorf("create intermediate csr: %w", err)
@@ -160,11 +168,15 @@ func (b *OpenSSLBackend) IssueCertificate(ctx context.Context, req IssueRequest)
 		return nil, nil, fmt.Errorf("generate leaf key: %w", err)
 	}
 
+	subj, err := subjectDN(req.CommonName)
+	if err != nil {
+		return nil, nil, err
+	}
 	if _, err := b.openssl.SafeExec(ctx, []string{
 		"req", "-new",
 		"-key", ws.path("leaf.key"),
 		"-out", ws.path("leaf.csr"),
-		"-subj", subjectDN(req.CommonName),
+		"-subj", subj,
 		"-sha256",
 	}, nil); err != nil {
 		return nil, nil, fmt.Errorf("create leaf csr: %w", err)
@@ -249,8 +261,25 @@ func (b *OpenSSLBackend) VerifyChain(leafPEM []byte, intermediatesPEM [][]byte) 
 	return x509native.VerifyChain(leafPEM, intermediatesPEM)
 }
 
-func subjectDN(commonName string) string {
-	return "/CN=" + commonName + "/O=KNXVault"
+func subjectDN(commonName string) (string, error) {
+	// W50-08: OpenSSL -subj treats '/' as RDN separators; reject injection.
+	if err := ValidateCommonName(commonName); err != nil {
+		return "", err
+	}
+	return "/CN=" + commonName + "/O=KNXVault", nil
+}
+
+// ValidateCommonName rejects characters that break OpenSSL DN encoding.
+func ValidateCommonName(cn string) error {
+	if strings.TrimSpace(cn) == "" {
+		return fmt.Errorf("common name is required")
+	}
+	for _, r := range cn {
+		if r == '/' || r == '\x00' || r < 0x20 {
+			return fmt.Errorf("common name contains invalid characters")
+		}
+	}
+	return nil
 }
 
 func ttlDays(ttl time.Duration) int {

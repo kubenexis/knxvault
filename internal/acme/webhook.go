@@ -17,9 +17,23 @@ type dnsWebhookBody struct {
 	Value  string `json:"value"`
 }
 
-func postDNSWebhook(ctx context.Context, client HTTPDoer, url, action, domain, fqdn, value string) error {
+func postDNSWebhook(ctx context.Context, client HTTPDoer, rawURL, action, domain, fqdn, value string) error {
+	return postDNSWebhookOpts(ctx, client, rawURL, action, domain, fqdn, value, false)
+}
+
+func postDNSWebhookOpts(ctx context.Context, client HTTPDoer, rawURL, action, domain, fqdn, value string, skipValidate bool) error {
+	if !skipValidate {
+		if err := ValidateOutboundURL(rawURL); err != nil {
+			return fmt.Errorf("dns webhook url: %w", err)
+		}
+	}
 	if client == nil {
-		client = &http.Client{Timeout: 30 * time.Second}
+		client = &http.Client{
+			Timeout: 30 * time.Second,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return fmt.Errorf("redirects not allowed")
+			},
+		}
 	}
 	body, err := json.Marshal(dnsWebhookBody{
 		Action: action,
@@ -30,7 +44,7 @@ func postDNSWebhook(ctx context.Context, client HTTPDoer, url, action, domain, f
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, rawURL, bytes.NewReader(body))
 	if err != nil {
 		return err
 	}

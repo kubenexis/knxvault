@@ -13,8 +13,15 @@ func TestSealStateRoundTrip(t *testing.T) {
 		key[i] = byte(i)
 	}
 	seal := app.NewSealState(key)
+	// W50-03: unseal key present ⇒ start sealed until Unseal.
+	if !seal.Sealed() {
+		t.Fatal("expected sealed initially when unseal key configured")
+	}
+	if !seal.Unseal(key) {
+		t.Fatal("expected valid unseal")
+	}
 	if seal.Sealed() {
-		t.Fatal("expected unsealed initially")
+		t.Fatal("expected unsealed after unseal")
 	}
 	seal.Seal()
 	if !seal.Sealed() {

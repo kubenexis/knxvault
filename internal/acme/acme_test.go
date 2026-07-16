@@ -122,7 +122,7 @@ func TestWebhookDNS01(t *testing.T) {
 		w.WriteHeader(200)
 	}))
 	defer srv.Close()
-	w := &acme.WebhookDNS01{URL: srv.URL, Client: srv.Client()}
+	w := &acme.WebhookDNS01{URL: srv.URL, Client: srv.Client(), SkipURLValidate: true}
 	ctx := context.Background()
 	if err := w.Present(ctx, "d.com", "_acme-challenge.d.com.", "val"); err != nil {
 		t.Fatal(err)
@@ -148,7 +148,7 @@ func TestWebhookDNS01Errors(t *testing.T) {
 		_, _ = w.Write([]byte("nope"))
 	}))
 	defer srv.Close()
-	w2 := &acme.WebhookDNS01{URL: srv.URL, Client: srv.Client()}
+	w2 := &acme.WebhookDNS01{URL: srv.URL, Client: srv.Client(), SkipURLValidate: true}
 	if err := w2.Present(context.Background(), "d", "f", "v"); err == nil {
 		t.Fatal("expected status error")
 	}
@@ -244,8 +244,9 @@ func TestClientIssueWithMockACME(t *testing.T) {
 	if res.CertPEM == "" || res.PrivateKeyPEM == "" {
 		t.Fatalf("empty result %+v", res)
 	}
-	if _, ok := http01.Get("tok"); !ok {
-		t.Fatal("expected http-01 present")
+	// Challenge CleanUp runs via defer after successful issue.
+	if _, ok := http01.Get("tok"); ok {
+		t.Fatal("expected http-01 cleaned up after issue")
 	}
 }
 
@@ -317,9 +318,10 @@ func TestDNS01Pick(t *testing.T) {
 	if _, err := c.Issue(context.Background(), acme.OrderRequest{CommonName: "app.example.com"}); err != nil {
 		t.Fatal(err)
 	}
+	// CleanUp removes DNS records after issue.
 	fqdn := acme.DNS01FQDN("app.example.com")
-	if len(dns.Records[fqdn]) == 0 {
-		t.Fatalf("expected DNS present: %v", dns.Records)
+	if len(dns.Records[fqdn]) != 0 {
+		t.Fatalf("expected DNS cleaned: %v", dns.Records)
 	}
 }
 

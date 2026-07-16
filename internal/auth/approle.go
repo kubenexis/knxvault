@@ -21,10 +21,12 @@ type AppRole struct {
 	secretHash string
 }
 
-// AppRoleStore holds in-memory AppRole definitions (not Raft-replicated yet).
+// AppRoleStore holds AppRole definitions. Optionally file-persisted (W50-04);
+// full Raft multi-node replication remains a follow-up.
 type AppRoleStore struct {
-	mu    sync.RWMutex
-	roles map[string]AppRole // key: role_id
+	mu          sync.RWMutex
+	roles       map[string]AppRole // key: role_id
+	persistPath string
 }
 
 // NewAppRoleStore constructs an empty AppRole store.
@@ -56,6 +58,7 @@ func (s *AppRoleStore) Register(roleID, secretID, subject string, policies []str
 		Policies:   append([]string(nil), policies...),
 		secretHash: hashSecretID(secretID),
 	}
+	s.saveLocked()
 	return nil
 }
 
@@ -67,6 +70,7 @@ func (s *AppRoleStore) Delete(roleID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.roles, roleID)
+	s.saveLocked()
 }
 
 // Authenticate validates role_id + secret_id and returns the AppRole metadata.

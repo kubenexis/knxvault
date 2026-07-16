@@ -40,6 +40,17 @@ func TestServerFetchWithTokenHeader(t *testing.T) {
 	}
 }
 
+func TestServerFetchRequiresAuth(t *testing.T) {
+	server := eso.NewServer(eso.Config{VaultAddr: "http://127.0.0.1:1", Role: "eso-reader"})
+	reqBody, _ := json.Marshal(eso.FetchRequest{Path: "app/config"})
+	req := httptest.NewRequest(http.MethodPost, "/fetch", bytes.NewReader(reqBody))
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d want 401 body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestServerHealth(t *testing.T) {
 	server := eso.NewServer(eso.Config{})
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)

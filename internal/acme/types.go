@@ -20,7 +20,7 @@ type Config struct {
 	DirectoryURL string
 	// Email for account registration.
 	Email string
-	// AcceptTOS must be true to create an account.
+	// AcceptTOS must be true to create an account (explicit consent).
 	AcceptTOS bool
 	// PreferredChain optionally selects an alternate chain name.
 	PreferredChain string
@@ -34,8 +34,9 @@ type Config struct {
 
 // OrderRequest describes domains to certify.
 type OrderRequest struct {
-	CommonName string
-	DNSNames   []string
+	CommonName  string
+	DNSNames    []string
+	IPAddresses []string
 	// KeyBits for generated RSA leaf key (default 2048).
 	KeyBits int
 	// TTL is a soft hint for notAfter (ACME CA decides lifetime).

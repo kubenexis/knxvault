@@ -37,6 +37,7 @@ import (
 	"github.com/kubenexis/knxvault/internal/repository/dragonboat"
 	"github.com/kubenexis/knxvault/internal/repository/memory"
 	"github.com/kubenexis/knxvault/internal/service"
+	"github.com/kubenexis/knxvault/internal/sys"
 )
 
 // Dependencies groups runtime subsystems wired at startup.
@@ -189,6 +190,10 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 			return nil, fmt.Errorf("unseal key must not equal master key")
 		}
 		deps.Seal = NewSealState(unsealKey)
+		if cfg.Raft.DataDir != "" {
+			deps.Seal.SetStateFile(filepath.Join(cfg.Raft.DataDir, "seal.state"))
+			sys.SetStatePath(filepath.Join(cfg.Raft.DataDir, "init.state"))
+		}
 
 		deps.PKIEngine = pkiengine.NewEngine(deps.OpenSSL, deps.Crypto, deps.CARepo, deps.RevokeRepo)
 		deps.PKIEngine.SetBackend(selectPKIBackend(cfg, deps.OpenSSL))
@@ -288,6 +293,9 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 	deps.ExposureWebhook = notify.NewWebhook(cfg.ExposureWebhookURL)
 
 	deps.AuthService = auth.NewService(tokenStore, rbac, cfg.JWTSecret)
+	if cfg.Raft.DataDir != "" {
+		deps.AuthService.EnsureAppRoleStore().SetPersistPath(filepath.Join(cfg.Raft.DataDir, "approles.json"))
+	}
 	deps.AuthService.SetRBACSyncer(deps.PolicyService)
 	deps.AuthService.SetRoleResolver(auth.NewRepositoryRoleResolver(deps.RoleRepo))
 	deps.AuthService.SetOIDCValidator(auth.NewOIDCValidator(), cfg.OIDCDefaultTTL)

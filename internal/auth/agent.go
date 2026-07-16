@@ -13,7 +13,11 @@ import (
 	"github.com/kubenexis/knxvault/internal/utils"
 )
 
-const defaultAgentTTL = 15 * time.Minute
+const (
+	defaultAgentTTL = 15 * time.Minute
+	// maxAgentTTL is a hard server-side cap (W50-12).
+	maxAgentTTL = time.Hour
+)
 
 // AgentDelegateRequest scopes a short-lived delegated token for an AI agent.
 type AgentDelegateRequest struct {
@@ -48,6 +52,9 @@ func (s *Service) DelegateAgent(ctx context.Context, parent Principal, req Agent
 	ttl := req.TTL
 	if ttl <= 0 {
 		ttl = defaultAgentTTL
+	}
+	if ttl > maxAgentTTL {
+		ttl = maxAgentTTL
 	}
 	parentID := parent.Subject
 	if parentID == "" {

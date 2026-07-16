@@ -47,6 +47,17 @@ func raftHTTPTestRouter(t *testing.T) (*gin.Engine, string, func()) {
 	}
 	waitRaftReady(t, deps.Raft)
 
+	// W50-03: unseal key present ⇒ start sealed; tests unseal once.
+	if deps.Seal != nil && deps.Seal.Sealed() {
+		raw, err := base64.StdEncoding.DecodeString(testUnsealKey())
+		if err != nil {
+			t.Fatalf("decode unseal: %v", err)
+		}
+		if !deps.Seal.Unseal(raw) {
+			t.Fatal("unseal failed")
+		}
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	if deps.JobRunner != nil {
 		deps.JobRunner.Start(ctx)

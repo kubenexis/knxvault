@@ -31,8 +31,8 @@ Use **only** `deployments/operator/crds/` (single full CRD bundle). No legacy st
 ```bash
 make build build-operator
 kubectl apply -f deployments/operator/crds/
-kubectl apply -f deployments/operator/rbac.yaml   # includes lease for leader election
-# Optional least-privilege Secrets in one ns:
+kubectl apply -f deployments/operator/rbac.yaml   # includes lease + Gateway get/list/watch
+# Prefer least-privilege Secrets in app namespaces (multi-tenant):
 # kubectl apply -f deployments/operator/rbac-namespaced-example.yaml
 
 export KNXVAULT_ADDR=http://knxvault.knxvault.svc:8200

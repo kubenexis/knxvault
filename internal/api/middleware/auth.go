@@ -13,7 +13,9 @@ import (
 func Auth(svc *auth.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if svc == nil {
-			c.Next()
+			// W50-11: fail closed when middleware is installed without a service.
+			_ = c.Error(common.New(common.ErrCodeUnavailable, "auth service not configured"))
+			c.Abort()
 			return
 		}
 
@@ -70,7 +72,8 @@ func Auth(svc *auth.Service) gin.HandlerFunc {
 func RequirePermission(svc *auth.Service, resource, action string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if svc == nil {
-			c.Next()
+			_ = c.Error(common.New(common.ErrCodeUnavailable, "auth service not configured"))
+			c.Abort()
 			return
 		}
 

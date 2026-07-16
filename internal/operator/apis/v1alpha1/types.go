@@ -100,10 +100,14 @@ type ACMEIssuerSpec struct {
 	// Server is the ACME directory URL (default Let's Encrypt production).
 	Server string `json:"server,omitempty"`
 	Email  string `json:"email,omitempty"`
+	// AcceptTOS must be true (W50-07); operator refuses issue when false/absent.
+	AcceptTOS bool `json:"acceptTOS,omitempty"`
 	// PrivateKeySecretRef stores the ACME account key (optional; generated if missing).
 	PrivateKeySecretRef *SecretKeyRef `json:"privateKeySecretRef,omitempty"`
+	// SecretNamespace for ClusterIssuer secret refs (defaults to knxvault).
+	SecretNamespace string `json:"secretNamespace,omitempty"`
 	// Solvers
-	HTTP01 bool          `json:"http01,omitempty"`
+	HTTP01 bool           `json:"http01,omitempty"`
 	DNS01  *ACMEDNS01Spec `json:"dns01,omitempty"`
 	// SkipTLSVerify for lab ACME (Pebble); never for public LE.
 	SkipTLSVerify bool `json:"skipTLSVerify,omitempty"`

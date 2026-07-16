@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -13,18 +14,21 @@ type SealChecker interface {
 	Sealed() bool
 }
 
-// SealGuard blocks mutating requests when the vault is sealed.
+// SealGuard blocks the data plane when the vault is sealed (W50-03).
+// Unlike write-only sealing, authenticated secret/PKI/audit reads are also denied
+// so incident seal stops exfiltration. Unseal and liveness routes are registered
+// outside groups that use this middleware.
 func SealGuard(checker SealChecker) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if checker == nil || !checker.Sealed() {
 			c.Next()
 			return
 		}
-		switch c.Request.Method {
-		case http.MethodGet, http.MethodHead, http.MethodOptions:
+		// Allow only unseal-related paths if they ever land behind this middleware.
+		path := c.Request.URL.Path
+		if path == "/sys/unseal" || strings.HasSuffix(path, "/sys/unseal") {
 			c.Next()
 			return
-		default:
 		}
 		c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{
 			"error_code": string(common.ErrCodeUnavailable),

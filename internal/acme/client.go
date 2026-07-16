@@ -71,6 +71,13 @@ func (r *realACME) DNS01ChallengeRecord(token string) (string, error) {
 	return r.c.DNS01ChallengeRecord(token)
 }
 
+// SetHTTP01Presenter replaces the HTTP-01 presenter (operator shared solver).
+func SetHTTP01Presenter(c *Client, p HTTP01Presenter) {
+	if c != nil {
+		c.http01 = p
+	}
+}
+
 // NewClient constructs an ACME client with optional solvers.
 func NewClient(cfg Config, http01 HTTP01Presenter, dns01 DNS01Presenter) *Client {
 	if cfg.DirectoryURL == "" {
@@ -116,6 +123,12 @@ func (c *Client) ProbeDirectory(ctx context.Context) CAInfo {
 
 // Issue obtains a certificate via ACME.
 func (c *Client) Issue(ctx context.Context, req OrderRequest) (*Result, error) {
+	if !c.cfg.AcceptTOS {
+		return nil, fmt.Errorf("acme acceptTOS is required")
+	}
+	if c.cfg.SkipTLSVerify && PublicLEHost(c.cfg.DirectoryURL) {
+		return nil, fmt.Errorf("skipTLSVerify is not allowed for public Let's Encrypt directories")
+	}
 	names := uniqueNames(req.CommonName, req.DNSNames)
 	if len(names) == 0 {
 		return nil, fmt.Errorf("at least one domain required")
@@ -159,6 +172,8 @@ func (c *Client) Issue(ctx context.Context, req OrderRequest) (*Result, error) {
 		if err := c.solve(ctx, api, authz, chal); err != nil {
 			return nil, err
 		}
+		// Always attempt cleanup after present (success or accept failure).
+		defer c.cleanupChallenge(ctx, api, authz, chal)
 		if _, err := api.Accept(ctx, chal); err != nil {
 			return nil, fmt.Errorf("acme accept: %w", err)
 		}
@@ -230,15 +245,48 @@ func (c *Client) solve(ctx context.Context, api ACMEAPI, authz *xacme.Authorizat
 		if err != nil {
 			return err
 		}
-		return c.http01.Present(ctx, domain, chal.Token, keyAuth)
+		if err := c.http01.Present(ctx, domain, chal.Token, keyAuth); err != nil {
+			return err
+		}
+		// Best-effort cleanup after challenge is no longer needed is done by caller defer in Issue.
+		return nil
 	case "dns-01":
 		val, err := api.DNS01ChallengeRecord(chal.Token)
 		if err != nil {
 			return err
 		}
-		return c.dns01.Present(ctx, domain, DNS01FQDN(domain), val)
+		fqdn := DNS01FQDN(domain)
+		return c.dns01.Present(ctx, domain, fqdn, val)
 	default:
 		return fmt.Errorf("unsupported challenge type %s", chal.Type)
+	}
+}
+
+// cleanupChallenge removes presented challenge material (W50-13).
+func (c *Client) cleanupChallenge(ctx context.Context, api ACMEAPI, authz *xacme.Authorization, chal *xacme.Challenge) {
+	if authz == nil || chal == nil {
+		return
+	}
+	domain := authz.Identifier.Value
+	switch chal.Type {
+	case "http-01":
+		if c.http01 == nil {
+			return
+		}
+		keyAuth, err := api.HTTP01ChallengeResponse(chal.Token)
+		if err != nil {
+			return
+		}
+		_ = c.http01.CleanUp(ctx, domain, chal.Token, keyAuth)
+	case "dns-01":
+		if c.dns01 == nil {
+			return
+		}
+		val, err := api.DNS01ChallengeRecord(chal.Token)
+		if err != nil {
+			return
+		}
+		_ = c.dns01.CleanUp(ctx, domain, DNS01FQDN(domain), val)
 	}
 }
 

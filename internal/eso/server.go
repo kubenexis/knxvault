@@ -31,6 +31,10 @@ type Config struct {
 	VaultAddr string
 	Role      string
 	TokenFile string
+	// AllowInsecureSAAuth enables falling back to the pod ServiceAccount JWT
+	// when the request has no Authorization / X-KNXVault-Token header.
+	// Default false (W50-01) — unauthenticated callers must not obtain secrets.
+	AllowInsecureSAAuth bool
 }
 
 // Server serves ESO webhook fetch requests.
@@ -121,6 +125,7 @@ func (s *Server) resolveToken(ctx context.Context, role string, r *http.Request)
 	if token := strings.TrimSpace(r.Header.Get("Authorization")); strings.HasPrefix(strings.ToLower(token), "bearer ") {
 		return strings.TrimSpace(token[7:]), nil
 	}
+	// Optional static token file (operator-mounted secret) still counts as configured auth.
 	if s.cfg.TokenFile != "" {
 		raw, err := os.ReadFile(s.cfg.TokenFile)
 		if err == nil {
@@ -128,6 +133,11 @@ func (s *Server) resolveToken(ctx context.Context, role string, r *http.Request)
 				return token, nil
 			}
 		}
+	}
+	// SA auto-login is opt-in only (W50-01). Unauthenticated network peers must not
+	// force the adapter to mint a vault token with the pod identity.
+	if !s.cfg.AllowInsecureSAAuth {
+		return "", fmt.Errorf("missing authentication: provide X-KNXVault-Token or Authorization Bearer (SA auto-login disabled)")
 	}
 	jwtPath := "/var/run/secrets/kubernetes.io/serviceaccount/token"
 	if raw, err := os.ReadFile(jwtPath); err == nil {

@@ -74,6 +74,9 @@ func TestVaultCompatSysHealth(t *testing.T) {
 		key[i] = byte(i + 3)
 	}
 	seal := app.NewSealState(key)
+	if !seal.Unseal(key) {
+		t.Fatal("unseal")
+	}
 	handler := handlers.NewVaultCompatHandler(authSvc, nil, time.Hour).
 		WithHealthProbe(seal, nil, "test-ver")
 

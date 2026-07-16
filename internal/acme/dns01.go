@@ -65,6 +65,8 @@ func normalizeFQDN(fqdn string) string {
 type WebhookDNS01 struct {
 	URL    string
 	Client HTTPDoer
+	// SkipURLValidate disables SSRF checks (unit tests with httptest only).
+	SkipURLValidate bool
 }
 
 // HTTPDoer is a minimal HTTP client (for tests).
@@ -86,6 +88,5 @@ func (w *WebhookDNS01) post(ctx context.Context, action, domain, fqdn, value str
 	if w.URL == "" {
 		return fmt.Errorf("dns webhook URL required")
 	}
-	// Implemented in webhook.go to keep imports tidy.
-	return postDNSWebhook(ctx, w.Client, w.URL, action, domain, fqdn, value)
+	return postDNSWebhookOpts(ctx, w.Client, w.URL, action, domain, fqdn, value, w.SkipURLValidate)
 }

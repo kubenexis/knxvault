@@ -105,6 +105,9 @@ func ensureIssuerReady(ctx context.Context, vault vaultiface.API, c client.Clien
 		if resolved.ACME == nil {
 			return fmt.Errorf("acme config required")
 		}
+		if !resolved.ACME.AcceptTOS {
+			return fmt.Errorf("acme.acceptTOS must be true")
+		}
 		if !resolved.ACME.HTTP01 && resolved.ACME.DNS01 == nil {
 			return fmt.Errorf("acme issuer requires http01 and/or dns01")
 		}

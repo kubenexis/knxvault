@@ -43,19 +43,27 @@ func ResolveVaultRole(ctx context.Context, c client.Client, certNS string, ref v
 		if err := c.Get(ctx, client.ObjectKey{Namespace: ns, Name: ref.Name}, &iss); err != nil {
 			return "", err
 		}
-		if iss.Spec.VaultCAName == "" {
-			return "", fmt.Errorf("issuer %s/%s missing vaultCAName", ns, ref.Name)
+		resolved, err := v1alpha1.ResolveIssuerSpec(iss.Spec)
+		if err != nil {
+			return "", err
 		}
-		return iss.Spec.VaultCAName, nil
+		if resolved.Mode != v1alpha1.IssuerModeVault || resolved.VaultCA == "" {
+			return "", fmt.Errorf("issuer %s/%s is not vault mode", ns, ref.Name)
+		}
+		return resolved.VaultCA, nil
 	case "knxvaultclusterissuer", "clusterissuer":
 		var iss v1alpha1.KNXVaultClusterIssuer
 		if err := c.Get(ctx, client.ObjectKey{Name: ref.Name}, &iss); err != nil {
 			return "", err
 		}
-		if iss.Spec.VaultCAName == "" {
-			return "", fmt.Errorf("clusterissuer %s missing vaultCAName", ref.Name)
+		resolved, err := v1alpha1.ResolveClusterIssuerSpec(iss.Spec)
+		if err != nil {
+			return "", err
 		}
-		return iss.Spec.VaultCAName, nil
+		if resolved.Mode != v1alpha1.IssuerModeVault || resolved.VaultCA == "" {
+			return "", fmt.Errorf("clusterissuer %s is not vault mode", ref.Name)
+		}
+		return resolved.VaultCA, nil
 	default:
 		return "", fmt.Errorf("unsupported issuer kind %q", ref.Kind)
 	}

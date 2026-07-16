@@ -2,7 +2,7 @@
 
 Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topologically sorted by dependency** — implement in listed order within each phase.
 
-**Current focus (2026-07-16):** **P0 W30-01–W30-10 Complete** + **operator hardening P0/P1/P2** (SA auth, leader election, CSR sign API, issuer vault Ready, Secret annotations, delivery None, backoff, ns RBAC example). Prefer KNXVault PKI + operator for vault-issued TLS (**no cert-manager**). Remaining Phase 5: tenant depth (W32), HSM (W31-02).
+**Current focus (2026-07-16):** **P0 W50 audit remediation** (full-codebase review 7f32c606) after W30 Complete + **operator hardening P0/P1/P2** (SA auth, leader election, CSR sign API, issuer vault Ready, Secret annotations, delivery None, backoff, ns RBAC example). Prefer KNXVault PKI + operator for vault-issued TLS (**no cert-manager**). Remaining Phase 5: tenant depth (W32), HSM (W31-02).
 
 **Legend**
 
@@ -423,6 +423,48 @@ High-level scope from LLD §9.4. Phase 3–4 core is largely complete. Detailed 
 | **W35-02** | P2 | Partial | Compliance audit packs | docs | M | W14 | Done — `GET /sys/audit/pack`, `auditpack.go`, CLI. **Gap:** audit export + manifest only; no SOC2/PCI/ISO control-mapping bundles. | Pack generation CLI command. |
 
 > **Phase 5 dependency note:** **P0 W30-*** is current focus (cert-manager avoidance). **W32-*** (multi-tenancy) should follow for multi-team issuers. **W31-02** (HSM) pairs with production CA CRs. **W36-13** (token persistence) should precede full **W34-02** (client cert API auth).
+
+---
+
+
+## P0/P1 — Full-codebase audit remediation (2026-07-16, review `7f32c606`)
+
+Source: [`docs/audit/formal-10cycle-full-codebase-2026-07-16.md`](audit/formal-10cycle-full-codebase-2026-07-16.md), multi-pass reviews, multi-issuer review `f29a75bd`.
+
+**Product goal:** Close Critical/High findings so multi-tenant deploy, ESO, webhook, ACME, and HA auth are production-safe.
+
+| ID | Priority | Status | Title | Area | Effort | Depends on | Description | Acceptance criteria |
+|----|----------|--------|-------|------|--------|------------|-------------|---------------------|
+| ~~**W50-01**~~ | P0 | Complete | ESO fetch requires inbound auth | security | S | W40-01 | Done — SA auto-login opt-in only. | Anonymous fetch → 401. |
+| ~~**W50-02**~~ | P0 | Complete | Webhook serves TLS only | k8s | M | W38-07 | Done — TLS cert/key required (plaintext opt-in for tests). | ListenAndServeTLS. |
+| ~~**W50-03**~~ | P0 | Complete | Seal blocks secret reads + start-sealed | security | M | W37 | Done — SealGuard all methods; start sealed when key set; seal.state file. | Sealed GET denied. |
+| ~~**W50-04**~~ | P0 | Complete | AppRole durable store | auth | M | W40-02 | Done — file persist under raft data dir (not full Raft multi-node yet). | Reload on restart. |
+| ~~**W50-05**~~ | P0 | Complete | Init state durable | api | S | W8 | Done — init.state under raft data dir. | Survives process restart. |
+| ~~**W50-06**~~ | P0 | Complete | Server SA TokenReview RBAC | k8s | S | W36-01 | Done — `clusterrole-tokenreview.yaml`. | TokenReview create. |
+| ~~**W50-07**~~ | P0 | Complete | ACME SSRF + AcceptTOS + HTTP-01 wire | security | L | multi-issuer | Done — URL private deny; acceptTOS; shared HTTP-01 listener. | Unit tests. |
+| ~~**W50-08**~~ | P0 | Complete | OpenSSL CN DN injection | crypto | S | W3-03 | Done — ValidateCommonName. | Rejects `/`. |
+| ~~**W50-09**~~ | P0 | Complete | Operator Gateway RBAC + secrets docs | k8s | S | W30 | Done — gateway rules; namespaced secrets preferred in docs. | RBAC yaml. |
+| ~~**W50-10**~~ | P0 | Complete | Prod rate limit on + HTTP timeouts | security | S | W10 | Done — ConfigMap true; server timeouts. | Manifests. |
+| ~~**W50-11**~~ | P1 | Complete | Auth middleware fail-closed | auth | S | W7-05 | Done — nil svc aborts. | Unit path. |
+| ~~**W50-12**~~ | P1 | Complete | Agent delegate max TTL | auth | S | W7 | Done — cap 1h. | Server-side clamp. |
+| **W50-13** | P1 | Partial | ACME account key Secret load/store | security | M | W50-07 | CleanUp done; PrivateKeySecretRef load/store still open. | Persist LE account key. |
+| ~~**W50-14**~~ | P1 | Complete | ResolveVaultRole structured vault | k8s | M | W30-10 | Done — ResolveIssuerSpec for vaultCAName/vault{}. | Structured vault mode. |
+| ~~**W50-15**~~ | P1 | Complete | IP SANs self-signed | crypto | S | W50-07 | Done — parseIPs on OrderRequest. | IP SANs present. |
+| **W50-16** | P1 | Not started | DEK memzero on Seal/Open hot path | crypto | S | W3-02 | DEKs linger in heap. | Zero DEK after use. |
+| **W50-17** | P1 | Not started | SyncRBAC fail-closed option | auth | M | W41 | Stale allow on sync error. | Config fail-closed or max staleness. |
+| **W50-18** | P1 | Not started | Lockout cluster-aware / trusted proxies | auth | M | W43-04 | Per-node IP lockout bypass. | Document + SetTrustedProxies; optional identity key. |
+| **W50-19** | P2 | Not started | Metrics auth / separate bind | security | S | W10 | Unauthenticated /metrics. | NetworkPolicy doc or optional auth. |
+| **W50-20** | P2 | Not started | Raft mTLS required in production profile | security | M | W38-14 | Optional mTLS default. | ValidateSecurity when Raft on. |
+| **W50-21** | P2 | Not started | Rate limiter bucket eviction | api | S | W10 | Unbounded map. | LRU/TTL eviction. |
+| **W50-22** | P2 | Not started | Managed DB SQL allow-list mode | security | M | W37 | Custom SQL as admin. | Strict template-only mode. |
+| **W50-23** | P2 | Not started | CSI socket permissions | k8s | S | W39 | Socket dir 0755. | 0700/0660. |
+| **W50-24** | P2 | Not started | Exposure HMAC timestamp/nonce | security | S | W37 | Replay window process-local. | Signed timestamp. |
+| **W50-25** | P2 | Not started | OpenAPI full route parity | api | M | W8-03 | Spec drift. | Spec matches router. |
+| **W50-26** | P2 | Not started | Root token short TTL / rotation recipe | auth | S | W7 | 365d root. | Shorter default + docs. |
+| **W50-27** | P2 | Not started | Audit forwarder queue/metrics | ops | M | W14 | Fire-and-forget goroutines. | Bounded queue + counters. |
+| **W50-28** | P2 | Not started | Unseal multi-share / lockout | security | L | W37 | Single key unseal. | Progressive delay + audit. |
+| **W50-29** | P2 | Not started | Vaultcompat path-scoped pki capability | auth | M | W41 | Coarse pki write. | Mount/role path capability. |
+| **W50-30** | P2 | Not started | ACME Pebble e2e + sealed-read tests | ci | M | W50-07, W50-03 | Coverage gaps. | Integration tests green. |
 
 ---
 

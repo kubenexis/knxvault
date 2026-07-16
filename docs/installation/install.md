@@ -101,6 +101,7 @@ kubectl apply -f deployments/k8s/namespace.yaml
 kubectl apply -f deployments/k8s/serviceaccount.yaml
 kubectl apply -f deployments/k8s/role.yaml
 kubectl apply -f deployments/k8s/rolebinding.yaml
+kubectl apply -f deployments/k8s/clusterrole-tokenreview.yaml
 kubectl apply -f deployments/k8s/configmap.yaml
 kubectl apply -f deployments/k8s/secret.yaml
 kubectl apply -f deployments/k8s/service-raft.yaml
