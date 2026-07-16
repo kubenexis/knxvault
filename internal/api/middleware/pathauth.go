@@ -41,8 +41,10 @@ func RequirePathCapability(svc *auth.Service, baseResource, capability string, p
 	}
 }
 
-// RequirePKISignCapability enforces path-scoped PKI sign capability (W50-29).
-// Checks resource "{mount}/sign/{role}" then falls back to "pki" write for compatibility.
+// RequirePKISignCapability enforces path-scoped PKI sign capability (W50-29 / W52-04).
+// Checks resource "{mount}/sign/{role}" first, then mount-level "{mount}/sign".
+// Coarse "pki" write alone is NOT sufficient (removed compatibility fallback).
+// Policies that need broad sign should grant "pki/sign/*" or "pki/*" path patterns.
 func RequirePKISignCapability(svc *auth.Service, defaultMount string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if svc == nil {
@@ -64,19 +66,29 @@ func RequirePKISignCapability(svc *auth.Service, defaultMount string) gin.Handle
 			mount = "pki"
 		}
 		role := strings.TrimSpace(c.Param("role"))
-		pathResource := mount + "/sign"
+		candidates := []string{mount + "/sign"}
 		if role != "" {
-			pathResource = mount + "/sign/" + role
+			candidates = []string{mount + "/sign/" + role, mount + "/sign/*", mount + "/sign", "pki/sign/" + role, "pki/sign/*"}
 		}
-		if err := svc.AuthorizePath(c.Request.Context(), principal, pathResource, auth.CapWrite); err != nil {
-			// Compatibility: coarse pki write still grants sign when fine-grained policy absent.
-			if err2 := svc.Authorize(c.Request.Context(), principal, "pki", auth.CapWrite); err2 != nil {
-				_ = c.Error(err)
-				c.Abort()
+		var lastErr error
+		for _, pathResource := range candidates {
+			if err := svc.AuthorizePath(c.Request.Context(), principal, pathResource, auth.CapWrite); err == nil {
+				c.Next()
 				return
+			} else {
+				lastErr = err
 			}
 		}
-		c.Next()
+		// Also allow admin-style glob policies that grant pki/* via path auth on "pki/sign/..."
+		if err := svc.AuthorizePath(c.Request.Context(), principal, "pki/*", auth.CapWrite); err == nil {
+			c.Next()
+			return
+		}
+		if lastErr == nil {
+			lastErr = common.New(common.ErrCodeForbidden, "access denied")
+		}
+		_ = c.Error(lastErr)
+		c.Abort()
 	}
 }
 

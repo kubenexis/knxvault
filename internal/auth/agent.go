@@ -40,15 +40,14 @@ func (s *Service) DelegateAgent(ctx context.Context, parent Principal, req Agent
 		return "", nil, common.New(common.ErrCodeValidation, "allowed_actions is required")
 	}
 	prefix := normalizeAgentPathPrefix(req.PathPrefix, req.AgentID)
-	policies := req.Policies
-	if len(policies) == 0 {
-		policies = append([]string(nil), parent.Policies...)
-	} else if err := s.validateDelegatedPolicies(parent.Policies, policies); err != nil {
+	// W52: require explicit policy subset — do not inherit full parent admin policies.
+	if len(req.Policies) == 0 {
+		return "", nil, common.New(common.ErrCodeValidation, "policies are required for agent delegation (explicit subset of parent policies)")
+	}
+	if err := s.validateDelegatedPolicies(parent.Policies, req.Policies); err != nil {
 		return "", nil, err
 	}
-	if len(policies) == 0 {
-		return "", nil, common.New(common.ErrCodeForbidden, "parent has no policies to delegate")
-	}
+	policies := append([]string(nil), req.Policies...)
 	ttl := req.TTL
 	if ttl <= 0 {
 		ttl = defaultAgentTTL

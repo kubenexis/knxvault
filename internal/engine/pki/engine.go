@@ -159,6 +159,7 @@ func (e *Engine) CreateRoot(ctx context.Context, req CreateRootRequest) (*CAResu
 	if err := e.caRepo.Save(ctx, ca); err != nil {
 		return nil, err
 	}
+	e.ensureDefaultRole(ctx, ca.Name)
 
 	return &CAResult{
 		ID:        ca.ID,
@@ -230,6 +231,7 @@ func (e *Engine) CreateIntermediate(ctx context.Context, req CreateIntermediateR
 	if err := e.caRepo.Save(ctx, ca); err != nil {
 		return nil, err
 	}
+	e.ensureDefaultRole(ctx, ca.Name)
 
 	return &CAResult{
 		ID:        ca.ID,
@@ -240,20 +242,18 @@ func (e *Engine) CreateIntermediate(ctx context.Context, req CreateIntermediateR
 	}, nil
 }
 
+// defaultLeafTTL is the default leaf lifetime when role has no MaxTTL (W52).
+const defaultLeafTTL = 72 * time.Hour
+
 // IssueCertificate issues a leaf certificate signed by the named CA role.
 func (e *Engine) IssueCertificate(ctx context.Context, req IssueRequest) (*IssueResult, error) {
 	if e.crypto == nil || e.caRepo == nil || e.backend == nil {
 		return nil, common.New(common.ErrCodeInternal, "pki engine not fully configured")
 	}
 
-	caName := req.Role
-	var pkiRole *domainpki.Role
-	if e.roleRepo != nil {
-		role, err := e.roleRepo.Get(ctx, req.Role)
-		if err == nil {
-			pkiRole = role
-			caName = role.CAName
-		}
+	caName, pkiRole, err := e.resolvePKIRole(ctx, req.Role)
+	if err != nil {
+		return nil, err
 	}
 
 	ca, err := e.caRepo.GetByName(ctx, caName)
@@ -267,11 +267,20 @@ func (e *Engine) IssueCertificate(ctx context.Context, req IssueRequest) (*Issue
 		}
 	}
 
-	ttl := 720 * time.Hour
+	ttl := defaultLeafTTL
 	if req.TTL != "" {
 		ttl, err = utils.ParseTTL(req.TTL)
 		if err != nil {
 			return nil, common.Wrap(common.ErrCodeValidation, "invalid ttl", err)
+		}
+	}
+	if pkiRole != nil && pkiRole.MaxTTLSeconds > 0 {
+		max := time.Duration(pkiRole.MaxTTLSeconds) * time.Second
+		if ttl > max {
+			if req.TTL != "" {
+				return nil, common.New(common.ErrCodeValidation, "ttl exceeds role maximum")
+			}
+			ttl = max
 		}
 	}
 	caKey, err := e.decryptKey(ca.PrivateKeyEnc, ca.DEKEnc)
@@ -637,18 +646,11 @@ func (e *Engine) SignCSR(ctx context.Context, req SignCSRRequest) (*SignCSRResul
 		return nil, common.New(common.ErrCodeValidation, "csr is required")
 	}
 
-	// Prefer explicit PKI role → CA binding; otherwise treat role as CA name
-	// (Vault-compatible path /v1/<mount>/sign/<role> often uses role == CA name).
-	caName := req.Role
-	if caName == "" {
-		caName = "root"
-	}
-	var pkiRole *domainpki.Role
-	if e.roleRepo != nil && req.Role != "" {
-		if role, err := e.roleRepo.Get(ctx, req.Role); err == nil && role != nil {
-			pkiRole = role
-			caName = role.CAName
-		}
+	// W52-03: require a persisted PKI role when role repository is configured
+	// (no unconstrained CA-name-only sign path).
+	caName, pkiRole, err := e.resolvePKIRole(ctx, req.Role)
+	if err != nil {
+		return nil, err
 	}
 
 	ca, err := e.caRepo.GetByName(ctx, caName)
@@ -662,7 +664,7 @@ func (e *Engine) SignCSR(ctx context.Context, req SignCSRRequest) (*SignCSRResul
 		}
 	}
 
-	ttl := 720 * time.Hour
+	ttl := defaultLeafTTL
 	if req.TTL != "" {
 		ttl, err = utils.ParseTTL(req.TTL)
 		if err != nil {
@@ -672,7 +674,7 @@ func (e *Engine) SignCSR(ctx context.Context, req SignCSRRequest) (*SignCSRResul
 	if pkiRole != nil && pkiRole.MaxTTLSeconds > 0 {
 		max := time.Duration(pkiRole.MaxTTLSeconds) * time.Second
 		if ttl > max {
-			ttl = max
+			return nil, common.New(common.ErrCodeValidation, "ttl exceeds role maximum")
 		}
 	}
 
@@ -712,6 +714,39 @@ func (e *Engine) SignCSR(ctx context.Context, req SignCSRRequest) (*SignCSRResul
 	}, nil
 }
 
+func (e *Engine) ensureDefaultRole(ctx context.Context, caName string) {
+	if e == nil || e.roleRepo == nil || caName == "" {
+		return
+	}
+	if _, err := e.roleRepo.Get(ctx, caName); err == nil {
+		return
+	}
+	// Wildcard role named after the CA enables vault-compat "role == CA name" with explicit "*".
+	// MaxTTLSeconds 0 = no max (default leaf TTL still applies when request omits TTL).
+	_ = e.roleRepo.Save(ctx, &domainpki.Role{
+		Name:           caName,
+		CAName:         caName,
+		AllowedDomains: []string{"*"},
+		KeyUsage:       domainpki.RoleUsageServer,
+		MaxTTLSeconds:  0,
+	})
+}
+
+func (e *Engine) resolvePKIRole(ctx context.Context, roleName string) (caName string, role *domainpki.Role, err error) {
+	roleName = strings.TrimSpace(roleName)
+	if roleName == "" {
+		roleName = "root"
+	}
+	if e.roleRepo == nil {
+		return roleName, nil, nil
+	}
+	r, err := e.roleRepo.Get(ctx, roleName)
+	if err != nil {
+		return "", nil, common.Wrap(common.ErrCodeNotFound, "pki role not found (create a role or use a CA name after CreateRoot which installs a default \"*\" role)", err)
+	}
+	return r.CAName, r, nil
+}
+
 func validateIssueAgainstRole(role *domainpki.Role, req IssueRequest) error {
 	if cn := strings.TrimSpace(req.CommonName); cn != "" && !role.AllowedDomain(cn) {
 		return common.New(common.ErrCodeValidation, fmt.Sprintf("common name %q not allowed by role", cn))
@@ -720,6 +755,10 @@ func validateIssueAgainstRole(role *domainpki.Role, req IssueRequest) error {
 		if !role.AllowedDomain(dns) {
 			return common.New(common.ErrCodeValidation, fmt.Sprintf("dns name %q not allowed by role", dns))
 		}
+	}
+	// W51-05 / W52: IP SANs require explicit "*" domain (unconstrained) roles.
+	if len(req.IPAddresses) > 0 && !role.AllowsAnyDomain() {
+		return common.New(common.ErrCodeValidation, "ip SANs are not allowed by role domain policy (use allowed_domains: [\"*\"] if required)")
 	}
 	if req.TTL != "" && role.MaxTTLSeconds > 0 {
 		ttl, err := utils.ParseTTL(req.TTL)
@@ -749,13 +788,16 @@ func validateCSRAgainstRole(role *domainpki.Role, csrPEM, ttl string) error {
 	if err := csr.CheckSignature(); err != nil {
 		return common.Wrap(common.ErrCodeValidation, "invalid csr signature", err)
 	}
-	// Collect names: CN + DNS SANs (IP SANs not constrained by AllowedDomains today — document residual).
+	// Collect names: CN + DNS SANs. IP SANs require AllowsAnyDomain (W51-05).
+	if len(csr.IPAddresses) > 0 && !role.AllowsAnyDomain() {
+		return common.New(common.ErrCodeValidation, "csr ip SANs are not allowed by role domain policy")
+	}
 	names := make([]string, 0, 1+len(csr.DNSNames))
 	if cn := strings.TrimSpace(csr.Subject.CommonName); cn != "" {
 		names = append(names, cn)
 	}
 	names = append(names, csr.DNSNames...)
-	if len(role.AllowedDomains) > 0 && len(names) == 0 {
+	if !role.AllowsAnyDomain() && len(names) == 0 {
 		return common.New(common.ErrCodeValidation, "csr has no common name or dns names to validate against role")
 	}
 	for _, name := range names {

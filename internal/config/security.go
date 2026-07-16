@@ -7,6 +7,10 @@ import (
 
 // ValidateSecurity enforces production-safe configuration constraints.
 func ValidateSecurity(cfg Config, configPath string) error {
+	// W52: insecure K8s JWT parse is lab-only (requires explicit RaftAllowInsecure).
+	if cfg.K8sAuthInsecure && !cfg.RaftAllowInsecure {
+		return fmt.Errorf("k8s_auth_insecure requires KNXVAULT_RAFT_ALLOW_INSECURE=true (lab only)")
+	}
 	if cfg.Raft.Enabled {
 		if cfg.K8sAuthInsecure {
 			return fmt.Errorf("k8s_auth_insecure is not allowed when raft is enabled")

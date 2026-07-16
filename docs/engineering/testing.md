@@ -37,6 +37,7 @@ Formal audit logs:
 - [10-cycle bugfix](../audit/formal-10cycle-bugfix-coverage-2026-07-16.md)
 - [5-cycle security auditor (PKI + Go)](../audit/formal-5cycle-security-auditor-2026-07-16.md)
 - [3-cycle technical review](../audit/formal-3cycle-tech-review-2026-07-16.md)
+- [W52 security audit remediation](../audit/formal-security-remediation-w52-2026-07-16.md)
 
 Security persona skill: `.grok/skills/knxvault-security-auditor/` (`/knxvault-security-auditor`).
 

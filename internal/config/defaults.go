@@ -25,6 +25,7 @@ func defaults() Config {
 		JobMasterKeyReencryptInterval: defaultJobMasterKeyReencryptInterval,
 		RenewGrace:                    defaultRenewGrace,
 		OIDCDefaultTTL:                defaultOIDCTokenTTL,
+		RateLimitEnabled:              true, // W52-05: on by default
 		RateLimitRPM:                  defaultRateLimitRPM,
 		AuthLoginRateLimitRPM:         defaultAuthLoginRateLimitRPM,
 		TokenCreateRateLimitRPM:       defaultTokenCreateRateLimitRPM,
@@ -33,6 +34,7 @@ func defaults() Config {
 		RBACSyncFailClosed:            true,
 		ManagedSQLStrict:              true,
 		RootTokenTTL:                  72 * time.Hour,
+		RequireHTTPSClients:           true, // W52-06: CSI/ESO/operator prefer HTTPS
 		Raft:                          defaultRaft(),
 	}
 }

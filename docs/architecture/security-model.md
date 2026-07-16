@@ -122,6 +122,14 @@ Tokens carry a TTL (`KNXVAULT_TOKEN_TTL`, default 24h). The bootstrap **root tok
 - Backup create validates JSON; HTTP-01 tokens and webhook mount paths reject path tricks.
 - Login lockout map bounded under credential stuffing.
 
+**W52 full-audit remediation** ([report](../audit/formal-security-remediation-w52-2026-07-16.md)):
+
+- Seal marker file cannot unseal without the unseal key (restart always starts sealed when key configured).
+- PKI roles default-deny without `allowed_domains`; IP SANs need `"*"`; SignCSR requires real roles.
+- Vault-compat sign requires path-scoped policies (`pki/sign/*` / `pki/*`), not bare `pki` write.
+- Rate limits on by default; CSI/SDK require HTTPS (loopback http allowed); OCSP rate-limited.
+- Agent delegation requires explicit policy list; insecure K8s auth needs lab flag.
+
 ### Trusted proxies and login lockout (W50-18)
 
 Gin does **not** trust `X-Forwarded-For` unless you set **`KNXVAULT_TRUSTED_PROXIES`** to load-balancer CIDRs. Without it, lockout keys use the TCP peer address. When identity is known (SA subject / OIDC sub), lockout prefers the identity key over IP so shared NATs cannot bypass per-principal lockouts as easily.

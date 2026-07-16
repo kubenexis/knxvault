@@ -152,6 +152,7 @@ func TestAuthHandlerDelegateAgent(t *testing.T) {
 		AgentID:        "bot-1",
 		PathPrefix:     "agent/bot-1",
 		AllowedActions: []string{"read"},
+		Policies:       []string{"agent-delegator"},
 	})
 	req := httptest.NewRequest(http.MethodPost, "/auth/agent/delegate", bytes.NewReader(body))
 	req.Header.Set("Authorization", "Bearer delegator-token")

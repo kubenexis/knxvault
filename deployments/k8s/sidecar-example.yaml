@@ -1,11 +1,12 @@
-# Example sidecar injection pattern (W18).
-# The sidecar calls POST /inject/render and writes files into a shared emptyDir volume.
+# Example sidecar injection pattern (W18 / W52).
+# Prefer a short-lived scoped token (or K8s auth), NEVER the bootstrap root token.
 apiVersion: v1
 kind: Pod
 metadata:
   name: app-with-knxvault-sidecar
   namespace: knxvault
 spec:
+  serviceAccountName: app-reader
   containers:
     - name: app
       image: busybox:1.36
@@ -17,16 +18,19 @@ spec:
     - name: knxvault-agent
       image: curlimages/curl:8.5.0
       env:
+        # Mount a scoped client token Secret (policies: secrets/kv/app/* read only).
         - name: KNXVAULT_TOKEN
           valueFrom:
             secretKeyRef:
-              name: knxvault
-              key: KNXVAULT_ROOT_TOKEN
+              name: app-knxvault-token
+              key: token
+        - name: KNXVAULT_ADDR
+          value: "https://knxvault.knxvault.svc:8200"
       command:
         - sh
         - -c
         - |
-          curl -sf -X POST http://knxvault:8200/inject/render \
+          curl -sf -X POST "${KNXVAULT_ADDR}/inject/render" \
             -H "Authorization: Bearer ${KNXVAULT_TOKEN}" \
             -H "Content-Type: application/json" \
             -d '{"secrets":[{"path":"app/db","file_name":"db.env"}],"format":"files"}' \

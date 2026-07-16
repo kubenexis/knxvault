@@ -40,18 +40,50 @@ func (r *Role) Validate() error {
 	if r.KeyUsage == "" {
 		r.KeyUsage = RoleUsageServer
 	}
+	// W52-02: default-deny — require at least one allowed domain or explicit "*".
+	if len(normalizeAllowedDomains(r.AllowedDomains)) == 0 {
+		return fmt.Errorf("pki role allowed_domains is required (use \"*\" only when unconstrained issuance is intentional)")
+	}
 	return nil
 }
 
+func normalizeAllowedDomains(in []string) []string {
+	out := make([]string, 0, len(in))
+	for _, d := range in {
+		d = strings.TrimSpace(d)
+		if d != "" {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+// AllowsAnyDomain reports whether the role explicitly allows all DNS names ("*").
+func (r *Role) AllowsAnyDomain() bool {
+	if r == nil {
+		return false
+	}
+	for _, allowed := range r.AllowedDomains {
+		if strings.TrimSpace(allowed) == "*" {
+			return true
+		}
+	}
+	return false
+}
+
 // AllowedDomain matches a DNS SAN against role policy.
+// Empty AllowedDomains denies all names (W52-02). Use "*" for unconstrained roles.
 func (r *Role) AllowedDomain(name string) bool {
 	name = strings.ToLower(strings.TrimSpace(name))
 	if name == "" {
 		return false
 	}
+	if r.AllowsAnyDomain() {
+		return true
+	}
 	for _, allowed := range r.AllowedDomains {
 		allowed = strings.ToLower(strings.TrimSpace(allowed))
-		if allowed == "" {
+		if allowed == "" || allowed == "*" {
 			continue
 		}
 		if allowed == name {
@@ -61,5 +93,5 @@ func (r *Role) AllowedDomain(name string) bool {
 			return true
 		}
 	}
-	return len(r.AllowedDomains) == 0
+	return false
 }

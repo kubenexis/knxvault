@@ -21,6 +21,7 @@ func TestDelegateAgentScopesPathAndActions(t *testing.T) {
 		AgentID:        "planner-1",
 		PathPrefix:     "agent/planner-1",
 		AllowedActions: []string{"read"},
+		Policies:       []string{"secrets-admin"},
 	})
 	if err != nil {
 		t.Fatalf("DelegateAgent() = %v", err)

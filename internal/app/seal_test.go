@@ -2,6 +2,7 @@ package app_test
 
 import (
 	"bytes"
+	"os"
 	"testing"
 	"time"
 
@@ -44,6 +45,29 @@ func TestSealStateRoundTrip(t *testing.T) {
 	}
 	if seal.Sealed() {
 		t.Fatal("expected unsealed after unseal")
+	}
+}
+
+func TestSealStateFileNeverAutoUnseals(t *testing.T) {
+	key := make([]byte, 32)
+	for i := range key {
+		key[i] = byte(i + 3)
+	}
+	dir := t.TempDir()
+	path := dir + "/seal.state"
+	if err := os.WriteFile(path, []byte("unsealed"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	seal := app.NewSealState(key)
+	seal.SetStateFile(path)
+	if !seal.Sealed() {
+		t.Fatal("disk 'unsealed' marker must not open vault without cryptographic unseal")
+	}
+	if !seal.Unseal(key) {
+		t.Fatal("cryptographic unseal should succeed")
+	}
+	if seal.Sealed() {
+		t.Fatal("expected unsealed after Unseal(key)")
 	}
 }
 

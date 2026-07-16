@@ -96,9 +96,13 @@ type Config struct {
 	// RootTokenTTL overrides bootstrap root token lifetime (W50-26). Default 72h.
 	RootTokenTTL time.Duration
 	// RaftAllowInsecure skips multi-node Raft mTLS requirement (lab only, W50-20).
+	// Also used as the lab escape hatch for K8sAuthInsecure (W52).
 	RaftAllowInsecure bool
 	// ManagedSQLStrict enables template-only SQL validation for managed DB roles (W50-22).
 	ManagedSQLStrict bool
+	// RequireHTTPSClients rejects non-HTTPS vault addresses in CSI/ESO clients (W52-06).
+	// Loopback http://127.0.0.1 and http://localhost remain allowed for lab.
+	RequireHTTPSClients bool
 
 	Raft RaftConfig
 }

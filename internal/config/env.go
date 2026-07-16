@@ -294,6 +294,13 @@ func overlayEnv(cfg Config) (Config, error) {
 		}
 		cfg.ManagedSQLStrict = b
 	}
+	if v := os.Getenv("KNXVAULT_REQUIRE_HTTPS_CLIENTS"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_REQUIRE_HTTPS_CLIENTS: %w", err)
+		}
+		cfg.RequireHTTPSClients = b
+	}
 
 	raft, err := overlayRaftEnv(cfg.Raft)
 	if err != nil {

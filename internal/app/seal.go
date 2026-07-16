@@ -32,6 +32,10 @@ func NewSealState(unsealKey []byte) *SealState {
 }
 
 // SetStateFile enables durable seal flag persistence (path to a small marker file).
+// Security (W52-01): the on-disk marker must NEVER unseal the vault by itself.
+// Only a successful cryptographic Unseal may clear sealed state. The file may
+// record "sealed" across restarts (sticky seal) or be written after live unseal
+// for operators; reading "unsealed" from disk is ignored when an unseal key exists.
 func (s *SealState) SetStateFile(path string) {
 	if s == nil || path == "" {
 		return
@@ -39,14 +43,17 @@ func (s *SealState) SetStateFile(path string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.stateFile = path
-	// If marker says sealed, or unseal key present with no unsealed marker, stay sealed.
 	if b, err := os.ReadFile(path); err == nil {
 		if string(b) == "sealed" {
+			// Sticky seal across restart.
 			s.sealed = true
-		} else if string(b) == "unsealed" && len(s.unsealKey) > 0 {
-			// Only honor unsealed if file present; default with key is sealed.
-			s.sealed = false
 		}
+		// Intentionally ignore "unsealed" on disk when unsealKey is configured:
+		// process still starts sealed until Unseal(key) succeeds.
+	}
+	// If unseal key is configured, ensure we remain sealed after load.
+	if len(s.unsealKey) > 0 {
+		s.sealed = true
 	}
 }
 

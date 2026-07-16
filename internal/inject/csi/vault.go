@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/kubenexis/knxvault/internal/netutil"
 )
 
 // VaultClient exchanges Kubernetes JWTs and reads KV secrets from KNXVault.
@@ -39,6 +41,9 @@ type kvReadResponse struct {
 
 // LoginKubernetes exchanges a ServiceAccount JWT for a client token.
 func (v *VaultClient) LoginKubernetes(ctx context.Context, addr, role, jwt string) (string, error) {
+	if err := validateCSIVaultAddr(addr); err != nil {
+		return "", err
+	}
 	var out loginResponse
 	if err := v.postJSON(ctx, addr, "/auth/kubernetes", false, "", loginRequest{Role: role, JWT: jwt}, &out); err != nil {
 		return "", err
@@ -65,11 +70,21 @@ func (v *VaultClient) RecordCSIMount(ctx context.Context, addr, token string, re
 
 // ReadKV fetches the latest version of a KV secret path.
 func (v *VaultClient) ReadKV(ctx context.Context, addr, token, path string) (map[string]any, int, error) {
+	if err := validateCSIVaultAddr(addr); err != nil {
+		return nil, 0, err
+	}
 	var out kvReadResponse
 	if err := v.getJSON(ctx, addr, "/secrets/kv/"+trimPath(path), true, token, &out); err != nil {
 		return nil, 0, err
 	}
 	return out.Data, out.Metadata.Version, nil
+}
+
+// RequireHTTPS controls cleartext vault addresses (default true; tests may set false).
+var RequireHTTPS = true
+
+func validateCSIVaultAddr(addr string) error {
+	return netutil.ValidateVaultBaseURL(addr, RequireHTTPS)
 }
 
 func (v *VaultClient) getJSON(ctx context.Context, addr, path string, auth bool, token string, out any) error {

@@ -29,17 +29,28 @@ func TestRequirePathCapabilityFailClosedNilService(t *testing.T) {
 	}
 }
 
-func TestRequirePKISignCapabilityFallback(t *testing.T) {
+func TestRequirePKISignCapabilityPathScoped(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	store := auth.NewTokenStore(time.Hour)
 	rbac := auth.NewRBAC()
+	// Path-scoped policy (W52-04: coarse "pki" write alone is insufficient).
 	rbac.UpsertPolicy(domainauth.Policy{
-		Name:      "pki-write",
+		Name:      "pki-sign",
+		Effect:    domainauth.EffectAllow,
+		Resources: []string{"pki/sign/*", "pki/*"},
+		Actions:   []string{"write"},
+	})
+	rbac.UpsertPolicy(domainauth.Policy{
+		Name:      "pki-coarse",
 		Effect:    domainauth.EffectAllow,
 		Resources: []string{"pki"},
 		Actions:   []string{"write"},
 	})
-	token, _, err := store.Create(context.Background(), "issuer", []string{"pki-write"}, time.Hour, true, time.Time{})
+	token, _, err := store.Create(context.Background(), "issuer", []string{"pki-sign"}, time.Hour, true, time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	coarse, _, err := store.Create(context.Background(), "coarse", []string{"pki-coarse"}, time.Hour, true, time.Time{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +65,14 @@ func TestRequirePKISignCapabilityFallback(t *testing.T) {
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+		t.Fatalf("path-scoped status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	req = httptest.NewRequest(http.MethodPost, "/v1/pki/sign/web", nil)
+	req.Header.Set("Authorization", "Bearer "+coarse)
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code == http.StatusOK {
+		t.Fatal("coarse pki write must not authorize sign")
 	}
 }
 

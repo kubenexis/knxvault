@@ -199,7 +199,9 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 
 	if deps.PKIService != nil {
 		pkiHandler := handlers.NewPKIHandler(deps.PKIService)
-		r.POST("/pki/ocsp/:id", pkiHandler.OCSP)
+		// W52: rate-limit unauthenticated OCSP to reduce CA decrypt DoS.
+		ocspLimiter := middleware.NewRateLimiter(120, true)
+		r.POST("/pki/ocsp/:id", ocspLimiter.Middleware(), pkiHandler.OCSP)
 		if deps.AuthService != nil {
 			pkiGroup := secured.Group("/pki")
 			pkiGroup.Use(middleware.RequirePermission(deps.AuthService, "pki", "write"))

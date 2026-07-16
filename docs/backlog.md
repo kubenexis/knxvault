@@ -481,6 +481,22 @@ Source: [`docs/audit/formal-10cycle-full-codebase-2026-07-16.md`](audit/formal-1
 
 Report: `docs/audit/formal-5cycle-security-auditor-2026-07-16.md`.
 
+
+### W52 — Full security audit remediation (2026-07-16)
+
+| ID | Sev | Status | Title |
+|----|-----|--------|-------|
+| ~~W52-01~~ | Critical | Complete | seal.state never auto-unseals |
+| ~~W52-02~~ | High | Complete | PKI allowed_domains required / default-deny |
+| ~~W52-03~~ | High | Complete | SignCSR/Issue require PKI role (default * role per CA) |
+| ~~W52-04~~ | High | Complete | Path-scoped PKI sign (no coarse pki write fallback) |
+| ~~W52-05~~ | High | Complete | RateLimitEnabled default true |
+| ~~W52-06~~ | High | Complete | HTTPS required for CSI/SDK non-loopback |
+| ~~W51-05~~ | Medium | Complete | IP SANs require allowed_domains * |
+| W52-R | — | Residual | Multi-tenant, HSM, multi-share unseal, AppRole Raft |
+
+Report: `docs/audit/formal-security-remediation-w52-2026-07-16.md`.
+
 ## Long-term future
 
 Deferred packaging and ecosystem work — not scheduled for Tier 0 / Phase 4–5 near-term delivery. Revisit after **W37** checklist items and **W36** hardening stabilize.

@@ -19,6 +19,17 @@ func TestValidateSecurityRejectsInsecureK8sWithRaft(t *testing.T) {
 	}
 }
 
+func TestValidateSecurityRejectsInsecureK8sWithoutLabFlag(t *testing.T) {
+	cfg := config.Config{K8sAuthInsecure: true}
+	if err := config.ValidateSecurity(cfg, ""); err == nil {
+		t.Fatal("expected k8s_auth_insecure without lab flag to fail")
+	}
+	cfg.RaftAllowInsecure = true
+	if err := config.ValidateSecurity(cfg, ""); err != nil {
+		t.Fatalf("lab escape: %v", err)
+	}
+}
+
 func TestValidateSecurityRejectsWorldReadableConfig(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "knxvault.conf")

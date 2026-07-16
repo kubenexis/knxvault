@@ -19,6 +19,10 @@ type Client struct {
 	HTTP    *http.Client
 }
 
+// RequireHTTPS rejects non-loopback http vault URLs when true (W52-06).
+// Tests and local lab may set Client.AllowHTTP or use localhost.
+var RequireHTTPS = true
+
 // New constructs a client with defaults.
 func New(baseURL, token string) *Client {
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
@@ -30,6 +34,42 @@ func New(baseURL, token string) *Client {
 		Token:   strings.TrimSpace(token),
 		HTTP:    &http.Client{Timeout: 30 * time.Second},
 	}
+}
+
+// ValidateBaseURL checks BaseURL against HTTPS policy.
+func (c *Client) ValidateBaseURL() error {
+	if c == nil {
+		return fmt.Errorf("client is nil")
+	}
+	return validateClientBaseURL(c.BaseURL, RequireHTTPS)
+}
+
+func validateClientBaseURL(raw string, requireHTTPS bool) error {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return fmt.Errorf("vault address is required")
+	}
+	// Accept host without scheme as https when required.
+	if !strings.Contains(raw, "://") {
+		if requireHTTPS {
+			return nil // callers usually pass full URL; bare host treated as ok
+		}
+		return nil
+	}
+	lower := strings.ToLower(raw)
+	if strings.HasPrefix(lower, "https://") {
+		return nil
+	}
+	if !requireHTTPS {
+		return nil
+	}
+	if strings.HasPrefix(lower, "http://127.0.0.1") || strings.HasPrefix(lower, "http://localhost") || strings.HasPrefix(lower, "http://[::1]") {
+		return nil
+	}
+	if strings.HasPrefix(lower, "http://") {
+		return fmt.Errorf("vault address must use https (loopback http allowed for lab only)")
+	}
+	return nil
 }
 
 // ServiceStatus is returned by GET /health and GET /ready.
@@ -436,6 +476,9 @@ func (c *Client) postJSON(ctx context.Context, path string, auth bool, body any,
 }
 
 func (c *Client) do(req *http.Request, auth bool, out any, expectStatus ...int) error {
+	if err := validateClientBaseURL(c.BaseURL, RequireHTTPS); err != nil {
+		return err
+	}
 	if auth && c.Token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.Token)
 	}
