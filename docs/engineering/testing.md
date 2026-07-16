@@ -58,6 +58,8 @@ A PR should pass all gates locally before submission.
 
 For structured HA, security stress, and PoC evaluation exercises, see **[Manual testing strategy](manual-testing-strategy.md)** — includes **MT-01** (network disruption), **MT-02** (rotation latency + SLA), **MT-10** (RBAC/isolation), **MT-11** / **MT-19** (audit export + tamper), and **MT-33** / **MT-36** (emergency seal, token revocation).
 
+Lab single-node Raft E2E on bare metal (`e2e-test01` / `192.168.137.131`): **[lab-e2e-test01.md](lab-e2e-test01.md)** (host binary + CLI smoke: health, doctor, auth, KV, PKI).
+
 ### Quick smoke (local)
 
 ```bash

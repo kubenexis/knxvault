@@ -34,15 +34,23 @@ export KNXVAULT_TOKEN=dev-root-token
 
 ## Optional: single-node Raft
 
+When Raft is enabled, **`KNXVAULT_UNSEAL_KEY` is required** and must be a base64 32-byte key **different from** `KNXVAULT_MASTER_KEY`. Startup fails with `unseal key is required when raft is enabled` if it is unset.
+
 ```bash
+export KNXVAULT_MASTER_KEY=$(openssl rand -base64 32)
+export KNXVAULT_UNSEAL_KEY=$(openssl rand -base64 32)   # must differ from master
+export KNXVAULT_ROOT_TOKEN=dev-root-token
 export KNXVAULT_RAFT_ENABLED=true
 export KNXVAULT_RAFT_NODE_ID=1
+export KNXVAULT_RAFT_ADDRESS=127.0.0.1:63001
 export KNXVAULT_RAFT_INITIAL_MEMBERS=1=127.0.0.1:63001
 export KNXVAULT_RAFT_DATA_DIR=/tmp/knxvault-raft
 
 ./bin/knxvault serve
 curl -s http://localhost:8200/ready | jq .
 ```
+
+Lab single-node E2E on bare metal (e.g. `192.168.137.131`): [lab-e2e-test01.md](../engineering/lab-e2e-test01.md).
 
 ## Dev-only Kubernetes auth
 

@@ -23,7 +23,7 @@ See [`config/knxvault.example.yaml`](../../config/knxvault.example.yaml) for the
 |----------|---------|----------|-------------|
 | `KNXVAULT_MASTER_KEY` | — | **Yes** (prod) | Base64-encoded 32-byte master key |
 | `KNXVAULT_MASTER_KEY_FILE` | — | Alt. to above | Path to base64 key file (takes priority) |
-| `KNXVAULT_UNSEAL_KEY` | _(master key)_ | No | Base64 unseal key for `POST /sys/unseal` |
+| `KNXVAULT_UNSEAL_KEY` | — | **Yes when Raft enabled** | Base64 unseal key for seal/unseal; **must differ from master key** when `KNXVAULT_RAFT_ENABLED=true` (startup fails if unset or equal). Not used for envelope encryption. |
 | `KNXVAULT_JOB_MASTER_KEY_REENCRYPT_INTERVAL` | `1m` | No | Leader job interval for DEK re-encryption after rotation |
 | `KNXVAULT_OPENSSL_BINARY` | `openssl` | No | OpenSSL executable path |
 | `KNXVAULT_OPENSSL_TIMEOUT` | `60s` | No | Max OpenSSL command duration |
@@ -120,6 +120,7 @@ Requires `KNXVAULT_RAFT_NODE_ID` (and `KNXVAULT_MASTER_KEY`) — auto-derivation
 
 ```bash
 export KNXVAULT_MASTER_KEY=$(openssl rand -base64 32)
+export KNXVAULT_UNSEAL_KEY=$(openssl rand -base64 32)   # required; must differ from master
 export KNXVAULT_ROOT_TOKEN=dev-root-token
 export KNXVAULT_RAFT_ENABLED=true
 export KNXVAULT_RAFT_NODE_ID=1
