@@ -161,12 +161,12 @@ test-coverage: ## Coverage gate ≥COVERAGE_MIN% on renew/secretutil/statusutil;
 	$(call log,Running coverage gate (min $(COVERAGE_MIN)% on renew/secretutil/statusutil))
 	$(call require_cmd,go)
 	@$(GO) test ./internal/operator/renew ./internal/operator/secretutil ./internal/operator/statusutil \
-		./internal/operator/reconcileutil \
+		./internal/operator/reconcileutil ./internal/operator/certlogic \
 		-count=1 -covermode=atomic -coverprofile=coverage-operator.out; \
 	pct=$$($(GO) tool cover -func=coverage-operator.out | awk '/^total:/{gsub(/%/,"",$$3); print $$3}'); \
 	echo "operator pure-logic coverage: $${pct}% (min $(COVERAGE_MIN)%)"; \
 	awk -v p="$${pct}" -v m="$(COVERAGE_MIN)" 'BEGIN{ if ((p+0) < (m+0)) { print "coverage below gate" > "/dev/stderr"; exit 1 } }'; \
-	$(GO) test ./internal/operator/controllers ./internal/operator/vaultiface -count=1 -cover 2>&1 | tail -20
+	$(GO) test ./internal/operator/controllers ./internal/operator/vaultiface -count=1 -cover 2>&1 | tail -8
 
 test-integration: build build-cli ## Run integration tests (API + Raft + daemon e2e)
 	$(call log,Running integration tests)

@@ -2,9 +2,6 @@ package controllers
 
 import (
 	"context"
-	"crypto/x509"
-	"encoding/pem"
-	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -119,18 +116,6 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 	metrics.IssuesTotal.Inc()
 	logger.Info("certificate request ready", "serial", result.Serial)
 	return ctrl.Result{}, nil
-}
-
-func parseCSR(pemData string) (cn string, dns []string, err error) {
-	block, _ := pem.Decode([]byte(pemData))
-	if block == nil {
-		return "", nil, fmt.Errorf("no PEM block")
-	}
-	csr, err := x509.ParseCertificateRequest(block.Bytes)
-	if err != nil {
-		return "", nil, err
-	}
-	return csr.Subject.CommonName, csr.DNSNames, nil
 }
 
 // SetupWithManager registers the controller.

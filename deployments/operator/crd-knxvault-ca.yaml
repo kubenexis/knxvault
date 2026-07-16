@@ -1,5 +1,0 @@
-# Deprecated: use crds/knxvault.kubenexis.dev_all.yaml (full CRD set for W30).
-# Kept so older docs still resolve.
-apiVersion: v1
-kind: List
-items: []

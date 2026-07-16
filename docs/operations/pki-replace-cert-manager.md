@@ -26,6 +26,8 @@ ACME / public CAs remain out of scope.
 
 ## Install
 
+Use **only** `deployments/operator/crds/` (single full CRD bundle). No legacy stub CRDs.
+
 ```bash
 make build build-operator
 kubectl apply -f deployments/operator/crds/
@@ -36,12 +38,14 @@ kubectl apply -f deployments/operator/rbac.yaml   # includes lease for leader el
 export KNXVAULT_ADDR=http://knxvault.knxvault.svc:8200
 # Prefer SA login (in-cluster):
 export KNXVAULT_K8S_ROLE=knxvault-operator
-# Bootstrap fallback:
+# Bootstrap fallback (lab / host process):
 export KNXVAULT_TOKEN=<token>
-export KNXVAULT_OPERATOR_LEADER_ELECT=true
+export KNXVAULT_OPERATOR_LEADER_ELECT=true   # false for single host-process lab
 export KNXVAULT_OPERATOR_INGRESS_SHIM=true
 ./bin/knxvault-operator
 ```
+
+Lab smoke: `bash scripts/lab-operator-e2e.sh 192.168.137.131`
 
 Bind the operator ServiceAccount to a vault role that can `pki` read/write (issue, renew, sign, get CA).
 

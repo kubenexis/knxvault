@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -15,9 +14,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	v1alpha1 "github.com/kubenexis/knxvault/internal/operator/apis/v1alpha1"
+	"github.com/kubenexis/knxvault/internal/operator/certlogic"
 	"github.com/kubenexis/knxvault/internal/operator/metrics"
 	"github.com/kubenexis/knxvault/internal/operator/reconcileutil"
-	"github.com/kubenexis/knxvault/internal/operator/renew"
 	"github.com/kubenexis/knxvault/internal/operator/secretutil"
 	"github.com/kubenexis/knxvault/internal/operator/statusutil"
 	"github.com/kubenexis/knxvault/internal/operator/vaultiface"
@@ -41,60 +40,34 @@ func (r *CertificateReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, err
 	}
 
-	delivery := cert.Spec.Delivery
-	if delivery == "" {
-		delivery = v1alpha1.DeliverySecret
+	view := certlogic.SpecView{
+		CommonName: cert.Spec.CommonName, SecretName: cert.Spec.SecretName,
+		Delivery: cert.Spec.Delivery, Duration: cert.Spec.Duration, RenewBefore: cert.Spec.RenewBefore,
+		DNSNames: cert.Spec.DNSNames, IPAddresses: cert.Spec.IPAddresses, Usages: cert.Spec.Usages,
+		KeyBits: cert.Spec.PrivateKey.Size, StatusSerial: cert.Status.Serial, StatusCAID: cert.Status.CAID,
+		StatusNotAfter: cert.Status.NotAfter,
 	}
-
-	if cert.Spec.CommonName == "" {
-		cert.Status.Conditions = statusutil.ReadyFalse(cert.Status.Conditions, reconcileutil.ReasonInvalidSpec, "commonName is required")
-		cert.Status.FailureCount++
-		cert.Status.LastFailure = "commonName required"
-		_ = r.Status().Update(ctx, &cert)
-		return reconcileutil.ErrorResult(cert.Status.FailureCount), nil
-	}
-	if delivery == v1alpha1.DeliverySecret && cert.Spec.SecretName == "" {
-		cert.Status.Conditions = statusutil.ReadyFalse(cert.Status.Conditions, reconcileutil.ReasonInvalidSpec, "secretName required for Delivery=Secret")
-		cert.Status.FailureCount++
-		_ = r.Status().Update(ctx, &cert)
-		return reconcileutil.ErrorResult(cert.Status.FailureCount), nil
-	}
-
-	renewBefore, err := renew.ParseDuration(cert.Spec.RenewBefore, renew.DefaultRenewBefore)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	duration, err := renew.ParseDuration(cert.Spec.Duration, renew.DefaultDuration)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	ttl := cert.Spec.Duration
-	if ttl == "" {
-		ttl = fmt.Sprintf("%dh", int(duration.Hours()))
-	}
-
-	now := time.Now().UTC()
-	needIssue := renew.NeedsRenew(cert.Status.NotAfter, renewBefore, now)
-
-	if delivery == v1alpha1.DeliverySecret {
+	if view.Delivery == "" || view.Delivery == v1alpha1.DeliverySecret {
 		var existing corev1.Secret
-		secKey := client.ObjectKey{Namespace: cert.Namespace, Name: cert.Spec.SecretName}
-		if err := r.Get(ctx, secKey, &existing); err != nil {
-			if apierrors.IsNotFound(err) {
-				needIssue = true
-			} else {
-				return ctrl.Result{}, err
-			}
-		} else if existing.Annotations[secretutil.AnnSerial] != "" && existing.Annotations[secretutil.AnnSerial] == cert.Status.Serial {
-			// Secret present and matches status — only renew when window hit.
+		if err := r.Get(ctx, client.ObjectKey{Namespace: cert.Namespace, Name: cert.Spec.SecretName}, &existing); err == nil {
+			view.SecretExists = true
+		} else if !apierrors.IsNotFound(err) && cert.Spec.SecretName != "" {
+			return ctrl.Result{}, err
 		}
 	}
 
-	if !needIssue {
-		next := now.Add(renew.RequeueAfter(cert.Status.NotAfter, renewBefore, now))
-		cert.Status.NextRenewTime = next.Format(time.RFC3339)
+	now := time.Now().UTC()
+	dec := certlogic.ValidateAndDecide(view, now)
+	if !dec.OK {
+		res := failCert(&cert, "certificate", reconcileutil.ReasonInvalidSpec, dec.InvalidMsg)
 		_ = r.Status().Update(ctx, &cert)
-		return ctrl.Result{RequeueAfter: renew.RequeueAfter(cert.Status.NotAfter, renewBefore, now)}, nil
+		return res, nil
+	}
+
+	if !dec.NeedIssue {
+		cert.Status.NextRenewTime = dec.NextRenew.Format(time.RFC3339)
+		_ = r.Status().Update(ctx, &cert)
+		return ctrl.Result{RequeueAfter: dec.RequeueAfter}, nil
 	}
 
 	cert.Status.Conditions = statusutil.SetCondition(cert.Status.Conditions, v1alpha1.ConditionIssuing, "True", reconcileutil.ReasonIssuing, "contacting vault")
@@ -102,93 +75,28 @@ func (r *CertificateReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 	role, err := ResolveVaultRole(ctx, r.Client, cert.Namespace, cert.Spec.IssuerRef)
 	if err != nil {
-		metrics.ErrorsTotal.WithLabelValues("certificate").Inc()
-		cert.Status.Conditions = statusutil.ReadyFalse(cert.Status.Conditions, reconcileutil.ReasonIssuerNotReady, err.Error())
-		cert.Status.FailureCount++
-		cert.Status.LastFailure = err.Error()
+		res := failCert(&cert, "certificate", reconcileutil.ReasonIssuerNotReady, err.Error())
 		_ = r.Status().Update(ctx, &cert)
-		return reconcileutil.ErrorResult(cert.Status.FailureCount), nil
+		return res, nil
 	}
 
-	keyBits := cert.Spec.PrivateKey.Size
-	clientUsage := renew.IsClientUsage(cert.Spec.Usages)
-	var result *vaultiface.CertResult
-
-	if cert.Status.Serial != "" && cert.Status.CAID != "" {
-		result, err = r.Vault.Renew(ctx, cert.Status.CAID, cert.Status.Serial, ttl)
-		if err == nil {
-			metrics.RenewsTotal.Inc()
-		} else {
-			logger.Info("renew failed, falling back to issue", "err", err.Error())
-			result = nil
-		}
-	}
-	if result == nil {
-		result, err = r.Vault.Issue(ctx, role, cert.Spec.CommonName, ttl, cert.Spec.DNSNames, cert.Spec.IPAddresses, keyBits, clientUsage)
-		if err != nil {
-			metrics.ErrorsTotal.WithLabelValues("certificate").Inc()
-			cert.Status.Conditions = statusutil.ReadyFalse(cert.Status.Conditions, reconcileutil.ReasonVaultError, err.Error())
-			cert.Status.FailureCount++
-			cert.Status.LastFailure = err.Error()
-			_ = r.Status().Update(ctx, &cert)
-			return reconcileutil.ErrorResult(cert.Status.FailureCount), nil
-		}
-		metrics.IssuesTotal.Inc()
+	result, err := r.issueOrRenew(ctx, &cert, role, dec)
+	if err != nil {
+		res := failCert(&cert, "certificate", reconcileutil.ReasonVaultError, err.Error())
+		_ = r.Status().Update(ctx, &cert)
+		return res, nil
 	}
 
-	// Prefer CAID from response.
-	caID := result.CAID
-	if caID == "" {
-		caID = cert.Status.CAID
+	roleCAID := ""
+	if ca, e := r.Vault.GetCAByName(ctx, role); e == nil {
+		roleCAID = ca.ID
 	}
-	if caID == "" {
-		if ca, e := r.Vault.GetCAByName(ctx, role); e == nil {
-			caID = ca.ID
-		}
-	}
-
+	caID := certlogic.ResolveCAID(result.CAID, cert.Status.CAID, roleCAID)
 	newRev := cert.Status.Revision + 1
-	if delivery == v1alpha1.DeliverySecret {
-		sec := secretutil.TLSSecret(cert.Namespace, cert.Spec.SecretName, result.CertPEM, result.PrivateKeyPEM, "",
-			result.Serial, result.ExpiresAt, caID, newRev, map[string]string{
-				"knxvault.kubenexis.dev/certificate": cert.Name,
-			})
-		if err := controllerutil.SetControllerReference(&cert, sec, r.Scheme); err != nil {
+
+	if dec.Delivery == v1alpha1.DeliverySecret {
+		if err := r.applyTLSSecret(ctx, &cert, result, caID, newRev); err != nil {
 			return ctrl.Result{}, err
-		}
-		secKey := client.ObjectKey{Namespace: cert.Namespace, Name: cert.Spec.SecretName}
-		var current corev1.Secret
-		if err := r.Get(ctx, secKey, &current); err != nil {
-			if apierrors.IsNotFound(err) {
-				if err := r.Create(ctx, sec); err != nil {
-					return ctrl.Result{}, err
-				}
-			} else {
-				return ctrl.Result{}, err
-			}
-		} else {
-			// Skip update if serial annotation already matches.
-			if current.Annotations[secretutil.AnnSerial] == result.Serial && string(current.Data[corev1.TLSCertKey]) == result.CertPEM {
-				// already good
-			} else {
-				current.Data = sec.Data
-				current.Type = sec.Type
-				if current.Labels == nil {
-					current.Labels = map[string]string{}
-				}
-				for k, v := range sec.Labels {
-					current.Labels[k] = v
-				}
-				if current.Annotations == nil {
-					current.Annotations = map[string]string{}
-				}
-				for k, v := range sec.Annotations {
-					current.Annotations[k] = v
-				}
-				if err := r.Update(ctx, &current); err != nil {
-					return ctrl.Result{}, err
-				}
-			}
 		}
 	}
 
@@ -200,15 +108,73 @@ func (r *CertificateReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	cert.Status.Revision = newRev
 	cert.Status.FailureCount = 0
 	cert.Status.LastFailure = ""
-	next := now.Add(renew.RequeueAfter(cert.Status.NotAfter, renewBefore, now))
-	cert.Status.NextRenewTime = next.Format(time.RFC3339)
+	d2 := certlogic.ValidateAndDecide(certlogic.SpecView{
+		CommonName: cert.Spec.CommonName, SecretName: cert.Spec.SecretName,
+		StatusNotAfter: result.ExpiresAt, RenewBefore: cert.Spec.RenewBefore,
+		Duration: cert.Spec.Duration, SecretExists: true,
+	}, now)
+	cert.Status.NextRenewTime = d2.NextRenew.Format(time.RFC3339)
 	cert.Status.Conditions = statusutil.ReadyTrue(cert.Status.Conditions, reconcileutil.ReasonIssued, "certificate ready")
 	cert.Status.Conditions = statusutil.SetCondition(cert.Status.Conditions, v1alpha1.ConditionIssuing, "False", reconcileutil.ReasonIssued, "done")
 	if err := r.Status().Update(ctx, &cert); err != nil {
 		return ctrl.Result{}, err
 	}
-	logger.Info("certificate ready", "secret", cert.Spec.SecretName, "serial", result.Serial, "caId", caID, "delivery", delivery)
-	return ctrl.Result{RequeueAfter: renew.RequeueAfter(cert.Status.NotAfter, renewBefore, time.Now().UTC())}, nil
+	logger.Info("certificate ready", "secret", cert.Spec.SecretName, "serial", result.Serial, "caId", caID, "delivery", dec.Delivery)
+	return ctrl.Result{RequeueAfter: d2.RequeueAfter}, nil
+}
+
+func (r *CertificateReconciler) issueOrRenew(ctx context.Context, cert *v1alpha1.KNXVaultCertificate, role string, dec certlogic.Decision) (*vaultiface.CertResult, error) {
+	logger := log.FromContext(ctx)
+	if certlogic.PreferRenew(cert.Status.Serial, cert.Status.CAID) {
+		result, err := r.Vault.Renew(ctx, cert.Status.CAID, cert.Status.Serial, dec.TTL)
+		if err == nil {
+			metrics.RenewsTotal.Inc()
+			return result, nil
+		}
+		logger.Info("renew failed, falling back to issue", "err", err.Error())
+	}
+	result, err := r.Vault.Issue(ctx, role, cert.Spec.CommonName, dec.TTL, cert.Spec.DNSNames, cert.Spec.IPAddresses, dec.KeyBits, dec.ClientUsage)
+	if err != nil {
+		return nil, err
+	}
+	metrics.IssuesTotal.Inc()
+	return result, nil
+}
+
+func (r *CertificateReconciler) applyTLSSecret(ctx context.Context, cert *v1alpha1.KNXVaultCertificate, result *vaultiface.CertResult, caID string, rev int) error {
+	sec := secretutil.TLSSecret(cert.Namespace, cert.Spec.SecretName, result.CertPEM, result.PrivateKeyPEM, "",
+		result.Serial, result.ExpiresAt, caID, rev, map[string]string{
+			"knxvault.kubenexis.dev/certificate": cert.Name,
+		})
+	if err := controllerutil.SetControllerReference(cert, sec, r.Scheme); err != nil {
+		return err
+	}
+	secKey := client.ObjectKey{Namespace: cert.Namespace, Name: cert.Spec.SecretName}
+	var current corev1.Secret
+	if err := r.Get(ctx, secKey, &current); err != nil {
+		if apierrors.IsNotFound(err) {
+			return r.Create(ctx, sec)
+		}
+		return err
+	}
+	if current.Annotations[secretutil.AnnSerial] == result.Serial && string(current.Data[corev1.TLSCertKey]) == result.CertPEM {
+		return nil
+	}
+	current.Data = sec.Data
+	current.Type = sec.Type
+	if current.Labels == nil {
+		current.Labels = map[string]string{}
+	}
+	for k, v := range sec.Labels {
+		current.Labels[k] = v
+	}
+	if current.Annotations == nil {
+		current.Annotations = map[string]string{}
+	}
+	for k, v := range sec.Annotations {
+		current.Annotations[k] = v
+	}
+	return r.Update(ctx, &current)
 }
 
 // SetupWithManager registers the controller.

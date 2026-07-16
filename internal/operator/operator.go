@@ -1,3 +1,6 @@
 // Package operator is the KNXVault Kubernetes operator runtime.
-// Prefer Run() from manager.go; this file remains for package docs.
+//
+// Entry point: Run() in manager.go (cmd/operator). Controllers reconcile
+// KNXVaultCA, Issuer/ClusterIssuer, Certificate, CertificateRequest, and
+// optional Ingress annotations so clusters can use vault PKI without cert-manager.
 package operator

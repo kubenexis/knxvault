@@ -15,20 +15,20 @@ spec:
     - name: v1alpha1
       served: true
       storage: true
-      subresources:
-        status: {}
+      subresources: { status: {} }
       schema:
         openAPIV3Schema:
           type: object
           properties:
             spec:
               type: object
+              required: [type, commonName]
               properties:
-                type: { type: string }
-                commonName: { type: string }
+                type: { type: string, enum: [root, intermediate] }
+                commonName: { type: string, minLength: 1 }
                 vaultName: { type: string }
                 ttl: { type: string }
-                keyBits: { type: integer }
+                keyBits: { type: integer, minimum: 2048, maximum: 8192 }
                 parentRef:
                   type: object
                   properties:
@@ -63,8 +63,9 @@ spec:
           properties:
             spec:
               type: object
+              required: [vaultCAName]
               properties:
-                vaultCAName: { type: string }
+                vaultCAName: { type: string, minLength: 1 }
                 caRef:
                   type: object
                   x-kubernetes-preserve-unknown-fields: true
@@ -96,8 +97,9 @@ spec:
           properties:
             spec:
               type: object
+              required: [vaultCAName]
               properties:
-                vaultCAName: { type: string }
+                vaultCAName: { type: string, minLength: 1 }
                 caRef:
                   type: object
                   x-kubernetes-preserve-unknown-fields: true
@@ -129,7 +131,29 @@ spec:
           properties:
             spec:
               type: object
-              x-kubernetes-preserve-unknown-fields: true
+              required: [commonName, issuerRef]
+              properties:
+                secretName: { type: string }
+                commonName: { type: string, minLength: 1 }
+                dnsNames: { type: array, items: { type: string } }
+                ipAddresses: { type: array, items: { type: string } }
+                usages: { type: array, items: { type: string } }
+                duration: { type: string }
+                renewBefore: { type: string }
+                delivery: { type: string, enum: [Secret, None] }
+                revisionHistoryLimit: { type: integer }
+                privateKey:
+                  type: object
+                  properties:
+                    algorithm: { type: string }
+                    size: { type: integer }
+                issuerRef:
+                  type: object
+                  required: [name]
+                  properties:
+                    kind: { type: string }
+                    name: { type: string, minLength: 1 }
+                    namespace: { type: string }
             status:
               type: object
               x-kubernetes-preserve-unknown-fields: true
@@ -158,7 +182,21 @@ spec:
           properties:
             spec:
               type: object
-              x-kubernetes-preserve-unknown-fields: true
+              required: [issuerRef]
+              properties:
+                request: { type: string }
+                commonName: { type: string }
+                dnsNames: { type: array, items: { type: string } }
+                secretName: { type: string }
+                duration: { type: string }
+                usages: { type: array, items: { type: string } }
+                issuerRef:
+                  type: object
+                  required: [name]
+                  properties:
+                    kind: { type: string }
+                    name: { type: string, minLength: 1 }
+                    namespace: { type: string }
             status:
               type: object
               x-kubernetes-preserve-unknown-fields: true

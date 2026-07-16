@@ -3,9 +3,6 @@ package vaultiface
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -54,11 +51,15 @@ type HTTPAPI struct {
 
 // NewHTTP builds an API from base URL and static token.
 func NewHTTP(addr, token string) *HTTPAPI {
-	return &HTTPAPI{C: client.New(addr, token)}
+	h := &HTTPAPI{C: client.New(addr, token)}
+	if token != "" {
+		h.tokenTTL = time.Now().Add(time.Hour)
+		h.saPath = "" // static-only
+	}
+	return h
 }
 
 // NewHTTPWithSA builds an API that prefers Kubernetes SA login.
-// If staticToken is set it is used as bootstrap; SA login refreshes via KNXVAULT_K8S_ROLE.
 func NewHTTPWithSA(addr, staticToken, k8sRole, saTokenPath string) *HTTPAPI {
 	h := &HTTPAPI{
 		C:      client.New(addr, staticToken),
@@ -71,51 +72,13 @@ func NewHTTPWithSA(addr, staticToken, k8sRole, saTokenPath string) *HTTPAPI {
 	if h.role == "" {
 		h.role = "knxvault-operator"
 	}
+	if staticToken != "" {
+		h.tokenTTL = time.Now().Add(time.Hour)
+	}
 	return h
 }
 
-func (h *HTTPAPI) ensureToken(ctx context.Context) error {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	// Refresh SA token every 30m or when empty.
-	if h.C.Token != "" && time.Now().Before(h.tokenTTL) {
-		return nil
-	}
-	if h.saPath == "" {
-		if h.C.Token == "" {
-			return fmt.Errorf("no vault token configured")
-		}
-		return nil
-	}
-	b, err := os.ReadFile(h.saPath) //nolint:gosec // path from operator config
-	if err != nil {
-		// Fall back to static token if SA file missing (lab host process).
-		if h.C.Token != "" {
-			h.tokenTTL = time.Now().Add(time.Hour)
-			return nil
-		}
-		return fmt.Errorf("read SA token: %w", err)
-	}
-	jwt := strings.TrimSpace(string(b))
-	if jwt == "" {
-		return fmt.Errorf("empty SA token")
-	}
-	if _, err := h.C.LoginKubernetes(ctx, h.role, jwt); err != nil {
-		// Lab may lack TokenReview role binding; keep static token if present.
-		if h.C.Token != "" {
-			h.tokenTTL = time.Now().Add(5 * time.Minute)
-			return nil
-		}
-		return fmt.Errorf("kubernetes login: %w", err)
-	}
-	h.tokenTTL = time.Now().Add(30 * time.Minute)
-	return nil
-}
-
 func (h *HTTPAPI) Health(ctx context.Context) error {
-	if err := h.ensureToken(ctx); err != nil {
-		// Health may work without auth.
-	}
 	_, err := h.C.Health(ctx)
 	return err
 }
@@ -124,7 +87,6 @@ func (h *HTTPAPI) CreateRoot(ctx context.Context, name, commonName, ttl string, 
 	if err := h.ensureToken(ctx); err != nil {
 		return nil, err
 	}
-	// Idempotent: return existing.
 	if existing, err := h.C.PKIGetCAByName(ctx, name); err == nil && existing != nil {
 		return caFrom(existing), nil
 	}
@@ -138,7 +100,6 @@ func (h *HTTPAPI) CreateRoot(ctx context.Context, name, commonName, ttl string, 
 		Name: name, CommonName: commonName, TTL: ttl, KeyBits: keyBits,
 	})
 	if err != nil {
-		// Race: another replica created it.
 		if existing, e2 := h.C.PKIGetCAByName(ctx, name); e2 == nil {
 			return caFrom(existing), nil
 		}
