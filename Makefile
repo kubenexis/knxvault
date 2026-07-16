@@ -173,6 +173,12 @@ test-integration: build build-cli ## Run integration tests (API + Raft + daemon 
 	$(call require_cmd,go)
 	$(GO) test ./test/integration/... -count=1
 
+# Lab host full E2E (SSH). Override: make lab-full-e2e LAB_HOST=192.168.137.131
+LAB_HOST ?= 192.168.137.131
+lab-full-e2e: ## Full lab E2E on LAB_HOST (core + vaultcompat + operator)
+	$(call log,Lab full E2E on $(LAB_HOST))
+	bash scripts/lab-full-e2e.sh $(LAB_HOST)
+
 docker-build: ## Build container image ($(IMAGE))
 	$(call log,Building Docker image $(IMAGE))
 	$(call require_cmd,docker)
