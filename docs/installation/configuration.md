@@ -164,6 +164,23 @@ Kubernetes auth uses in-cluster **TokenReview** automatically — do not set `KN
 
 Do not store database admin passwords in database role `config` — use KV paths. See [Operator security](../operations/operator-security.md).
 
+## knxvault-operator (TLS CRD automation)
+
+Environment for the **separate** `knxvault-operator` process (not the vault server). Full guide: [Replace cert-manager](../operations/pki-replace-cert-manager.md).
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `KNXVAULT_ADDR` | — | Vault API base URL |
+| `KNXVAULT_TOKEN` / `KNXVAULT_TOKEN_FILE` | — | Bootstrap / lab token (prefer SA auth in cluster) |
+| `KNXVAULT_K8S_ROLE` | `knxvault-operator` | Role for ServiceAccount JWT login |
+| `KNXVAULT_SA_TOKEN_FILE` | in-cluster path | Path to projected SA token |
+| `KNXVAULT_OPERATOR_LEADER_ELECT` | `true` | Single-writer HA for controllers |
+| `KNXVAULT_OPERATOR_LEADER_ELECT_NAMESPACE` | `knxvault` | Lease namespace |
+| `KNXVAULT_OPERATOR_INGRESS_SHIM` | `false` | Create Certificate CRs from Ingress annotations |
+| Metrics / probe bind | `:8080` / `:8081` | Prometheus + healthz |
+
+AppRole credentials for **cert-manager** (server-side) are registered via admin API `POST /sys/auth/approle`, not env vars.
+
 ## Legacy Kubernetes Lease HA (non-Raft)
 
 When `KNXVAULT_RAFT_ENABLED=false`, optional background-job leader election uses a Kubernetes `coordination.k8s.io/v1` Lease:
@@ -180,6 +197,8 @@ Production HA should use **Dragonboat Raft** (`KNXVAULT_RAFT_ENABLED=true`) inst
 ## Related documents
 
 - [Operator security](../operations/operator-security.md)
+- [Replace cert-manager](../operations/pki-replace-cert-manager.md)
+- [cert-manager Vault profile](../recipes/cert-manager-integration.md)
 - [Kubernetes deployment](../deploy/kubernetes.md)
 - [Metrics](../metrics.md)
 - [Tracing](../observability/tracing.md)
