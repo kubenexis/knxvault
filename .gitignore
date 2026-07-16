@@ -1,8 +1,8 @@
-
 *~
 /bin/
 # Build artifacts
 coverage-controllers.out
+coverage-operator.out
 coverage.out
 *.dll
 .DS_Store
@@ -18,11 +18,9 @@ sbom.json
 # SBOM & scan output
 *.so
 *.swp
-Thumbs.dbcoverage-operator.out
+Thumbs.db
 .tmp/
 trivy-report.json
 trivy-results.sarif
 /vendor/
 .vscode/
-coverage-operator.out
-coverage-controllers.out
