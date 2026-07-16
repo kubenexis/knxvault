@@ -130,6 +130,12 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 			middleware.RequirePermission(deps.AuthService, "sys/auth", "sudo"),
 			authHandler.ClearLockout,
 		)
+		// AppRole credential registration for cert-manager vault.auth.appRole
+		vaultAppRole := handlers.NewVaultCompatHandler(deps.AuthService, deps.PKIService, deps.TokenTTL)
+		secured.POST("/sys/auth/approle",
+			middleware.RequirePermission(deps.AuthService, "sys/auth", "sudo"),
+			vaultAppRole.RegisterAppRole,
+		)
 		secured.POST("/sys/rotate-master-key",
 			middleware.RequirePermission(deps.AuthService, "sys/rotate", "write"),
 			sys.RotateMasterKey,
@@ -151,19 +157,34 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 		}
 	}
 
+	// Vault product profile (cert-manager Vault issuer): thin HTTP adapter over services.
+	// See internal/compat/vault and docs/recipes/cert-manager-integration.md.
 	if deps.AuthService != nil {
-		vaultCompat := handlers.NewVaultCompatHandler(deps.AuthService, deps.PKIService, deps.TokenTTL)
+		vaultCompat := handlers.NewVaultCompatHandler(deps.AuthService, deps.PKIService, deps.TokenTTL).
+			WithHealthProbe(deps.Seal, deps.HAStatus, version)
 		v1 := r.Group("/v1")
+		// Health is unauthenticated (Vault sys/health; cert-manager Ready probe).
+		v1.GET("/sys/health", vaultCompat.SysHealth)
 		if deps.AuthLoginLimiter != nil {
 			v1.Use(middleware.AuthLoginThrottle(deps.AuthLoginLimiter))
 		}
+		// Explicit auth mounts (cert-manager defaults).
 		v1.POST("/auth/kubernetes/login", vaultCompat.LoginKubernetes)
+		v1.POST("/auth/approle/login", vaultCompat.LoginAppRole)
+		// Custom auth mount paths (mountPath / path overrides).
+		v1.POST("/auth/:mount/login", vaultCompat.LoginMount)
+
 		v1Auth := v1.Group("/")
 		v1Auth.Use(middleware.Auth(deps.AuthService))
 		if deps.Seal != nil {
 			v1Auth.Use(middleware.SealGuard(deps.Seal))
 		}
+		// Default PKI mount and custom mounts (Issuer.spec.vault.path = <mount>/sign/<role>).
 		v1Auth.POST("/pki/sign/:role",
+			middleware.RequirePermission(deps.AuthService, "pki", "write"),
+			vaultCompat.SignPKI,
+		)
+		v1Auth.POST("/:mount/sign/:role",
 			middleware.RequirePermission(deps.AuthService, "pki", "write"),
 			vaultCompat.SignPKI,
 		)

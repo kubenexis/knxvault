@@ -242,6 +242,7 @@ type Service struct {
 	nhi       MachineIdentityRecorder
 	audit     AuditRecorder
 	lockout   *LockoutTracker
+	approles  *AppRoleStore
 }
 
 // RoleResolver resolves role names to policy names.

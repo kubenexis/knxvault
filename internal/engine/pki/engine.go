@@ -635,13 +635,16 @@ func (e *Engine) SignCSR(ctx context.Context, req SignCSRRequest) (*SignCSRResul
 		return nil, common.New(common.ErrCodeValidation, "csr is required")
 	}
 
-	caName := "root"
+	// Prefer explicit PKI role → CA binding; otherwise treat role as CA name
+	// (Vault-compatible path /v1/<mount>/sign/<role> often uses role == CA name).
+	caName := req.Role
+	if caName == "" {
+		caName = "root"
+	}
 	if e.roleRepo != nil && req.Role != "" {
-		role, err := e.roleRepo.Get(ctx, req.Role)
-		if err != nil {
-			return nil, err
+		if role, err := e.roleRepo.Get(ctx, req.Role); err == nil && role != nil {
+			caName = role.CAName
 		}
-		caName = role.CAName
 	}
 
 	ca, err := e.caRepo.GetByName(ctx, caName)

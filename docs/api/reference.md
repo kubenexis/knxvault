@@ -158,12 +158,21 @@ Errors:
 
 ### Vault compatibility (cert-manager)
 
+Thin **Vault product profile** for cert-manager's Vault issuer (`internal/compat/vault` + `vaultcompat` handlers). Not a full Vault API.
+
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | `/v1/auth/kubernetes/login` | No | Vault-format Kubernetes login |
-| POST | `/v1/pki/sign/:role` | Yes | Vault-format CSR signing for cert-manager |
+| GET | `/v1/sys/health` | No | Vault health (200/429/503); cert-manager Ready probe |
+| POST | `/v1/auth/kubernetes/login` | No | Kubernetes SA JWT login |
+| POST | `/v1/auth/approle/login` | No | AppRole `role_id` + `secret_id` login |
+| POST | `/v1/auth/:mount/login` | No | Custom auth mounts (dispatches by body) |
+| POST | `/v1/pki/sign/:role` | Yes | CSR / CN sign (default mount) |
+| POST | `/v1/:mount/sign/:role` | Yes | Custom PKI mount (Issuer `path: <mount>/sign/<role>`) |
+| POST | `/sys/auth/approle` | Yes (sudo) | Register AppRole credentials (admin) |
 
-Accepts `X-Vault-Token` or `Authorization: Bearer` for authenticated routes.
+Authenticated sign routes accept `X-Vault-Token` or `Authorization: Bearer`.
+
+Sign body accepts Vault fields used by cert-manager: `csr`, `common_name`, `alt_names`, `ip_sans`, `uri_sans`, `ttl`, `exclude_cn_from_sans`. Response `data` includes `certificate`, `issuing_ca`, `ca_chain`, `serial_number`, `expiration`.
 
 ## Go client
 

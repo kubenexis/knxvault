@@ -251,14 +251,17 @@ security:
 
 Issue `client-ca.pem` from the same intermediate or a dedicated client-issuing CA.
 
-## cert-manager (shipped — W40-02)
+## cert-manager (shipped — W40-02; full Vault issuer profile)
 
-KNXVault exposes **Vault-compatible** paths for cert-manager's built-in Vault issuer (`internal/api/handlers/vaultcompat.go`):
+KNXVault exposes a **Vault product profile** for cert-manager's built-in Vault issuer (`internal/compat/vault` + `internal/api/handlers/vaultcompat.go`). Prefer [knxvault-operator](pki-replace-cert-manager.md) when cert-manager is not required.
 
-| Vault path (expected) | KNXVault shim |
-|-----------------------|---------------|
-| `POST /v1/pki/sign/:role` | CSR signing via PKI engine |
-| `POST /v1/auth/kubernetes/login` | ServiceAccount JWT login |
+| Vault path (expected) | KNXVault profile |
+|-----------------------|------------------|
+| `GET /v1/sys/health` | Initialized / sealed / standby status codes |
+| `POST /v1/auth/kubernetes/login` | ServiceAccount JWT login (custom mounts supported) |
+| `POST /v1/auth/approle/login` | AppRole login (`POST /sys/auth/approle` to register) |
+| `POST /v1/<mount>/sign/<role>` | CSR sign with full Vault body/response shape |
+| Token via `X-Vault-Token` | Same as Bearer; cert-manager tokenSecretRef |
 
 Apply the example `ClusterIssuer`:
 
@@ -281,15 +284,15 @@ spec:
           namespace: cert-manager
 ```
 
-Pair with `deployments/cert-manager/certificate-example.yaml` for a `Certificate` resource.
+Pair with `deployments/cert-manager/certificate-example.yaml` for a `Certificate` resource. Full recipe (AppRole, token, custom mounts): [cert-manager integration](../recipes/cert-manager-integration.md).
 
-### cert-manager preparation checklist (do now)
+### cert-manager preparation checklist
 
 1. Create PKI hierarchy — [PKI administration](pki-administration.md)
-2. Name intermediate CA `web-server` (or align `path` / `role` naming)
-3. Create `cert-manager` KNXVault role binding the cert-manager ServiceAccount
+2. Name intermediate/CA `web-server` (or align `path` / role naming; role may equal CA name)
+3. Auth: SA role binding, AppRole (`POST /sys/auth/approle`), or scoped token
 4. Enable KNXVault TLS for the issuer endpoint
-5. Track W40-02 release for native issuer support
+5. Confirm `GET /v1/sys/health` returns 200 before trusting Issuer Ready
 
 ## Service mesh and internal CA
 
