@@ -14,6 +14,8 @@ How to use KNXVault PKI with Kubernetes workloads: authentication, certificate d
 
 **Primary path:** install `deployments/operator/` CRDs + operator and apply `KNXVaultCertificate` resources. See [Replacing cert-manager with KNXVault](pki-replace-cert-manager.md).
 
+Native APIs used by the operator: `POST /pki/issue`, `POST /pki/renew`, `POST /pki/sign` (CSR), `GET /pki/ca/by-name/:name` (issuer readiness).
+
 ## Architecture overview
 
 ```mermaid
