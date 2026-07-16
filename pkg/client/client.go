@@ -89,13 +89,24 @@ type CAResponse struct {
 	ExpiresAt string `json:"expires_at"`
 }
 
+// CreateIntermediateCARequest is POST /pki/intermediate.
+type CreateIntermediateCARequest struct {
+	ParentName string `json:"parent_name"`
+	Name       string `json:"name"`
+	CommonName string `json:"common_name"`
+	TTL        string `json:"ttl"`
+	KeyBits    int    `json:"key_bits,omitempty"`
+}
+
 // IssueCertRequest is POST /pki/issue.
 type IssueCertRequest struct {
-	Role       string   `json:"role"`
-	CommonName string   `json:"common_name"`
-	DNSNames   []string `json:"dns_names,omitempty"`
-	TTL        string   `json:"ttl,omitempty"`
-	AutoRenew  bool     `json:"auto_renew,omitempty"`
+	Role        string   `json:"role"`
+	CommonName  string   `json:"common_name"`
+	DNSNames    []string `json:"dns_names,omitempty"`
+	IPAddresses []string `json:"ip_addresses,omitempty"`
+	TTL         string   `json:"ttl,omitempty"`
+	KeyBits     int      `json:"key_bits,omitempty"`
+	AutoRenew   bool     `json:"auto_renew,omitempty"`
 }
 
 // IssueCertResponse is returned for leaf issuance.
@@ -233,10 +244,44 @@ func (c *Client) PKICreateRoot(ctx context.Context, req CreateRootCARequest) (*C
 	return &out, nil
 }
 
+// PKICreateIntermediate creates an intermediate CA signed by a parent CA name.
+func (c *Client) PKICreateIntermediate(ctx context.Context, req CreateIntermediateCARequest) (*CAResponse, error) {
+	var out CAResponse
+	if err := c.postJSON(ctx, "/pki/intermediate", true, req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PKIGetCA fetches CA metadata by id (GET /pki/ca/:id).
+func (c *Client) PKIGetCA(ctx context.Context, id string) (*CAResponse, error) {
+	var out CAResponse
+	if err := c.getJSON(ctx, "/pki/ca/"+trimPath(id), true, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // PKIIssue issues a leaf certificate.
 func (c *Client) PKIIssue(ctx context.Context, req IssueCertRequest) (*IssueCertResponse, error) {
 	var out IssueCertResponse
 	if err := c.postJSON(ctx, "/pki/issue", true, req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PKIIssueClient issues a client certificate (POST /pki/issue-client-cert).
+func (c *Client) PKIIssueClient(ctx context.Context, role, commonName, ttl string) (*IssueCertResponse, error) {
+	var out IssueCertResponse
+	body := map[string]any{
+		"role":        role,
+		"common_name": commonName,
+	}
+	if ttl != "" {
+		body["ttl"] = ttl
+	}
+	if err := c.postJSON(ctx, "/pki/issue-client-cert", true, body, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

@@ -187,10 +187,25 @@ See [Getting started](../user/getting-started.md) for PKI and dynamic secrets wo
 
 A Helm chart is deferred to long-term future. Use raw manifests in [`deployments/k8s/`](../../deployments/k8s/) until then.
 
+## knxvault-operator (TLS without cert-manager)
+
+After the vault API is up, install CRD automation so workloads get `kubernetes.io/tls` Secrets from KNXVault PKI **without cert-manager**:
+
+```bash
+make build-operator
+kubectl apply -f deployments/operator/crds/
+kubectl apply -f deployments/operator/rbac.yaml
+# run operator with KNXVAULT_ADDR + KNXVAULT_TOKEN (see deployments/operator/deployment.yaml)
+kubectl apply -f deployments/operator/samples/certificate-example.yaml
+```
+
+Guide: [Replacing cert-manager with KNXVault](../operations/pki-replace-cert-manager.md). Lab e2e: `bash scripts/lab-operator-e2e.sh <kube-node>`.
+
 ## Next steps
 
 - [Configuration reference](configuration.md) — all environment variables (including unseal + Raft)
 - [Local dev single-node recipe](../recipes/local-dev-single-node.md)
+- [Replace cert-manager](../operations/pki-replace-cert-manager.md) — operator CRDs (W30)
 - [Operator security](../operations/operator-security.md) — key custody checklist
 - [Day-2 operations](../operations/day2.md) — backup, monitoring, upgrades
 - [Security model](../architecture/security-model.md) — hardening checklist

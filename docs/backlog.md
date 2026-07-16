@@ -2,7 +2,7 @@
 
 Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topologically sorted by dependency** — implement in listed order within each phase.
 
-**Current focus (2026-07-16):** **P0 — replace cert-manager** with a first-class KNXVault Kubernetes operator (CRD automation: CA + Certificate → `kubernetes.io/tls` Secret). Prefer KNXVault PKI + operator for **all** in-cluster / internal-CA TLS use cases; keep cert-manager only as optional legacy (ACME/public CAs out of scope). Remaining Phase 5 work also includes tenant depth, HSM, mTLS polish. Long-term packaging and cloud engines remain [LT-*](#long-term-future).
+**Current focus (2026-07-16):** **P0 W30-01–W30-10 Complete** — knxvault-operator CRD automation ships; prefer KNXVault PKI + operator for all vault-issued TLS (**no cert-manager required**). Remaining Phase 5: tenant depth, HSM, mTLS polish. Long-term packaging remains [LT-*](#long-term-future).
 
 **Legend**
 
@@ -21,8 +21,8 @@ Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topological
 |--------|-------|-----|
 | Complete (Tier 0 / Phase 4 core) | 29 | W37-04, W37-06, W37-09, W38-15, W39-01–08, W40-01–03, W40-08, W36-09, W36-10, W36-14, W36-15, W36-16, W36-20, W36-21, W36-22 |
 | Complete (Phase 5 / Tiers I–L) | 33 | W36-19, W41-01–04, W41-06–10, W42-01–08, W43-01–08, W44-01–04, W32-02, W31-01, W40-04–07 |
-| Partial | 11 | W30-01, W32-01, W32-03–05, W33-01–02, W34-01–02, W35-01–02 |
-| Not started (P0 operator program) | 9 | **W30-02–W30-10** |
+| Complete (P0 operator / cert-manager replacement) | 10 | **W30-01–W30-10** |
+| Partial | 10 | W32-01, W32-03–05, W33-01–02, W34-01–02, W35-01–02 |
 | Not started (other) | 1 | W31-02 |
 | Long-term only | 14 | LT-01–LT-14 |
 
@@ -389,16 +389,16 @@ High-level scope from LLD §9.4. Phase 3–4 core is largely complete. Detailed 
 
 | ID | Priority | Status | Title | Area | Effort | Depends on | Description | Acceptance criteria |
 |----|----------|--------|-------|------|--------|------------|-------------|---------------------|
-| **W30-01** | **P0** | Partial | Operator controller-runtime scaffold | k8s | L | W29, W36-02 | Replace stub with real **controller-runtime** (or kubebuilder) project: Go API types under `internal/operator/apis/`, regenerated CRDs, `make build-operator`, Deployment/RBAC under `deployments/operator/`. Existing: `cmd/operator/main.go`, thin `crd-knxvault-ca.yaml`. **Apache-2.0** controller-runtime / client-go only. | Operator binary builds statically; CRDs apply; manager starts against kind; no sleep-stub main path. |
-| **W30-02** | **P0** | Not started | Reconcile `KNXVaultCA` → PKI API | k8s | L | W30-01, W5-01 | Expand `KNXVaultCA` schema (`type: root\|intermediate`, `commonName`, `ttl`, `keyBits`, `parentRef`). Reconcile → `POST /pki/root` / `POST /pki/intermediate`. Status: Ready conditions, `caId`, serial, `notAfter`. | Apply CA CR → CA visible via API; Ready=True; second reconcile is no-op; failure sets Ready=False with reason. |
-| **W30-03** | **P0** | Not started | `KNXVaultCertificate` CRD + TLS Secret materialization | k8s | L | W30-02, W5-03, W36-03 | **Core cert-manager replacement.** CR fields: `secretName`, `issuerRef` (CA/Issuer), `commonName`, `dnsNames`, `ipAddresses`, `usages` (server/client), `duration`, `renewBefore`, privateKey size. Reconcile: SA auth → `POST /pki/issue` → create/patch `kubernetes.io/tls` Secret (`tls.crt`, `tls.key`, optional `ca.crt`) with ownerReference. Prefer **operator-owned renew** (`auto_renew: false` at issue). | Certificate CR → Secret usable by Ingress; status Ready + serial + notAfter; delete CR optionally GC Secret (finalizer policy documented). |
-| **W30-04** | **P0** | Not started | Certificate renew lifecycle, status, metrics | k8s | M | W30-03 | Requeue at `notAfter - renewBefore`; re-issue or `POST /pki/renew`; bump `status.revision`; conditions `Issuing` / `Ready`; Prometheus: issue/renew/error counters, Secret age. | Cert rotates before expiry without manual Job; metrics scraped; unit tests for requeue math. |
-| **W30-05** | **P0** | Not started | `KNXVaultIssuer` / ClusterIssuer + multi-namespace | k8s | M | W30-03 | Namespaced **Issuer** and cluster-scoped **ClusterIssuer** (or equivalent) referencing vault CA/role. Certificates in app namespaces use `issuerRef` across namespaces. Operator RBAC: secrets in target ns; vault role `cert-operator`. | App in `default` issues via ClusterIssuer in `knxvault`; RBAC least-privilege documented. |
-| **W30-06** | **P0** | Not started | Optional Ingress / Gateway annotation shim | k8s | M | W30-03, W30-05 | Watch Ingress (and optionally Gateway) TLS hosts + annotation (e.g. `knxvault.kubenexis.dev/issuer`) → auto-create/update `KNXVaultCertificate` (cert-manager ingress-shim parity). Feature-gated. | Annotated Ingress gets Secret without hand-written Certificate CR; flag to disable. |
-| **W30-07** | **P0** | Not started | Operator e2e (kind): no cert-manager | ci | M | W30-04, W30-05 | `scripts/test-operator-kind.sh` (+ Go tests): install vault + operator CRDs; apply CA + Certificate; assert Secret; optional curl TLS or Ingress. **cert-manager not installed.** Document in `docs/engineering/development.md`. | Script green on kind; CI/docs gate: “KNXVault PKI TLS without cert-manager”. |
-| **W30-08** | **P0** | Not started | Docs: operator-first PKI; cert-manager optional | docs | S | W30-03 | Rewrite [`pki-kubernetes.md`](operations/pki-kubernetes.md), [`kubernetes-native.md`](integration/kubernetes-native.md), install/README: **primary path = operator CRDs**; CronJob = break-glass; cert-manager Vault shim = legacy optional. Product claim: *For any TLS issued by KNXVault PKI, cert-manager is not required.* | New operators onboard without cert-manager; matrix rows updated. |
-| **W30-09** | **P0** | Not started | cert-manager → KNXVaultCertificate migration guide | docs | M | W30-05, W30-08 | Recipe: map cert-manager `Certificate`/`Issuer` → KNXVault CRs (same `secretName`/dnsNames); dual-run; uninstall cert-manager. Example conversion table + sample manifests. | Doc + example YAMLs under `deployments/operator/migration/`; dry-run checklist. |
-| **W30-10** | **P0** | Not started | Optional `KNXVaultCertificateRequest` (CSR sign) | k8s | M | W30-03 | CSR-based flow for agents/devices that supply CSR (parity with some cert-manager CertificateRequest uses). Reconcile → vault sign API / issue-from-CSR if available; else document gap + API extension. | CSR CR → signed cert Secret or status failure with clear reason; e2e optional. |
+| ~~**W30-01**~~ | — | Complete | Operator controller-runtime scaffold | k8s | L | W29 | Done — `cmd/operator`, `internal/operator` + controller-runtime manager, `make build-operator`, CRDs under `deployments/operator/crds/`. | Binary builds; manager starts. |
+| ~~**W30-02**~~ | — | Complete | Reconcile `KNXVaultCA` → PKI API | k8s | L | W30-01 | Done — `CAReconciler` root/intermediate via `vaultiface`; status Ready/caId/serial. | Unit test + lab e2e. |
+| ~~**W30-03**~~ | — | Complete | `KNXVaultCertificate` + TLS Secret | k8s | L | W30-02 | Done — `CertificateReconciler` issues + materialises `kubernetes.io/tls` Secret. | Secret created for sample Certificate CR. |
+| ~~**W30-04**~~ | — | Complete | Renew lifecycle, status, metrics | k8s | M | W30-03 | Done — `renew` package, requeue, revision, Prometheus counters. | Unit tests for schedule; metrics registered. |
+| ~~**W30-05**~~ | — | Complete | Issuer / ClusterIssuer multi-ns | k8s | M | W30-03 | Done — `KNXVaultIssuer` + `KNXVaultClusterIssuer` reconcilers + `ResolveVaultRole`. | Cross-ns issue via ClusterIssuer. |
+| ~~**W30-06**~~ | — | Complete | Ingress annotation shim | k8s | M | W30-05 | Done — `IngressReconciler` + `knxvault.kubenexis.dev/issuer`; gate `KNXVAULT_OPERATOR_INGRESS_SHIM`. | Annotation creates Certificate CR. |
+| ~~**W30-07**~~ | — | Complete | Operator e2e without cert-manager | ci | M | W30-04 | Done — `scripts/lab-operator-e2e.sh`, `scripts/test-operator-kind.sh`. | Lab e2e PASS on kube node. |
+| ~~**W30-08**~~ | — | Complete | Docs: operator-first PKI | docs | S | W30-03 | Done — `pki-replace-cert-manager.md`, updated pki-kubernetes + kubernetes-native. | Operator-first onboarding. |
+| ~~**W30-09**~~ | — | Complete | cert-manager migration guide | docs | M | W30-05 | Done — `deployments/operator/migration/`. | Mapping table + sample YAML. |
+| ~~**W30-10**~~ | — | Complete | `KNXVaultCertificateRequest` | k8s | M | W30-03 | Done — CSR parse + issue fallback; optional Secret. | Controller + tests. |
 
 > **P0 non-goals:** ACME / Let’s Encrypt / DNS-01 (remain external or LT). Do not vendor cert-manager. Do not teach Raft pods to call the Kubernetes apiserver for Secrets.
 

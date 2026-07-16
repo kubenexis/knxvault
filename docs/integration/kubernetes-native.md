@@ -8,7 +8,8 @@ KNXVault is designed as a **Kubernetes-native** secrets and PKI platform. These 
 |-------------|---------|--------|----------------|
 | **Secrets Store CSI provider** | Mount KV secrets as pod volumes (secret zero in env) | **Shipped** — `knxvault-csi` | [CSI install](../deploy/csi-install.md), Tier G (W39) |
 | **External Secrets Operator** | Sync KNXVault secrets into native `Secret` objects when apps need `envFrom` / controllers | **Shipped** — `knxvault-eso` webhook adapter | [ESO deploy](../deploy/external-secrets/) (W40-01) |
-| **cert-manager Issuer** | Automate TLS certificates from KNXVault PKI | **Shipped** — Vault API shim (`/v1/pki/sign/:role`) | `deployments/cert-manager/` (W40-02) |
+| **knxvault-operator CRDs** | Automate TLS Secrets from KNXVault PKI **without cert-manager** | **Shipped** — `KNXVaultCertificate`, CA, Issuer | [Replace cert-manager](../operations/pki-replace-cert-manager.md) (W30) |
+| **cert-manager Issuer** | Optional legacy TLS automation via Vault shim | **Shipped** — `/v1/pki/sign/:role` | `deployments/cert-manager/` (W40-02); prefer operator |
 | **Kubernetes auth method** | `POST /auth/kubernetes` + TokenReview + SA role bindings | **Shipped** | [Integration overview](overview.md#kubernetes-serviceaccount-authentication) |
 | **Mutating admission webhook** | Optional: inject CSI volumes from pod annotations | **Shipped** — `knxvault-webhook` | `deployments/k8s/webhook/` |
 | **Multi-language SDKs** | Go, Python, Java, Rust, Node.js clients from OpenAPI | Go **shipped** (`pkg/client`); others planned | Tier H (W40-03–07) |
@@ -40,7 +41,7 @@ flowchart TD
 |------|-----|
 | File-based secret delivery, minimal etcd exposure | **CSI provider** |
 | `envFrom.secretRef`, legacy controllers, GitOps Secret refs | **External Secrets Operator** or CSI `secretObjects` |
-| Ingress / workload TLS from vault PKI | **cert-manager** + KNXVault issuer |
+| Ingress / workload TLS from vault PKI | **knxvault-operator** `KNXVaultCertificate` (preferred); cert-manager optional |
 | In-cluster API access | **Kubernetes auth** (SA JWT → scoped token) |
 | Faster pod YAML (no hand-written SPC) | **Mutating webhook** (optional) |
 | Application code outside cluster | **SDKs** or REST |
@@ -68,9 +69,20 @@ kubectl apply -f deployments/external-secrets/knxvault-eso-deployment.yaml
 kubectl apply -f deployments/external-secrets/clustersecretstore-webhook.yaml
 ```
 
-## cert-manager Issuer
+## knxvault-operator (preferred — no cert-manager)
 
-Use for automated certificate lifecycle (Ingress TLS, internal mTLS, workload certs).
+```bash
+make build-operator
+kubectl apply -f deployments/operator/crds/
+kubectl apply -f deployments/operator/rbac.yaml
+kubectl apply -f deployments/operator/samples/certificate-example.yaml
+```
+
+Full guide: [Replacing cert-manager with KNXVault](../operations/pki-replace-cert-manager.md).
+
+## cert-manager Issuer (optional legacy)
+
+Use only if you already run cert-manager. Prefer the operator for new clusters.
 
 KNXVault exposes **Vault-compatible** paths for cert-manager's built-in Vault issuer:
 

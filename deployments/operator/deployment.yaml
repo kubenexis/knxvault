@@ -1,0 +1,61 @@
+# Host-path style Deployment for lab when image registry is unavailable.
+# Prefer: load image knxvault-operator:0.4.5 or run binary via DaemonSet/host process.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: knxvault-operator
+  namespace: knxvault
+  labels:
+    app.kubernetes.io/name: knxvault-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: knxvault-operator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: knxvault-operator
+    spec:
+      serviceAccountName: knxvault-operator
+      containers:
+        - name: operator
+          image: knxvault-operator:0.4.5
+          imagePullPolicy: IfNotPresent
+          args: []
+          env:
+            - name: KNXVAULT_ADDR
+              value: http://knxvault.knxvault.svc.cluster.local:8200
+            - name: KNXVAULT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: knxvault
+                  key: KNXVAULT_ROOT_TOKEN
+                  optional: true
+            - name: KNXVAULT_OPERATOR_INGRESS_SHIM
+              value: "true"
+            - name: KNXVAULT_OPERATOR_METRICS_ADDR
+              value: ":8080"
+            - name: KNXVAULT_OPERATOR_PROBE_ADDR
+              value: ":8081"
+          ports:
+            - name: metrics
+              containerPort: 8080
+            - name: health
+              containerPort: 8081
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            initialDelaySeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi

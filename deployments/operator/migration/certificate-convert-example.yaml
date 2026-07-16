@@ -1,0 +1,24 @@
+# Before (cert-manager) — conceptual:
+# kind: Certificate
+# spec:
+#   secretName: app-tls
+#   issuerRef: { name: knxvault-pki, kind: ClusterIssuer }
+#   dnsNames: [app.example.com]
+#   duration: 2160h
+#   renewBefore: 720h
+#
+# After (KNXVault):
+apiVersion: knxvault.kubenexis.dev/v1alpha1
+kind: KNXVaultCertificate
+metadata:
+  name: app-tls
+  namespace: default
+spec:
+  secretName: app-tls
+  issuerRef:
+    kind: KNXVaultClusterIssuer
+    name: platform
+  commonName: app.example.com
+  dnsNames: [app.example.com]
+  duration: 2160h
+  renewBefore: 720h

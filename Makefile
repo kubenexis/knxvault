@@ -36,11 +36,14 @@ CLI_BINARY      ?= bin/knxvault-cli
 CSI_BINARY      ?= bin/knxvault-csi
 WEBHOOK_BINARY  ?= bin/knxvault-webhook
 ESO_BINARY      ?= bin/knxvault-eso
+OPERATOR_BINARY ?= bin/knxvault-operator
 MAIN_PKG        ?= ./cmd/knxvault
 CLI_PKG         ?= ./cmd/knxvault-cli
 CSI_PKG         ?= ./cmd/knxvault-csi
 WEBHOOK_PKG     ?= ./cmd/knxvault-webhook
 ESO_PKG         ?= ./cmd/knxvault-eso
+OPERATOR_PKG    ?= ./cmd/operator
+COVERAGE_MIN    ?= 80
 SBOM_FILE       ?= sbom.json
 TRIVY_CACHE_DIR ?= $(HOME)/.cache/trivy
 LDFLAGS         ?= -s -w \
@@ -99,7 +102,7 @@ all: ## Run fmt, vet, lint, docs-lint, gosec, licenses, scan, test, test-integra
 # Go quality
 # =============================================================================
 
-.PHONY: fmt vet lint docs-lint gosec semgrep licenses test test-integration build build-cli build-csi build-webhook build-eso generate-clients test-clients check-client-drift sbom scan tidy install-tools docker-build clean
+.PHONY: fmt vet lint docs-lint gosec semgrep licenses test test-integration test-coverage build build-cli build-csi build-webhook build-eso build-operator generate-clients test-clients check-client-drift sbom scan tidy install-tools docker-build clean
 
 fmt: ## Check Go formatting (gofmt)
 	$(call log,Checking gofmt)
@@ -154,6 +157,16 @@ test: ## Run unit tests
 	$(call require_cmd,go)
 	$(GO) test $$(go list ./... | grep -v '/test/integration') -count=1
 
+test-coverage: ## Coverage gate ≥COVERAGE_MIN% on renew/secretutil/statusutil; controllers+vaultiface reported
+	$(call log,Running coverage gate (min $(COVERAGE_MIN)% on renew/secretutil/statusutil))
+	$(call require_cmd,go)
+	@$(GO) test ./internal/operator/renew ./internal/operator/secretutil ./internal/operator/statusutil \
+		-count=1 -covermode=atomic -coverprofile=coverage-operator.out; \
+	pct=$$($(GO) tool cover -func=coverage-operator.out | awk '/^total:/{gsub(/%/,"",$$3); print $$3}'); \
+	echo "operator pure-logic coverage: $${pct}% (min $(COVERAGE_MIN)%)"; \
+	awk -v p="$${pct}" -v m="$(COVERAGE_MIN)" 'BEGIN{ if ((p+0) < (m+0)) { print "coverage below gate" > "/dev/stderr"; exit 1 } }'; \
+	$(GO) test ./internal/operator/controllers ./internal/operator/vaultiface -count=1 -cover 2>&1 | tail -20
+
 test-integration: build build-cli ## Run integration tests (API + Raft + daemon e2e)
 	$(call log,Running integration tests)
 	$(call require_cmd,go)
@@ -199,6 +212,13 @@ build-eso: ## Build External Secrets Operator webhook adapter
 	$(call require_cmd,go)
 	@mkdir -p bin
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags="$(LDFLAGS)" -o $(ESO_BINARY) $(ESO_PKG)
+
+build-operator: ## Build knxvault-operator (cert-manager replacement CRDs)
+	$(call log,Building operator $(OPERATOR_BINARY))
+	$(call require_cmd,go)
+	@mkdir -p bin
+	CGO_ENABLED=0 $(GO) build -trimpath -ldflags="$(LDFLAGS)" -o $(OPERATOR_BINARY) $(OPERATOR_PKG)
+	@file $(OPERATOR_BINARY) | grep -q 'statically linked' || file $(OPERATOR_BINARY)
 
 generate-clients: ## Generate Python, TypeScript, Java, Rust SDKs from OpenAPI
 	$(call log,Generating client SDKs)

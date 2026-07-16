@@ -1,18 +1,18 @@
 # PKI Kubernetes Integration Guide
 
-How to use KNXVault PKI with Kubernetes workloads: authentication, certificate delivery patterns, cert-manager, Ingress TLS, and mTLS.
+How to use KNXVault PKI with Kubernetes workloads: authentication, certificate delivery patterns, **operator CRDs (preferred)**, cert-manager (optional legacy), Ingress TLS, and mTLS.
 
 ## Integration status
 
 | Integration | Status | Document |
 |-------------|--------|----------|
+| **knxvault-operator CRDs** (`KNXVaultCertificate`, CA, Issuer) | **Shipped (W30)** — **preferred**; no cert-manager | [Replace cert-manager](pki-replace-cert-manager.md) |
 | Kubernetes auth (`POST /auth/kubernetes`) | **Shipped** | [Integration overview](../integration/overview.md) |
 | CSI secrets provider (`knxvault-csi`) | **Shipped** — KV secrets, not PKI | [Secrets injection](../deploy/secrets-injection.md) |
-| cert-manager `ClusterIssuer` | **Planned (W40-02)** | Workarounds below |
-| Native `spec.knxvault` issuer CRD | **Planned (W40-02)** | — |
-| Vault API shim (`/v1/pki/sign/:role`) | **Planned (W40-02)** | Example stubs in `deployments/cert-manager/` |
+| cert-manager Vault issuer shim | **Shipped (W40-02)** — **optional legacy** | `deployments/cert-manager/` |
+| CronJob issue → Secret | Break-glass only | Below |
 
-Until **W40-02** ships, automate PKI through the **KNXVault REST API** or **CronJob/Job** patterns that write Kubernetes `Secret` objects.
+**Primary path:** install `deployments/operator/` CRDs + operator and apply `KNXVaultCertificate` resources. See [Replacing cert-manager with KNXVault](pki-replace-cert-manager.md).
 
 ## Architecture overview
 

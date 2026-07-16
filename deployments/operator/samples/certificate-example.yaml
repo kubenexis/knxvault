@@ -1,0 +1,40 @@
+# Sample: root CA + ClusterIssuer + Certificate (no cert-manager).
+apiVersion: knxvault.kubenexis.dev/v1alpha1
+kind: KNXVaultCA
+metadata:
+  name: platform-root
+  namespace: knxvault
+spec:
+  type: root
+  commonName: Platform Root CA
+  vaultName: platform-root
+  ttl: 87600h
+  keyBits: 2048
+---
+apiVersion: knxvault.kubenexis.dev/v1alpha1
+kind: KNXVaultClusterIssuer
+metadata:
+  name: platform
+spec:
+  vaultCAName: platform-root
+---
+apiVersion: knxvault.kubenexis.dev/v1alpha1
+kind: KNXVaultCertificate
+metadata:
+  name: app-tls
+  namespace: default
+spec:
+  secretName: app-tls
+  issuerRef:
+    kind: KNXVaultClusterIssuer
+    name: platform
+  commonName: app.example.com
+  dnsNames:
+    - app.example.com
+  usages:
+    - server auth
+  duration: 2160h
+  renewBefore: 720h
+  privateKey:
+    algorithm: RSA
+    size: 2048

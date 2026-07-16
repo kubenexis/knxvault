@@ -1,27 +1,28 @@
-# Build artifacts
+
+*~
 /bin/
-.tmp/
-*.exe
-*.dll
-*.so
-*.dylib
-
-# SBOM & scan output
+# Build artifacts
+coverage-controllers.out
 coverage.out
-sbom.json
-sbom-binary.json
-trivy-report.json
-trivy-results.sarif
-
+*.dll
+.DS_Store
+*.dylib
+*.exe
 # Go
-/vendor/
-
 # IDE
 .idea/
-.vscode/
-*.swp
-*~
-
 # OS
-.DS_Store
-Thumbs.db
+*.out
+sbom-binary.json
+sbom.json
+# SBOM & scan output
+*.so
+*.swp
+Thumbs.dbcoverage-operator.out
+.tmp/
+trivy-report.json
+trivy-results.sarif
+/vendor/
+.vscode/
+coverage-operator.out
+coverage-controllers.out
