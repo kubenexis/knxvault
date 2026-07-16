@@ -5,14 +5,18 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 // SealState tracks operational seal status (distinct from envelope crypto.Seal).
 type SealState struct {
-	mu        sync.RWMutex
-	sealed    bool
-	unsealKey []byte
-	stateFile string // optional durable flag path
+	mu           sync.RWMutex
+	sealed       bool
+	unsealKey    []byte
+	stateFile    string // optional durable flag path
+	failCount    int
+	lastFail     time.Time
+	maxFailDelay time.Duration
 }
 
 // NewSealState constructs seal state with the configured unseal key.
@@ -68,18 +72,60 @@ func (s *SealState) Seal() {
 }
 
 // Unseal restores service when the key matches.
+// Failed attempts apply progressive backoff (W50-28) before accepting another try.
 func (s *SealState) Unseal(key []byte) bool {
 	if s == nil || len(s.unsealKey) == 0 {
 		return false
 	}
-	if len(key) != len(s.unsealKey) || subtle.ConstantTimeCompare(key, s.unsealKey) != 1 {
-		return false
-	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if wait := s.unsealBackoffLocked(time.Now()); wait > 0 {
+		return false
+	}
+	if len(key) != len(s.unsealKey) || subtle.ConstantTimeCompare(key, s.unsealKey) != 1 {
+		s.failCount++
+		s.lastFail = time.Now()
+		return false
+	}
+	s.failCount = 0
+	s.lastFail = time.Time{}
 	s.sealed = false
 	s.persistLocked()
 	return true
+}
+
+// UnsealRetryAfter returns remaining backoff after a failed unseal (0 if ready).
+func (s *SealState) UnsealRetryAfter() time.Duration {
+	if s == nil {
+		return 0
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.unsealBackoffLocked(time.Now())
+}
+
+func (s *SealState) unsealBackoffLocked(now time.Time) time.Duration {
+	if s.failCount <= 0 {
+		return 0
+	}
+	// Progressive: 1s, 2s, 4s, ... capped at 30s (or maxFailDelay).
+	capDelay := s.maxFailDelay
+	if capDelay <= 0 {
+		capDelay = 30 * time.Second
+	}
+	shift := s.failCount - 1
+	if shift > 5 {
+		shift = 5
+	}
+	delay := time.Duration(1<<uint(shift)) * time.Second
+	if delay > capDelay {
+		delay = capDelay
+	}
+	elapsed := now.Sub(s.lastFail)
+	if elapsed >= delay {
+		return 0
+	}
+	return delay - elapsed
 }
 
 func (s *SealState) persistLocked() {

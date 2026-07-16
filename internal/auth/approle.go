@@ -142,7 +142,7 @@ func (s *Service) RegisterAppRole(roleID, secretID, subject string, policies []s
 func (s *Service) LoginAppRole(ctx context.Context, roleID, secretID string) (string, *TokenRecord, error) {
 	auditCtx := loginAuditFromContext(ctx, "approle")
 	lockKey := LoginLockoutKey("approle", auditCtx)
-	if s.lockout != nil && s.lockout.IsLocked(lockKey) {
+	if s.lockout != nil && s.lockout.IsLockedAny(LoginLockoutKeys("approle", auditCtx)...) {
 		auditCtx.FailureReason = "identity locked out"
 		s.recordLoginAudit(ctx, false, auditCtx)
 		return "", nil, common.New(common.ErrCodeForbidden, "identity locked out")
@@ -150,7 +150,7 @@ func (s *Service) LoginAppRole(ctx context.Context, roleID, secretID string) (st
 	role, err := s.EnsureAppRoleStore().Authenticate(roleID, secretID)
 	if err != nil {
 		if s.lockout != nil {
-			s.lockout.RecordFailure(lockKey)
+			s.noteLockoutFailure(ctx, lockKey, auditCtx)
 		}
 		auditCtx.FailureReason = err.Error()
 		s.recordLoginAudit(ctx, false, auditCtx)

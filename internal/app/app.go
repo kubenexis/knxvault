@@ -88,6 +88,8 @@ func New(ctx context.Context, cfg config.Config, log *zap.Logger) (*App, error) 
 		AuthLoginLimiter:     deps.AuthLoginLimiter,
 		TokenCreateLimiter:   deps.TokenCreateLimiter,
 		RequestSigning:       deps.RequestSigning,
+		TrustedProxies:       cfg.TrustedProxies,
+		MetricsBearerToken:   cfg.MetricsBearerToken,
 	})
 
 	server := &http.Server{

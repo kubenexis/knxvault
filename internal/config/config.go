@@ -87,6 +87,19 @@ type Config struct {
 	OTLPEndpoint       string
 	TracingSampleRatio float64
 
+	// RBACSyncFailClosed denies authz when policy sync fails (W50-17). Default true in production intent.
+	RBACSyncFailClosed bool
+	// TrustedProxies are CIDRs/IPs for Gin ClientIP / X-Forwarded-For (W50-18). Empty = trust none.
+	TrustedProxies []string
+	// MetricsBearerToken when set requires Authorization: Bearer on GET /metrics (W50-19).
+	MetricsBearerToken string
+	// RootTokenTTL overrides bootstrap root token lifetime (W50-26). Default 72h.
+	RootTokenTTL time.Duration
+	// RaftAllowInsecure skips multi-node Raft mTLS requirement (lab only, W50-20).
+	RaftAllowInsecure bool
+	// ManagedSQLStrict enables template-only SQL validation for managed DB roles (W50-22).
+	ManagedSQLStrict bool
+
 	Raft RaftConfig
 }
 

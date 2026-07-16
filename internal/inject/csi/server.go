@@ -46,14 +46,21 @@ func (s *Server) Serve(ctx context.Context, socketPath string) error {
 	if socketPath == "" {
 		socketPath = defaultSocket
 	}
-	if err := os.MkdirAll(filepath.Dir(socketPath), 0o755); err != nil {
+	// W50-23: restrictive socket directory and socket mode (node-local CSI only).
+	dir := filepath.Dir(socketPath)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("create provider socket dir: %w", err)
 	}
+	_ = os.Chmod(dir, 0o700)
 	_ = os.Remove(socketPath)
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
 		return fmt.Errorf("listen %s: %w", socketPath, err)
 	}
+	if ul, ok := listener.(*net.UnixListener); ok {
+		_ = ul
+	}
+	_ = os.Chmod(socketPath, 0o660)
 	grpcServer := grpc.NewServer()
 	provider.RegisterCSIDriverProviderServer(grpcServer, s)
 	errCh := make(chan error, 1)

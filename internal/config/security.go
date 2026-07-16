@@ -17,6 +17,12 @@ func ValidateSecurity(cfg Config, configPath string) error {
 		if configPath != "" && (cfg.RootToken != "" || cfg.JWTSecret != "") {
 			return fmt.Errorf("root_token and jwt_secret must be supplied via environment when raft is enabled, not config file")
 		}
+		// W50-20: multi-node Raft requires peer mTLS unless explicitly allowed (dev/lab).
+		if !cfg.RaftAllowInsecure && len(cfg.Raft.InitialMembers) > 1 {
+			if cfg.Raft.MTLSCertFile == "" || cfg.Raft.MTLSKeyFile == "" || cfg.Raft.MTLSCAFile == "" {
+				return fmt.Errorf("raft mTLS (KNXVAULT_RAFT_MTLS_CERT/KEY/CA) is required for multi-node raft; set KNXVAULT_RAFT_ALLOW_INSECURE=true only for lab")
+			}
+		}
 	}
 	if configPath != "" {
 		if err := checkConfigFilePermissions(configPath); err != nil {

@@ -112,9 +112,31 @@ func CheckMFA(requireMFA bool, claims map[string]any) error {
 }
 
 func (s *Service) noteLockoutFailure(ctx context.Context, lockKey string, auditCtx LoginAuditContext) {
-	if s.lockout != nil && s.lockout.RecordFailure(lockKey) {
-		s.recordLockoutAudit(ctx, lockKey, auditCtx)
+	if s.lockout == nil {
+		return
 	}
+	// Recompute with identity when available (W50-18); also record IP key.
+	keys := LoginLockoutKeys(auditCtx.AuthMethod, auditCtx)
+	if lockKey != "" {
+		found := false
+		for _, k := range keys {
+			if k == lockKey {
+				found = true
+				break
+			}
+		}
+		if !found {
+			keys = append(keys, lockKey)
+		}
+	}
+	locked := false
+	for _, k := range keys {
+		if s.lockout.RecordFailure(k) {
+			locked = true
+			s.recordLockoutAudit(ctx, k, auditCtx)
+		}
+	}
+	_ = locked
 }
 
 func (s *Service) recordLoginFailure(ctx context.Context, lockKey string, auditCtx LoginAuditContext, reason string) {
@@ -127,7 +149,7 @@ func (s *Service) recordLoginFailure(ctx context.Context, lockKey string, auditC
 func (s *Service) LoginWithTokenEndpoint(ctx context.Context, token string) (*TokenRecord, error) {
 	auditCtx := loginAuditFromContext(ctx, "token")
 	lockKey := LoginLockoutKey("token", auditCtx)
-	if s.lockout != nil && s.lockout.IsLocked(lockKey) {
+	if s.lockout != nil && s.lockout.IsLockedAny(LoginLockoutKeys("token", auditCtx)...) {
 		auditCtx.FailureReason = "identity locked out"
 		s.recordLoginAudit(ctx, false, auditCtx)
 		return nil, common.New(common.ErrCodeForbidden, "identity locked out")

@@ -7,14 +7,18 @@ import (
 	"github.com/kubenexis/knxvault/internal/auth"
 )
 
-func TestLoginLockoutKeyUsesSourceIP(t *testing.T) {
+func TestLoginLockoutKeyPrefersClientIdentity(t *testing.T) {
 	key := auth.LoginLockoutKey("kubernetes", auth.LoginAuditContext{
 		SourceIP:       "10.0.0.5",
 		ClientIdentity: "system:serviceaccount:ns:sa",
 	})
-	want := auth.LockoutKey("kubernetes", "10.0.0.5")
+	want := auth.LockoutKey("kubernetes", "system:serviceaccount:ns:sa")
 	if key != want {
 		t.Fatalf("LoginLockoutKey() = %q, want %q", key, want)
+	}
+	ipOnly := auth.LoginLockoutKey("kubernetes", auth.LoginAuditContext{SourceIP: "10.0.0.5"})
+	if ipOnly != auth.LockoutKey("kubernetes", "10.0.0.5") {
+		t.Fatalf("ip-only key = %q", ipOnly)
 	}
 }
 

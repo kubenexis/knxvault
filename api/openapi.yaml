@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: KNXVault API
-  version: 0.4.6
+  version: 0.4.7
   description: Secrets management and PKI REST API (Phase 1 MVP + Phase 2 complete).
 servers:
   - url: http://localhost:8200
@@ -905,6 +905,193 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuditVerifyResponse"
+  /auth/oidc/{role}:
+    post:
+      tags: [auth]
+      summary: OIDC login for a role
+      operationId: loginOIDC
+      parameters:
+        - name: role
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                jwt: { type: string }
+      responses:
+        "200":
+          description: Authenticated token
+  /auth/token/create:
+    post:
+      tags: [auth]
+      summary: Create scoped client token
+      operationId: createToken
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Token created
+  /auth/token/renew:
+    post:
+      tags: [auth]
+      summary: Renew current token
+      operationId: renewToken
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Token renewed
+  /auth/token/self:
+    delete:
+      tags: [auth]
+      summary: Revoke current token
+      operationId: revokeSelfToken
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Token revoked
+  /sys/init:
+    post:
+      tags: [sys]
+      summary: Initialize vault (one-time)
+      operationId: sysInit
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Initialized
+  /sys/auth/approle:
+    post:
+      tags: [sys]
+      summary: Register AppRole credentials
+      operationId: registerAppRole
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: AppRole registered
+  /sys/machine-identities:
+    get:
+      tags: [sys]
+      summary: List machine identities
+      operationId: listMachineIdentities
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Identity list
+  /sys/machine-identities/{id}:
+    delete:
+      tags: [sys]
+      summary: Revoke machine identity
+      operationId: revokeMachineIdentity
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204":
+          description: Revoked
+  /sys/exposure/report:
+    post:
+      tags: [sys]
+      summary: Report secret exposure (HMAC + timestamp signed)
+      operationId: reportExposure
+      parameters:
+        - name: X-KNXVault-Exposure-Signature
+          in: header
+          required: true
+          schema: { type: string }
+        - name: X-KNXVault-Exposure-Timestamp
+          in: header
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Report accepted
+  /v1/sys/health:
+    get:
+      tags: [sys]
+      summary: Vault-compatible health (cert-manager)
+      operationId: vaultSysHealth
+      responses:
+        "200":
+          description: Unsealed and ready
+        "503":
+          description: Sealed or not ready
+  /v1/auth/kubernetes/login:
+    post:
+      tags: [auth]
+      summary: Vault-compatible Kubernetes login
+      operationId: vaultLoginKubernetes
+      responses:
+        "200":
+          description: Auth response
+  /v1/auth/approle/login:
+    post:
+      tags: [auth]
+      summary: Vault-compatible AppRole login
+      operationId: vaultLoginAppRole
+      responses:
+        "200":
+          description: Auth response
+  /v1/auth/{mount}/login:
+    post:
+      tags: [auth]
+      summary: Vault-compatible custom auth mount login
+      operationId: vaultLoginMount
+      parameters:
+        - name: mount
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Auth response
+  /v1/pki/sign/{role}:
+    post:
+      tags: [pki]
+      summary: Vault-compatible PKI sign
+      operationId: vaultSignPKI
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: role
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Signed certificate
+  /v1/{mount}/sign/{role}:
+    post:
+      tags: [pki]
+      summary: Vault-compatible sign on custom mount
+      operationId: vaultSignMount
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: mount
+          in: path
+          required: true
+          schema: { type: string }
+        - name: role
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Signed certificate
+
 components:
   securitySchemes:
     bearerAuth:

@@ -2,11 +2,14 @@ package controllers
 
 import (
 	"context"
+	"crypto"
 	"fmt"
 	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/kubenexis/knxvault/internal/acme"
@@ -71,6 +74,29 @@ func issueACME(ctx context.Context, c client.Client, ns string, spec *v1alpha1.A
 		AcceptTOS:     spec.AcceptTOS,
 		SkipTLSVerify: spec.SkipTLSVerify,
 	}
+
+	// W50-13: load or generate ACME account key from PrivateKeySecretRef.
+	var accountKey crypto.Signer
+	var storeAccountKey bool
+	if spec.PrivateKeySecretRef != nil && c != nil {
+		key, err := loadACMEAccountKey(ctx, c, secretNS, spec.PrivateKeySecretRef)
+		if err == nil {
+			accountKey = key
+		} else if !isSecretMissing(err) {
+			return nil, fmt.Errorf("acme account key: %w", err)
+		}
+	}
+	if accountKey == nil {
+		k, err := acme.GenerateAccountKey()
+		if err != nil {
+			return nil, err
+		}
+		accountKey = k
+		// Persist when a Secret ref is configured so LE account stays stable across restarts.
+		storeAccountKey = spec.PrivateKeySecretRef != nil && c != nil
+	}
+	cfg.AccountKey = accountKey
+
 	solvers := acme.SolverSpec{HTTP01: spec.HTTP01}
 	if SharedHTTP01 != nil && spec.HTTP01 {
 		// Prefer process-wide presenter when operator started HTTP-01 listener.
@@ -111,10 +137,77 @@ func issueACME(ctx context.Context, c client.Client, ns string, spec *v1alpha1.A
 	if err != nil {
 		return nil, err
 	}
+	if storeAccountKey {
+		if err := storeACMEAccountKey(ctx, c, secretNS, spec.PrivateKeySecretRef, accountKey); err != nil {
+			return nil, fmt.Errorf("persist acme account key: %w", err)
+		}
+	}
 	return &vaultiface.CertResult{
 		CertPEM: res.CertPEM, PrivateKeyPEM: res.PrivateKeyPEM,
 		Serial: res.Serial, ExpiresAt: res.NotAfter.UTC().Format(time.RFC3339),
 	}, nil
+}
+
+func isSecretMissing(err error) bool {
+	if err == nil {
+		return false
+	}
+	if apierrors.IsNotFound(err) {
+		return true
+	}
+	// Missing key inside an existing Secret is treated as "generate new".
+	return strings.Contains(err.Error(), "missing key")
+}
+
+func loadACMEAccountKey(ctx context.Context, c client.Client, ns string, ref *v1alpha1.SecretKeyRef) (crypto.Signer, error) {
+	if ref == nil || ref.Name == "" {
+		return nil, fmt.Errorf("privateKeySecretRef required")
+	}
+	keyName := ref.Key
+	if keyName == "" {
+		keyName = "tls.key"
+	}
+	var sec corev1.Secret
+	if err := c.Get(ctx, client.ObjectKey{Namespace: ns, Name: ref.Name}, &sec); err != nil {
+		return nil, err
+	}
+	b, ok := sec.Data[keyName]
+	if !ok || len(b) == 0 {
+		return nil, fmt.Errorf("secret %s/%s missing key %q", ns, ref.Name, keyName)
+	}
+	return acme.ParseAccountKeyPEM(b)
+}
+
+func storeACMEAccountKey(ctx context.Context, c client.Client, ns string, ref *v1alpha1.SecretKeyRef, key crypto.Signer) error {
+	if ref == nil || ref.Name == "" {
+		return fmt.Errorf("privateKeySecretRef required")
+	}
+	keyName := ref.Key
+	if keyName == "" {
+		keyName = "tls.key"
+	}
+	pemBytes, err := acme.MarshalAccountKeyPEM(key)
+	if err != nil {
+		return err
+	}
+	var sec corev1.Secret
+	err = c.Get(ctx, client.ObjectKey{Namespace: ns, Name: ref.Name}, &sec)
+	if apierrors.IsNotFound(err) {
+		sec = corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: ref.Name},
+			Type:       corev1.SecretTypeOpaque,
+			Data:       map[string][]byte{keyName: pemBytes},
+		}
+		return c.Create(ctx, &sec)
+	}
+	if err != nil {
+		return err
+	}
+	if sec.Data == nil {
+		sec.Data = map[string][]byte{}
+	}
+	sec.Data[keyName] = pemBytes
+	return c.Update(ctx, &sec)
 }
 
 func readSecretKey(ctx context.Context, c client.Client, ns string, ref *v1alpha1.SecretKeyRef) (string, error) {

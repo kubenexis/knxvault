@@ -53,6 +53,29 @@ func (r *DatabaseRole) Validate() error {
 		if len(r.CreationStatements) == 0 {
 			return fmt.Errorf("creation_statements are required for managed execution mode")
 		}
+		// W50-22: default strict SQL allow-list for managed statements.
+		// Callers that need custom SQL can set Config["sql_strict"]="false" only when explicitly allowed.
+		strict := true
+		if r.Config != nil {
+			if v, ok := r.Config["sql_strict"]; ok {
+				switch t := v.(type) {
+				case bool:
+					strict = t
+				case string:
+					strict = t != "false" && t != "0"
+				}
+			}
+		}
+		if strict {
+			if err := ValidateManagedSQLStatements(r.CreationStatements); err != nil {
+				return fmt.Errorf("creation_statements: %w", err)
+			}
+			if len(r.RevocationStatements) > 0 {
+				if err := ValidateManagedSQLStatements(r.RevocationStatements); err != nil {
+					return fmt.Errorf("revocation_statements: %w", err)
+				}
+			}
+		}
 	}
 	return nil
 }

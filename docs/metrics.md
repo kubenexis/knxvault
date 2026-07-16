@@ -1,6 +1,6 @@
 # Observability — Prometheus Metrics
 
-KNXVault exposes Prometheus metrics at **`GET /metrics`** (unauthenticated; restrict at the network layer in production).
+KNXVault exposes Prometheus metrics at **`GET /metrics`**. By default the endpoint is unauthenticated; **restrict at the network layer in production** (NetworkPolicy) or set **`KNXVAULT_METRICS_BEARER_TOKEN`** so scrapes must send `Authorization: Bearer <token>` (W50-19).
 
 ## Scrape configuration
 
@@ -37,8 +37,23 @@ prometheus.io/port: "8200"
 | `knxvault_active_leases` | Gauge | — | Cluster-wide active (non-expired, non-revoked) database leases on leader tick |
 | `knxvault_openssl_breaker_open` | Gauge | — | `1` when OpenSSL circuit breaker is open |
 | `knxvault_raft_tls_enabled` | Gauge | — | `1` when Raft peer mTLS is configured |
+| `knxvault_audit_forward_sent_total` | Counter | — | Audit entries successfully forwarded (W50-27) |
+| `knxvault_audit_forward_dropped_total` | Counter | — | Audit entries dropped when forward queue is full |
+| `knxvault_audit_forward_failed_total` | Counter | — | Audit forward HTTP failures |
 
 Go runtime metrics are also exposed via the default Prometheus registry.
+
+## Metrics authentication (W50-19)
+
+```bash
+export KNXVAULT_METRICS_BEARER_TOKEN=$(openssl rand -hex 16)
+# Prometheus scrape_configs:
+#   authorization:
+#     type: Bearer
+#     credentials: <same token>
+```
+
+When unset, rely on NetworkPolicy / mesh mTLS to keep `/metrics` off public ingress.
 
 ## Grafana dashboard
 

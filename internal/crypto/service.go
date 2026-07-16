@@ -4,6 +4,8 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
+
+	"github.com/kubenexis/knxvault/internal/crypto/memzero"
 )
 
 const dekSize = 32
@@ -121,11 +123,13 @@ func (s *Service) DecryptWithDEK(dek, ciphertext []byte) ([]byte, error) {
 }
 
 // Seal encrypts plaintext: generates DEK, encrypts data, returns ciphertext and encrypted DEK.
+// The plaintext DEK is zeroed before return (W50-16).
 func (s *Service) Seal(plaintext []byte) (ciphertext, dekEnc []byte, err error) {
 	dek, err := s.GenerateDEK()
 	if err != nil {
 		return nil, nil, err
 	}
+	defer memzero.Bytes(dek)
 	ciphertext, err = s.EncryptWithDEK(dek, plaintext)
 	if err != nil {
 		return nil, nil, err
@@ -138,10 +142,12 @@ func (s *Service) Seal(plaintext []byte) (ciphertext, dekEnc []byte, err error) 
 }
 
 // Open decrypts ciphertext using an encrypted DEK.
+// The plaintext DEK is zeroed before return (W50-16).
 func (s *Service) Open(ciphertext, dekEnc []byte) ([]byte, error) {
 	dek, err := s.DecryptDEK(dekEnc)
 	if err != nil {
 		return nil, err
 	}
+	defer memzero.Bytes(dek)
 	return s.DecryptWithDEK(dek, ciphertext)
 }

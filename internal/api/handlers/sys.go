@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -234,6 +235,14 @@ func (h *SysHandler) Unseal(c *gin.Context) {
 	if err != nil {
 		_ = c.Error(common.Wrap(common.ErrCodeValidation, "invalid base64 unseal key", err))
 		return
+	}
+	// W50-28: progressive backoff between failed unseal attempts.
+	if ra, ok := h.seal.(interface{ UnsealRetryAfter() time.Duration }); ok {
+		if wait := ra.UnsealRetryAfter(); wait > 0 {
+			c.Header("Retry-After", fmt.Sprintf("%d", int(wait.Seconds())+1))
+			_ = c.Error(common.New(common.ErrCodeForbidden, "unseal rate limited; retry later"))
+			return
+		}
 	}
 	if !h.seal.Unseal(raw) {
 		_ = c.Error(common.New(common.ErrCodeValidation, "invalid unseal key"))

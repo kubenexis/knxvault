@@ -54,6 +54,16 @@ func (t *LockoutTracker) IsLocked(key string) bool {
 	return true
 }
 
+// IsLockedAny reports whether any of the keys is locked out (W50-18).
+func (t *LockoutTracker) IsLockedAny(keys ...string) bool {
+	for _, k := range keys {
+		if t.IsLocked(k) {
+			return true
+		}
+	}
+	return false
+}
+
 func (t *LockoutTracker) purgeExpiredLocked(now time.Time) {
 	for key, until := range t.locked {
 		if now.After(until) {

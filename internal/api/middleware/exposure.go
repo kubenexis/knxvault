@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"io"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -15,7 +16,12 @@ import (
 	"github.com/kubenexis/knxvault/internal/domain/common"
 )
 
-const exposureSignatureHeader = "X-KNXVault-Exposure-Signature"
+const (
+	exposureSignatureHeader = "X-KNXVault-Exposure-Signature"
+	exposureTimestampHeader = "X-KNXVault-Exposure-Timestamp"
+	// MaxExposureSkew is the max absolute clock skew accepted for signed exposure reports (W50-24).
+	MaxExposureSkew = 5 * time.Minute
+)
 
 // ExposureSigning verifies HMAC signatures on exposure reports.
 type ExposureSigning struct {
@@ -23,6 +29,8 @@ type ExposureSigning struct {
 	seenMu  sync.Mutex
 	seen    map[string]time.Time
 	seenTTL time.Duration
+	// maxSkew is absolute |now-ts| allowed; 0 uses MaxExposureSkew.
+	maxSkew time.Duration
 }
 
 // NewExposureSigning constructs exposure report signing middleware.
@@ -30,7 +38,12 @@ func NewExposureSigning(key string) *ExposureSigning {
 	if key == "" {
 		return nil
 	}
-	return &ExposureSigning{key: []byte(key), seen: make(map[string]time.Time), seenTTL: 5 * time.Minute}
+	return &ExposureSigning{
+		key:     []byte(key),
+		seen:    make(map[string]time.Time),
+		seenTTL: 5 * time.Minute,
+		maxSkew: MaxExposureSkew,
+	}
 }
 
 func (s *ExposureSigning) markSeen(signature string) bool {
@@ -49,6 +62,16 @@ func (s *ExposureSigning) markSeen(signature string) bool {
 	return true
 }
 
+// SignExposurePayload computes the HMAC for body + timestamp (tests / clients).
+// MAC = HMAC-SHA256(key, timestamp + "\n" + body).
+func SignExposurePayload(key, timestamp string, body []byte) string {
+	mac := hmac.New(sha256.New, []byte(key))
+	_, _ = mac.Write([]byte(timestamp))
+	_, _ = mac.Write([]byte("\n"))
+	_, _ = mac.Write(body)
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
 // Middleware validates the exposure report signature when configured.
 func (s *ExposureSigning) Middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -64,20 +87,39 @@ func (s *ExposureSigning) Middleware() gin.HandlerFunc {
 			abortUnauthorized(c, "exposure signature required")
 			return
 		}
+		tsHeader := c.GetHeader(exposureTimestampHeader)
+		if tsHeader == "" {
+			abortUnauthorized(c, "exposure timestamp required")
+			return
+		}
+		tsUnix, err := strconv.ParseInt(tsHeader, 10, 64)
+		if err != nil {
+			abortUnauthorized(c, "invalid exposure timestamp")
+			return
+		}
+		skew := s.maxSkew
+		if skew <= 0 {
+			skew = MaxExposureSkew
+		}
+		ts := time.Unix(tsUnix, 0)
+		if d := time.Since(ts); d > skew || d < -skew {
+			abortUnauthorized(c, "exposure timestamp outside allowed skew")
+			return
+		}
 		body, err := io.ReadAll(c.Request.Body)
 		if err != nil {
 			abortUnauthorized(c, "read body failed")
 			return
 		}
 		c.Request.Body = io.NopCloser(bytes.NewReader(body))
-		mac := hmac.New(sha256.New, s.key)
-		_, _ = mac.Write(body)
-		expected := hex.EncodeToString(mac.Sum(nil))
+		expected := SignExposurePayload(string(s.key), tsHeader, body)
 		if !hmac.Equal([]byte(signature), []byte(expected)) {
 			abortUnauthorized(c, "invalid exposure signature")
 			return
 		}
-		if !s.markSeen(signature) {
+		// Replay key includes timestamp so same body at different times is distinct.
+		replayKey := tsHeader + ":" + signature
+		if !s.markSeen(replayKey) {
 			abortUnauthorized(c, "exposure report replay detected")
 			return
 		}

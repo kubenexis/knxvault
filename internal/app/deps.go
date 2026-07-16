@@ -268,10 +268,14 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 	}
 
 	if cfg.RootToken != "" {
-		if err := tokenStore.RegisterRootToken(ctx, cfg.RootToken, []string{"admin"}); err != nil {
+		ttl := cfg.RootTokenTTL
+		if ttl <= 0 {
+			ttl = auth.DefaultRootTokenTTL
+		}
+		if err := tokenStore.RegisterRootTokenTTL(ctx, cfg.RootToken, []string{"admin"}, ttl); err != nil {
 			return nil, fmt.Errorf("register root token: %w", err)
 		}
-		log.Info("root token registered")
+		log.Info("root token registered", zap.Duration("ttl", ttl))
 	}
 	deps.MachineIdentityService = service.NewMachineIdentityService(deps.MachineIdentityRepo, deps.AuditService)
 	if deps.SecretsService != nil {
@@ -297,6 +301,7 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 		deps.AuthService.EnsureAppRoleStore().SetPersistPath(filepath.Join(cfg.Raft.DataDir, "approles.json"))
 	}
 	deps.AuthService.SetRBACSyncer(deps.PolicyService)
+	deps.AuthService.SetRBACSyncFailClosed(cfg.RBACSyncFailClosed)
 	deps.AuthService.SetRoleResolver(auth.NewRepositoryRoleResolver(deps.RoleRepo))
 	deps.AuthService.SetOIDCValidator(auth.NewOIDCValidator(), cfg.OIDCDefaultTTL)
 	deps.AuthService.SetMachineIdentityRecorder(deps.MachineIdentityService)

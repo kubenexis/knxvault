@@ -260,6 +260,40 @@ func overlayEnv(cfg Config) (Config, error) {
 		}
 		cfg.TokenCreateRateLimitRPM = rpm
 	}
+	if v := os.Getenv("KNXVAULT_RBAC_SYNC_FAIL_CLOSED"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_RBAC_SYNC_FAIL_CLOSED: %w", err)
+		}
+		cfg.RBACSyncFailClosed = b
+	}
+	if v := os.Getenv("KNXVAULT_TRUSTED_PROXIES"); v != "" {
+		cfg.TrustedProxies = splitCSV(v)
+	}
+	if v := os.Getenv("KNXVAULT_METRICS_BEARER_TOKEN"); v != "" {
+		cfg.MetricsBearerToken = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("KNXVAULT_ROOT_TOKEN_TTL"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_ROOT_TOKEN_TTL: %w", err)
+		}
+		cfg.RootTokenTTL = d
+	}
+	if v := os.Getenv("KNXVAULT_RAFT_ALLOW_INSECURE"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_RAFT_ALLOW_INSECURE: %w", err)
+		}
+		cfg.RaftAllowInsecure = b
+	}
+	if v := os.Getenv("KNXVAULT_MANAGED_SQL_STRICT"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_MANAGED_SQL_STRICT: %w", err)
+		}
+		cfg.ManagedSQLStrict = b
+	}
 
 	raft, err := overlayRaftEnv(cfg.Raft)
 	if err != nil {

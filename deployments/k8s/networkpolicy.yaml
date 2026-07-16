@@ -12,10 +12,20 @@ spec:
   policyTypes:
     - Ingress
   ingress:
+    # API clients via ingress controller (do not expose /metrics on this path in production
+    # without KNXVAULT_METRICS_BEARER_TOKEN or a separate scrape NetworkPolicy — W50-19).
     - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8200
+    # Optional: allow in-cluster Prometheus to scrape /metrics (prefer bearer token too).
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
       ports:
         - protocol: TCP
           port: 8200

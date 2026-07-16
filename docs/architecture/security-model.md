@@ -95,7 +95,15 @@ When KNXVault runs in a Kubernetes cluster, `POST /auth/kubernetes` validates th
 
 **RBAC cluster sync:** Each node reloads persisted policies from Raft before `Authorize` when the policy set hash changes, so policy writes on the leader are visible on followers without restart. `SyncRBAC` holds an exclusive lock across list-and-reload to avoid overwriting concurrent policy updates with a stale snapshot.
 
-Tokens carry a TTL (`KNXVAULT_TOKEN_TTL`, default 24h). The root token should be rotated or disabled after bootstrap policies are established.
+Tokens carry a TTL (`KNXVAULT_TOKEN_TTL`, default 24h). The bootstrap **root token** defaults to **`KNXVAULT_ROOT_TOKEN_TTL=72h`** (W50-26; was 365d) and must be rotated to scoped admin tokens after bootstrap policies are established.
+
+### Trusted proxies and login lockout (W50-18)
+
+Gin does **not** trust `X-Forwarded-For` unless you set **`KNXVAULT_TRUSTED_PROXIES`** to load-balancer CIDRs. Without it, lockout keys use the TCP peer address. When identity is known (SA subject / OIDC sub), lockout prefers the identity key over IP so shared NATs cannot bypass per-principal lockouts as easily.
+
+### Raft mTLS (W50-20)
+
+Multi-node Raft requires `KNXVAULT_RAFT_MTLS_CERT` / `KEY` / `CA`. Lab-only: `KNXVAULT_RAFT_ALLOW_INSECURE=true`.
 
 ## Authorization (RBAC)
 

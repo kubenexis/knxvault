@@ -3,6 +3,7 @@ package app_test
 import (
 	"bytes"
 	"testing"
+	"time"
 
 	"github.com/kubenexis/knxvault/internal/app"
 )
@@ -34,11 +35,34 @@ func TestSealStateRoundTrip(t *testing.T) {
 	if seal.Unseal(wrong) {
 		t.Fatal("expected invalid unseal to fail")
 	}
+	// W50-28: wait out progressive backoff before valid unseal.
+	if wait := seal.UnsealRetryAfter(); wait > 0 {
+		time.Sleep(wait + 20*time.Millisecond)
+	}
 	if !seal.Unseal(key) {
 		t.Fatal("expected valid unseal")
 	}
 	if seal.Sealed() {
 		t.Fatal("expected unsealed after unseal")
+	}
+}
+
+func TestSealStateUnsealBackoff(t *testing.T) {
+	key := make([]byte, 32)
+	for i := range key {
+		key[i] = byte(i)
+	}
+	seal := app.NewSealState(key)
+	wrong := make([]byte, 32)
+	if seal.Unseal(wrong) {
+		t.Fatal("expected fail")
+	}
+	// Immediate retry while backoff active should fail even with correct key.
+	if seal.Unseal(key) {
+		t.Fatal("expected backoff to block unseal")
+	}
+	if seal.UnsealRetryAfter() <= 0 {
+		t.Fatal("expected positive retry-after")
 	}
 }
 

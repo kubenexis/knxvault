@@ -47,4 +47,8 @@ type RouterDeps struct {
 	RequestSigning       *middleware.RequestSigning
 	HAStatus             handlers.HAStatusProvider
 	IsLeader             func() bool
+	// TrustedProxies configures Gin X-Forwarded-For trust (W50-18). nil/empty = trust none.
+	TrustedProxies []string
+	// MetricsBearerToken when set authenticates GET /metrics (W50-19).
+	MetricsBearerToken string
 }

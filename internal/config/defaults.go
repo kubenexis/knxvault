@@ -1,6 +1,10 @@
 package config
 
-import "github.com/kubenexis/knxvault/internal/version"
+import (
+	"time"
+
+	"github.com/kubenexis/knxvault/internal/version"
+)
 
 func defaults() Config {
 	return Config{
@@ -26,6 +30,9 @@ func defaults() Config {
 		TokenCreateRateLimitRPM:       defaultTokenCreateRateLimitRPM,
 		AuthLockoutThreshold:          defaultAuthLockoutThreshold,
 		AuthLockoutTTL:                defaultAuthLockoutTTL,
+		RBACSyncFailClosed:            true,
+		ManagedSQLStrict:              true,
+		RootTokenTTL:                  72 * time.Hour,
 		Raft:                          defaultRaft(),
 	}
 }

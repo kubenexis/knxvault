@@ -38,3 +38,26 @@ func TestRateLimiterBlocksExcess(t *testing.T) {
 		t.Fatalf("status = %d, want 429", rec.Code)
 	}
 }
+
+func TestRateLimiterEvictsWhenOverMaxBuckets(t *testing.T) {
+	limiter := middleware.NewRateLimiter(100, true)
+	limiter.SetMaxBuckets(2)
+	// Create three distinct client keys via direct allow path is not exported;
+	// exercise Middleware with different RemoteAddr values.
+	r := gin.New()
+	r.Use(limiter.Middleware())
+	r.GET("/test", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	for i, ip := range []string{"10.0.0.1:1", "10.0.0.2:1", "10.0.0.3:1"} {
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.RemoteAddr = ip
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("request %d status = %d", i, rec.Code)
+		}
+	}
+	if n := limiter.BucketCount(); n > 2 {
+		t.Fatalf("bucket count = %d, want <= 2", n)
+	}
+}

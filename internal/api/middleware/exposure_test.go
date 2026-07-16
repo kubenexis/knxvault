@@ -2,12 +2,11 @@ package middleware_test
 
 import (
 	"bytes"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -16,12 +15,11 @@ import (
 
 func TestExposureSigningRejectsReplay(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	key := []byte("exposure-secret")
-	signing := middleware.NewExposureSigning(string(key))
+	key := "exposure-secret"
+	signing := middleware.NewExposureSigning(key)
 	body := []byte(`{"detector":"scanner","fingerprint":"fp-1"}`)
-	mac := hmac.New(sha256.New, key)
-	_, _ = mac.Write(body)
-	sig := hex.EncodeToString(mac.Sum(nil))
+	ts := strconv.FormatInt(time.Now().Unix(), 10)
+	sig := middleware.SignExposurePayload(key, ts, body)
 
 	r := gin.New()
 	r.POST("/sys/exposure/report", signing.Middleware(), func(c *gin.Context) {
@@ -30,17 +28,41 @@ func TestExposureSigningRejectsReplay(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/sys/exposure/report", bytes.NewReader(body))
 	req.Header.Set("X-KNXVault-Exposure-Signature", sig)
+	req.Header.Set("X-KNXVault-Exposure-Timestamp", ts)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("first request status = %d", rec.Code)
+		t.Fatalf("first request status = %d body=%s", rec.Code, rec.Body.String())
 	}
 
 	req = httptest.NewRequest(http.MethodPost, "/sys/exposure/report", bytes.NewReader(body))
 	req.Header.Set("X-KNXVault-Exposure-Signature", sig)
+	req.Header.Set("X-KNXVault-Exposure-Timestamp", ts)
 	rec = httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("replay status = %d, want 401", rec.Code)
+	}
+}
+
+func TestExposureSigningRejectsStaleTimestamp(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	key := "exposure-secret"
+	signing := middleware.NewExposureSigning(key)
+	body := []byte(`{"detector":"scanner"}`)
+	ts := strconv.FormatInt(time.Now().Add(-time.Hour).Unix(), 10)
+	sig := middleware.SignExposurePayload(key, ts, body)
+
+	r := gin.New()
+	r.POST("/sys/exposure/report", signing.Middleware(), func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+	req := httptest.NewRequest(http.MethodPost, "/sys/exposure/report", bytes.NewReader(body))
+	req.Header.Set("X-KNXVault-Exposure-Signature", sig)
+	req.Header.Set("X-KNXVault-Exposure-Timestamp", ts)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401 for stale timestamp", rec.Code)
 	}
 }

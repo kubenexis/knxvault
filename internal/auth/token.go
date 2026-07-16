@@ -157,13 +157,26 @@ func (s *TokenStore) Authenticate(ctx context.Context, token string) (*TokenReco
 	return &copy, nil
 }
 
-// RegisterRootToken registers a bootstrap token hash.
+// DefaultRootTokenTTL is the bootstrap root token lifetime (W50-26).
+// Prefer rotating to scoped admin tokens after bootstrap; override via RegisterRootTokenTTL.
+const DefaultRootTokenTTL = 72 * time.Hour
+
+// RegisterRootToken registers a bootstrap token hash with DefaultRootTokenTTL.
 func (s *TokenStore) RegisterRootToken(ctx context.Context, token string, policies []string) error {
+	return s.RegisterRootTokenTTL(ctx, token, policies, DefaultRootTokenTTL)
+}
+
+// RegisterRootTokenTTL registers a bootstrap token with an explicit TTL.
+// ttl <= 0 uses DefaultRootTokenTTL.
+func (s *TokenStore) RegisterRootTokenTTL(ctx context.Context, token string, policies []string, ttl time.Duration) error {
+	if ttl <= 0 {
+		ttl = DefaultRootTokenTTL
+	}
 	record := TokenRecord{
 		ID:        hashToken(token),
 		Subject:   "root",
 		Policies:  policies,
-		ExpiresAt: time.Now().UTC().Add(365 * 24 * time.Hour),
+		ExpiresAt: time.Now().UTC().Add(ttl),
 	}
 	return s.save(ctx, record)
 }
@@ -231,18 +244,19 @@ type AuditRecorder interface {
 
 // Service coordinates authentication flows.
 type Service struct {
-	tokens    *TokenStore
-	rbac      *RBAC
-	rbacSync  RBACSyncer
-	roles     RoleResolver
-	jwtSecret []byte
-	k8s       K8sLoginOptions
-	oidc      *OIDCValidator
-	oidcTTL   time.Duration
-	nhi       MachineIdentityRecorder
-	audit     AuditRecorder
-	lockout   *LockoutTracker
-	approles  *AppRoleStore
+	tokens             *TokenStore
+	rbac               *RBAC
+	rbacSync           RBACSyncer
+	rbacSyncFailClosed bool
+	roles              RoleResolver
+	jwtSecret          []byte
+	k8s                K8sLoginOptions
+	oidc               *OIDCValidator
+	oidcTTL            time.Duration
+	nhi                MachineIdentityRecorder
+	audit              AuditRecorder
+	lockout            *LockoutTracker
+	approles           *AppRoleStore
 }
 
 // RoleResolver resolves role names to policy names.
@@ -274,6 +288,24 @@ func (s *Service) SetRBACSyncer(syncer RBACSyncer) {
 	s.rbacSync = syncer
 }
 
+// SetRBACSyncFailClosed when true denies authorization if SyncRBAC fails (W50-17).
+func (s *Service) SetRBACSyncFailClosed(failClosed bool) {
+	if s != nil {
+		s.rbacSyncFailClosed = failClosed
+	}
+}
+
+func (s *Service) syncRBAC(ctx context.Context) error {
+	if s == nil || s.rbacSync == nil {
+		return nil
+	}
+	err := s.rbacSync.SyncRBAC(ctx)
+	if err != nil && s.rbacSyncFailClosed {
+		return common.Wrap(common.ErrCodeUnavailable, "rbac sync failed", err)
+	}
+	return nil
+}
+
 // SetK8sLoginOptions configures Kubernetes login validation.
 func (s *Service) SetK8sLoginOptions(opts K8sLoginOptions) {
 	s.k8s = opts
@@ -302,9 +334,7 @@ func (s *Service) SetLockoutTracker(tracker *LockoutTracker) {
 
 // SimulatePolicy evaluates authorization for policy simulation (W41-04).
 func (s *Service) SimulatePolicy(ctx context.Context, policies []string, resource, capability string, req RequestContext) AuthzResult {
-	if s.rbacSync != nil {
-		_ = s.rbacSync.SyncRBAC(ctx)
-	}
+	_ = s.syncRBAC(ctx) // simulation still uses last-known policies on soft fail
 	return s.rbac.AuthorizeDetailed(s.rbac.ResolvePolicyNames(policies), resource, capability, req)
 }
 
@@ -316,8 +346,8 @@ func (s *Service) AuthorizePath(ctx context.Context, principal Principal, resour
 	if strings.HasPrefix(resource, "secrets/kv/") && !KVPathAllowedForPrincipal(principal, resource) {
 		return common.New(common.ErrCodeForbidden, "path outside agent prefix")
 	}
-	if s.rbacSync != nil {
-		_ = s.rbacSync.SyncRBAC(ctx)
+	if err := s.syncRBAC(ctx); err != nil {
+		return err
 	}
 	req := RequestContext{Resource: resource, Action: capability, AgentID: principal.AgentID}
 	if existing, ok := RequestContextFromContext(ctx); ok {
@@ -341,7 +371,7 @@ func (s *Service) LoginWithToken(ctx context.Context, token string) (*TokenRecor
 func (s *Service) LoginKubernetes(ctx context.Context, role, jwtToken string) (string, *TokenRecord, error) {
 	auditCtx := loginAuditFromContext(ctx, "kubernetes")
 	lockKey := LoginLockoutKey("kubernetes", auditCtx)
-	if s.lockout != nil && s.lockout.IsLocked(lockKey) {
+	if s.lockout != nil && s.lockout.IsLockedAny(LoginLockoutKeys("kubernetes", auditCtx)...) {
 		auditCtx.FailureReason = "identity locked out"
 		s.recordLoginAudit(ctx, false, auditCtx)
 		return "", nil, common.New(common.ErrCodeForbidden, "identity locked out")
@@ -430,7 +460,7 @@ func (s *Service) LoginKubernetes(ctx context.Context, role, jwtToken string) (s
 func (s *Service) LoginOIDC(ctx context.Context, role, jwtToken string) (string, *TokenRecord, error) {
 	auditCtx := loginAuditFromContext(ctx, "oidc")
 	lockKey := LoginLockoutKey("oidc", auditCtx)
-	if s.lockout != nil && s.lockout.IsLocked(lockKey) {
+	if s.lockout != nil && s.lockout.IsLockedAny(LoginLockoutKeys("oidc", auditCtx)...) {
 		auditCtx.FailureReason = "identity locked out"
 		s.recordLoginAudit(ctx, false, auditCtx)
 		return "", nil, common.New(common.ErrCodeForbidden, "identity locked out")
@@ -606,8 +636,8 @@ func (s *Service) Authorize(ctx context.Context, principal Principal, resource, 
 	if strings.HasPrefix(resource, "secrets/kv/") && !KVPathAllowedForPrincipal(principal, resource) {
 		return common.New(common.ErrCodeForbidden, "path outside agent prefix")
 	}
-	if s.rbacSync != nil {
-		_ = s.rbacSync.SyncRBAC(ctx)
+	if err := s.syncRBAC(ctx); err != nil {
+		return err
 	}
 	req := RequestContext{Resource: resource, Action: action, AgentID: principal.AgentID}
 	if existing, ok := RequestContextFromContext(ctx); ok {

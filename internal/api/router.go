@@ -20,6 +20,12 @@ import (
 // NewRouter builds the Gin engine with all routes registered.
 func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps RouterDeps) *gin.Engine {
 	r := gin.New()
+	// W50-18: do not trust X-Forwarded-For unless operators configure TrustedProxies.
+	if len(deps.TrustedProxies) > 0 {
+		_ = r.SetTrustedProxies(deps.TrustedProxies)
+	} else {
+		_ = r.SetTrustedProxies(nil)
+	}
 	r.Use(gin.Recovery())
 	if tracingEnabled {
 		r.Use(otelgin.Middleware("knxvault"))
@@ -35,7 +41,7 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 
 	build := buildinfo.Get()
 	metrics.SetBuildInfo(build.Version, build.Commit, build.BuildID)
-	r.GET("/metrics", metrics.Handler())
+	r.GET("/metrics", metrics.HandlerWithAuth(deps.MetricsBearerToken))
 
 	health := handlers.NewHealthHandler(version, deps.Ready, deps.HAStatus, deps.IsLeader)
 	r.GET("/health", health.Live)
@@ -180,12 +186,13 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 			v1Auth.Use(middleware.SealGuard(deps.Seal))
 		}
 		// Default PKI mount and custom mounts (Issuer.spec.vault.path = <mount>/sign/<role>).
+		// W50-29: path-scoped capability pki|mount /sign/:role (falls back to pki write).
 		v1Auth.POST("/pki/sign/:role",
-			middleware.RequirePermission(deps.AuthService, "pki", "write"),
+			middleware.RequirePKISignCapability(deps.AuthService, "pki"),
 			vaultCompat.SignPKI,
 		)
 		v1Auth.POST("/:mount/sign/:role",
-			middleware.RequirePermission(deps.AuthService, "pki", "write"),
+			middleware.RequirePKISignCapability(deps.AuthService, ""),
 			vaultCompat.SignPKI,
 		)
 	}

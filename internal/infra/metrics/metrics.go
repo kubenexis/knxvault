@@ -2,6 +2,8 @@
 package metrics
 
 import (
+	"crypto/subtle"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -95,6 +97,24 @@ var (
 			Help: "1 when Raft peer mutual TLS is enabled",
 		},
 	)
+	auditForwardSentTotal = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "knxvault_audit_forward_sent_total",
+			Help: "Audit entries successfully forwarded to SIEM",
+		},
+	)
+	auditForwardDroppedTotal = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "knxvault_audit_forward_dropped_total",
+			Help: "Audit entries dropped when forward queue is full",
+		},
+	)
+	auditForwardFailedTotal = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "knxvault_audit_forward_failed_total",
+			Help: "Audit forward HTTP failures",
+		},
+	)
 )
 
 // SetBuildInfo records the running application build metadata.
@@ -164,9 +184,35 @@ func SetOpenSSLBreakerOpen(open bool) {
 	}
 }
 
+// IncAuditForwardSent increments successful audit SIEM forwards (W50-27).
+func IncAuditForwardSent() { auditForwardSentTotal.Inc() }
+
+// IncAuditForwardDropped increments dropped audit SIEM forwards (queue full).
+func IncAuditForwardDropped() { auditForwardDroppedTotal.Inc() }
+
+// IncAuditForwardFailed increments failed audit SIEM HTTP posts.
+func IncAuditForwardFailed() { auditForwardFailedTotal.Inc() }
+
 // Handler returns the Prometheus scrape handler.
 func Handler() gin.HandlerFunc {
 	return gin.WrapH(promhttp.Handler())
+}
+
+// HandlerWithAuth returns a metrics handler that requires a bearer token when token is non-empty (W50-19).
+func HandlerWithAuth(token string) gin.HandlerFunc {
+	inner := promhttp.Handler()
+	if token == "" {
+		return gin.WrapH(inner)
+	}
+	want := "Bearer " + token
+	return func(c *gin.Context) {
+		got := c.GetHeader("Authorization")
+		if subtle.ConstantTimeCompare([]byte(got), []byte(want)) != 1 {
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+		inner.ServeHTTP(c.Writer, c.Request)
+	}
 }
 
 // Middleware records request counts and latency.

@@ -30,3 +30,30 @@ func TestValidateSecurityRejectsWorldReadableConfig(t *testing.T) {
 		t.Fatal("expected permission error for world-readable config")
 	}
 }
+
+func TestValidateSecurityRequiresRaftMTLSForMultiNode(t *testing.T) {
+	cfg := config.Config{
+		Raft: config.RaftConfig{
+			Enabled: true,
+			InitialMembers: map[uint64]string{
+				1: "127.0.0.1:63001",
+				2: "127.0.0.1:63002",
+			},
+		},
+		UnsealKey: "dGVzdA==",
+	}
+	if err := config.ValidateSecurity(cfg, ""); err == nil {
+		t.Fatal("expected raft mTLS required")
+	}
+	cfg.RaftAllowInsecure = true
+	if err := config.ValidateSecurity(cfg, ""); err != nil {
+		t.Fatalf("allow insecure: %v", err)
+	}
+	cfg.RaftAllowInsecure = false
+	cfg.Raft.MTLSCertFile = "c"
+	cfg.Raft.MTLSKeyFile = "k"
+	cfg.Raft.MTLSCAFile = "ca"
+	if err := config.ValidateSecurity(cfg, ""); err != nil {
+		t.Fatalf("with mTLS: %v", err)
+	}
+}

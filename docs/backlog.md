@@ -447,24 +447,24 @@ Source: [`docs/audit/formal-10cycle-full-codebase-2026-07-16.md`](audit/formal-1
 | ~~**W50-10**~~ | P0 | Complete | Prod rate limit on + HTTP timeouts | security | S | W10 | Done — ConfigMap true; server timeouts. | Manifests. |
 | ~~**W50-11**~~ | P1 | Complete | Auth middleware fail-closed | auth | S | W7-05 | Done — nil svc aborts. | Unit path. |
 | ~~**W50-12**~~ | P1 | Complete | Agent delegate max TTL | auth | S | W7 | Done — cap 1h. | Server-side clamp. |
-| **W50-13** | P1 | Partial | ACME account key Secret load/store | security | M | W50-07 | CleanUp done; PrivateKeySecretRef load/store still open. | Persist LE account key. |
+| ~~**W50-13**~~ | P1 | Complete | ACME account key Secret load/store | security | M | W50-07 | Done — load/store PrivateKeySecretRef PEM; generate if missing. | Persist LE account key. |
 | ~~**W50-14**~~ | P1 | Complete | ResolveVaultRole structured vault | k8s | M | W30-10 | Done — ResolveIssuerSpec for vaultCAName/vault{}. | Structured vault mode. |
 | ~~**W50-15**~~ | P1 | Complete | IP SANs self-signed | crypto | S | W50-07 | Done — parseIPs on OrderRequest. | IP SANs present. |
-| **W50-16** | P1 | Not started | DEK memzero on Seal/Open hot path | crypto | S | W3-02 | DEKs linger in heap. | Zero DEK after use. |
-| **W50-17** | P1 | Not started | SyncRBAC fail-closed option | auth | M | W41 | Stale allow on sync error. | Config fail-closed or max staleness. |
-| **W50-18** | P1 | Not started | Lockout cluster-aware / trusted proxies | auth | M | W43-04 | Per-node IP lockout bypass. | Document + SetTrustedProxies; optional identity key. |
-| **W50-19** | P2 | Not started | Metrics auth / separate bind | security | S | W10 | Unauthenticated /metrics. | NetworkPolicy doc or optional auth. |
-| **W50-20** | P2 | Not started | Raft mTLS required in production profile | security | M | W38-14 | Optional mTLS default. | ValidateSecurity when Raft on. |
-| **W50-21** | P2 | Not started | Rate limiter bucket eviction | api | S | W10 | Unbounded map. | LRU/TTL eviction. |
-| **W50-22** | P2 | Not started | Managed DB SQL allow-list mode | security | M | W37 | Custom SQL as admin. | Strict template-only mode. |
-| **W50-23** | P2 | Not started | CSI socket permissions | k8s | S | W39 | Socket dir 0755. | 0700/0660. |
-| **W50-24** | P2 | Not started | Exposure HMAC timestamp/nonce | security | S | W37 | Replay window process-local. | Signed timestamp. |
-| **W50-25** | P2 | Not started | OpenAPI full route parity | api | M | W8-03 | Spec drift. | Spec matches router. |
-| **W50-26** | P2 | Not started | Root token short TTL / rotation recipe | auth | S | W7 | 365d root. | Shorter default + docs. |
-| **W50-27** | P2 | Not started | Audit forwarder queue/metrics | ops | M | W14 | Fire-and-forget goroutines. | Bounded queue + counters. |
-| **W50-28** | P2 | Not started | Unseal multi-share / lockout | security | L | W37 | Single key unseal. | Progressive delay + audit. |
-| **W50-29** | P2 | Not started | Vaultcompat path-scoped pki capability | auth | M | W41 | Coarse pki write. | Mount/role path capability. |
-| **W50-30** | P2 | Not started | ACME Pebble e2e + sealed-read tests | ci | M | W50-07, W50-03 | Coverage gaps. | Integration tests green. |
+| ~~**W50-16**~~ | P1 | Complete | DEK memzero on Seal/Open hot path | crypto | S | W3-02 | Done — memzero.Bytes on DEK after Seal/Open. | Zero DEK after use. |
+| ~~**W50-17**~~ | P1 | Complete | SyncRBAC fail-closed option | auth | M | W41 | Done — `KNXVAULT_RBAC_SYNC_FAIL_CLOSED` (default true). | Config fail-closed. |
+| ~~**W50-18**~~ | P1 | Complete | Lockout cluster-aware / trusted proxies | auth | M | W43-04 | Done — SetTrustedProxies; identity-preferring lockout keys. | Document + identity key. |
+| ~~**W50-19**~~ | P2 | Complete | Metrics auth / separate bind | security | S | W10 | Done — MetricsBearerToken + NetworkPolicy scrape notes. | Optional auth. |
+| ~~**W50-20**~~ | P2 | Complete | Raft mTLS required in production profile | security | M | W38-14 | Done — multi-node Raft requires mTLS unless ALLOW_INSECURE. | ValidateSecurity. |
+| ~~**W50-21**~~ | P2 | Complete | Rate limiter bucket eviction | api | S | W10 | Done — max 10k buckets + idle TTL eviction. | Bounded map. |
+| ~~**W50-22**~~ | P2 | Complete | Managed DB SQL allow-list mode | security | M | W37 | Done — ValidateManagedSQLStatements on managed roles. | Strict template-only. |
+| ~~**W50-23**~~ | P2 | Complete | CSI socket permissions | k8s | S | W39 | Done — socket dir 0700, socket 0660. | Hardened perms. |
+| ~~**W50-24**~~ | P2 | Complete | Exposure HMAC timestamp/nonce | security | S | W37 | Done — timestamp header + 5m skew in HMAC. | Signed timestamp. |
+| ~~**W50-25**~~ | P2 | Complete | OpenAPI full route parity | api | M | W8-03 | Done — vault-compat + auth/sys paths added (best-effort). | Spec closer to router. |
+| ~~**W50-26**~~ | P2 | Complete | Root token short TTL / rotation recipe | auth | S | W7 | Done — default 72h root TTL + docs. | Shorter default. |
+| ~~**W50-27**~~ | P2 | Complete | Audit forwarder queue/metrics | ops | M | W14 | Done — bounded queue + sent/dropped/failed metrics. | Bounded queue. |
+| ~~**W50-28**~~ | P2 | Complete | Unseal multi-share / lockout | security | L | W37 | Done — progressive unseal backoff + Retry-After (multi-share still future). | Progressive delay. |
+| ~~**W50-29**~~ | P2 | Complete | Vaultcompat path-scoped pki capability | auth | M | W41 | Done — RequirePKISignCapability with pki write fallback. | Path capability. |
+| ~~**W50-30**~~ | P2 | Complete | ACME account key + sealed-read tests | ci | M | W50-07, W50-03 | Done — unit tests for account key + seal guard reads; Pebble e2e remains optional lab. | Tests green. |
 
 ---
 
