@@ -1,216 +1,226 @@
-# KNXVault operator runbook (end-to-end)
+# KNXVault operator runbook (Day-0 + Day-2)
 
-A single guide for **what KNXVault is**, **how the pieces fit**, and **how to install and run it day to day**.
+A single end-to-end guide: **what KNXVault is**, how to **bring it up the first time (Day-0)**, and how to **keep it healthy (Day-2)**.
 
 | Field | Value |
 |-------|-------|
 | **Audience** | Smart administrators with limited Linux/crypto depth who will dig into linked docs when needed |
-| **Scope** | Concepts → keys → install → unseal → apps (certs + secrets) → day-2 → incidents |
+| **Day-0** | Plan → generate keys → install → unseal → bootstrap policies → operator + first CA/cert → first secret → accept the platform |
+| **Day-2** | Health, unseal after restart, backup, upgrades, seal incidents, scale |
 | **Not required** | Deep cryptography, HashiCorp Vault expertise, or Let’s Encrypt |
 
-**Related deep dives** (read when this runbook points you there):
+```text
+Day-0  =  empty cluster  →  knxvault serving secrets & certs for apps
+Day-2  =  everything after acceptance (restarts, backups, upgrades, incidents)
+```
+
+**Deep dives** (when this runbook points you there):
 
 | Topic | Document |
 |-------|----------|
-| Plain-language “why secrets platforms” | [Dummies guide](../user/dummies-guide.md) |
+| Why secrets platforms exist | [Dummies guide](../user/dummies-guide.md) |
 | Key custody checklist | [Operator security](operator-security.md) |
-| Seal / unseal / multi-share | [Seal and unseal recipe](../recipes/seal-and-unseal.md) |
-| K8s manifests | [Kubernetes deployment](../deploy/kubernetes.md) |
-| Replace cert-manager | [PKI replace cert-manager](pki-replace-cert-manager.md) |
+| Seal / multi-share | [Seal and unseal](../recipes/seal-and-unseal.md) |
+| K8s manifests detail | [Kubernetes deployment](../deploy/kubernetes.md) |
+| TLS without cert-manager | [Replace cert-manager](pki-replace-cert-manager.md) |
 | Day-2 tables | [Day-2 operations](day2.md) |
-| Test / lab proof | [E2E and lab tests](../engineering/e2e-and-lab-tests.md) |
+| Lab proof | [E2E and lab tests](../engineering/e2e-and-lab-tests.md) |
 
 ---
 
-## 1. What is KNXVault?
+# Part A — What you are installing
+
+## A1. What is KNXVault?
 
 **KNXVault is a self-hosted secrets manager and private certificate authority (PKI)** for platforms—especially Kubernetes.
 
-In plain terms, it is a service that:
+It:
 
 1. **Stores secrets** (API keys, passwords, config) **encrypted**.
-2. **Issues TLS certificates** for your apps (private CA)—so you do **not** need Let’s Encrypt or cert-manager for in-cluster TLS.
-3. **Decides who may do what** (authentication + policies).
-4. **Writes an audit trail** of access.
-5. **Runs as a small highly available cluster** (typically 3 pods) that agree on data using **Raft**.
+2. **Issues TLS certificates** for your apps (private CA)—no Let’s Encrypt or cert-manager required for in-cluster TLS.
+3. **Authenticates and authorizes** callers (ServiceAccounts, tokens, optional OIDC/AppRole).
+4. **Audits** access.
+5. **Runs as a small HA cluster** (typically 3 pods) using **Raft** so members agree on data.
 
-It is **inspired by HashiCorp Vault patterns**, but it is **not** a full Vault clone. It focuses on:
+It is **Vault-like**, not a full HashiCorp Vault clone. Focus: KV, private PKI, Kubernetes auth, CSI, and a **native operator** that writes `kubernetes.io/tls` Secrets.
 
-- KV secrets  
-- Private PKI  
-- Kubernetes auth (ServiceAccounts)  
-- Delivering secrets into pods (CSI)  
-- A **Kubernetes operator** that writes `kubernetes.io/tls` Secrets for apps  
-
-### What you give applications
-
-| Need | How apps get it |
-|------|-----------------|
-| TLS for Ingress / Services | Operator creates a TLS Secret from a `KNXVaultCertificate` |
-| Config secrets / API keys | CSI mount or External Secrets Operator from KV paths |
-| Short-lived DB users (optional) | Dynamic database credentials API |
-| Login without passwords in YAML | Kubernetes ServiceAccount JWT → knxvault token |
-
-### What KNXVault is *not*
+| Application need | How they get it |
+|------------------|-----------------|
+| TLS for Ingress / Services | Operator → `KNXVaultCertificate` → TLS Secret |
+| Config / API keys | CSI mount or External Secrets from KV |
+| Login without passwords in YAML | Kubernetes ServiceAccount JWT → knxvault |
 
 | Not this | Why |
 |----------|-----|
-| A free Let’s Encrypt service | Public ACME is optional/advanced; this runbook assumes **private CA only** |
-| A full HashiCorp Vault | Only a **Vault product profile** (`/v1/*`) for tools like cert-manager’s Vault issuer |
-| Magic “encrypt Git and forget keys” | You must **generate and protect two special keys** (master + unseal) |
+| Free Let’s Encrypt | This runbook is **private CA only** |
+| Full Vault API | Only a thin **Vault product profile** (`/v1/*`) for optional cert-manager dual-run |
+| “No keys to manage” | You **must** create and protect **master** + **unseal** keys |
 
----
+## A2. Mental model (read once)
 
-## 2. Mental model (read this once)
+### Master key vs unseal key
 
-### Two different “keys” (do not mix them up)
+| Name | Env var | Job | Analogy |
+|------|---------|-----|---------|
+| **Master key** | `KNXVAULT_MASTER_KEY` | Encrypts secret material on disk / Raft | Combination for the *contents of the safe* |
+| **Unseal key** | `KNXVAULT_UNSEAL_KEY` | Allows the API to serve secrets after start or seal | Key for the *office door* |
 
-Think of a **safe** (encrypted data) and a **door lock** (may the API serve secrets right now?).
+With production Raft they **must differ**. Startup fails if unseal is missing or equals master.
 
-| Name | Environment variable | Job | Analogy |
-|------|----------------------|-----|---------|
-| **Master key** | `KNXVAULT_MASTER_KEY` | Encrypts secret material on disk / in Raft | Combination that protects the *contents of the safe* |
-| **Unseal key** | `KNXVAULT_UNSEAL_KEY` | Opens the *service* after start or after `sys/seal` | Key that unlocks the *office door* so staff can open the safe |
-
-- **Master key** is for **cryptography** (envelope encryption). Without it, backups and disk data are useless ciphertext.  
-- **Unseal key** is for **operations**. After every process restart, knxvault **starts sealed** on purpose: the process is up, but **writes and secret-bearing APIs stay blocked** until you unseal.
-
-**They must be different values** when Raft (production HA) is on. Reusing one value for both is rejected at startup.
-
-### “Sealed” is a security feature
+### Start sealed is a security feature
 
 ```text
-Pod restarts → knxvault process starts → SEALED
-                    │
-                    │  POST /sys/unseal  (correct key or enough Shamir shares)
-                    ▼
-                 UNSEALED → apps, operator, KV, PKI work
+Process start → SEALED → (unseal with key or shares) → UNSEALED → apps work
 ```
 
-- **Sealed** does **not** mean “data deleted.”  
-- **Sealed** means “this instance refuses to act as an open secrets API until authorized.”  
-- A file on disk (`seal.state`) **cannot** reopen the vault by itself.  
+- Sealed ≠ data deleted.  
+- Sealed = API will not serve secrets until authorized.  
+- Disk/`seal.state` alone **cannot** reopen the vault.  
 
-If your platform restarts pods often, plan either:
-
-- a **human unseal** after restarts, or  
-- an **automated unseal** Job that uses the unseal key from a tightly controlled Secret (same trust as storing the key in the cluster at all).
-
-### High-level architecture
+### Architecture
 
 ```mermaid
 flowchart TB
   subgraph apps [Application namespaces]
     Pod[App Pod]
-    Ing[Ingress / TLS Secret]
+    TLS[TLS Secret]
   end
   subgraph platform [Platform]
     Op[knxvault-operator]
-    CSI[CSI secrets driver]
+    CSI[CSI driver]
   end
-  subgraph kv [knxvault namespace]
+  subgraph ns [knxvault namespace]
     S0[knxvault-0]
     S1[knxvault-1]
     S2[knxvault-2]
     S0 <-->|Raft| S1
     S1 <-->|Raft| S2
   end
-  Pod -->|SA JWT login| S0
-  Pod -->|mount secrets| CSI
+  Pod -->|SA login| S0
   CSI --> S0
-  Op -->|issue / renew certs| S0
-  Op --> Ing
+  Op --> S0
+  Op --> TLS
+```
+
+### Lifecycle: Day-0 vs Day-2
+
+```mermaid
+flowchart LR
+  D0A[Plan & keys] --> D0B[Install STS]
+  D0B --> D0C[Unseal]
+  D0C --> D0D[Bootstrap RBAC]
+  D0D --> D0E[Operator + CA]
+  D0E --> D0F[First app cert + secret]
+  D0F --> D0G[Accept platform]
+  D0G --> D2[Day-2: health / backup / upgrade / incidents]
 ```
 
 ---
 
-## 3. Generate and protect the credentials
+# Part B — Day-0 (bring the platform to life)
 
-You need three secrets for a real install. Generate them on a trusted machine (your admin laptop or a secure bastion)—**not** inside a random debug pod that everyone can `kubectl exec` into.
+Day-0 ends only when you can check every box in **§B9 Acceptance**.
 
-### 3.1 Generate
+## B1. Day-0 goals and success criteria
+
+| Goal | Done when |
+|------|-----------|
+| knxvault cluster running | 3 pods Running (or 1 for lab), Raft ready |
+| Data plane open | `/ready` shows `"sealed":false` |
+| Admin access | You have a token; root plan is to retire it |
+| Policies exist | At least app + operator policies |
+| Private CA exists | `KNXVaultCA` Ready (or equivalent API CA) |
+| First TLS Secret | Sample `KNXVaultCertificate` issued |
+| First KV secret | Written and readable by an authorized path |
+| Docs for the team | Where keys live, how to unseal after restart |
+
+## B2. Plan (before you type kubectl)
+
+Answer these on paper or in your change ticket:
+
+| Question | Typical answer |
+|----------|----------------|
+| Production or lab? | Prod = 3 Raft pods; lab can be 1 |
+| Who holds master + unseal offline? | Named people / password manager / HSM |
+| Who may unseal after restart? | Human vs automated Job (document trust) |
+| How are Secrets kept out of Git? | Sealed Secrets / SOPS / ESO / cloud SM |
+| Who backs up PVCs + Secret? | Platform team |
+| First app to onboard? | Name + DNS name for TLS |
+| Do you need cert-manager dual-run? | Prefer **no** for greenfield |
+
+### Prerequisites checklist
+
+- [ ] Kubernetes 1.28+ (or documented supported version)  
+- [ ] StorageClass for Raft PVCs  
+- [ ] Capacity for 3 knxvault pods (prod)  
+- [ ] Registry for the knxvault (and operator) image  
+- [ ] `kubectl` with rights to create namespace, RBAC, STS, CRDs  
+- [ ] `openssl` on an admin machine  
+- [ ] Out-of-band place to store master/unseal/root (not only the cluster)  
+
+## B3. Generate credentials (Day-0 key ceremony)
+
+Do this on a **trusted admin host**, not a random shared pod.
 
 ```bash
-# High-entropy 32-byte values, printed as base64 text (safe to put in env vars)
-openssl rand -base64 32    # → MASTER  (save as KNXVAULT_MASTER_KEY)
-openssl rand -base64 32    # → UNSEAL  (save as KNXVAULT_UNSEAL_KEY; must differ)
-openssl rand -base64 24    # → ROOT token bootstrap (or use a long random password)
+# Run each command separately; save outputs offline immediately
+openssl rand -base64 32    # MASTER  → KNXVAULT_MASTER_KEY
+openssl rand -base64 32    # UNSEAL  → KNXVAULT_UNSEAL_KEY  (must differ from master)
+openssl rand -base64 32    # optional audit HMAC → KNXVAULT_AUDIT_SIGNING_KEY
+# Root bootstrap token: long random string (example)
+openssl rand -base64 24    # → KNXVAULT_ROOT_TOKEN
 ```
-
-`openssl` is a standard crypto toolkit. `rand -base64 32` means: “give me 32 random bytes, shown as base64 text.” You do not need to understand AES to use this correctly.
-
-**Record them offline** (password manager, HSM, sealed envelope procedure)—**before** you depend on the cluster alone.
-
-### 3.2 What each is for
 
 | Secret | If lost | If leaked |
 |--------|---------|-----------|
-| **Master key** | Cannot decrypt backups or existing ciphertext | Attacker with disk/backup can decrypt secrets offline |
-| **Unseal key** | Cannot open a sealed cluster (service stays closed) | Attacker who can reach `/sys/unseal` may open the API |
-| **Root token** | Lose bootstrap admin until recovery path | Full API control until revoked/rotated |
+| Master | Cannot decrypt data/backups | Offline decrypt of stolen disks/backups |
+| Unseal | Cannot open sealed API | Attacker may open API if they can reach unseal |
+| Root token | Lose bootstrap admin | Full control until rotated |
 
-### 3.3 Protect them (minimum standard)
+**Protect (minimum):**
 
-| Do | Don’t |
-|----|--------|
-| Store in a **Kubernetes Secret** that is **not** plain in Git (Sealed Secrets, SOPS, External Secrets, cloud secret manager) | Commit real keys to Git, chat, or tickets |
-| Restrict who can `get secret/knxvault` with RBAC | Leave `cluster-admin` for everyone “for convenience” |
-| Back up master + unseal with **same care** as the cluster backup | Assume PVC backup alone saves you if keys are only on one laptop |
-| NetworkPolicy so only admin / unseal Job can hit the API broadly | Expose knxvault Service on the public Internet without TLS and policy |
-| Rotate the **root token** after bootstrap | Leave the bootstrap root token as the permanent admin credential |
+1. Never commit real values to Git.  
+2. Store in Sealed Secrets / external secret manager / offline vault.  
+3. Restrict `get secrets` RBAC on the knxvault Secret.  
+4. Back up master + unseal offline with dual control if required by policy.  
+5. Plan to **stop using root** after bootstrap (§B6).  
 
-Full checklist: [Operator security — key custody](operator-security.md#5-master-key-and-unseal-key-custody).
+Details: [Operator security §5](operator-security.md#5-master-key-and-unseal-key-custody).
 
-### 3.4 Optional: multi-share (Shamir) unseal
+**Optional multi-share:** for multi-person unseal, set threshold later and split with `go run ./scripts/shamir-split` — see [seal recipe](../recipes/seal-and-unseal.md). For most Day-0 platforms, use **single unseal key** first.
 
-For high security, you can require **several people** each hold a **share** of the unseal secret (`KNXVAULT_UNSEAL_THRESHOLD=2` or more). The process still loads the full unseal secret at start; shares control **who must cooperate to open** the API.
+## B4. Install knxvault (Kubernetes Day-0)
 
-- Offline split: `go run ./scripts/shamir-split -key "$UNSEAL" -n 3 -t 2`  
-- Open: `POST /sys/unseal` with `{"share":"..."}` until threshold is met  
-- Details: [Seal and unseal](../recipes/seal-and-unseal.md)
-
-For most “platform owns HA/backup” installs, **single unseal key + tightly controlled Secret (+ optional auto-unseal Job)** is the practical path.
-
----
-
-## 4. Install on Kubernetes (production shape)
-
-### 4.1 Prerequisites
-
-- Kubernetes cluster with enough nodes for **3** knxvault pods (preferred)  
-- A **StorageClass** that can provide a PVC per pod (Raft data)  
-- Ability to build/push a container image, or load one into your registry  
-- `kubectl` and cluster-admin (or equivalent) for first install  
-
-### 4.2 Build image
+### B4.1 Build and publish image
 
 ```bash
 cd /path/to/knxvault
 make docker-build
-# Tag and push to YOUR registry, then set that image in statefulset.yaml
+# docker tag / push to your registry
+# set image: in deployments/k8s/statefulset.yaml
 ```
 
-### 4.3 Fill the Secret
+### B4.2 Create the Secret
 
-Edit [`deployments/k8s/secret.yaml`](../../deployments/k8s/secret.yaml) **or** create the Secret out-of-band:
+Use [`deployments/k8s/secret.yaml`](../../deployments/k8s/secret.yaml) as a template. Replace every `REPLACE_ME`:
 
-| Key | Required | Notes |
-|-----|----------|--------|
-| `KNXVAULT_MASTER_KEY` | Yes | From §3.1 |
-| `KNXVAULT_UNSEAL_KEY` | Yes (Raft) | Different from master |
-| `KNXVAULT_ROOT_TOKEN` | Yes (bootstrap) | Strong random; plan to replace |
-| `KNXVAULT_AUDIT_SIGNING_KEY` | Recommended | Another `openssl rand -base64 32` |
+| Key | Required |
+|-----|----------|
+| `KNXVAULT_MASTER_KEY` | Yes |
+| `KNXVAULT_UNSEAL_KEY` | Yes (Raft STS) |
+| `KNXVAULT_ROOT_TOKEN` | Yes (bootstrap) |
+| `KNXVAULT_AUDIT_SIGNING_KEY` | Recommended |
 
-Never apply a Secret that still says `REPLACE_ME` into production.
+Prefer creating the Secret via your sealed-secrets pipeline rather than a plain file in Git.
 
-### 4.4 Apply manifests
+### B4.3 Apply platform manifests
 
 ```bash
 kubectl apply -f deployments/k8s/namespace.yaml
 kubectl apply -f deployments/k8s/serviceaccount.yaml
 kubectl apply -f deployments/k8s/role.yaml
 kubectl apply -f deployments/k8s/rolebinding.yaml
-kubectl apply -f deployments/k8s/clusterrole-tokenreview.yaml   # K8s auth
+kubectl apply -f deployments/k8s/clusterrole-tokenreview.yaml
 kubectl apply -f deployments/k8s/configmap.yaml
 kubectl apply -f deployments/k8s/secret.yaml
 kubectl apply -f deployments/k8s/service-raft.yaml
@@ -218,251 +228,388 @@ kubectl apply -f deployments/k8s/statefulset.yaml
 kubectl apply -f deployments/k8s/service.yaml
 ```
 
-Wait until pods are Running. **They will be sealed.** That is expected.
+```bash
+kubectl -n knxvault get pods -w
+# wait until knxvault-0..2 are Running (or your replica count)
+```
 
-### 4.5 Unseal (required after install and after restarts)
+**Expected:** pods Running, but the **service is still sealed**. Logs may show healthy HTTP while `/ready` reports `"sealed":true`.
 
-Port-forward or use an in-cluster Job with network access to the Service:
+### B4.4 Network access for admin
 
 ```bash
-export KNXVAULT_ADDR=https://knxvault.knxvault.svc:8200   # or port-forward http://127.0.0.1:8200
-# Single-key unseal (key is the same base64 string as KNXVAULT_UNSEAL_KEY)
+# Lab / first install: port-forward
+kubectl -n knxvault port-forward svc/knxvault 8200:8200
+export KNXVAULT_ADDR=http://127.0.0.1:8200
+export KNXVAULT_TOKEN='<your-root-token>'
+```
+
+In production, prefer an internal admin network path and **HTTPS**.
+
+## B5. Day-0 unseal (open the data plane)
+
+Without this step, **Day-0 is incomplete**. Operator CA create, KV write, and PKI issue will fail with “vault is sealed”.
+
+### Single-key unseal
+
+```bash
+export KNXVAULT_UNSEAL_KEY='<same base64 value as in the Secret>'
+
+curl -s -X POST "$KNXVAULT_ADDR/sys/unseal" \
+  -H 'Content-Type: application/json' \
+  -d "{\"key\":\"$KNXVAULT_UNSEAL_KEY\"}"
+
+curl -s "$KNXVAULT_ADDR/ready" | jq .
+# want: "status":"ready", "sealed":false
+# with Raft: "raft_ready":true (and a leader exists in the cluster)
+```
+
+### Verify with doctor
+
+```bash
+# build CLI if needed: make build-cli
+./bin/knxvault-cli doctor --json
+# want: "healthy": true, "fail": 0
+# HTTP (not HTTPS) may warn in lab — fix TLS for production
+```
+
+### Smoke the API as root (temporary)
+
+```bash
+./bin/knxvault-cli health
+./bin/knxvault-cli kv put day0/smoke value=ok
+./bin/knxvault-cli kv get day0/smoke --show-secrets
+```
+
+**Plan for restarts now:** document whether humans unseal after STS restarts or an **auto-unseal Job** will call the same API using the Secret. Start-sealed remains the security model either way.
+
+## B6. Day-0 bootstrap (RBAC and retire root)
+
+Still using the root token only for this section.
+
+### B6.1 Create baseline policies
+
+```bash
+export KNXVAULT_ADDR=http://127.0.0.1:8200   # or your URL
+export KNXVAULT_TOKEN='<root-token>'
+
+# App can read its KV prefix
+curl -s -X PUT "$KNXVAULT_ADDR/sys/policies/app-reader" \
+  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "paths": {
+      "secrets/kv/app/*": {"capabilities": ["read", "list"]}
+    }
+  }'
+
+# Operator needs PKI issue/renew/sign (adjust to your path model)
+curl -s -X PUT "$KNXVAULT_ADDR/sys/policies/knxvault-operator" \
+  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "paths": {
+      "pki/*": {"capabilities": ["create", "read", "update", "list"]},
+      "sys/policies/*": {"capabilities": ["read"]},
+      "sys/roles/*": {"capabilities": ["read"]}
+    }
+  }'
+
+# Human platform admin (narrow later)
+curl -s -X PUT "$KNXVAULT_ADDR/sys/policies/platform-admin" \
+  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "paths": {
+      "secrets/kv/*": {"capabilities": ["create", "read", "update", "list", "delete"]},
+      "pki/*": {"capabilities": ["create", "read", "update", "list"]},
+      "sys/*": {"capabilities": ["create", "read", "update", "list", "sudo"]}
+    }
+  }'
+```
+
+More patterns: [RBAC recipe](../recipes/rbac-policies.md).
+
+### B6.2 Bind Kubernetes ServiceAccounts to roles
+
+```bash
+# Operator SA (namespace knxvault — match your operator SA name)
+curl -s -X PUT "$KNXVAULT_ADDR/sys/roles/knxvault-operator" \
+  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "policies": ["knxvault-operator"],
+    "auth_method": "kubernetes",
+    "bound_service_account_names": ["knxvault-operator"],
+    "bound_service_account_namespaces": ["knxvault"]
+  }'
+
+# Example app SA
+curl -s -X PUT "$KNXVAULT_ADDR/sys/roles/demo-app" \
+  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "policies": ["app-reader"],
+    "auth_method": "kubernetes",
+    "bound_service_account_names": ["demo-app"],
+    "bound_service_account_namespaces": ["default"]
+  }'
+```
+
+Confirm TokenReview works: knxvault’s ServiceAccount must be allowed to create `tokenreviews` (`clusterrole-tokenreview.yaml` from §B4.3).
+
+### B6.3 Issue a scoped admin token (then stop daily root use)
+
+```bash
+curl -s -X POST "$KNXVAULT_ADDR/auth/token/create" \
+  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "subject": "platform-admin",
+    "policies": ["platform-admin"],
+    "ttl": "720h",
+    "renewable": true
+  }'
+# Save client_token offline as the human admin token
+```
+
+**Day-0 hygiene:** after acceptance, treat root as break-glass only (or revoke after a second admin path exists).
+
+## B7. Day-0 certificate platform (no cert-manager)
+
+### B7.1 Install operator
+
+```bash
+make build-operator   # or use your image
+kubectl apply -f deployments/operator/crds/
+kubectl apply -f deployments/operator/rbac.yaml
+# Deploy operator (see deployments/operator/) with:
+#   KNXVAULT_ADDR=http://knxvault.knxvault.svc:8200
+#   KNXVAULT_K8S_ROLE=knxvault-operator   # preferred: SA login
+#   or KNXVAULT_TOKEN=... for lab only
+```
+
+Guide: [Replace cert-manager](pki-replace-cert-manager.md).
+
+### B7.2 First CA + issuer + certificate
+
+Apply the sample (or your GitOps copy):
+
+```bash
+kubectl apply -f deployments/operator/samples/certificate-example.yaml
+```
+
+That creates roughly:
+
+- `KNXVaultCA/platform-root`  
+- `KNXVaultClusterIssuer/platform`  
+- `KNXVaultCertificate/app-tls` → Secret `app-tls`  
+
+Wait and verify:
+
+```bash
+kubectl get knxvaultca -A
+kubectl get knxvaultclusterissuer
+kubectl -n default get knxvaultcertificate app-tls -o yaml
+kubectl -n default get secret app-tls
+# want: Ready conditions true; Secret has tls.crt / tls.key
+```
+
+If CA stays Pending with “vault is sealed”, return to **§B5**.
+
+## B8. Day-0 application secret (KV)
+
+As admin:
+
+```bash
+export KNXVAULT_TOKEN='<platform-admin-or-root>'
+./bin/knxvault-cli kv put app/demo api_key=day0-example
+./bin/knxvault-cli kv get app/demo --show-secrets
+```
+
+**Optional same day:** install CSI ([CSI install](../deploy/csi-install.md)) and mount `app/demo` into a test pod with SA `demo-app`. Can be Day-0.5 if TLS is the only Day-0 must-have.
+
+## B9. Day-0 acceptance checklist
+
+Check every box before calling Day-0 complete:
+
+- [ ] Secrets for master/unseal/root stored **out of Git** and offline backup known  
+- [ ] knxvault pods Running; no crash loop on missing unseal  
+- [ ] `/ready` → `sealed:false`, Raft ready (prod)  
+- [ ] `knxvault-cli doctor --json` → `healthy:true`, `fail:0`  
+- [ ] Policies + roles for operator (and at least one app)  
+- [ ] Operator running; ClusterIssuer Ready  
+- [ ] At least one TLS Secret issued  
+- [ ] At least one KV path written  
+- [ ] Documented: **how to unseal after pod restart**  
+- [ ] Documented: who holds keys; who is on-call  
+- [ ] Root token usage minimized / break-glass plan  
+- [ ] Alerts requested: sealed, no leader, operator not Ready  
+
+**Day-0 complete → hand off to Day-2.**
+
+---
+
+# Part C — Day-2 (operate after acceptance)
+
+Day-2 assumes Day-0 acceptance is done. Short tables live in [day2.md](day2.md); this section is the operational narrative.
+
+## C1. Health and monitoring
+
+| Check | Command / path | Good |
+|-------|----------------|------|
+| Liveness | `GET /health` | `status: healthy` |
+| Ready | `GET /ready` | `sealed:false`, `raft_ready:true` |
+| Doctor | `knxvault-cli doctor --json` | `healthy:true`, `fail:0` |
+| Metrics | `GET /metrics` | scraped by Prometheus |
+
+**Alert on:**
+
+- `sealed=true` longer than a few minutes  
+- No Raft leader  
+- Operator ClusterIssuer / Certificate stuck not Ready  
+- PVC almost full (platform)  
+
+## C2. After every restart (unseal)
+
+Restarts (node drain, STS rollout, OOM) return pods to **sealed**.
+
+```bash
+# Same as Day-0 §B5 — automate if your trust model allows
 curl -s -X POST "$KNXVAULT_ADDR/sys/unseal" \
   -H 'Content-Type: application/json' \
   -d "{\"key\":\"$KNXVAULT_UNSEAL_KEY\"}"
 ```
 
-Check:
+Until unsealed: apps and operator vault-mode operations fail closed.
 
-```bash
-curl -s "$KNXVAULT_ADDR/ready"
-# want: "status":"ready", "sealed":false, and with Raft: "raft_ready":true
+## C3. Backup and restore awareness
 
-export KNXVAULT_TOKEN='<root-token>'
-knxvault-cli doctor --json
-# want: "healthy": true, "fail": 0
-```
-
-If `sealed` stays `true`, nothing that needs the data plane (operator CA create, KV write, PKI issue) will work correctly.
-
-### 4.6 Bootstrap once (then stop using root)
-
-1. Create **policies** (what paths can be read/written).  
-2. Create **roles** bound to ServiceAccounts (who may log in).  
-3. Create a **scoped admin token** for humans/automation.  
-4. **Retire or tightly lock** the bootstrap root token.
-
-Recipes: [RBAC](../recipes/rbac-policies.md), [Kubernetes SA auth](../recipes/kubernetes-serviceaccount-auth.md), [Token lifecycle](../recipes/token-lifecycle.md).
-
----
-
-## 5. Certificates for applications (no Let’s Encrypt)
-
-Preferred path: **knxvault-operator** (you do **not** need cert-manager).
-
-### 5.1 Install the operator
-
-```bash
-make build build-operator   # or use your built image
-kubectl apply -f deployments/operator/crds/
-kubectl apply -f deployments/operator/rbac.yaml
-# Deploy the operator with KNXVAULT_ADDR + SA login or token
-# See: docs/operations/pki-replace-cert-manager.md
-```
-
-### 5.2 Create a private CA and issuer
-
-High-level:
-
-1. **`KNXVaultCA`** — private root (or intermediate) inside knxvault.  
-2. **`KNXVaultClusterIssuer`** — vault mode pointing at that CA.  
-3. **`KNXVaultCertificate`** per app — common name, DNS names, `secretName` for the TLS Secret.
-
-Samples: `deployments/operator/samples/`.
-
-### 5.3 App consumption
-
-- Point Ingress / Gateway TLS at the generated Secret, **or**  
-- Use the ingress annotation shim if enabled (`knxvault.kubenexis.dev/issuer`).
-
-Renewal is handled by the operator (`renewBefore`) while knxvault is unsealed and reachable.
-
-Deep dive: [Replace cert-manager](pki-replace-cert-manager.md), [Certificate support matrix](certificate-support-matrix.md).
-
----
-
-## 6. Secrets for applications
-
-### Preferred: CSI driver
-
-1. Install Secrets Store CSI Driver + knxvault provider ([CSI install](../deploy/csi-install.md)).  
-2. App Pod uses a ServiceAccount that can log into knxvault.  
-3. Volume mounts materialize KV paths as files in the pod.
-
-### Alternative: External Secrets Operator
-
-Sync selected KV paths into native Kubernetes Secrets (weaker isolation than CSI files, but familiar). See [ESO recipe](../recipes/external-secrets-operator.md).
-
-### Never do this for production secrets
-
-- Bake passwords into container images  
-- Commit secrets to Git  
-- Share one long-lived “god” token across all apps  
-
----
-
-## 7. Day-2 operations (what “running it” looks like)
-
-### 7.1 Health (check often; automate alerts)
-
-| Check | How | Good |
-|-------|-----|------|
-| Liveness | `GET /health` | `status: healthy` |
-| Ready + unsealed | `GET /ready` | `sealed: false`, `raft_ready: true` |
-| Operator gate | `knxvault-cli doctor --json` | `healthy: true`, `fail: 0` |
-| Metrics | `GET /metrics` | scrape with Prometheus |
-
-**Alert if** `sealed=true` for more than a few minutes, or no Raft leader, or operator ClusterIssuer not Ready.
-
-### 7.2 Backup
-
-If the **platform** snapshots knxvault PVCs **and** backs up the Kubernetes Secret that holds master/unseal keys, you have a recovery path.
-
-Additionally (recommended), take **encrypted application-level backups**:
+| Layer | Owner | Notes |
+|-------|-------|-------|
+| PVC / volume snapshots | Platform | Raft data (ciphertext) |
+| K8s Secret (master/unseal) | Platform / security | Without this, ciphertext is useless |
+| Encrypted `backup create` | Optional knxvault | Portable app-level backup |
 
 ```bash
 knxvault-cli backup create -o "knxvault-$(date +%F).json"
 ```
 
-Restore needs the **same master key**. Details: [Backup & restore](../deploy/backup-restore.md).
+Restore needs the **same master key**. See [Backup & restore](../deploy/backup-restore.md).
 
-### 7.3 Seal for incidents
+## C4. Onboarding a new application (repeatable Day-2)
 
-If you suspect compromise:
+1. Create policy for `secrets/kv/<app>/*` (and PKI if needed).  
+2. Create role bound to app ServiceAccount.  
+3. Store secrets: `kv put app/<name> ...`  
+4. Deliver: CSI or ESO.  
+5. TLS: `KNXVaultCertificate` with DNS names → Secret → Ingress.  
+
+No new knxvault install—only RBAC + data + CRDs.
+
+## C5. Upgrades
+
+1. Backup (platform + optional CLI backup).  
+2. Roll knxvault image (StatefulSet).  
+3. Unseal (or auto-unseal).  
+4. Roll operator if needed.  
+5. `doctor --json` + one Certificate renew/issue smoke test.  
+
+## C6. Incident seal
 
 ```bash
 curl -s -X POST "$KNXVAULT_ADDR/sys/seal" \
   -H "Authorization: Bearer $KNXVAULT_TOKEN"
 ```
 
-Mutating / sealed routes fail closed until unseal. This is break-glass, not routine.
+Opens only after deliberate unseal (or multi-share). Practice once a year.
 
-### 7.4 Upgrades
+## C7. Scaling and failover
 
-1. Backup (platform + optional `backup create`).  
-2. Roll StatefulSet image.  
-3. **Unseal** each node or use auto-unseal after restart.  
-4. `doctor --json` and a test Certificate / KV read.
+- Prefer **3** Raft voters.  
+- See [Raft failover](runbooks/raft-failover.md), [Scaling](runbooks/scaling.md).  
 
-### 7.5 Master key rotation
+## C8. Optional multi-share (Day-2 hardening)
 
-Separate procedure from unseal: [Master key rotation](../recipes/master-key-rotation.md). Plan carefully; all replicas must end up with the new key material.
+If policy requires multi-person unseal, introduce threshold and offline shares after Day-0 is stable—not on the critical first-install path unless mandated. [Seal recipe](../recipes/seal-and-unseal.md), lab multi-share E2E.
 
 ---
 
-## 8. Optional: closer to “install and forget”
+# Part D — Troubleshooting
 
-If the platform already owns HA and volume backup:
-
-| Piece | Approach |
-|-------|----------|
-| HA | 3-replica StatefulSet + Raft (product) + platform node HA |
-| Backup | Platform PVC + Secret backup; optional encrypted `backup create` |
-| Unseal after restart | **Job/controller** that calls `/sys/unseal` when `sealed:true` using the Secret (document this trust choice) |
-| Apps | Only Certificate CRs + CSI — no human knxvault for normal deploys |
-| Alerts | Sealed, Raft leader loss, operator errors |
-
-You still do **not** get zero-touch by default: **start-sealed is intentional**. Auto-unseal is an **operational choice** that trusts the cluster with the unseal key—not a cryptographic bypass of the seal model.
-
----
-
-## 9. Troubleshooting (common failures)
-
-| Symptom | Likely cause | What to do |
-|---------|--------------|------------|
-| Pod crash: “unseal key is required when raft is enabled” | Missing `KNXVAULT_UNSEAL_KEY` | Set distinct unseal in Secret |
-| Startup fails: unseal equals master | Same value for both keys | Generate a second random unseal key |
-| `/ready` shows `"sealed":true` | Never unsealed after start | `POST /sys/unseal` |
-| Operator: “vault is sealed” | Same | Unseal first |
-| KV / PKI 503 | Sealed or not ready | Check seal + Raft leader |
-| K8s login fails in prod | TokenReview RBAC missing | Apply `clusterrole-tokenreview.yaml` |
-| doctor fail on TLS | HTTP not HTTPS | Lab-only warn; use TLS in production |
-| Cert not appearing | Issuer/CA not Ready, wrong SA policy | `kubectl describe` CRDs; check operator logs |
-
-Lab multi-share and full product smoke: `make lab-full-e2e` (when you have the lab host). Map: [E2E and lab tests](../engineering/e2e-and-lab-tests.md).
+| Symptom | Phase | Likely cause | Action |
+|---------|-------|--------------|--------|
+| Crash: unseal required when raft enabled | Day-0 | Missing unseal in Secret | Fix Secret; restart |
+| Unseal equals master | Day-0 | Same random value twice | New unseal key |
+| `sealed:true` forever | Day-0/2 | Never unsealed | §B5 / §C2 |
+| Operator “vault is sealed” | Day-0/2 | Same | Unseal |
+| TokenReview / K8s login 401 | Day-0 | Missing TokenReview RBAC | Apply clusterrole-tokenreview |
+| CA Pending “not found” | Day-0 | CA create failed / sealed | Unseal; check operator logs |
+| KV 403 | Day-2 | Policy/role mismatch | Fix policy paths and SA binding |
+| doctor TLS warn | Lab | HTTP | Enable TLS for prod |
 
 ---
 
-## 10. Security habits (short list)
+# Part E — Reference
 
-1. **Two keys, both random, both backed up offline.**  
-2. **Never commit real secrets.**  
-3. **Unseal is part of every restart story.**  
-4. **Least privilege:** apps get roles, not root.  
-5. **Network boundaries** around the API and especially unseal.  
-6. **Audit** on; prefer signed export if compliance matters.  
-7. **Incident seal** is available; practice unseal recovery once a year.
+## E1. Day-0 vs Day-2 quick map
 
----
+| Activity | Day-0 | Day-2 |
+|----------|:-----:|:-----:|
+| Generate master/unseal | ✓ | rare (rotation) |
+| Install STS + operator | ✓ | upgrades only |
+| First unseal | ✓ | after every restart |
+| Policies / roles | ✓ baseline | per app |
+| First CA / Certificate | ✓ | per app |
+| Health alerts | set up | watch |
+| Backup schedule | define | execute |
+| Seal for incident | practice | as needed |
 
-## 11. Suggested learning path
-
-1. This runbook (§1–§4) on a non-prod cluster.  
-2. Issue one Certificate with the operator.  
-3. Mount one KV secret with CSI.  
-4. Intentionally seal and unseal; watch apps fail and recover.  
-5. Read [operator security](operator-security.md) and [seal recipe](../recipes/seal-and-unseal.md).  
-6. Read [Raft failover](runbooks/raft-failover.md) before production cutover.
-
----
-
-## 12. Document map (where to dig deeper)
-
-```mermaid
-flowchart LR
-  R[This runbook] --> Sec[operator-security.md]
-  R --> Seal[seal-and-unseal.md]
-  R --> K8s[deploy/kubernetes.md]
-  R --> PKI[pki-replace-cert-manager.md]
-  R --> Day2[day2.md]
-  R --> Dummy[user/dummies-guide.md]
-  R --> E2E[e2e-and-lab-tests.md]
-```
-
-| If you need… | Open… |
-|--------------|--------|
-| Why secrets platforms exist | [Dummies guide](../user/dummies-guide.md) |
-| Every env var | [Configuration](../installation/configuration.md) |
-| Local binary install | [Installation](../installation/install.md) |
-| CLI commands | [CLI reference](../cli/reference.md) |
-| API list | [API reference](../api/reference.md) |
-| Copy-paste recipes | [Recipes index](../recipes/README.md) |
-| CA compromise | [runbooks/ca-compromise.md](runbooks/ca-compromise.md) |
-| Raft disaster | [runbooks/raft-failover.md](runbooks/raft-failover.md) |
-
----
-
-## 13. One-page cheat sheet
+## E2. One-page command sheet
 
 ```bash
-# Generate keys (offline)
+# --- Day-0 keys ---
 openssl rand -base64 32   # master
 openssl rand -base64 32   # unseal (different)
 
-# After pods up — unseal
+# --- Day-0 / Day-2 unseal ---
 curl -s -X POST "$KNXVAULT_ADDR/sys/unseal" \
   -H 'Content-Type: application/json' \
   -d "{\"key\":\"$KNXVAULT_UNSEAL_KEY\"}"
 
-# Health
+# --- Health ---
 curl -s "$KNXVAULT_ADDR/ready" | jq .
 knxvault-cli doctor --json
 
-# Incident seal
-curl -s -X POST "$KNXVAULT_ADDR/sys/seal" -H "Authorization: Bearer $TOKEN"
+# --- Smoke ---
+knxvault-cli kv put day0/smoke value=ok
+knxvault-cli kv get day0/smoke --show-secrets
 
-# Backup (app-level)
-knxvault-cli backup create -o knxvault-backup.json
+# --- Incident ---
+curl -s -X POST "$KNXVAULT_ADDR/sys/seal" -H "Authorization: Bearer $TOKEN"
 ```
 
-**Remember:** process up ≠ secrets available. **Unsealed + raft ready** is the green light for production traffic.
+## E3. Document map
+
+```mermaid
+flowchart LR
+  R[This runbook] --> Sec[operator-security]
+  R --> Seal[seal-and-unseal]
+  R --> K8s[deploy/kubernetes]
+  R --> PKI[pki-replace-cert-manager]
+  R --> D2[day2]
+  R --> E2E[e2e-and-lab-tests]
+```
+
+| Need | Document |
+|------|----------|
+| Full env var list | [Configuration](../installation/configuration.md) |
+| Local non-K8s install | [Installation](../installation/install.md) |
+| CLI | [CLI reference](../cli/reference.md) |
+| Recipes | [Recipes index](../recipes/README.md) |
+| CA compromise | [ca-compromise](runbooks/ca-compromise.md) |
+| Raft disaster | [raft-failover](runbooks/raft-failover.md) |
+
+---
+
+**Remember:** Day-0 is not “pods Running.” Day-0 is **unsealed, bootstrapped, first cert, first secret, and a written unseal plan.** Day-2 is keeping that true after restarts and change.
