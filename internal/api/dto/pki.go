@@ -75,6 +75,22 @@ type IssueCertResponse struct {
 	PrivateKeyPEM string `json:"private_key_pem"`
 	Serial        string `json:"serial"`
 	ExpiresAt     string `json:"expires_at"`
+	CAID          string `json:"ca_id,omitempty"`
+}
+
+// SignCSRRequest is POST /pki/sign.
+type SignCSRRequest struct {
+	Role string `json:"role" binding:"required"`
+	CSR  string `json:"csr" binding:"required"`
+	TTL  string `json:"ttl"`
+}
+
+// SignCSRResponse is returned for CSR signing.
+type SignCSRResponse struct {
+	CertPEM   string   `json:"cert_pem"`
+	Serial    string   `json:"serial"`
+	ExpiresAt string   `json:"expires_at"`
+	CAChain   []string `json:"ca_chain,omitempty"`
 }
 
 // RevokeCertRequest is POST /pki/revoke.

@@ -1,0 +1,28 @@
+# Example: restrict Secret write to a single app namespace (multi-tenant / least privilege).
+# Apply ClusterRole for CRDs + this Role/RoleBinding for Secrets in the app namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: knxvault-operator-secrets
+  namespace: app-team-a
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [knxvault.kubenexis.dev]
+    resources: ["knxvaultcertificates", "knxvaultcertificates/status", "knxvaultissuers", "knxvaultissuers/status", "knxvaultcertificaterequests", "knxvaultcertificaterequests/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: knxvault-operator-secrets
+  namespace: app-team-a
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: knxvault-operator-secrets
+subjects:
+  - kind: ServiceAccount
+    name: knxvault-operator
+    namespace: knxvault

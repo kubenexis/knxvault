@@ -122,6 +122,14 @@ type PrivateKeySpec struct {
 	Size      int    `json:"size,omitempty"`
 }
 
+// Delivery modes for certificate material.
+const (
+	// DeliverySecret writes kubernetes.io/tls Secret (default; Ingress-compatible).
+	DeliverySecret = "Secret"
+	// DeliveryNone only updates CR status (no etcd Secret; app fetches via API/CSI).
+	DeliveryNone = "None"
+)
+
 // KNXVaultCertificateSpec is desired leaf certificate + Secret delivery.
 type KNXVaultCertificateSpec struct {
 	SecretName           string         `json:"secretName"`
@@ -134,17 +142,22 @@ type KNXVaultCertificateSpec struct {
 	RenewBefore          string         `json:"renewBefore,omitempty"`
 	PrivateKey           PrivateKeySpec `json:"privateKey,omitempty"`
 	RevisionHistoryLimit int            `json:"revisionHistoryLimit,omitempty"`
+	// Delivery is Secret (default) or None (status-only; no etcd private key).
+	Delivery string `json:"delivery,omitempty"`
 }
 
 // KNXVaultCertificateStatus is observed certificate state.
 type KNXVaultCertificateStatus struct {
-	Conditions []Condition `json:"conditions,omitempty"`
-	NotBefore  string      `json:"notBefore,omitempty"`
-	NotAfter   string      `json:"notAfter,omitempty"`
-	Serial     string      `json:"serial,omitempty"`
-	CAID       string      `json:"caId,omitempty"`
-	Revision   int         `json:"revision,omitempty"`
-	VaultRole  string      `json:"vaultRole,omitempty"`
+	Conditions    []Condition `json:"conditions,omitempty"`
+	NotBefore     string      `json:"notBefore,omitempty"`
+	NotAfter      string      `json:"notAfter,omitempty"`
+	Serial        string      `json:"serial,omitempty"`
+	CAID          string      `json:"caId,omitempty"`
+	Revision      int         `json:"revision,omitempty"`
+	VaultRole     string      `json:"vaultRole,omitempty"`
+	NextRenewTime string      `json:"nextRenewTime,omitempty"`
+	FailureCount  int         `json:"failureCount,omitempty"`
+	LastFailure   string      `json:"lastFailure,omitempty"`
 }
 
 // KNXVaultCertificate is a namespaced certificate request to vault + Secret.

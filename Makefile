@@ -161,6 +161,7 @@ test-coverage: ## Coverage gate ≥COVERAGE_MIN% on renew/secretutil/statusutil;
 	$(call log,Running coverage gate (min $(COVERAGE_MIN)% on renew/secretutil/statusutil))
 	$(call require_cmd,go)
 	@$(GO) test ./internal/operator/renew ./internal/operator/secretutil ./internal/operator/statusutil \
+		./internal/operator/reconcileutil \
 		-count=1 -covermode=atomic -coverprofile=coverage-operator.out; \
 	pct=$$($(GO) tool cover -func=coverage-operator.out | awk '/^total:/{gsub(/%/,"",$$3); print $$3}'); \
 	echo "operator pure-logic coverage: $${pct}% (min $(COVERAGE_MIN)%)"; \

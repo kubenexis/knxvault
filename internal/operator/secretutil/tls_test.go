@@ -8,7 +8,10 @@ import (
 
 func TestTLSSecret(t *testing.T) {
 	t.Parallel()
-	s := TLSSecret("ns", "app-tls", "CERT", "KEY", "CA", nil)
+	s := TLSSecret("ns", "app-tls", "CERT", "KEY", "CA", "ser1", "2026-10-01T00:00:00Z", "ca-1", 2, nil)
+	if s.Annotations[AnnSerial] != "ser1" || s.Annotations[AnnCAID] != "ca-1" {
+		t.Fatalf("anns=%v", s.Annotations)
+	}
 	if s.Type != corev1.SecretTypeTLS {
 		t.Fatalf("type = %s", s.Type)
 	}

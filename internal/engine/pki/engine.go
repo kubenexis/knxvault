@@ -67,6 +67,7 @@ type IssueResult struct {
 	PrivateKeyPEM string
 	Serial        string
 	ExpiresAt     time.Time
+	CAID          uuid.UUID // signing CA id (for operator renew)
 }
 
 // Engine performs PKI operations via a pluggable backend.
@@ -312,6 +313,7 @@ func (e *Engine) IssueCertificate(ctx context.Context, req IssueRequest) (*Issue
 		PrivateKeyPEM: string(keyPEM),
 		Serial:        serial,
 		ExpiresAt:     expiresAt,
+		CAID:          ca.ID,
 	}
 	if e.issued != nil {
 		ttlSeconds := int(ttl.Seconds())
@@ -343,6 +345,17 @@ func (e *Engine) GetCA(ctx context.Context, id uuid.UUID) (*domainpki.CA, error)
 		return nil, common.New(common.ErrCodeInternal, "pki engine not fully configured")
 	}
 	return e.caRepo.GetByID(ctx, id)
+}
+
+// GetCAByName returns a CA by vault name.
+func (e *Engine) GetCAByName(ctx context.Context, name string) (*domainpki.CA, error) {
+	if e.caRepo == nil {
+		return nil, common.New(common.ErrCodeInternal, "pki engine not fully configured")
+	}
+	if strings.TrimSpace(name) == "" {
+		return nil, common.New(common.ErrCodeValidation, "name is required")
+	}
+	return e.caRepo.GetByName(ctx, name)
 }
 
 // Revoke marks a certificate serial as revoked.

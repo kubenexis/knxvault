@@ -26,14 +26,21 @@ spec:
           env:
             - name: KNXVAULT_ADDR
               value: http://knxvault.knxvault.svc.cluster.local:8200
+            # Prefer SA login (KNXVAULT_K8S_ROLE); optional bootstrap token:
             - name: KNXVAULT_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: knxvault
                   key: KNXVAULT_ROOT_TOKEN
                   optional: true
+            - name: KNXVAULT_K8S_ROLE
+              value: knxvault-operator
             - name: KNXVAULT_OPERATOR_INGRESS_SHIM
               value: "true"
+            - name: KNXVAULT_OPERATOR_LEADER_ELECT
+              value: "true"
+            - name: KNXVAULT_OPERATOR_LEADER_ELECT_NAMESPACE
+              value: knxvault
             - name: KNXVAULT_OPERATOR_METRICS_ADDR
               value: ":8080"
             - name: KNXVAULT_OPERATOR_PROBE_ADDR

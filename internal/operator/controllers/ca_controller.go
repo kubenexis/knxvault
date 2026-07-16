@@ -33,15 +33,23 @@ func (r *CAReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Re
 		return ctrl.Result{}, err
 	}
 
-	// Already provisioned.
-	if ca.Status.CAID != "" && ca.Status.VaultName != "" {
-		metrics.CAReady.Set(1)
-		return ctrl.Result{}, nil
-	}
-
 	vaultName := ca.Spec.VaultName
 	if vaultName == "" {
 		vaultName = ca.Name
+	}
+	// Idempotent: adopt existing vault CA by name.
+	if existing, err := r.Vault.GetCAByName(ctx, vaultName); err == nil && existing != nil {
+		ca.Status.CAID = existing.ID
+		ca.Status.Serial = existing.Serial
+		ca.Status.NotAfter = existing.ExpiresAt
+		ca.Status.VaultName = vaultName
+		ca.Status.Conditions = statusutil.ReadyTrue(ca.Status.Conditions, "Created", "CA already present in KNXVault")
+		metrics.CAReady.Set(1)
+		return ctrl.Result{}, r.Status().Update(ctx, &ca)
+	}
+	if ca.Status.CAID != "" && ca.Status.VaultName != "" {
+		metrics.CAReady.Set(1)
+		return ctrl.Result{}, nil
 	}
 	ttl := ca.Spec.TTL
 	if ttl == "" {
@@ -80,6 +88,13 @@ func (r *CAReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Re
 		err = fmt.Errorf("unsupported CA type %q", ca.Spec.Type)
 	}
 
+	if err != nil {
+		// Adopt if name already exists in vault (idempotent create).
+		if existing, e2 := r.Vault.GetCAByName(ctx, vaultName); e2 == nil && existing != nil {
+			res = existing
+			err = nil
+		}
+	}
 	if err != nil {
 		metrics.ErrorsTotal.WithLabelValues("ca").Inc()
 		metrics.CAReady.Set(0)

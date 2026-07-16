@@ -57,6 +57,11 @@ func (s *PKIService) GetCA(ctx context.Context, id uuid.UUID) (*domainpki.CA, er
 	return s.engine.GetCA(ctx, id)
 }
 
+// GetCAByName returns a CA by vault name.
+func (s *PKIService) GetCAByName(ctx context.Context, name string) (*domainpki.CA, error) {
+	return s.engine.GetCAByName(ctx, name)
+}
+
 // Revoke revokes a certificate serial.
 func (s *PKIService) Revoke(ctx context.Context, caID uuid.UUID, serial, reason string) error {
 	err := s.engine.Revoke(ctx, caID, serial, reason)

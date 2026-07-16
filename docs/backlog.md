@@ -2,7 +2,7 @@
 
 Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topologically sorted by dependency** — implement in listed order within each phase.
 
-**Current focus (2026-07-16):** **P0 W30-01–W30-10 Complete** — knxvault-operator CRD automation ships; prefer KNXVault PKI + operator for all vault-issued TLS (**no cert-manager required**). Remaining Phase 5: tenant depth, HSM, mTLS polish. Long-term packaging remains [LT-*](#long-term-future).
+**Current focus (2026-07-16):** **P0 W30-01–W30-10 Complete** + **operator hardening P0/P1/P2** (SA auth, leader election, CSR sign API, issuer vault Ready, Secret annotations, delivery None, backoff, ns RBAC example). Prefer KNXVault PKI + operator for vault-issued TLS (**no cert-manager**). Remaining Phase 5: tenant depth (W32), HSM (W31-02).
 
 **Legend**
 

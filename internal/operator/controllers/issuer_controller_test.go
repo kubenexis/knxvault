@@ -11,6 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	v1alpha1 "github.com/kubenexis/knxvault/internal/operator/apis/v1alpha1"
+	"github.com/kubenexis/knxvault/internal/operator/vaultiface"
 )
 
 func TestIssuerAndClusterIssuer(t *testing.T) {
@@ -25,11 +26,13 @@ func TestIssuerAndClusterIssuer(t *testing.T) {
 		Spec:       v1alpha1.KNXVaultClusterIssuerSpec{VaultCAName: "root"},
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(iss, ci).WithObjects(iss, ci).Build()
-	_, err := (&IssuerReconciler{Client: c}).Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "ns", Name: "i"}})
+	v := vaultiface.NewFake()
+	_, _ = v.CreateRoot(context.Background(), "root", "Root", "8760h", 2048)
+	_, err := (&IssuerReconciler{Client: c, Vault: v}).Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "ns", Name: "i"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = (&ClusterIssuerReconciler{Client: c}).Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Name: "c"}})
+	_, err = (&ClusterIssuerReconciler{Client: c, Vault: v}).Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Name: "c"}})
 	if err != nil {
 		t.Fatal(err)
 	}

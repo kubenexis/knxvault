@@ -2,12 +2,22 @@
 package secretutil
 
 import (
+	"fmt"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// TLSSecret builds a kubernetes.io/tls Secret body.
-func TLSSecret(namespace, name, certPEM, keyPEM, caPEM string, labels map[string]string) *corev1.Secret {
+// Annotation keys on managed TLS Secrets.
+const (
+	AnnSerial   = "knxvault.kubenexis.dev/serial"
+	AnnNotAfter = "knxvault.kubenexis.dev/not-after"
+	AnnCAID     = "knxvault.kubenexis.dev/ca-id"
+	AnnRevision = "knxvault.kubenexis.dev/revision"
+)
+
+// TLSSecret builds a kubernetes.io/tls Secret body with serial/notAfter annotations.
+func TLSSecret(namespace, name, certPEM, keyPEM, caPEM, serial, notAfter, caID string, revision int, labels map[string]string) *corev1.Secret {
 	if labels == nil {
 		labels = map[string]string{}
 	}
@@ -19,11 +29,18 @@ func TLSSecret(namespace, name, certPEM, keyPEM, caPEM string, labels map[string
 	if caPEM != "" {
 		data["ca.crt"] = []byte(caPEM)
 	}
+	anns := map[string]string{
+		AnnSerial:   serial,
+		AnnNotAfter: notAfter,
+		AnnCAID:     caID,
+		AnnRevision: fmt.Sprintf("%d", revision),
+	}
 	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			Labels:    labels,
+			Name:        name,
+			Namespace:   namespace,
+			Labels:      labels,
+			Annotations: anns,
 		},
 		Type: corev1.SecretTypeTLS,
 		Data: data,

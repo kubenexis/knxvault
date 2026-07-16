@@ -115,6 +115,22 @@ type IssueCertResponse struct {
 	PrivateKeyPEM string `json:"private_key_pem"`
 	Serial        string `json:"serial"`
 	ExpiresAt     string `json:"expires_at"`
+	CAID          string `json:"ca_id,omitempty"`
+}
+
+// SignCSRRequest is POST /pki/sign.
+type SignCSRRequest struct {
+	Role string `json:"role"`
+	CSR  string `json:"csr"`
+	TTL  string `json:"ttl,omitempty"`
+}
+
+// SignCSRResponse is returned for CSR signing.
+type SignCSRResponse struct {
+	CertPEM   string   `json:"cert_pem"`
+	Serial    string   `json:"serial"`
+	ExpiresAt string   `json:"expires_at"`
+	CAChain   []string `json:"ca_chain,omitempty"`
 }
 
 // BackupCreateRequest is POST /sys/backup.
@@ -257,6 +273,24 @@ func (c *Client) PKICreateIntermediate(ctx context.Context, req CreateIntermedia
 func (c *Client) PKIGetCA(ctx context.Context, id string) (*CAResponse, error) {
 	var out CAResponse
 	if err := c.getJSON(ctx, "/pki/ca/"+trimPath(id), true, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PKIGetCAByName fetches CA metadata by vault name (GET /pki/ca/by-name/:name).
+func (c *Client) PKIGetCAByName(ctx context.Context, name string) (*CAResponse, error) {
+	var out CAResponse
+	if err := c.getJSON(ctx, "/pki/ca/by-name/"+trimPath(name), true, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PKISignCSR signs a PEM CSR (POST /pki/sign).
+func (c *Client) PKISignCSR(ctx context.Context, req SignCSRRequest) (*SignCSRResponse, error) {
+	var out SignCSRResponse
+	if err := c.postJSON(ctx, "/pki/sign", true, req, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

@@ -27,36 +27,48 @@ func init() {
 
 // Config holds operator runtime configuration.
 type Config struct {
-	VaultAddr   string
-	VaultToken  string
-	MetricsAddr string
-	ProbeAddr   string
-	IngressShim bool
+	VaultAddr     string
+	VaultToken    string
+	K8sRole       string
+	SATokenPath   string
+	MetricsAddr   string
+	ProbeAddr     string
+	IngressShim   bool
+	LeaderElect   bool
+	LeaderElectID string
+	LeaderElectNS string
 }
 
 // ConfigFromEnv loads configuration from environment.
 func ConfigFromEnv() Config {
 	return Config{
-		VaultAddr:   envOr("KNXVAULT_ADDR", "http://knxvault.knxvault.svc:8200"),
-		VaultToken:  strings.TrimSpace(os.Getenv("KNXVAULT_TOKEN")),
-		MetricsAddr: envOr("KNXVAULT_OPERATOR_METRICS_ADDR", ":8080"),
-		ProbeAddr:   envOr("KNXVAULT_OPERATOR_PROBE_ADDR", ":8081"),
-		IngressShim: strings.EqualFold(os.Getenv("KNXVAULT_OPERATOR_INGRESS_SHIM"), "true"),
+		VaultAddr:     envOr("KNXVAULT_ADDR", "http://knxvault.knxvault.svc:8200"),
+		VaultToken:    strings.TrimSpace(os.Getenv("KNXVAULT_TOKEN")),
+		K8sRole:       envOr("KNXVAULT_K8S_ROLE", "knxvault-operator"),
+		SATokenPath:   envOr("KNXVAULT_SA_TOKEN_FILE", "/var/run/secrets/kubernetes.io/serviceaccount/token"),
+		MetricsAddr:   envOr("KNXVAULT_OPERATOR_METRICS_ADDR", ":8080"),
+		ProbeAddr:     envOr("KNXVAULT_OPERATOR_PROBE_ADDR", ":8081"),
+		IngressShim:   strings.EqualFold(os.Getenv("KNXVAULT_OPERATOR_INGRESS_SHIM"), "true"),
+		LeaderElect:   !strings.EqualFold(os.Getenv("KNXVAULT_OPERATOR_LEADER_ELECT"), "false"),
+		LeaderElectID: envOr("KNXVAULT_OPERATOR_LEADER_ELECT_ID", "knxvault-operator"),
+		LeaderElectNS: envOr("KNXVAULT_OPERATOR_LEADER_ELECT_NAMESPACE", "knxvault"),
 	}
 }
 
-// Run starts the controller-runtime manager and all reconcilers (W30-01…W30-06, W30-10).
+// Run starts the controller-runtime manager and all reconcilers.
 func Run() error {
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 	cfg := ConfigFromEnv()
 	if cfg.VaultToken == "" {
-		// Allow empty for in-cluster SA login path later; for now require token or fail clearly.
 		if t := readTokenFile(envOr("KNXVAULT_TOKEN_FILE", "")); t != "" {
 			cfg.VaultToken = t
 		}
 	}
+	// Allow SA-only when token file will be read by HTTPAPI; still need either static token or SA file.
 	if cfg.VaultToken == "" {
-		return fmt.Errorf("KNXVAULT_TOKEN or KNXVAULT_TOKEN_FILE is required")
+		if _, err := os.Stat(cfg.SATokenPath); err != nil {
+			return fmt.Errorf("KNXVAULT_TOKEN / KNXVAULT_TOKEN_FILE or in-cluster SA token required")
+		}
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
@@ -64,14 +76,17 @@ func Run() error {
 		Metrics: metricsserver.Options{
 			BindAddress: cfg.MetricsAddr,
 		},
-		HealthProbeBindAddress: cfg.ProbeAddr,
-		LeaderElection:         false,
+		HealthProbeBindAddress:        cfg.ProbeAddr,
+		LeaderElection:                cfg.LeaderElect,
+		LeaderElectionID:              cfg.LeaderElectID,
+		LeaderElectionNamespace:       cfg.LeaderElectNS,
+		LeaderElectionReleaseOnCancel: true,
 	})
 	if err != nil {
 		return fmt.Errorf("manager: %w", err)
 	}
 
-	vault := vaultiface.NewHTTP(cfg.VaultAddr, cfg.VaultToken)
+	vault := vaultiface.NewHTTPWithSA(cfg.VaultAddr, cfg.VaultToken, cfg.K8sRole, cfg.SATokenPath)
 
 	if err := (&controllers.CAReconciler{
 		Client: mgr.GetClient(),
@@ -88,11 +103,13 @@ func Run() error {
 	}
 	if err := (&controllers.IssuerReconciler{
 		Client: mgr.GetClient(),
+		Vault:  vault,
 	}).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("issuer controller: %w", err)
 	}
 	if err := (&controllers.ClusterIssuerReconciler{
 		Client: mgr.GetClient(),
+		Vault:  vault,
 	}).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("clusterissuer controller: %w", err)
 	}
@@ -132,7 +149,7 @@ func readTokenFile(path string) string {
 	if path == "" {
 		return ""
 	}
-	b, err := os.ReadFile(path) //nolint:gosec // path from env for k8s secret mount
+	b, err := os.ReadFile(path) //nolint:gosec
 	if err != nil {
 		return ""
 	}

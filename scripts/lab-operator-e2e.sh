@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Lab e2e: knxvault + operator CRDs without cert-manager (W30-07).
 # Usage: bash scripts/lab-operator-e2e.sh [host]
-# Default host: 192.168.137.131 (37 often blocks SSH).
+# Default host: 192.168.137.131. Note: 192.168.137.37 may block SSH (ICMP only).
 set -euo pipefail
 
 HOST="${1:-192.168.137.131}"
@@ -16,8 +16,17 @@ make -C "$ROOT" build build-cli build-operator
 
 echo "==> scp binaries"
 ssh "root@${HOST}" 'mkdir -p /opt/knxvault /var/lib/knxvault/raft-op /var/log/knxvault
-killall knxvault knxvault-operator 2>/dev/null || true
-sleep 1
+# Force-stop by PID (killall name length can miss knxvault-operator)
+for bin in /opt/knxvault/knxvault /opt/knxvault/knxvault-operator; do
+  for pid in $(pidof -x "$bin" 2>/dev/null); do kill -9 "$pid" 2>/dev/null || true; done
+done
+# fallback: any process whose cmdline contains the path
+ps -eo pid=,args= | while read -r pid args; do
+  case "$args" in
+    */opt/knxvault/knxvault\ serve*|*/opt/knxvault/knxvault-operator*) kill -9 "$pid" 2>/dev/null || true ;;
+  esac
+done
+sleep 2
 rm -f /opt/knxvault/knxvault /opt/knxvault/knxvault-cli /opt/knxvault/knxvault-operator'
 scp -o StrictHostKeyChecking=no \
   "$ROOT/bin/knxvault" "$ROOT/bin/knxvault-cli" "$ROOT/bin/knxvault-operator" \
@@ -68,6 +77,7 @@ export KUBECONFIG=/etc/kubernetes/admin.conf
 export KNXVAULT_ADDR=http://127.0.0.1:8200
 export KNXVAULT_TOKEN=$(cat /opt/knxvault/e2e-root.token)
 export KNXVAULT_OPERATOR_INGRESS_SHIM=true
+export KNXVAULT_OPERATOR_LEADER_ELECT=false
 export KNXVAULT_OPERATOR_METRICS_ADDR=:18080
 export KNXVAULT_OPERATOR_PROBE_ADDR=:18081
 nohup /opt/knxvault/knxvault-operator > /var/log/knxvault/operator.log 2>&1 &

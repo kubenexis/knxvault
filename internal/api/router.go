@@ -181,6 +181,7 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 				pkiGroup.POST("/intermediate", pkiHandler.CreateIntermediate)
 				pkiGroup.POST("/issue", pkiHandler.Issue)
 				pkiGroup.POST("/issue-client-cert", pkiHandler.IssueClientCert)
+				pkiGroup.POST("/sign", pkiHandler.SignCSR)
 				pkiGroup.POST("/renew", pkiHandler.Renew)
 				pkiGroup.POST("/revoke", pkiHandler.Revoke)
 				pkiGroup.POST("/ca/import", pkiHandler.ImportCA)
@@ -189,6 +190,11 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 					pkiHandler.RotateCA,
 				)
 			}
+			// by-name must register before :id so "by-name" is not parsed as a UUID id.
+			secured.GET("/pki/ca/by-name/:name",
+				middleware.RequirePermission(deps.AuthService, "pki", "read"),
+				pkiHandler.GetCAByName,
+			)
 			secured.GET("/pki/ca/:id",
 				middleware.RequirePathCapability(deps.AuthService, "pki/ca", auth.CapRead, "id", deps.AuthzAudit),
 				pkiHandler.GetCA,

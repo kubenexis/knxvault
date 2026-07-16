@@ -118,6 +118,48 @@ func (h *PKIHandler) Issue(c *gin.Context) {
 		PrivateKeyPEM: result.PrivateKeyPEM,
 		Serial:        result.Serial,
 		ExpiresAt:     result.ExpiresAt.Format(time.RFC3339),
+		CAID:          result.CAID.String(),
+	})
+}
+
+// SignCSR handles POST /pki/sign (native CSR sign for operator CertificateRequest).
+func (h *PKIHandler) SignCSR(c *gin.Context) {
+	var req dto.SignCSRRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	result, err := h.svc.SignCSR(c.Request.Context(), pkiengine.SignCSRRequest{
+		Role:   req.Role,
+		CSRPEM: req.CSR,
+		TTL:    req.TTL,
+	})
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusCreated, dto.SignCSRResponse{
+		CertPEM:   result.CertPEM,
+		Serial:    result.Serial,
+		ExpiresAt: result.ExpiresAt.Format(time.RFC3339),
+		CAChain:   result.CAChain,
+	})
+}
+
+// GetCAByName handles GET /pki/ca/by-name/:name.
+func (h *PKIHandler) GetCAByName(c *gin.Context) {
+	name := c.Param("name")
+	ca, err := h.svc.GetCAByName(c.Request.Context(), name)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, dto.CAResponse{
+		ID:        ca.ID.String(),
+		Name:      ca.Name,
+		CertPEM:   ca.CertPEM,
+		Serial:    ca.Serial,
+		ExpiresAt: ca.ExpiresAt.Format(time.RFC3339),
 	})
 }
 

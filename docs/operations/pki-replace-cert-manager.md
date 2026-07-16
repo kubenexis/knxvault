@@ -1,100 +1,107 @@
 # Replacing cert-manager with KNXVault
 
-**Status:** Shipped via operator **W30-01–W30-10**.  
+**Status:** Complete (W30 + P0/P1/P2 operator hardening).  
 **Claim:** For **any TLS issued by KNXVault PKI**, you do **not** need cert-manager.
-
-## Why
-
-| Component | Role |
-|-----------|------|
-| **KNXVault** | CA hierarchy, issue/renew/revoke, RBAC, Raft HA |
-| **knxvault-operator** | Kubernetes CRD automation → writes `kubernetes.io/tls` Secrets |
-| **cert-manager** | Optional legacy consumer only (Vault issuer shim W40-02) |
-
-ACME / Let’s Encrypt / public CAs remain out of scope (use external tooling if required).
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  CR[KNXVaultCertificate CR] --> Op[knxvault-operator]
-  CA[KNXVaultCA / Issuer] --> Op
-  Op -->|POST /pki/issue| V[KNXVault API]
-  Op -->|create/patch| Sec[kubernetes.io/tls Secret]
-  Sec --> Ing[Ingress / Gateway / Pods]
+  CR[KNXVaultCertificate] --> Op[knxvault-operator]
+  CA[KNXVaultCA / Issuer]
+  CA --> Op
+  Op -->|SA JWT or token| Auth[POST /auth/kubernetes]
+  Op -->|POST /pki/issue or /renew or /sign| V[KNXVault]
+  Op -->|optional| Sec[kubernetes.io/tls Secret]
+  Sec --> Ing[Ingress / Pods]
 ```
 
-## Install (cluster)
+| Piece | Role |
+|-------|------|
+| **KNXVault** | CA, issue, renew, **CSR sign** (`POST /pki/sign`), RBAC |
+| **knxvault-operator** | CRD automation, leader-elected, Secret or status-only delivery |
+| **cert-manager** | Optional legacy only (Vault shim) |
+
+ACME / public CAs remain out of scope.
+
+## Install
 
 ```bash
-# 1. KNXVault server running (StatefulSet or lab host process) with root token
-# 2. CRDs + RBAC
-kubectl apply -f deployments/operator/crds/knxvault.kubenexis.dev_all.yaml
-kubectl apply -f deployments/operator/rbac.yaml
+make build build-operator
+kubectl apply -f deployments/operator/crds/
+kubectl apply -f deployments/operator/rbac.yaml   # includes lease for leader election
+# Optional least-privilege Secrets in one ns:
+# kubectl apply -f deployments/operator/rbac-namespaced-example.yaml
 
-# 3. Operator (image or lab host binary — see lab script)
-export KNXVAULT_ADDR=https://knxvault.knxvault.svc:8200
-export KNXVAULT_TOKEN=<bootstrap-or-scoped-token>
+export KNXVAULT_ADDR=http://knxvault.knxvault.svc:8200
+# Prefer SA login (in-cluster):
+export KNXVAULT_K8S_ROLE=knxvault-operator
+# Bootstrap fallback:
+export KNXVAULT_TOKEN=<token>
+export KNXVAULT_OPERATOR_LEADER_ELECT=true
 export KNXVAULT_OPERATOR_INGRESS_SHIM=true
 ./bin/knxvault-operator
 ```
 
-## Workload recipe
+Bind the operator ServiceAccount to a vault role that can `pki` read/write (issue, renew, sign, get CA).
 
-```bash
-kubectl apply -f deployments/operator/samples/certificate-example.yaml
-kubectl -n knxvault wait --for=condition=Ready knxvaultca/platform-root --timeout=120s || true
-kubectl -n default get knxvaultcertificate app-tls -o yaml
-kubectl -n default get secret app-tls -o yaml
-```
-
-### CRDs
+## CRDs
 
 | CRD | Purpose |
 |-----|---------|
-| `KNXVaultCA` | Root / intermediate CA in vault |
-| `KNXVaultIssuer` | Namespaced issuer (`vaultCAName`) |
-| `KNXVaultClusterIssuer` | Cluster-scoped issuer |
-| `KNXVaultCertificate` | Leaf cert + `secretName` (cert-manager Certificate analogue) |
-| `KNXVaultCertificateRequest` | CSR-style / issue fallback |
+| `KNXVaultCA` | Root/intermediate CA (idempotent by vault name) |
+| `KNXVaultIssuer` / `KNXVaultClusterIssuer` | Ready only when **vault CA exists** (`GET /pki/ca/by-name/:name`) |
+| `KNXVaultCertificate` | Leaf + delivery `Secret` (default) or `None` |
+| `KNXVaultCertificateRequest` | **True CSR sign** via `POST /pki/sign`, else issue fallback |
 
-### Ingress annotation shim (optional)
+### Certificate delivery modes
+
+| `spec.delivery` | Behavior |
+|-----------------|----------|
+| `Secret` (default) | Write `kubernetes.io/tls` with annotations: serial, not-after, ca-id, revision |
+| `None` | Status only — no private key in etcd (app uses API/CSI) |
+
+### Ingress annotation
 
 ```yaml
 metadata:
   annotations:
     knxvault.kubenexis.dev/issuer: "KNXVaultClusterIssuer/platform"
-# or bare name → ClusterIssuer
-spec:
-  tls:
-    - hosts: [app.example.com]
-      secretName: app-tls
 ```
 
 Requires `KNXVAULT_OPERATOR_INGRESS_SHIM=true`.
 
-## Mapping from cert-manager
+## Operator env
 
-| cert-manager | KNXVault |
-|--------------|----------|
-| `Certificate` | `KNXVaultCertificate` |
-| `Issuer` / `ClusterIssuer` | `KNXVaultIssuer` / `KNXVaultClusterIssuer` |
-| `CertificateRequest` | `KNXVaultCertificateRequest` |
-| Vault path `pki/sign/:role` | Operator uses native `/pki/issue` (role = CA name) |
-| ACME | Not provided — keep external issuer if needed |
+| Env | Default | Meaning |
+|-----|---------|---------|
+| `KNXVAULT_ADDR` | cluster DNS | API base |
+| `KNXVAULT_TOKEN` / `KNXVAULT_TOKEN_FILE` | — | Bootstrap / lab token |
+| `KNXVAULT_K8S_ROLE` | `knxvault-operator` | SA → vault login role |
+| `KNXVAULT_SA_TOKEN_FILE` | in-cluster path | SA JWT file |
+| `KNXVAULT_OPERATOR_LEADER_ELECT` | `true` | HA single-writer |
+| `KNXVAULT_OPERATOR_LEADER_ELECT_NAMESPACE` | `knxvault` | Lease namespace |
+| `KNXVAULT_OPERATOR_INGRESS_SHIM` | `false` | Ingress controller |
+| Metrics / probes | `:8080` / `:8081` | Prometheus + healthz |
 
-Migration files: `deployments/operator/migration/`.
+## Lifecycle semantics
 
-## Operator configuration
+1. **Issuer Ready** = vault reports CA by name (not config-only).  
+2. **Certificate** conditions: `Issuing`, `Ready`; reasons: `PendingIssuer`, `VaultError`, `Issued`, …  
+3. **Renew** when within `renewBefore`; prefers `POST /pki/renew` when `status.caId` + serial set; else re-issue.  
+4. **Secrets** annotated with serial / notAfter / ca-id for idempotent updates.  
+5. **Backoff** on errors (5s × 2^n, cap 5m).
 
-| Env | Description |
-|-----|-------------|
-| `KNXVAULT_ADDR` | API base URL |
-| `KNXVAULT_TOKEN` | Bearer token (bootstrap or scoped `cert-operator` role) |
-| `KNXVAULT_TOKEN_FILE` | Alternative token path |
-| `KNXVAULT_OPERATOR_INGRESS_SHIM` | `true` enables Ingress annotation controller |
-| `KNXVAULT_OPERATOR_METRICS_ADDR` | Prometheus `:8080` |
-| `KNXVAULT_OPERATOR_PROBE_ADDR` | healthz/readyz `:8081` |
+## Migration from cert-manager
+
+See `deployments/operator/migration/`. Map `Certificate` → `KNXVaultCertificate` (same `secretName` / dnsNames), dual-run, then remove cert-manager.
+
+## Lab e2e
+
+```bash
+bash scripts/lab-operator-e2e.sh 192.168.137.131
+# 192.168.137.37 when SSH available
+```
 
 ## Metrics
 
@@ -103,25 +110,9 @@ Migration files: `deployments/operator/migration/`.
 - `knxvault_operator_reconcile_errors_total{controller=…}`
 - `knxvault_operator_ca_ready`
 
-## Security notes
-
-- Prefer a vault policy limited to `pki/*` issue/renew, not root create, for app namespaces.
-- Operator must not run as vault root long-term; rotate bootstrap token after CA setup.
-- Secrets are etcd-visible (same trade-off as cert-manager).
-
-## Lab e2e
-
-```bash
-make build build-cli build-operator
-# On a kube node with vault reachable:
-bash scripts/lab-operator-e2e.sh 192.168.137.131
-# or kind:
-bash scripts/test-operator-kind.sh
-```
-
 ## See also
 
-- [PKI Kubernetes integration](pki-kubernetes.md)
+- [PKI Kubernetes](pki-kubernetes.md)
 - [Kubernetes-native integrations](../integration/kubernetes-native.md)
-- [Backlog P0 W30-01–10](../backlog.md)
 - [Installation](../installation/install.md)
+- [Backlog](../backlog.md)
