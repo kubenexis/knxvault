@@ -325,6 +325,51 @@ func TestDNS01Pick(t *testing.T) {
 	}
 }
 
+func TestIssueRejectsSkipTLSOnPublicLE(t *testing.T) {
+	c := acme.NewClient(acme.Config{
+		DirectoryURL:  "https://acme-v02.api.letsencrypt.org/directory",
+		AcceptTOS:     true,
+		SkipTLSVerify: true,
+	}, nil, nil)
+	_, err := c.Issue(context.Background(), acme.OrderRequest{CommonName: "x.example.com"})
+	if err == nil {
+		t.Fatal("expected skipTLSVerify blocked for public LE")
+	}
+}
+
+func TestSetHTTP01PresenterAndSkipTLSVerifyHTTPClient(t *testing.T) {
+	c := acme.NewClient(acme.Config{DirectoryURL: "https://example.com", SkipTLSVerify: true}, nil, nil)
+	http01 := acme.NewMemoryHTTP01()
+	acme.SetHTTP01Presenter(c, http01)
+	// Present via shared presenter path exercised by Issue mock below.
+	acme.SetHTTP01Presenter(nil, http01) // nil-safe
+	// Probe with skip TLS on local server
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	t.Cleanup(srv.Close)
+	c2 := acme.NewClient(acme.Config{DirectoryURL: srv.URL, SkipTLSVerify: true}, nil, nil)
+	info := c2.ProbeDirectory(context.Background())
+	if !info.Ready {
+		t.Fatalf("probe with skipTLS: %+v", info)
+	}
+}
+
+func TestSelfSignedIPAddresses(t *testing.T) {
+	iss := &acme.SelfSignedIssuer{}
+	res, err := iss.Issue(context.Background(), acme.OrderRequest{
+		CommonName:  "ip-only",
+		IPAddresses: []string{"192.0.2.10", "not-an-ip", "2001:db8::1"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.CertPEM == "" {
+		t.Fatal("empty cert")
+	}
+}
+
 func TestGenerateAccountKey(t *testing.T) {
 	// ensure ecdsa path works when AccountKey nil — Issue with mock
 	_ = elliptic.P256()

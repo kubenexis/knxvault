@@ -2,6 +2,7 @@ package csi_test
 
 import (
 	"context"
+	"os"
 	"encoding/json"
 	"net"
 	"net/http"
@@ -117,4 +118,40 @@ func TestServerServeBindsSocket(t *testing.T) {
 	_ = conn.Close()
 	cancel()
 	<-errCh
+}
+
+func TestServeSocketPermissions(t *testing.T) {
+	dir := t.TempDir()
+	sock := dir + "/knxvault.sock"
+	srv := csi.NewServer(nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() { errCh <- srv.Serve(ctx, sock) }()
+	// Wait for socket
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if fi, err := os.Stat(sock); err == nil {
+			mode := fi.Mode().Perm()
+			if mode&0o077 != 0 {
+				// world/group write bits depending on umask; require not 0777
+				if mode&0o002 != 0 {
+					t.Fatalf("socket world-writable: %o", mode)
+				}
+			}
+			// dir should be 0700-ish
+			di, _ := os.Stat(dir)
+			if di.Mode().Perm()&0o077 != 0 {
+				t.Logf("socket dir mode = %o (umask may loosen)", di.Mode().Perm())
+			}
+			cancel()
+			select {
+			case <-errCh:
+			case <-time.After(time.Second):
+			}
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	cancel()
+	t.Fatal("socket not created")
 }

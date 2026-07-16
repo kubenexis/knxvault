@@ -44,3 +44,26 @@ func TestSealGuardBlocksReadsAndWrites(t *testing.T) {
 		t.Fatalf("GET after unseal = %d", rec.Code)
 	}
 }
+
+func TestSealGuardRejectsSuffixBypass(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	key := make([]byte, 32)
+	seal := app.NewSealState(key) // sealed
+	r := gin.New()
+	r.Use(middleware.SealGuard(seal))
+	r.POST("/evil/sys/unseal", func(c *gin.Context) { c.Status(http.StatusOK) })
+	r.POST("/sys/unseal", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	req := httptest.NewRequest(http.MethodPost, "/evil/sys/unseal", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("suffix bypass status = %d, want 503", rec.Code)
+	}
+	req = httptest.NewRequest(http.MethodPost, "/sys/unseal", nil)
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("exact unseal status = %d", rec.Code)
+	}
+}

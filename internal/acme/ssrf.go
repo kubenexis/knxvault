@@ -62,11 +62,12 @@ func isBlockedIP(ip net.IP) bool {
 }
 
 // PublicLEHost reports whether host is a known public Let's Encrypt directory host.
+// Uses suffix match so hostnames like "evil-letsencrypt.org.example" are not treated as LE.
 func PublicLEHost(raw string) bool {
 	u, err := url.Parse(raw)
 	if err != nil {
 		return false
 	}
 	h := strings.ToLower(u.Hostname())
-	return strings.Contains(h, "letsencrypt.org")
+	return h == "letsencrypt.org" || strings.HasSuffix(h, ".letsencrypt.org")
 }

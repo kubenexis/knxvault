@@ -13,7 +13,9 @@ import (
 func RequirePathCapability(svc *auth.Service, baseResource, capability string, pathParam string, audit *AuthzAudit) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if svc == nil {
-			c.Next()
+			// Fail closed (aligned with W50-11 Auth/RequirePermission).
+			_ = c.Error(common.New(common.ErrCodeUnavailable, "auth service not configured"))
+			c.Abort()
 			return
 		}
 		path := strings.TrimPrefix(c.Param(pathParam), "/")

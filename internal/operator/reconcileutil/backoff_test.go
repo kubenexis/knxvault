@@ -19,4 +19,19 @@ func TestErrorResultBackoff(t *testing.T) {
 	if r10.RequeueAfter != 5*time.Minute {
 		t.Fatalf("cap = %v", r10.RequeueAfter)
 	}
+	// Negative attempt treated as 0.
+	if ErrorResult(-1).RequeueAfter != 5*time.Second {
+		t.Fatal("negative attempt")
+	}
+}
+
+func TestRequeueAfter(t *testing.T) {
+	t.Parallel()
+	r := RequeueAfter(12 * time.Second)
+	if r.RequeueAfter != 12*time.Second {
+		t.Fatalf("got %v", r.RequeueAfter)
+	}
+	if r.Requeue {
+		t.Fatal("RequeueAfter should not set Requeue bool")
+	}
 }

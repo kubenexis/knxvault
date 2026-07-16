@@ -2,6 +2,7 @@
 package metrics
 
 import (
+	"crypto/sha256"
 	"crypto/subtle"
 	"net/http"
 	"strconv"
@@ -204,15 +205,23 @@ func HandlerWithAuth(token string) gin.HandlerFunc {
 	if token == "" {
 		return gin.WrapH(inner)
 	}
-	want := "Bearer " + token
+	want := []byte("Bearer " + token)
 	return func(c *gin.Context) {
-		got := c.GetHeader("Authorization")
-		if subtle.ConstantTimeCompare([]byte(got), []byte(want)) != 1 {
+		got := []byte(c.GetHeader("Authorization"))
+		// ConstantTimeCompare requires equal length; pad-compare via SHA256 digests.
+		if !metricsBearerEqual(got, want) {
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
 		inner.ServeHTTP(c.Writer, c.Request)
 	}
+}
+
+func metricsBearerEqual(got, want []byte) bool {
+	// subtle.ConstantTimeCompare panics on length mismatch — use equal-length digests.
+	gh := sha256.Sum256(got)
+	wh := sha256.Sum256(want)
+	return subtle.ConstantTimeCompare(gh[:], wh[:]) == 1
 }
 
 // Middleware records request counts and latency.

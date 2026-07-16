@@ -95,8 +95,14 @@ func forwardEntry(entry *audit.Entry) {
 	if sink == nil || entry == nil {
 		return
 	}
-	// Shallow copy to avoid later mutation of details map after enqueue.
+	// Copy entry and details map so callers can mutate after Record returns.
 	cp := *entry
+	if entry.Details != nil {
+		cp.Details = make(map[string]any, len(entry.Details))
+		for k, v := range entry.Details {
+			cp.Details[k] = v
+		}
+	}
 	select {
 	case sink.queue <- &cp:
 	default:

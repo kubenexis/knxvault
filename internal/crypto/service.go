@@ -65,6 +65,7 @@ func (s *Service) DEKNeedsReencrypt(enc []byte) bool {
 }
 
 // ReencryptDEK re-wraps a DEK with the active master key.
+// Plaintext DEK is zeroed inside KeyRing.ReencryptDEK (W50-16).
 func (s *Service) ReencryptDEK(enc []byte) ([]byte, error) {
 	if s == nil || s.ring == nil {
 		return nil, fmt.Errorf("crypto service not configured")

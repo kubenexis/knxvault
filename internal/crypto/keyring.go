@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+
+	"github.com/kubenexis/knxvault/internal/crypto/memzero"
 )
 
 const dekVersionPrefixSize = 1
@@ -197,6 +199,7 @@ func (k *KeyRing) ReencryptDEK(enc []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer memzero.Bytes(dek)
 	return k.EncryptDEK(dek)
 }
 

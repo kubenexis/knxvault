@@ -67,6 +67,14 @@ func (h *SecretsHandler) Read(c *gin.Context) {
 		prefix := c.Query("prefix")
 		if prefix == "" {
 			prefix = rawPath
+		} else {
+			// Sanitize query prefix the same way as path params (path traversal).
+			cleaned, err := cleanSecretPath(prefix)
+			if err != nil {
+				_ = c.Error(err)
+				return
+			}
+			prefix = cleaned
 		}
 		paths, err := h.svc.ListPaths(c.Request.Context(), prefix)
 		if err != nil {
@@ -210,7 +218,11 @@ func (h *SecretsHandler) DeleteRotation(c *gin.Context) {
 }
 
 func secretPath(c *gin.Context) (string, error) {
-	raw := strings.TrimPrefix(c.Param("path"), "/")
+	return cleanSecretPath(strings.TrimPrefix(c.Param("path"), "/"))
+}
+
+func cleanSecretPath(raw string) (string, error) {
+	raw = strings.TrimPrefix(strings.TrimSpace(raw), "/")
 	if raw == "" {
 		return "", common.New(common.ErrCodeValidation, "path is required")
 	}

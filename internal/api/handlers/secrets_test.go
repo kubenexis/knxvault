@@ -147,9 +147,18 @@ func TestSecretsHandlerRejectsPathTraversal(t *testing.T) {
 	r.Use(middleware.Auth(authSvc))
 	r.GET("/secrets/kv/*path", middleware.RequirePermission(authSvc, "secrets/kv", "read"), handler.Read)
 
-	req := httptest.NewRequest(http.MethodGet, "/secrets/kv/public/../admin/secret", nil)
+	// list prefix traversal
+	req := httptest.NewRequest(http.MethodGet, "/secrets/kv/app?list=true&prefix=../../etc", nil)
 	req.Header.Set("Authorization", "Bearer root-token")
 	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for .. list prefix, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/secrets/kv/public/../admin/secret", nil)
+	req.Header.Set("Authorization", "Bearer root-token")
+	rec = httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for .. path, got %d body=%s", rec.Code, rec.Body.String())

@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"net/http"
+	"path"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -24,9 +25,9 @@ func SealGuard(checker SealChecker) gin.HandlerFunc {
 			c.Next()
 			return
 		}
-		// Allow only unseal-related paths if they ever land behind this middleware.
-		path := c.Request.URL.Path
-		if path == "/sys/unseal" || strings.HasSuffix(path, "/sys/unseal") {
+		// Exact unseal path only (after Clean) — avoid suffix bypasses like /evil/sys/unseal.
+		p := path.Clean("/" + strings.TrimSpace(c.Request.URL.Path))
+		if p == "/sys/unseal" {
 			c.Next()
 			return
 		}

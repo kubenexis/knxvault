@@ -241,6 +241,9 @@ func (c *Client) solve(ctx context.Context, api ACMEAPI, authz *xacme.Authorizat
 	domain := authz.Identifier.Value
 	switch chal.Type {
 	case "http-01":
+		if c.http01 == nil {
+			return fmt.Errorf("http-01 solver not configured")
+		}
 		keyAuth, err := api.HTTP01ChallengeResponse(chal.Token)
 		if err != nil {
 			return err
@@ -251,6 +254,9 @@ func (c *Client) solve(ctx context.Context, api ACMEAPI, authz *xacme.Authorizat
 		// Best-effort cleanup after challenge is no longer needed is done by caller defer in Issue.
 		return nil
 	case "dns-01":
+		if c.dns01 == nil {
+			return fmt.Errorf("dns-01 solver not configured")
+		}
 		val, err := api.DNS01ChallengeRecord(chal.Token)
 		if err != nil {
 			return err
@@ -291,9 +297,17 @@ func (c *Client) cleanupChallenge(ctx context.Context, api ACMEAPI, authz *xacme
 }
 
 func (c *Client) httpClient() *http.Client {
-	tr := http.DefaultTransport.(*http.Transport).Clone()
-	if c.cfg.SkipTLSVerify {
-		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec // lab ACME only
+	// Safe clone: DefaultTransport may be replaced in tests/custom agents.
+	var tr http.RoundTripper = http.DefaultTransport
+	if base, ok := http.DefaultTransport.(*http.Transport); ok {
+		cloned := base.Clone()
+		if c.cfg.SkipTLSVerify {
+			cloned.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec // lab ACME only
+		}
+		tr = cloned
+	} else if c.cfg.SkipTLSVerify {
+		// Fallback transport when DefaultTransport is not *http.Transport.
+		tr = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}} //nolint:gosec
 	}
 	return &http.Client{Timeout: 60 * time.Second, Transport: tr}
 }

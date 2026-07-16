@@ -115,28 +115,17 @@ func (s *Service) noteLockoutFailure(ctx context.Context, lockKey string, auditC
 	if s.lockout == nil {
 		return
 	}
-	// Recompute with identity when available (W50-18); also record IP key.
-	keys := LoginLockoutKeys(auditCtx.AuthMethod, auditCtx)
-	if lockKey != "" {
-		found := false
-		for _, k := range keys {
-			if k == lockKey {
-				found = true
-				break
-			}
-		}
-		if !found {
-			keys = append(keys, lockKey)
+	// Prefer identity-scoped key when known; fall back to provided lockKey / IP (W50-18).
+	// Record a single primary key so dual IP+identity increments do not double-count toward threshold.
+	primary := LoginLockoutKey(auditCtx.AuthMethod, auditCtx)
+	if primary == "" || primary == LockoutKey(auditCtx.AuthMethod, "unknown") {
+		if lockKey != "" {
+			primary = lockKey
 		}
 	}
-	locked := false
-	for _, k := range keys {
-		if s.lockout.RecordFailure(k) {
-			locked = true
-			s.recordLockoutAudit(ctx, k, auditCtx)
-		}
+	if s.lockout.RecordFailure(primary) {
+		s.recordLockoutAudit(ctx, primary, auditCtx)
 	}
-	_ = locked
 }
 
 func (s *Service) recordLoginFailure(ctx context.Context, lockKey string, auditCtx LoginAuditContext, reason string) {
