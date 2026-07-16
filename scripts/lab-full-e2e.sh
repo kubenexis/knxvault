@@ -58,17 +58,51 @@ kubectl apply -f /tmp/knxvault-operator-deploy/crds/
 kubectl apply -f /tmp/knxvault-operator-deploy/rbac.yaml
 ls /tmp/knxvault-operator-deploy/samples/'
 
-echo "==> start vault (fresh single-node Raft) + operator"
-ssh "root@${HOST}" "bash -s" <<REMOTE
+# Shamir multi-share unseal (ops flow): start sealed → submit t-of-n shares only → open data plane.
+# Shares are produced offline (generate-unseal-shares is seal-guarded).
+SHAMIR_N=3
+SHAMIR_T=2
+SHARE_DIR=$(mktemp -d /tmp/knxvault-lab-shares.XXXXXX)
+trap 'rm -rf "$SHARE_DIR"' EXIT
+
+echo "==> generate keys on lab + offline Shamir split (t=${SHAMIR_T} of n=${SHAMIR_N})"
+ssh "root@${HOST}" "bash -s" <<'GENKEYS'
 set -euo pipefail
-export KUBECONFIG=/etc/kubernetes/admin.conf
+mkdir -p /opt/knxvault /var/lib/knxvault/raft-full /var/log/knxvault
 rm -rf /var/lib/knxvault/raft-full && mkdir -p /var/lib/knxvault/raft-full
 openssl rand -base64 32 > /opt/knxvault/e2e-master.key
 openssl rand -base64 32 > /opt/knxvault/e2e-unseal.key
+chmod 600 /opt/knxvault/e2e-*.key
+GENKEYS
+scp -o StrictHostKeyChecking=no "root@${HOST}:/opt/knxvault/e2e-unseal.key" "$SHARE_DIR/e2e-unseal.key"
+UNSEAL_B64=$(tr -d '\n' < "$SHARE_DIR/e2e-unseal.key")
+# Offline split on the build host (same package as production unseal combine).
+go run "$ROOT/scripts/shamir-split/main.go" -key "$UNSEAL_B64" -n "$SHAMIR_N" -t "$SHAMIR_T" \
+  > "$SHARE_DIR/shares.txt"
+mapfile -t LAB_SHARES < "$SHARE_DIR/shares.txt"
+if [ "${#LAB_SHARES[@]}" -ne "$SHAMIR_N" ]; then
+  echo "expected $SHAMIR_N shares, got ${#LAB_SHARES[@]}"
+  cat "$SHARE_DIR/shares.txt"
+  exit 1
+fi
+# Install share files on lab (custodian simulation); never install full unseal for the multi-share path.
+ssh "root@${HOST}" "rm -f /opt/knxvault/e2e-share-*.b64; mkdir -p /opt/knxvault"
+i=1
+for s in "${LAB_SHARES[@]}"; do
+  printf '%s' "$s" | ssh "root@${HOST}" "cat > /opt/knxvault/e2e-share-${i}.b64 && chmod 600 /opt/knxvault/e2e-share-${i}.b64"
+  i=$((i + 1))
+done
+echo "  offline split OK (${SHAMIR_N} shares, threshold ${SHAMIR_T})"
+
+echo "==> start vault sealed (Raft + UNSEAL_THRESHOLD=${SHAMIR_T}); multi-share unseal; then operator"
+ssh "root@${HOST}" "bash -s" <<REMOTE
+set -euo pipefail
+export KUBECONFIG=/etc/kubernetes/admin.conf
 echo '${TOKEN_VALUE}' > /opt/knxvault/e2e-root.token
-chmod 600 /opt/knxvault/e2e-*.key /opt/knxvault/e2e-root.token
-export KNXVAULT_MASTER_KEY="\$(cat /opt/knxvault/e2e-master.key)"
-export KNXVAULT_UNSEAL_KEY="\$(cat /opt/knxvault/e2e-unseal.key)"
+chmod 600 /opt/knxvault/e2e-root.token
+export KNXVAULT_MASTER_KEY="\$(tr -d '\n' < /opt/knxvault/e2e-master.key)"
+export KNXVAULT_UNSEAL_KEY="\$(tr -d '\n' < /opt/knxvault/e2e-unseal.key)"
+export KNXVAULT_UNSEAL_THRESHOLD=${SHAMIR_T}
 export KNXVAULT_ROOT_TOKEN='${TOKEN_VALUE}'
 export KNXVAULT_HTTP_ADDR=':8200'
 export KNXVAULT_LOG_LEVEL=info
@@ -87,22 +121,54 @@ curl -sf http://127.0.0.1:8200/ready >/dev/null || {
   echo 'vault not ready'; tail -50 /var/log/knxvault/full-e2e-serve.log; exit 1
 }
 
-# W50-03 / W52: process starts sealed when KNXVAULT_UNSEAL_KEY is set — unseal before data plane.
-UNSEAL_B64="\$(tr -d '\n' < /opt/knxvault/e2e-unseal.key)"
+# Assert start sealed (must not auto-open).
+H0=\$(curl -sf http://127.0.0.1:8200/health || true)
+echo "\$H0" | grep -q '"sealed"[[:space:]]*:[[:space:]]*true' || {
+  echo "expected sealed at start: \$H0"; exit 1
+}
+echo START_SEALED_OK
+
+# Multi-share unseal: t-of-n shares only (never POST full key on this path).
+SHARE1=\$(tr -d '\n' < /opt/knxvault/e2e-share-1.b64)
+SHARE2=\$(tr -d '\n' < /opt/knxvault/e2e-share-2.b64)
 curl -sf -X POST http://127.0.0.1:8200/sys/unseal \
   -H 'Content-Type: application/json' \
-  -d "{\\"key\\":\\"\${UNSEAL_B64}\\"}" >/tmp/knxvault-unseal.json || {
-  echo 'unseal failed'; cat /tmp/knxvault-unseal.json 2>/dev/null; tail -40 /var/log/knxvault/full-e2e-serve.log; exit 1
+  -d "{\\"share\\":\\"\${SHARE1}\\"}" >/tmp/knxvault-unseal-s1.json || {
+  echo 'share1 unseal request failed'; cat /tmp/knxvault-unseal-s1.json 2>/dev/null; exit 1
 }
-if ! grep -q '"sealed"[[:space:]]*:[[:space:]]*false' /tmp/knxvault-unseal.json 2>/dev/null; then
-  # Accept either sealed:false or empty sealed field after success
+if ! grep -q '"sealed"[[:space:]]*:[[:space:]]*true' /tmp/knxvault-unseal-s1.json; then
+  echo "after 1 share expected still sealed: \$(cat /tmp/knxvault-unseal-s1.json)"; exit 1
+fi
+if ! grep -Eq '"progress"[[:space:]]*:[[:space:]]*1' /tmp/knxvault-unseal-s1.json; then
+  echo "after 1 share expected progress=1: \$(cat /tmp/knxvault-unseal-s1.json)"; exit 1
+fi
+if ! grep -Eq '"threshold"[[:space:]]*:[[:space:]]*${SHAMIR_T}' /tmp/knxvault-unseal-s1.json; then
+  echo "after 1 share expected threshold=${SHAMIR_T}: \$(cat /tmp/knxvault-unseal-s1.json)"; exit 1
+fi
+echo SHARE1_PROGRESS_OK
+
+curl -sf -X POST http://127.0.0.1:8200/sys/unseal \
+  -H 'Content-Type: application/json' \
+  -d "{\\"share\\":\\"\${SHARE2}\\"}" >/tmp/knxvault-unseal-s2.json || {
+  echo 'share2 unseal request failed'; cat /tmp/knxvault-unseal-s2.json 2>/dev/null; exit 1
+}
+if ! grep -q '"sealed"[[:space:]]*:[[:space:]]*false' /tmp/knxvault-unseal-s2.json; then
   H=\$(curl -sf http://127.0.0.1:8200/health || true)
   echo "\$H" | grep -q '"sealed"[[:space:]]*:[[:space:]]*false' || {
-    echo "still sealed after unseal: \$(cat /tmp/knxvault-unseal.json) health=\$H"
+    echo "still sealed after t shares: \$(cat /tmp/knxvault-unseal-s2.json) health=\$H"
     exit 1
   }
 fi
-echo UNSEAL_OK
+# Data plane open: KV write must succeed (proves not just health flag).
+TOK='${TOKEN_VALUE}'
+curl -sf -X POST http://127.0.0.1:8200/secrets/kv/e2e/multishare-open \
+  -H "Authorization: Bearer \${TOK}" \
+  -H 'Content-Type: application/json' \
+  -d '{"data":{"ok":"after-multishare-unseal"}}' >/tmp/knxvault-kv-open.json || {
+  echo 'KV write after multi-share unseal failed'; cat /tmp/knxvault-kv-open.json 2>/dev/null
+  tail -30 /var/log/knxvault/full-e2e-serve.log; exit 1
+}
+echo MULTISHARE_UNSEAL_OK
 
 export KNXVAULT_ADDR=http://127.0.0.1:8200
 export KNXVAULT_TOKEN='${TOKEN_VALUE}'
@@ -173,7 +239,42 @@ echo "$SHOW" | grep -q 's3cret-full' && pass "kv get --show-secrets" || fail "kv
 RED=$($CLI --addr "$KNXVAULT_ADDR" --token "$KNXVAULT_TOKEN" kv get e2e/full-secret 2>/dev/null || true)
 echo "$RED" | grep -qi 'REDACTED' && pass "kv get redacted" || fail "kv get redacted"
 
-# --- W53: generate-unseal-shares (vault unsealed; admin split) ---
+# --- W53: multi-share unseal bootstrap (start sealed → t-of-n shares → data plane) ---
+echo "SECTION|multishare"
+# KV written only after multi-share unseal in bootstrap (never used full-key unseal for open).
+MS=$($CLI --addr "$KNXVAULT_ADDR" --token "$KNXVAULT_TOKEN" kv get --show-secrets e2e/multishare-open 2>/dev/null || true)
+echo "$MS" | grep -q 'after-multishare-unseal' && pass "W53 bootstrap multi-share opened data plane (KV)" || fail "W53 bootstrap multi-share opened data plane (KV)"
+test -f /opt/knxvault/e2e-share-1.b64 && test -f /opt/knxvault/e2e-share-2.b64 && test -f /opt/knxvault/e2e-share-3.b64 \
+  && pass "W53 offline custodian shares present (n=3)" || fail "W53 offline custodian shares present (n=3)"
+
+# Re-seal → progress with 1 share → unseal with alternate pair (shares 1+3) — full key never used.
+curl -sf -X POST "$KNXVAULT_ADDR/sys/seal" -H "Authorization: Bearer $KNXVAULT_TOKEN" >/dev/null \
+  && pass "W53 re-seal for multi-share ceremony" || fail "W53 re-seal for multi-share ceremony"
+Hseal=$(curl -sf "$KNXVAULT_ADDR/health" || true)
+echo "$Hseal" | grep -q '"sealed"[[:space:]]*:[[:space:]]*true' && pass "W53 health sealed after re-seal" || fail "W53 health sealed after re-seal"
+# Data plane blocked while sealed
+KVCODE=$(curl -sS -o /tmp/kv-sealed.out -w '%{http_code}' -X POST "$KNXVAULT_ADDR/secrets/kv/e2e/should-block" \
+  -H "Authorization: Bearer $KNXVAULT_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"data":{"x":1}}' || echo 000)
+[ "$KVCODE" = "503" ] && pass "W53 KV blocked while sealed (503)" || fail "W53 KV blocked while sealed (got $KVCODE)"
+
+S1=$(tr -d '\n' < /opt/knxvault/e2e-share-1.b64)
+S3=$(tr -d '\n' < /opt/knxvault/e2e-share-3.b64)
+R1=$(curl -sS -X POST "$KNXVAULT_ADDR/sys/unseal" -H 'Content-Type: application/json' \
+  -d "{\"share\":\"$S1\"}" || true)
+echo "$R1" | grep -q '"sealed"[[:space:]]*:[[:space:]]*true' && pass "W53 share1 alone still sealed" || fail "W53 share1 alone still sealed"
+echo "$R1" | grep -Eq '"progress"[[:space:]]*:[[:space:]]*1' && pass "W53 share1 progress=1" || fail "W53 share1 progress=1"
+R3=$(curl -sS -X POST "$KNXVAULT_ADDR/sys/unseal" -H 'Content-Type: application/json' \
+  -d "{\"share\":\"$S3\"}" || true)
+echo "$R3" | grep -q '"sealed"[[:space:]]*:[[:space:]]*false' && pass "W53 shares 1+3 unseal (t-of-n)" || fail "W53 shares 1+3 unseal (t-of-n)"
+Hopen=$(curl -sf "$KNXVAULT_ADDR/health" || true)
+echo "$Hopen" | grep -q '"sealed"[[:space:]]*:[[:space:]]*false' && pass "W53 health unsealed after multi-share" || fail "W53 health unsealed after multi-share"
+curl -sf -X POST "$KNXVAULT_ADDR/secrets/kv/e2e/after-reseal-multishare" \
+  -H "Authorization: Bearer $KNXVAULT_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"data":{"ok":"reseal-multishare"}}' >/dev/null \
+  && pass "W53 data plane open after multi-share re-unseal" || fail "W53 data plane open after multi-share re-unseal"
+
+# Admin API: generate-unseal-shares while unsealed (ceremony tooling)
 UNSEAL_KEY=$(tr -d '\n' < /opt/knxvault/e2e-unseal.key)
 GEN=$(curl -sS -X POST "$KNXVAULT_ADDR/sys/generate-unseal-shares" \
   -H "Authorization: Bearer $KNXVAULT_TOKEN" \
@@ -181,11 +282,6 @@ GEN=$(curl -sS -X POST "$KNXVAULT_ADDR/sys/generate-unseal-shares" \
   -d "{\"key\":\"$UNSEAL_KEY\",\"shares\":3,\"threshold\":2}" || true)
 echo "$GEN" | grep -q '"shares"' && pass "W53 generate-unseal-shares" || fail "W53 generate-unseal-shares"
 echo "$GEN" | grep -q '"threshold"[[:space:]]*:[[:space:]]*2' && pass "W53 unseal shares threshold=2" || fail "W53 unseal shares threshold=2"
-
-# --- W53: AppRole still works (Raft-persisted path when raft on) ---
-# (vaultcompat section exercises register+login; re-assert health unsealed)
-H2=$(curl -sf "$KNXVAULT_ADDR/health" || true)
-echo "$H2" | grep -q '"sealed"[[:space:]]*:[[:space:]]*false' && pass "W53 still unsealed after share split API" || fail "W53 still unsealed after share split API"
 
 MC=$(curl -sS -o /tmp/metrics.out -w '%{http_code}' "$KNXVAULT_ADDR/metrics" || echo 000)
 [ "$MC" = "200" ] && grep -q 'go_\|knxvault_\|http_' /tmp/metrics.out && pass "GET /metrics" || fail "GET /metrics code=$MC"

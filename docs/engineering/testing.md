@@ -79,11 +79,11 @@ For structured HA, security stress, and PoC evaluation exercises, see **[Manual 
 
 Lab single-node Raft E2E on bare metal (`e2e-test01` / `192.168.137.131`):
 
-- **Full suite (recommended):** `bash scripts/lab-full-e2e.sh` or `make lab-full-e2e` — core CLI/API + **post-start unseal** + Vault product profile + operator CRDs + W53 share-split checks → **[lab-full-e2e.md](lab-full-e2e.md)** (last: **44/44 PASS**, 2026-07-16)
+- **Full suite (recommended):** `bash scripts/lab-full-e2e.sh` or `make lab-full-e2e` — core CLI/API + **Shamir multi-share unseal** (start sealed → t-of-n shares → data plane) + Vault product profile + operator CRDs → **[lab-full-e2e.md](lab-full-e2e.md)** (last: **53/53 PASS**, 2026-07-16)
 - Core-only historical record: **[lab-e2e-test01.md](lab-e2e-test01.md)**
 - Operator-only: `bash scripts/lab-operator-e2e.sh`
 
-**Seal note:** Raft lab runs set `KNXVAULT_UNSEAL_KEY` and therefore start sealed. The full lab script unseals before checks; local daemon harness does the same with the master-key fallback.
+**Seal note:** Raft lab runs set `KNXVAULT_UNSEAL_KEY` + `KNXVAULT_UNSEAL_THRESHOLD` and start sealed. The full lab script opens via **multi-share** unseal (offline `scripts/shamir-split`); local daemon harness uses single-key unseal with the master-key fallback.
 
 ### Quick smoke (local)
 

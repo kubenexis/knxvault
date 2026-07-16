@@ -2,31 +2,43 @@
 
 | Field | Value |
 |-------|-------|
-| **Result** | **PASS** (44 / 44 checks) |
-| **Date (UTC)** | 2026-07-16T08:27:16Z |
+| **Result** | **PASS** (53 / 53 checks) |
+| **Date (UTC)** | 2026-07-16T08:31:57Z |
 | **Host** | `e2e-test01` (`192.168.137.131`) |
-| **Binary** | `knxvault` / `knxvault-cli` / `knxvault-operator` **0.4.5** (commit `eac59e9`+) |
+| **Binary** | `knxvault` / `knxvault-cli` / `knxvault-operator` **0.4.5** |
 | **Mode** | Single-node Dragonboat Raft (host process) + operator against local API |
+| **Unseal** | **Shamir multi-share** — start sealed → offline t-of-n shares → data plane (no full-key unseal on open path) |
 | **Script** | `scripts/lab-full-e2e.sh` |
 
 ## What it covers
 
 | Section | Checks | Purpose |
 |---------|--------|---------|
-| **core** | 23 | CLI health/status/doctor, auth, PKI, KV redaction, metrics/openapi, env-only CLI, **W53 generate-unseal-shares** |
+| **core** | 20 | CLI health/status/doctor, auth, PKI, KV redaction, metrics/openapi, env-only CLI |
+| **multishare** | 12 | Bootstrap multi-share open + re-seal ceremony (progress, alternate share pair, data plane) |
 | **vaultcompat** | 14 | Vault product profile: health, AppRole, sign (issue+CSR), custom mount |
 | **operator** | 4 | Vault-mode ClusterIssuer Ready, Certificate serial+caId, TLS Secret |
 | **multi-issuer** | 3 | SelfSigned ClusterIssuer + Certificate + Secret (no cert-manager) |
 
-## Unseal (required)
+## Shamir multi-share unseal (ops flow)
 
-With Raft, `KNXVAULT_UNSEAL_KEY` is set and the process **starts sealed** (W50-03 / W52). The lab script:
+This is the production-style ceremony exercised on the lab host:
 
-1. Starts `knxvault serve` with distinct master + unseal keys  
-2. Waits for `/ready`  
-3. **`POST /sys/unseal`** with the unseal key (`UNSEAL_OK`) before operator start and checks  
+```text
+1. Generate master + unseal keys on lab
+2. Offline split on build host: go run ./scripts/shamir-split -key $UNSEAL -n 3 -t 2
+3. Install share files on lab (/opt/knxvault/e2e-share-{1,2,3}.b64)
+4. Start knxvault serve with KNXVAULT_UNSEAL_THRESHOLD=2  → sealed
+5. POST /sys/unseal {"share": share1}  → sealed, progress=1, threshold=2
+6. POST /sys/unseal {"share": share2}  → unsealed
+7. KV write proves data plane open (MULTISHARE_UNSEAL_OK)
+8. Later: re-seal → share1 alone still sealed → shares 1+3 unseal → KV write again
+```
 
-Without step 3, data-plane and operator vault-mode checks fail with `unavailable: vault is sealed`.
+**Full unseal key is never submitted** for the open path. Share 3 is held as a spare custodian share for the re-seal ceremony.
+
+Offline split tool: `scripts/shamir-split/main.go` (same `internal/crypto/shamir` package as the server combine path).  
+`POST /sys/generate-unseal-shares` is also checked **while unsealed** (admin tooling); it remains seal-guarded when sealed.
 
 ## Re-run
 
@@ -38,13 +50,15 @@ bash scripts/lab-full-e2e.sh 192.168.137.131
 make lab-full-e2e
 ```
 
-Requires: SSH as `root` to the lab host, `kubectl` on the host, OpenSSL, `make build build-cli build-operator` on the build machine.
+Requires: SSH as `root` to the lab host, `kubectl` on the host, OpenSSL, Go (for offline split), `make build build-cli build-operator` on the build machine.
 
 Artifacts on the lab node:
 
 | Path | Purpose |
 |------|---------|
 | `/opt/knxvault/knxvault{,-cli,-operator}` | Binaries under test |
+| `/opt/knxvault/e2e-unseal.key` | Full unseal secret (configured at process start; not used for HTTP open path) |
+| `/opt/knxvault/e2e-share-{1,2,3}.b64` | Offline Shamir custodian shares |
 | `/var/lib/knxvault/raft-full` | Fresh Raft data dir for this run |
 | `/var/log/knxvault/full-e2e-serve.log` | Server log |
 | `/var/log/knxvault/full-e2e-operator.log` | Operator log |
@@ -53,47 +67,32 @@ Artifacts on the lab node:
 ## Last run summary
 
 ```
-SUMMARY|PASS=44 FAIL=0
-FULL LAB E2E PASS on 192.168.137.131 (commit eac59e9)
+START_SEALED_OK
+SHARE1_PROGRESS_OK
+MULTISHARE_UNSEAL_OK
+SUMMARY|PASS=53 FAIL=0
+FULL LAB E2E PASS on 192.168.137.131
 ```
 
-### W53 checks (core)
+### multishare section (W53)
 
-- `POST /sys/generate-unseal-shares` → `shares` + `threshold: 2`  
-- Health remains unsealed after share split API  
+- Bootstrap KV after multi-share unseal  
+- Offline shares present (n=3)  
+- Re-seal → KV 503 → share1 progress → shares 1+3 open data plane  
+- `generate-unseal-shares` while unsealed  
 
-### vaultcompat highlights
+### vaultcompat / operator
 
-- `GET /v1/sys/health` → 200, initialized, unsealed  
-- `POST /sys/auth/approle` + `POST /v1/auth/approle/login` → client_token  
-- `POST /v1/pki/sign/web-server` with `X-Vault-Token` (issue + CSR)  
-- `POST /v1/pki_int/sign/web-server` (custom mount)  
-- AppRole-issued token can sign  
+- Unchanged from prior lab full E2E (AppRole, vault sign, ClusterIssuer, Certificate Secret)  
 
-### operator highlights
-
-- `KNXVaultClusterIssuer/platform` Ready=True  
-- `KNXVaultCertificate/app-tls` has serial + caId  
-- Kubernetes Secret `app-tls` created with annotations  
-
-## Local integration E2E (same machine)
+## Local integration E2E
 
 ```bash
-make test-integration   # includes TestE2E* daemon CLI + W53 HTTP tests
+make test-integration   # includes TestE2EMultiShareUnsealHTTP
 ```
-
-| Test | Coverage |
-|------|----------|
-| `TestE2EDaemonCLIWorkflow` | health, doctor, PKI, KV redaction (auto-unseal after start) |
-| `TestE2EMultiShareUnsealHTTP` | Shamir share submit until unsealed |
-| `TestE2ETenantPKIScopesCANames` | tenant mode namespace required + PKI under tenant |
-| `TestE2ECertLoginHTTP` | client-cert auth method (`LoginWithClientCert`) |
 
 ## Related
 
-- Narrower operator-only: `scripts/lab-operator-e2e.sh`  
-- Earlier core-only record: [lab-e2e-test01.md](lab-e2e-test01.md)  
-- cert-manager recipe: [cert-manager-integration.md](../recipes/cert-manager-integration.md)  
 - Seal/unseal recipe: [seal-and-unseal.md](../recipes/seal-and-unseal.md)  
 - W53 features: [formal-w53-residual-features-2026-07-16.md](../audit/formal-w53-residual-features-2026-07-16.md)  
-- Integration harness: `test/integration/e2e_daemon_test.go`, `w53_e2e_test.go`  
+- Testing guide: [testing.md](testing.md)  
