@@ -11,6 +11,7 @@ Version-controlled documentation for architects, operators, developers, and inte
 | [System diagrams](architecture/diagrams.md) | Architects | Mermaid: layers, operator TLS, Vault profile, Raft |
 | [Data models](architecture/data-models.md) | Engineers | Domain entities, PKI role resolution, operator status |
 | [Security model](architecture/security-model.md) | Security / SRE | Threat model, crypto, auth (incl. AppRole), audit |
+| [**Post-quantum (PQ) readiness**](pq/README.md) | Architects / Security | Current state, dual planes, generations g1/g2, **PQ backlog** |
 | [Envelope encryption](architecture/envelope-encryption.md) | Engineers / Security | AES-GCM envelope, DEKs, nonces, master key rotation |
 | [Dragonboat storage](storage/dragonboat.md) | Engineers | Raft topology, command catalog, snapshots |
 | [Raft HA & recovery](storage/raft-ha-and-recovery.md) | Engineers / SRE | Snapshots, quorum, membership, DR, partitions |
@@ -91,6 +92,7 @@ Version-controlled documentation for architects, operators, developers, and inte
 | [Contributing](engineering/contributing.md) | Contributors | PR workflow, licenses, code standards |
 | [Licensing policy](licensing.md) | Contributors | SPDX allow-list and exceptions |
 | [Backlog](backlog.md) | Maintainers | Phased work items; W30 operator + Vault profile **shipped** |
+| [PQ backlog](pq/backlog.md) | Maintainers | Post-quantum readiness work items (**PQ-*** IDs) |
 | [LLD alignment matrix](product/lld-alignment.md) | Maintainers | LLD § → code traceability |
 | [Secrets manager checklist](product/secrets-manager-checklist.md) | Architects | Capability matrix vs evaluation criteria |
 | [BFSI POC traceability matrix](product/bfsi-poc-traceability.md) | Architects / prospects | BFSI must-have requirements → evidence, gaps, waivers |

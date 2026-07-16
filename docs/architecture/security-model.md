@@ -15,6 +15,8 @@ Threat assumptions, cryptographic controls, and operational security guidance fo
 
 ## Cryptography
 
+**Post-quantum:** KNXVault is **not PQ-ready**. At-rest envelopes use **AES-256-GCM** (relatively durable under Grover if keys are strong). **PKI (RSA) and classical TLS are not post-quantum.** Dual-stack generations (g1 classical default, g2+ opt-in), roadmap, and **PQ backlog** live under [`docs/pq/`](../pq/README.md). Do not claim “post-quantum ready” until those gates complete.
+
 ### Master key
 
 - 32-byte random key, base64-encoded

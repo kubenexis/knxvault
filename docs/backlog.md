@@ -4,6 +4,8 @@ Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topological
 
 **Current focus (2026-07-16):** **P0 W50 audit remediation** (full-codebase review 7f32c606) after W30 Complete + **operator hardening P0/P1/P2** (SA auth, leader election, CSR sign API, issuer vault Ready, Secret annotations, delivery None, backoff, ns RBAC example). Prefer KNXVault PKI + operator for vault-issued TLS (**no cert-manager**). Remaining Phase 5: tenant depth (W32), HSM (W31-02).
 
+**Post-quantum readiness** is tracked separately: **[`docs/pq/backlog.md`](pq/backlog.md)** (`PQ-*` IDs) with design under [`docs/pq/`](pq/README.md). Not a claim of PQ-ready product.
+
 **Legend**
 
 | Field | Meaning |
@@ -511,6 +513,10 @@ Report: `docs/audit/formal-security-remediation-w52-2026-07-16.md`.
 Report: `docs/audit/formal-w53-residual-features-2026-07-16.md`.
 
 **Still residual (product):** HSM PKCS#11 (**W31-02**), tenant-scoped CSI/lease matrix, atomic INCR for shared counters, AppRole follower push-notify.
+
+## Post-quantum readiness (separate backlog)
+
+Tracked under **[`docs/pq/backlog.md`](pq/backlog.md)** with IDs **PQ-01…PQ-93** (phases PQ-0 document/harden through PQ-5 optional KEM wrap). Design: dual crypto planes, generations **g1** (classical default for Harbor/legacy) / **g2+** (opt-in). Index: [`docs/pq/README.md`](pq/README.md).
 
 ## Long-term future
 
