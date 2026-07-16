@@ -255,7 +255,7 @@ Use `POST /inject/render` from an init container or sidecar. See [Secrets inject
 ## Next steps
 
 - [Dummies guide](dummies-guide.md) — concepts, Kubernetes use cases, and security overview
-- [Operator runbook (end-to-end)](../operations/operator-runbook.md) — full narrative for smart admins: keys, install, unseal, apps, day-2
+- [Operator runbook (Day-0 + Day-2)](../operations/operator-runbook.md) — bring-up from empty cluster through first cert/secret, then ongoing ops
 - [Installation guide](../installation/install.md) — local, Docker, Kubernetes; Raft unseal requirements
 - [Replace cert-manager](../operations/pki-replace-cert-manager.md) — operator CRDs for TLS Secrets
 - [cert-manager Vault profile](../recipes/cert-manager-integration.md) — optional legacy path

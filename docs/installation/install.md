@@ -92,7 +92,7 @@ docker run --rm -p 8200:8200 \
   knxvault:0.4.5 serve
 ```
 
-For a full operator narrative (keys, unseal, apps, day-2) see the [end-to-end operator runbook](../operations/operator-runbook.md).
+For full **Day-0** (first install through acceptance) and **Day-2** operations, see the [operator runbook](../operations/operator-runbook.md).
 
 ## Option 3: Kubernetes (production HA)
 

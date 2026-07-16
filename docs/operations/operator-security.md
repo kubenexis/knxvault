@@ -2,7 +2,7 @@
 
 Production checklist for KNXVault operators. Complements the [security model](../architecture/security-model.md).
 
-> **End-to-end narrative** (what knxvault is, generate/protect keys, install, unseal, day-2): [Operator runbook](operator-runbook.md).
+> **Day-0 + Day-2 narrative** (bring-up through first apps, then operate): [Operator runbook](operator-runbook.md).
 
 ## 1. Never put passwords in database role `config`
 

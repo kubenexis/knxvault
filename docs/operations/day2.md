@@ -2,7 +2,7 @@
 
 Ongoing operational tasks for running KNXVault in production.
 
-> **New operators:** start with the [end-to-end operator runbook](operator-runbook.md) (concepts, keys, install, unseal, apps).  
+> **New operators:** start with the [operator runbook](operator-runbook.md) — **Day-0** (install through first cert/secret) and **Day-2** (this page’s ongoing tasks).  
 > Security checklist: [Operator security guidance](operator-security.md) — credential placement, audit discipline, and cleartext metadata expectations.
 
 ## Health monitoring
