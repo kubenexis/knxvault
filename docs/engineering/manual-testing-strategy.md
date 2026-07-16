@@ -1032,12 +1032,12 @@ Simulates: security team detects breach → immediate `sys/seal` → controlled 
 | Behavior | KNXVault today |
 |----------|----------------|
 | Seal trigger | Operator `POST /sys/seal` (no auto-seal on network loss) |
-| While sealed | **Mutating** APIs return `503`; **GET** reads on secured routes may still succeed |
-| Unseal model | **Single** `KNXVAULT_UNSEAL_KEY` (base64, 32 bytes) — not Shamir multi-custodian threshold |
+| While sealed | **Mutating** APIs return `503`; seal-guarded secret routes blocked; health/ready stay up |
+| Unseal model | Full-key **or** Shamir multi-share (`KNXVAULT_UNSEAL_THRESHOLD=t`, `POST /sys/unseal` with `share`) |
+| Process start | Starts **sealed** when unseal key configured; `seal.state` never auto-unseals (W52) |
 | CSI-mounted files | Already-mounted secret files remain on disk until pod/CSI refresh; new logins/writes blocked |
 
-> Enterprise Vault-style **3-of-5 unseal shards** are **not** implemented. Record as parity gap if prospects require multi-custodian unseal.
-
+> Multi-share unseal is **implemented** (W53). Lab E2E proves start sealed → offline t-of-n shares → data plane ([lab-full-e2e.md](lab-full-e2e.md), [e2e-and-lab-tests.md](e2e-and-lab-tests.md)). Residual: full unseal secret is still loaded at process start (shares gate *presentation*, not a separate root).
 ### Procedure
 
 ```bash
@@ -1108,6 +1108,8 @@ curl -s "$KNXVAULT_ADDR/ready" | jq '.sealed // empty'
 # Expect still sealed
 
 # 7. Full unseal with correct key
+#    Multi-share alternative (KNXVAULT_UNSEAL_THRESHOLD≥2): submit t distinct share bodies instead —
+#    see docs/recipes/seal-and-unseal.md and lab multi-share E2E (make lab-full-e2e).
 curl -s -X POST "$KNXVAULT_ADDR/sys/unseal" \
   -H 'Content-Type: application/json' \
   -d '{"key":"'"$KNXVAULT_UNSEAL_KEY"'"}' | jq .
@@ -1127,10 +1129,10 @@ kubectl -n production logs mt33-reader --tail=10
 |---|-----------|
 | 1 | `sys/seal` succeeds cluster-wide (all replicas report sealed) |
 | 2 | Mutating API calls return `503` with `vault is sealed` while sealed |
-| 3 | Wrong unseal key rejected; vault remains sealed |
-| 4 | Correct `KNXVAULT_UNSEAL_KEY` unseals without data loss |
+| 3 | Wrong unseal key / invalid shares rejected; vault remains sealed |
+| 4 | Correct full key **or** t-of-n shares unseals without data loss |
 | 5 | Writes succeed after unseal **without** restarting application pods |
-| 6 | PoC report documents read-while-sealed behavior and unseal model (single-key vs threshold) |
+| 6 | PoC report documents unseal model (single-key and/or Shamir threshold) and automated lab multi-share evidence |
 
 ### Evidence
 
@@ -2080,15 +2082,19 @@ Include in the test report:
 3. Failover and upgrade error windows (seconds of write unavailability)
 4. Rotation latency table (**MT-02** SLA runs)
 5. Security stress results (**MT-33**, **MT-36**) including seal/read behavior and unseal model notes
-6. Known limitations — path-level RBAC (W41-01), OIDC role API (W43-06), single-key unseal (no Shamir), admin revoke-by-ID
-7. Link to [`../audit/formal-code-audit-2026.md`](../audit/formal-code-audit-2026.md)
+6. Known limitations — path-level RBAC residual, OIDC role API gaps, multi-share still loads full unseal secret at process start, admin revoke-by-ID
+7. Link to [`../audit/formal-code-audit-2026.md`](../audit/formal-code-audit-2026.md) and [W53](../audit/formal-w53-residual-features-2026-07-16.md)
 8. Subsystem deep-dive checklist (Section 6) for engineering sign-off
+9. Automated evidence: [e2e-and-lab-tests.md](e2e-and-lab-tests.md), [lab-full-e2e.md](lab-full-e2e.md) (53/53 multi-share)
 
 ---
 
 ## 8. Related documents
 
 - [Automated testing guide](testing.md)
+- [E2E and lab test map](e2e-and-lab-tests.md)
+- [Lab full E2E](lab-full-e2e.md)
+- [Seal and unseal recipe](../recipes/seal-and-unseal.md)
 - [Kubernetes deployment](../deploy/kubernetes.md)
 - [Raft failover runbook](../operations/runbooks/raft-failover.md)
 - [Scaling runbook](../operations/runbooks/scaling.md)

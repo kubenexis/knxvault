@@ -54,8 +54,11 @@ export KNXVAULT_RAFT_INITIAL_MEMBERS=1=127.0.0.1:63001
 
 Bare-metal lab smoke (host binary, single-node Raft):
 
-- **Full suite (core + Vault profile + operator):** `make lab-full-e2e` → [lab-full-e2e.md](../engineering/lab-full-e2e.md)
+- **Full suite (Shamir multi-share unseal + core + Vault profile + operator):** `make lab-full-e2e` → [lab-full-e2e.md](../engineering/lab-full-e2e.md) (**53/53 PASS**)
+- Test map: [E2E and lab tests](../engineering/e2e-and-lab-tests.md)
 - Core-only historical record: [Lab E2E e2e-test01](../engineering/lab-e2e-test01.md)
+
+After any Raft start, **unseal** (full key or multi-share) before writes — process starts sealed when unseal key is set. Recipe: [Seal and unseal](../recipes/seal-and-unseal.md).
 
 ## Option 2: Docker
 

@@ -33,9 +33,10 @@ Step-by-step guides for common tasks. Each recipe is self-contained: prerequisit
 1. [Deploy a 3-node cluster](deploy-3-node-cluster.md)
 2. [Backup and restore](backup-and-restore.md)
 3. [Master key rotation](master-key-rotation.md)
-4. [Add and remove Raft nodes](raft-add-remove-node.md)
-5. [Raft failover recovery](raft-failover-recovery.md)
-6. [Rolling upgrade](rolling-upgrade-ha.md)
+4. [Seal and unseal](seal-and-unseal.md) — including multi-share ceremony
+5. [Add and remove Raft nodes](raft-add-remove-node.md)
+6. [Raft failover recovery](raft-failover-recovery.md)
+7. [Rolling upgrade](rolling-upgrade-ha.md)
 
 ### Path D — Dynamic secrets and integrations
 
@@ -61,7 +62,7 @@ Step-by-step guides for common tasks. Each recipe is self-contained: prerequisit
 | [Backup and restore](backup-and-restore.md) | Encrypted snapshots and disaster recovery |
 | [Add and remove Raft nodes](raft-add-remove-node.md) | Membership changes on a running cluster |
 | [Raft failover recovery](raft-failover-recovery.md) | Leader loss, quorum, and recovery |
-| [Seal and unseal](seal-and-unseal.md) | Emergency write lockdown |
+| [Seal and unseal](seal-and-unseal.md) | Emergency seal; single-key + Shamir multi-share unseal; lab E2E coverage |
 | [Rolling upgrade](rolling-upgrade-ha.md) | Upgrade image without losing quorum |
 
 ### Authentication and access control

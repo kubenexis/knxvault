@@ -134,7 +134,7 @@ Tokens carry a TTL (`KNXVAULT_TOKEN_TTL`, default 24h). The bootstrap **root tok
 **W53 residual features** ([report](../audit/formal-w53-residual-features-2026-07-16.md)):
 
 - **Multi-tenant non-KV isolation:** with `KNXVAULT_TENANT_MODE=true`, DB/SSH/PKI role and CA names are scoped by tenant namespace (same model as KV paths).
-- **Shamir multi-share unseal:** `KNXVAULT_UNSEAL_THRESHOLD` + `POST /sys/unseal` with `share` (base64); admin split via `POST /sys/generate-unseal-shares`.
+- **Shamir multi-share unseal:** `KNXVAULT_UNSEAL_THRESHOLD` + `POST /sys/unseal` with `share` (base64); admin split via `POST /sys/generate-unseal-shares` (unsealed only) or offline `scripts/shamir-split`. **Lab E2E:** start sealed → t-of-n shares → data plane (**53/53** — [lab-full-e2e.md](../engineering/lab-full-e2e.md), [e2e-and-lab-tests.md](../engineering/e2e-and-lab-tests.md)).
 - **AppRole Raft replication:** encrypted `sys/internal/approles` blob via SecretRepository (Dragonboat when Raft on); file persist still used when data dir set.
 - **Client-cert API login:** `POST /auth/cert` maps mTLS peer CN/DNS SAN → role policies → opaque token.
 - **Cluster-shared rate limit / lockout:** Valkey-backed counters when `KNXVAULT_VALKEY_CACHE_URL` is set (best-effort get/set, not atomic INCR).

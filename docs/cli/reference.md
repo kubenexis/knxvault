@@ -54,7 +54,7 @@ token: dev-root-token
 | `sys raft-remove-node <id>` | `POST /sys/raft/remove-node` |
 | `sys issue-listener-tls` | `POST /sys/tls/issue-listener` |
 | `sys seal` | `POST /sys/seal` |
-| `sys unseal <base64-key>` | `POST /sys/unseal` |
+| `sys unseal <base64-key>` | `POST /sys/unseal` with full key (multi-share uses HTTP `{"share":…}` — see [seal recipe](../recipes/seal-and-unseal.md)) |
 | `audit export [--limit]` | `GET /audit/export` |
 | `database roles put <name> <json-file>` | `PUT /secrets/database/roles/:name` |
 | `database roles get <name>` | `GET /secrets/database/roles/:name` |
@@ -76,7 +76,8 @@ knxvault-cli kv get app/db                 # JSON values → [REDACTED]; stderr:
 knxvault-cli kv get app/db --show-secrets  # plaintext (avoid shared logs)
 knxvault-cli pki issue --role root --common-name app.example.com --dns app.example.com --auto-renew
 knxvault-cli sys seal
-knxvault-cli sys unseal "$(cat unseal.key)"   # key from KNXVAULT_UNSEAL_KEY material
+knxvault-cli sys unseal "$(cat unseal.key)"   # full key (base64); process starts sealed after Raft start
+# Multi-share (threshold ≥ 2): curl with {"share":...} — docs/recipes/seal-and-unseal.md
 knxvault-cli backup create -o backup.json
 ```
 
@@ -84,4 +85,4 @@ knxvault-cli backup create -o backup.json
 
 The server is `knxvault` (not `knxvault-cli`). Start it with `knxvault serve`. Configuration is documented in [Configuration reference](../installation/configuration.md).
 
-When Raft is enabled, the server process requires `KNXVAULT_UNSEAL_KEY` (distinct from `KNXVAULT_MASTER_KEY`) at startup — see [Installation](../installation/install.md) and [Operator security](../operations/operator-security.md).
+When Raft is enabled, the server process requires `KNXVAULT_UNSEAL_KEY` (distinct from `KNXVAULT_MASTER_KEY`) at startup and starts **sealed** until unseal — see [Installation](../installation/install.md), [Operator security](../operations/operator-security.md), and [Seal and unseal](../recipes/seal-and-unseal.md). Lab multi-share proof: [lab-full-e2e.md](../engineering/lab-full-e2e.md).

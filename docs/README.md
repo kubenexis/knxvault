@@ -81,10 +81,12 @@ Version-controlled documentation for architects, operators, developers, and inte
 | Document | Audience | Description |
 |----------|----------|-------------|
 | [Development guide](engineering/development.md) | Contributors | Local setup, `make` targets, layout |
-| [Testing guide](engineering/testing.md) | Contributors | Unit, integration, and Raft tests |
-| [Manual testing strategy](engineering/manual-testing-strategy.md) | QA / SRE | Network disruption (MT-01), rotation latency (MT-02) |
-| [Lab full E2E](engineering/lab-full-e2e.md) | QA / SRE | **Complete** suite on 131: core + vaultcompat + operator (PASS 38/38) |
-| [Lab E2E e2e-test01](engineering/lab-e2e-test01.md) | QA / SRE | Core-only historical smoke (PASS 20/20) |
+| [Testing guide](engineering/testing.md) | Contributors | Unit, integration, local E2E, coverage gates |
+| [E2E and lab test map](engineering/e2e-and-lab-tests.md) | QA / SRE | Layers, multi-share unseal, W53 matrix, pre-release checklist |
+| [Manual testing strategy](engineering/manual-testing-strategy.md) | QA / SRE | Network disruption (MT-01), rotation latency (MT-02), seal stress (MT-33) |
+| [Lab full E2E](engineering/lab-full-e2e.md) | QA / SRE | **Complete** suite on 131: multi-share unseal + vaultcompat + operator (**53/53 PASS**) |
+| [Lab E2E e2e-test01](engineering/lab-e2e-test01.md) | QA / SRE | Core-only **historical** smoke (20/20; superseded by lab-full-e2e) |
+| [Seal and unseal recipe](recipes/seal-and-unseal.md) | Operators | Single-key + Shamir multi-share ceremony + automated coverage |
 | [Contributing](engineering/contributing.md) | Contributors | PR workflow, licenses, code standards |
 | [Licensing policy](licensing.md) | Contributors | SPDX allow-list and exceptions |
 | [Backlog](backlog.md) | Maintainers | Phased work items; W30 operator + Vault profile **shipped** |

@@ -70,12 +70,14 @@ CRL: `GET /pki/crl/:id`. OCSP: `POST /pki/ocsp/:id`. CSR sign (operator / Vault 
 ### Operator health (lab / production)
 
 ```bash
-# Full lab suite (core + vaultcompat + operator)
+# Full lab suite: Shamir multi-share unseal + core + vaultcompat + operator + multi-issuer
 make lab-full-e2e LAB_HOST=192.168.137.131
 # or: bash scripts/lab-full-e2e.sh
 ```
 
-See [Lab full E2E](../engineering/lab-full-e2e.md).
+Last full run: **53/53 PASS** — [Lab full E2E](../engineering/lab-full-e2e.md).  
+Test map: [E2E and lab tests](../engineering/e2e-and-lab-tests.md).  
+After Raft restart, process starts **sealed**; unseal (key or shares) before operator vault-mode CA create.
 
 ## Lease management
 

@@ -125,7 +125,7 @@ No additional Critical defects in operator deepcopy / engine registry panic path
 | Item | Notes |
 |------|--------|
 | `realACME` method wrappers still 0% unit coverage | Exercised only against live ACME (Pebble/LE); mocks cover Issue path |
-| Multi-share unseal | Progressive backoff only (W50-28 partial); Shamir multi-share still future |
+| Multi-share unseal | Progressive backoff (W50-28); **Shamir multi-share shipped in W53** — see [formal-w53](formal-w53-residual-features-2026-07-16.md), lab 53/53 |
 | AppRole multi-node Raft replication | File persist; not fully Raft-replicated |
 | Operator controller coverage ~39% | Outside pure-logic gate; expand when next operator milestone |
 

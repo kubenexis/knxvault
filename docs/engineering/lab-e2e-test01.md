@@ -1,12 +1,17 @@
-# Lab E2E — e2e-test01 (192.168.137.131)
+# Lab E2E — e2e-test01 (192.168.137.131) — historical core-only
+
+> **Superseded for the full gate.** Prefer **[lab-full-e2e.md](lab-full-e2e.md)** (`make lab-full-e2e`): **53/53 PASS**, including **Shamir multi-share unseal**, Vault product profile, operator CRDs, and multi-issuer.  
+> Map of all layers: [e2e-and-lab-tests.md](e2e-and-lab-tests.md).  
+> This page remains as a **historical** core-only single-key smoke record (20 checks, full-key unseal).
 
 | Field | Value |
 |-------|-------|
-| **Result** | **PASS** (20 / 20 checks) |
+| **Result** | **PASS** (20 / 20 checks) — historical |
 | **Date (UTC)** | 2026-07-16T02:07:26Z |
 | **Host** | `e2e-test01.smartedge.local` (`192.168.137.131`) |
 | **Binary** | `knxvault` / `knxvault-cli` **0.4.5** @ commit `b973d53` |
 | **Mode** | Single-node Dragonboat Raft (host process, not K8s STS) |
+| **Unseal** | Full-key `POST /sys/unseal` (not multi-share) |
 | **Listen** | HTTP `:8200`, Raft `127.0.0.1:63001` |
 | **OpenSSL** | 3.5.6 (host) |
 

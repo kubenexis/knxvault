@@ -81,7 +81,9 @@ See [LLD §3.1](../lld.md) for the full directory specification.
 | `make vet` | `go vet` |
 | `make lint` | golangci-lint v2 |
 | `make test` | Unit tests |
-| `make test-integration` | API + Raft integration tests |
+| `make test-coverage` | ≥80% operator pure-logic + acme gate |
+| `make test-integration` | API + Raft + local daemon E2E + W53 HTTP (multi-share, tenant, cert) |
+| `make lab-full-e2e` | Bare-metal full suite on e2e-test01 (multi-share unseal, 53 checks) |
 | `make gosec` | Security static analysis |
 | `make licenses` | SPDX allow-list check |
 | `make scan` | Trivy vulnerability scan |
@@ -94,8 +96,8 @@ See [LLD §3.1](../lld.md) for the full directory specification.
 3. **Repository** — implement interface in `internal/repository/dragonboat/`
 4. **Engine / service** — business logic in `internal/engine/` and `internal/service/`
 5. **API** — handler + DTO in `internal/api/`, update `api/openapi.yaml`
-6. **Tests** — unit tests alongside code; integration test in `test/integration/`
-7. **Docs** — update relevant guide in `docs/`
+6. **Tests** — unit tests alongside code; integration/E2E in `test/integration/`; for seal/unseal or Raft start paths re-run `make lab-full-e2e` when possible
+7. **Docs** — update relevant guide in `docs/`; keep [e2e-and-lab-tests.md](e2e-and-lab-tests.md) / [lab-full-e2e.md](lab-full-e2e.md) current if lab checks change
 
 ## CSI validation (optional)
 
@@ -115,5 +117,7 @@ Significant design changes require an ADR in [`docs/adr/`](../adr/README.md).
 ## Related documents
 
 - [Testing guide](testing.md)
+- [E2E and lab test map](e2e-and-lab-tests.md)
+- [Lab full E2E](lab-full-e2e.md)
 - [Contributing](contributing.md)
 - [Dragonboat storage](../storage/dragonboat.md)

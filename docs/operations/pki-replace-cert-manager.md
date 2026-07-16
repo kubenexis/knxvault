@@ -103,7 +103,7 @@ See `deployments/operator/migration/`. Map `Certificate` → `KNXVaultCertificat
 ## Lab e2e
 
 ```bash
-# Full suite (core + Vault profile + operator) — recommended
+# Full suite (multi-share unseal + core + Vault profile + operator + multi-issuer) — recommended
 bash scripts/lab-full-e2e.sh 192.168.137.131
 # or: make lab-full-e2e
 
@@ -111,7 +111,8 @@ bash scripts/lab-full-e2e.sh 192.168.137.131
 bash scripts/lab-operator-e2e.sh 192.168.137.131
 ```
 
-Last full run: [lab-full-e2e.md](../engineering/lab-full-e2e.md) (38/38 PASS).
+Last full run: [lab-full-e2e.md](../engineering/lab-full-e2e.md) (**53/53 PASS**, including Shamir multi-share unseal).  
+Map: [e2e-and-lab-tests.md](../engineering/e2e-and-lab-tests.md).
 
 ## Optional: keep cert-manager
 

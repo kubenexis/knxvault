@@ -56,7 +56,7 @@ go test ./internal/crypto/shamir/ ./internal/auth/ ./internal/app/ ./internal/se
 make test-coverage
 go test ./... -count=1
 make test-integration   # includes TestE2E* + TestE2EMultiShareUnsealHTTP / tenant / cert
-make lab-full-e2e       # bare-metal Raft host; starts sealed → unseals → 44 checks
+make lab-full-e2e       # bare-metal Raft: start sealed → t-of-n shares → data plane (53 checks)
 ```
 
 ## E2E results (2026-07-16)
@@ -64,6 +64,8 @@ make lab-full-e2e       # bare-metal Raft host; starts sealed → unseals → 44
 | Suite | Result | Notes |
 |-------|--------|-------|
 | `make test-integration` | **PASS** | Daemon CLI auto-unseal; W53 HTTP multi-share, tenant PKI, cert login |
-| `make lab-full-e2e` (`192.168.137.131`) | **PASS 53/53** | **Start sealed → offline 3-of-2 Shamir shares → data plane**; re-seal + shares 1+3; generate-unseal-shares; vaultcompat; operator; multi-issuer |
+| `make lab-full-e2e` (`192.168.137.131`) | **PASS 53/53** | **Start sealed → offline 3 shares / threshold 2 → data plane**; re-seal + shares 1+3; generate-unseal-shares; vaultcompat; operator; multi-issuer |
 
-Record: [lab-full-e2e.md](../engineering/lab-full-e2e.md). Offline split tool: `scripts/shamir-split/main.go`.
+Canonical map: [e2e-and-lab-tests.md](../engineering/e2e-and-lab-tests.md).  
+Lab record: [lab-full-e2e.md](../engineering/lab-full-e2e.md).  
+Offline split: `scripts/shamir-split/main.go`. Recipe: [seal-and-unseal.md](../recipes/seal-and-unseal.md).

@@ -71,30 +71,33 @@ Two distinct operational secrets. Do not conflate them.
 |--------|---------|------------------|
 | `KNXVAULT_MASTER_KEY` | Envelope encryption (wraps DEKs for secrets and CA private keys) | Required for production storage |
 | `KNXVAULT_UNSEAL_KEY` | Operational seal/unseal (`POST /sys/seal`, `POST /sys/unseal`) | **Required at process start** when `KNXVAULT_RAFT_ENABLED=true` |
+| Shamir shares (optional) | Custodian presentation of unseal when `KNXVAULT_UNSEAL_THRESHOLD>1` | Split offline or via admin API while unsealed; process still loads full unseal secret at start |
 
 **Rules:**
 
-1. Generate each with high entropy: `openssl rand -base64 32`.
+1. Generate master and unseal with high entropy: `openssl rand -base64 32`.
 2. When Raft is enabled, unseal **must not equal** master. Startup fails if unseal is missing or identical to master (`unseal key is required when raft is enabled`).
 3. Store both in a sealed Kubernetes Secret, sealed-secrets, or external KMS — never in ConfigMaps, Git, or chat.
 4. Back up both with the same custody as the master key; losing unseal blocks recovery from a sealed state.
 5. Unseal is **not** used for envelope encryption (see [envelope encryption](../architecture/envelope-encryption.md)).
-6. After install, run `knxvault-cli doctor --json` and confirm `server.sealed` is ok and `healthy` is true.
+6. Process **starts sealed** when an unseal key is configured. After install or restart, unseal (full key or **t-of-n shares**) before data-plane use; then `knxvault-cli doctor --json` (`server.sealed` ok, `healthy` true).
+7. Multi-share: set `KNXVAULT_UNSEAL_THRESHOLD`; distribute shares with offline `go run ./scripts/shamir-split` or `POST /sys/generate-unseal-shares` (unsealed only). Lab proves start sealed → shares only → data plane ([lab-full-e2e.md](../engineering/lab-full-e2e.md)).
 
-K8s template: [`deployments/k8s/secret.yaml`](../../deployments/k8s/secret.yaml). Recipe: [Seal and unseal](../recipes/seal-and-unseal.md).
+K8s template: [`deployments/k8s/secret.yaml`](../../deployments/k8s/secret.yaml). Recipe: [Seal and unseal](../recipes/seal-and-unseal.md). Test map: [E2E and lab tests](../engineering/e2e-and-lab-tests.md).
 
 ## Bootstrap hardening checklist
 
 - [ ] Replace bootstrap root token with scoped policies and roles
 - [ ] Store `KNXVAULT_MASTER_KEY` in a sealed K8s Secret or external KMS
 - [ ] Store `KNXVAULT_UNSEAL_KEY` separately from master (required with Raft; never equal master)
+- [ ] If multi-share: set `KNXVAULT_UNSEAL_THRESHOLD`, distribute offline shares, document custodian process
 - [ ] Enable TLS at ingress (or server TLS); plain HTTP triggers a `doctor` warn
-- [ ] Restrict `/metrics` with NetworkPolicy
+- [ ] Restrict `/metrics` and unauthenticated `/sys/unseal` with NetworkPolicy
 - [ ] Set `KNXVAULT_AUDIT_SIGNING_KEY`
-- [ ] Enable `KNXVAULT_RATE_LIMIT_ENABLED` in production
+- [ ] Rate limiting is on by default (`KNXVAULT_RATE_LIMIT_ENABLED`); keep enabled in production
 - [ ] Store admin DB credentials in KV, not in database role config
 - [ ] Schedule encrypted backups (`scripts/backup.sh` or CLI)
-- [ ] Post-deploy verify: `/health`, `/ready` (`sealed:false`, `raft_ready:true`), `doctor --json` (`fail:0`)
+- [ ] Post-deploy verify: unseal completed, `/health`/`/ready` (`sealed:false`, `raft_ready:true`), `doctor --json` (`fail:0`)
 
 ## PKI-specific guidance
 
