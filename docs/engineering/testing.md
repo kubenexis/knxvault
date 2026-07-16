@@ -56,8 +56,9 @@ Located in `test/integration/`:
 | `raft_test.go` | 3-node Raft cluster: linearizable writes |
 | `raft_failover_test.go` | Leader failover: stop leader, verify reads/writes on survivors |
 | `e2e_daemon_test.go` | Local `knxvault serve` daemon + `knxvault-cli` over `--addr` (PKI + KV workflow) |
+| `w53_e2e_test.go` | W53 residuals: Shamir multi-share unseal, tenant PKI, client-cert login, shamir package smoke |
 
-Integration tests set `KNXVAULT_MASTER_KEY` and `KNXVAULT_ROOT_TOKEN` programmatically. E2E daemon tests (`TestE2E*`) build `knxvault` and `knxvault-cli` once, start `knxvault serve` on an ephemeral port, and drive the CLI with `KNXVAULT_ADDR` / `--addr`. OpenSSL must be on `PATH` for PKI steps. Raft tests spawn multiple server processes with distinct `KNXVAULT_RAFT_NODE_ID` values. Unit tests that enable Raft via `config.Load()` must also set `KNXVAULT_RAFT_NODE_ID` (> 0) — otherwise validation fails before dependency wiring.
+Integration tests set `KNXVAULT_MASTER_KEY` and `KNXVAULT_ROOT_TOKEN` programmatically. E2E daemon tests (`TestE2E*`) build `knxvault` and `knxvault-cli` once, start `knxvault serve` on an ephemeral port, **unseal** (crypto installs a seal using the unseal key or master-key fallback), and drive the CLI with `KNXVAULT_ADDR` / `--addr`. OpenSSL must be on `PATH` for PKI steps. Raft tests spawn multiple server processes with distinct `KNXVAULT_RAFT_NODE_ID` values. Unit tests that enable Raft via `config.Load()` must also set `KNXVAULT_RAFT_NODE_ID` (> 0) — otherwise validation fails before dependency wiring.
 
 ## Static analysis and security gates
 
@@ -78,9 +79,11 @@ For structured HA, security stress, and PoC evaluation exercises, see **[Manual 
 
 Lab single-node Raft E2E on bare metal (`e2e-test01` / `192.168.137.131`):
 
-- **Full suite (recommended):** `bash scripts/lab-full-e2e.sh` — core CLI/API + Vault product profile (cert-manager) + operator CRDs → **[lab-full-e2e.md](lab-full-e2e.md)**
+- **Full suite (recommended):** `bash scripts/lab-full-e2e.sh` or `make lab-full-e2e` — core CLI/API + **post-start unseal** + Vault product profile + operator CRDs + W53 share-split checks → **[lab-full-e2e.md](lab-full-e2e.md)** (last: **44/44 PASS**, 2026-07-16)
 - Core-only historical record: **[lab-e2e-test01.md](lab-e2e-test01.md)**
 - Operator-only: `bash scripts/lab-operator-e2e.sh`
+
+**Seal note:** Raft lab runs set `KNXVAULT_UNSEAL_KEY` and therefore start sealed. The full lab script unseals before checks; local daemon harness does the same with the master-key fallback.
 
 ### Quick smoke (local)
 

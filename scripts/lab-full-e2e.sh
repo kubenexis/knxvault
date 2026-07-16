@@ -87,6 +87,23 @@ curl -sf http://127.0.0.1:8200/ready >/dev/null || {
   echo 'vault not ready'; tail -50 /var/log/knxvault/full-e2e-serve.log; exit 1
 }
 
+# W50-03 / W52: process starts sealed when KNXVAULT_UNSEAL_KEY is set — unseal before data plane.
+UNSEAL_B64="\$(tr -d '\n' < /opt/knxvault/e2e-unseal.key)"
+curl -sf -X POST http://127.0.0.1:8200/sys/unseal \
+  -H 'Content-Type: application/json' \
+  -d "{\\"key\\":\\"\${UNSEAL_B64}\\"}" >/tmp/knxvault-unseal.json || {
+  echo 'unseal failed'; cat /tmp/knxvault-unseal.json 2>/dev/null; tail -40 /var/log/knxvault/full-e2e-serve.log; exit 1
+}
+if ! grep -q '"sealed"[[:space:]]*:[[:space:]]*false' /tmp/knxvault-unseal.json 2>/dev/null; then
+  # Accept either sealed:false or empty sealed field after success
+  H=\$(curl -sf http://127.0.0.1:8200/health || true)
+  echo "\$H" | grep -q '"sealed"[[:space:]]*:[[:space:]]*false' || {
+    echo "still sealed after unseal: \$(cat /tmp/knxvault-unseal.json) health=\$H"
+    exit 1
+  }
+fi
+echo UNSEAL_OK
+
 export KNXVAULT_ADDR=http://127.0.0.1:8200
 export KNXVAULT_TOKEN='${TOKEN_VALUE}'
 export KNXVAULT_OPERATOR_INGRESS_SHIM=true
@@ -155,6 +172,20 @@ SHOW=$($CLI --addr "$KNXVAULT_ADDR" --token "$KNXVAULT_TOKEN" kv get --show-secr
 echo "$SHOW" | grep -q 's3cret-full' && pass "kv get --show-secrets" || fail "kv get --show-secrets"
 RED=$($CLI --addr "$KNXVAULT_ADDR" --token "$KNXVAULT_TOKEN" kv get e2e/full-secret 2>/dev/null || true)
 echo "$RED" | grep -qi 'REDACTED' && pass "kv get redacted" || fail "kv get redacted"
+
+# --- W53: generate-unseal-shares (vault unsealed; admin split) ---
+UNSEAL_KEY=$(tr -d '\n' < /opt/knxvault/e2e-unseal.key)
+GEN=$(curl -sS -X POST "$KNXVAULT_ADDR/sys/generate-unseal-shares" \
+  -H "Authorization: Bearer $KNXVAULT_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "{\"key\":\"$UNSEAL_KEY\",\"shares\":3,\"threshold\":2}" || true)
+echo "$GEN" | grep -q '"shares"' && pass "W53 generate-unseal-shares" || fail "W53 generate-unseal-shares"
+echo "$GEN" | grep -q '"threshold"[[:space:]]*:[[:space:]]*2' && pass "W53 unseal shares threshold=2" || fail "W53 unseal shares threshold=2"
+
+# --- W53: AppRole still works (Raft-persisted path when raft on) ---
+# (vaultcompat section exercises register+login; re-assert health unsealed)
+H2=$(curl -sf "$KNXVAULT_ADDR/health" || true)
+echo "$H2" | grep -q '"sealed"[[:space:]]*:[[:space:]]*false' && pass "W53 still unsealed after share split API" || fail "W53 still unsealed after share split API"
 
 MC=$(curl -sS -o /tmp/metrics.out -w '%{http_code}' "$KNXVAULT_ADDR/metrics" || echo 000)
 [ "$MC" = "200" ] && grep -q 'go_\|knxvault_\|http_' /tmp/metrics.out && pass "GET /metrics" || fail "GET /metrics code=$MC"

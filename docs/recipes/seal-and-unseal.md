@@ -59,6 +59,8 @@ curl -s -X POST "$KNXVAULT_ADDR/sys/unseal" \
 
 Failed share combinations clear pending shares and apply progressive unseal backoff (Retry-After). The durable `seal.state` marker **never** auto-unseals (W52-01).
 
+**Lab / automation:** `scripts/lab-full-e2e.sh` always unseals after `/ready` when Raft + unseal key are configured. Local `TestE2E*` daemon tests unseal with the master-key fallback. Do not expect a fresh process with `KNXVAULT_UNSEAL_KEY` (or crypto master without a separate unseal) to accept writes until `POST /sys/unseal` succeeds.
+
 ## Verify
 
 ```bash

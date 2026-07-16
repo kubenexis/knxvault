@@ -55,4 +55,15 @@ Implements the five residual items from the complete security audit that were pr
 go test ./internal/crypto/shamir/ ./internal/auth/ ./internal/app/ ./internal/service/ -count=1
 make test-coverage
 go test ./... -count=1
+make test-integration   # includes TestE2E* + TestE2EMultiShareUnsealHTTP / tenant / cert
+make lab-full-e2e       # bare-metal Raft host; starts sealed → unseals → 44 checks
 ```
+
+## E2E results (2026-07-16)
+
+| Suite | Result | Notes |
+|-------|--------|-------|
+| `make test-integration` | **PASS** | Daemon CLI auto-unseal; W53 HTTP multi-share, tenant PKI, cert login |
+| `make lab-full-e2e` (`192.168.137.131`) | **PASS 44/44** | Unseal after serve; generate-unseal-shares; vaultcompat; operator; multi-issuer |
+
+Record: [lab-full-e2e.md](../engineering/lab-full-e2e.md).

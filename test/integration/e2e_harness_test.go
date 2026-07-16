@@ -90,6 +90,8 @@ func startDaemon(t *testing.T, extraEnv ...string) *daemonEnv {
 	})
 
 	waitDaemonReady(t, env.baseURL, 15*time.Second, stderr)
+	// Crypto always installs a seal (unseal key or master-key fallback); unseal for data-plane E2E.
+	unsealDaemon(t, env.baseURL, e2eMasterKey())
 	return env
 }
 
@@ -141,7 +143,31 @@ log_level: error
 	})
 
 	waitDaemonReady(t, env.baseURL, 15*time.Second, stderr)
+	unsealDaemon(t, env.baseURL, e2eMasterKey())
 	return env
+}
+
+// unsealDaemon presents the base64 unseal key (raw-key encoding) so sealed vaults accept writes.
+func unsealDaemon(t *testing.T, baseURL, keyB64 string) {
+	t.Helper()
+	body, err := json.Marshal(map[string]string{"key": keyB64})
+	if err != nil {
+		t.Fatalf("marshal unseal: %v", err)
+	}
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/sys/unseal", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("unseal request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("unseal: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		raw, _ := io.ReadAll(resp.Body)
+		t.Fatalf("unseal status=%d body=%s", resp.StatusCode, raw)
+	}
 }
 
 func (e *daemonEnv) runCLI(args ...string) []byte {
