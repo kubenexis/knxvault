@@ -111,7 +111,7 @@ func (c *Client) ProbeDirectory(ctx context.Context) CAInfo {
 		info.Message = err.Error()
 		return info
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 200 && resp.StatusCode < 400 {
 		info.Ready = true
 		info.Message = "directory reachable"
@@ -305,7 +305,7 @@ func (c *Client) cleanupChallenge(ctx context.Context, api ACMEAPI, authz *xacme
 
 func (c *Client) httpClient() *http.Client {
 	// Safe clone: DefaultTransport may be replaced in tests/custom agents.
-	var tr http.RoundTripper = http.DefaultTransport
+	var tr = http.DefaultTransport
 	if base, ok := http.DefaultTransport.(*http.Transport); ok {
 		cloned := base.Clone()
 		if c.cfg.SkipTLSVerify {

@@ -29,8 +29,8 @@ func TestAccountKeyPEMRoundTrip(t *testing.T) {
 		t.Fatalf("type %T", parsed)
 	}
 	orig := key.(*ecdsa.PrivateKey)
-	if ek.D.Cmp(orig.D) != 0 {
-		t.Fatal("D mismatch after PEM round-trip")
+	if !ek.Equal(orig) {
+		t.Fatal("key mismatch after PEM round-trip")
 	}
 }
 

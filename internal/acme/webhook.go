@@ -49,7 +49,7 @@ func postDNSWebhookOpts(ctx context.Context, client HTTPDoer, rawURL, action, do
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 		return fmt.Errorf("dns webhook %s: status %d: %s", action, resp.StatusCode, string(b))
