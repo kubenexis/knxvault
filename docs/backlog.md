@@ -320,7 +320,7 @@ Gaps between **`docs/lld.md`** and the codebase not fully covered by Tier 0 or W
 | ~~**W38-22**~~ | §8.4 | ~~Prometheus alerting rules~~ | docs | S | W22-01, W29-02 | Done — `deployments/prometheus/knxvault-alerts.yaml`. | Alert rules for leader loss, PKI errors, leases, breaker. |
 | ~~**W38-23**~~ | §11.6 | ~~CLI example scripts~~ | docs | S | W20-01 | Done — `examples/cli/*.sh`. | Scripts documented for bootstrap, k8s login, backup. |
 | ~~**W38-24**~~ | §7.2 | ~~CA key rotation and re-issuance workflow~~ | crypto | L | W5-01, W38-03 | Done (stub) — `POST /pki/ca/:id/rotate` creates successor CA. | Successor CA created; full re-issuance job deferred. |
-| ~~**W38-25**~~ | §7.7, §9.5 | ~~Distroless/hardened production container image~~ | ci | M | W1-02 | Done (hardened multi-stage) — Dockerfile comments for distroless swap. | Multi-stage non-root image; OpenSSL via bookworm-slim runtime. |
+| ~~**W38-25**~~ | §7.7, §9.5 | ~~Distroless/hardened production container image~~ | ci | M | W1-02 | Done — multi-stage → `gcr.io/distroless/static-debian13:nonroot`; OpenSSL CLI PKI backend **removed**; native Go only. | No openssl binary or backend in product. |
 
 > **Tier F sequencing:** **W38-01–W38-04** (API completeness) parallel with **W36-05**. **W38-05**, **W38-21** (K8s hardening) after **W28-02**. **K8s secret delivery → Tier G (W39)** before **W38-07**. **W38-14–W38-15** after **W37-01**. **W38-19** can start immediately and updated continuously. **W38-22** after metrics stable (**W29-02**).
 

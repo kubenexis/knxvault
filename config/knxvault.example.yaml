@@ -5,8 +5,8 @@ http_addr: ":8200"
 log_level: info
 shutdown_grace: 10s
 
-openssl_binary: openssl
-openssl_timeout: 60s
+# PKI always uses in-process Go crypto/x509 (native). There is no OpenSSL CLI
+# backend — production images are distroless and do not ship openssl.
 
 # jwt_secret: dev-only HS256 K8s login
 # root_token: bootstrap admin token
@@ -38,28 +38,3 @@ security:
   # tls_cert: /etc/knxvault/tls/server.pem
   # tls_key: /etc/knxvault/tls/server.key
   # mtls_required: false
-  # mtls_ca: /etc/knxvault/tls/client-ca.pem
-  # exposure_signing_key: ""
-  # exposure_auto_revoke: false
-  # exposure_webhook_url: ""
-  # rotation_webhook_url: ""
-
-tracing:
-  enabled: false
-  # otlp_endpoint: otel-collector:4318
-  sample_ratio: 0
-
-raft:
-  enabled: false
-  # node_id: 1
-  address: "127.0.0.1:63001"
-  data_dir: /var/lib/knxvault/raft
-  # initial_members: "1=127.0.0.1:63001,2=127.0.0.1:63002"
-  election_rtt: 10
-  heartbeat_rtt: 1
-  rtt_millisecond: 1
-  leader_wait: 10s
-  join: false
-  # mtls_cert: /etc/knxvault/raft/tls/node.pem
-  # mtls_key: /etc/knxvault/raft/tls/node.key
-  # mtls_ca: /etc/knxvault/raft/tls/ca.pem

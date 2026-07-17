@@ -83,7 +83,7 @@ Crypto wiring always installs a seal (configured unseal key, or **master-key fal
 
 Multi-share path (`TestE2EMultiShareUnsealHTTP`): threshold 2, offline split, two `{"share":…}` posts — no full key.
 
-Integration tests set `KNXVAULT_MASTER_KEY` and `KNXVAULT_ROOT_TOKEN` programmatically. OpenSSL must be on `PATH` for PKI steps. Raft tests spawn multiple processes with distinct `KNXVAULT_RAFT_NODE_ID` values. Unit tests that enable Raft via `config.Load()` must also set `KNXVAULT_RAFT_NODE_ID` (> 0).
+Integration tests set `KNXVAULT_MASTER_KEY` and `KNXVAULT_ROOT_TOKEN` programmatically. PKI steps use the native Go backend (no OpenSSL on `PATH`). Raft tests spawn multiple processes with distinct `KNXVAULT_RAFT_NODE_ID` values. Unit tests that enable Raft via `config.Load()` must also set `KNXVAULT_RAFT_NODE_ID` (> 0).
 
 ## Static analysis and security gates
 

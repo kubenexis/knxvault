@@ -73,12 +73,12 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			},
 		},
 		Spec: v1alpha1.KNXVaultCertificateSpec{
-			SecretName: secretName,
-			IssuerRef:  v1alpha1.IssuerRef{Kind: kind, Name: name},
-			CommonName: cn,
-			DNSNames:   hosts,
+			SecretName:  secretName,
+			IssuerRef:   v1alpha1.IssuerRef{Kind: kind, Name: name},
+			CommonName:  cn,
+			DNSNames:    hosts,
 			Usages:      []string{"server auth"},
-			Duration:   "2160h",
+			Duration:    "2160h",
 			RenewBefore: "720h",
 		},
 	}

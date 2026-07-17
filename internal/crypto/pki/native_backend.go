@@ -24,16 +24,25 @@ func (b *NativeBackend) Name() string {
 
 // CreateRoot creates a self-signed root CA.
 func (b *NativeBackend) CreateRoot(_ context.Context, req RootRequest) (certPEM, keyPEM []byte, err error) {
+	if err := ValidateCommonName(req.CommonName); err != nil {
+		return nil, nil, err
+	}
 	return x509native.CreateRoot(req.CommonName, req.TTL, req.KeyBits)
 }
 
 // CreateIntermediate signs an intermediate CA certificate.
 func (b *NativeBackend) CreateIntermediate(_ context.Context, req IntermediateRequest) (certPEM, keyPEM []byte, err error) {
+	if err := ValidateCommonName(req.CommonName); err != nil {
+		return nil, nil, err
+	}
 	return x509native.CreateIntermediate(req.ParentCertPEM, req.ParentKeyPEM, req.CommonName, req.TTL, req.KeyBits)
 }
 
 // IssueCertificate signs a leaf certificate.
 func (b *NativeBackend) IssueCertificate(_ context.Context, req IssueRequest) (certPEM, keyPEM []byte, err error) {
+	if err := ValidateCommonName(req.CommonName); err != nil {
+		return nil, nil, err
+	}
 	return x509native.IssueCertificate(req.CACertPEM, req.CAKeyPEM, req.CommonName, req.DNSNames, req.IPAddresses, req.TTL, req.KeyBits)
 }
 

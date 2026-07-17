@@ -2,11 +2,11 @@ package csi_test
 
 import (
 	"context"
-	"os"
 	"encoding/json"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 

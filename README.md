@@ -7,8 +7,8 @@ Lightweight, production-grade secrets management and PKI built in Go.
 - Go 1.26+ (auto-downloaded via `GOTOOLCHAIN=go1.26.4` in the Makefile)
 - `golangci-lint` v2, `gosec`, `trivy` (install: `make install-tools`)
 - Dragonboat Raft storage (`KNXVAULT_RAFT_ENABLED=true`) for production; in-memory repos used when unset
-- OpenSSL 3.x (required for PKI operations)
-- Docker (optional; for `make docker-build`)
+- Docker or nerdctl (for `make docker-build` — **required** production packaging path)
+- Optional: `openssl` CLI on admin machines only for generating random keys (`openssl rand`); **not** used by the server
 
 ## Quick start
 
@@ -65,12 +65,17 @@ curl -s http://localhost:8200/secrets/kv/app/db \
 
 ## Container image
 
+**Policy:** knxvault is **always** packaged as a multi-stage Docker image whose runtime stage is
+[`gcr.io/distroless/static-debian13:nonroot`](https://github.com/GoogleContainerTools/distroless)
+(Debian 13 / Trixie). PKI is **always** in-process Go `crypto/x509` — there is no OpenSSL CLI backend and no openssl binary in the image.
+
 ```bash
-make docker-build          # builds knxvault:0.4.5
+make docker-build          # builds knxvault:0.4.5 (distroless/static-debian13)
 docker run --rm -p 8200:8200 \
   -e KNXVAULT_MASTER_KEY="$(openssl rand -base64 32)" \
   -e KNXVAULT_ROOT_TOKEN=dev-root-token \
   knxvault:0.4.5 serve
+# (nerdctl works the same: make docker-build uses docker or nerdctl)
 ```
 
 For containerized **Raft**, also pass `KNXVAULT_UNSEAL_KEY` (≠ master) and the `KNXVAULT_RAFT_*` variables — see [Installation](docs/installation/install.md#option-2-docker).
@@ -119,8 +124,6 @@ Server configuration loads in this order: **defaults → `/etc/knxvault.conf` (w
 | `KNXVAULT_ROOT_TOKEN` | _(empty)_ | Bootstrap admin token |
 | `KNXVAULT_JWT_SECRET` | _(empty)_ | HS256 secret for dev K8s JWT login |
 | `KNXVAULT_TOKEN_TTL` | `24h` | Issued client token TTL |
-| `KNXVAULT_OPENSSL_BINARY` | `openssl` | OpenSSL executable |
-| `KNXVAULT_OPENSSL_TIMEOUT` | `60s` | OpenSSL command timeout |
 | `KNXVAULT_HA_ENABLED` | `false` | Enable Kubernetes Lease leader election |
 | `KNXVAULT_HA_NAMESPACE` | `knxvault` | Lease namespace |
 | `KNXVAULT_HA_LEASE_NAME` | `knxvault-leader` | Lease resource name |

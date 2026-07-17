@@ -61,7 +61,6 @@ func New(ctx context.Context, cfg config.Config, log *zap.Logger) (*App, error) 
 		RaftMembership:       raftMembership,
 		CORSAllowedOrigins:   cfg.CORSAllowedOrigins,
 		MTLSRequired:         cfg.MTLSRequired,
-		OpenSSL:              deps.OpenSSL,
 		AuthService:          deps.AuthService,
 		PKIService:           deps.PKIService,
 		SecretsService:       deps.SecretsService,

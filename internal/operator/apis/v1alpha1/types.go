@@ -83,10 +83,10 @@ type VaultIssuerSpec struct {
 // ACMEDNS01Spec configures DNS-01 solvers.
 type ACMEDNS01Spec struct {
 	// Provider: memory | webhook | cloudflare
-	Provider        string `json:"provider,omitempty"`
-	WebhookURL      string `json:"webhookURL,omitempty"`
+	Provider          string        `json:"provider,omitempty"`
+	WebhookURL        string        `json:"webhookURL,omitempty"`
 	APITokenSecretRef *SecretKeyRef `json:"apiTokenSecretRef,omitempty"`
-	ZoneID          string `json:"zoneID,omitempty"`
+	ZoneID            string        `json:"zoneID,omitempty"`
 }
 
 // SecretKeyRef points at a key in a Secret.

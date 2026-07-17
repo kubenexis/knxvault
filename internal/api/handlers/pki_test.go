@@ -5,34 +5,26 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os/exec"
 	"testing"
-	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/kubenexis/knxvault/internal/api/dto"
 	"github.com/kubenexis/knxvault/internal/api/handlers"
 	"github.com/kubenexis/knxvault/internal/api/middleware"
-	"github.com/kubenexis/knxvault/internal/crypto/openssl"
 	pkiengine "github.com/kubenexis/knxvault/internal/engine/pki"
 	"github.com/kubenexis/knxvault/internal/repository/memory"
 	"github.com/kubenexis/knxvault/internal/service"
 )
 
 func TestPKIHandlerCreateRootAndIssue(t *testing.T) {
-	if _, err := exec.LookPath("openssl"); err != nil {
-		t.Skip("openssl not installed")
-	}
 	gin.SetMode(gin.TestMode)
 
 	cryptoSvc, err := testCryptoService()
 	if err != nil {
 		t.Fatalf("testCryptoService() = %v", err)
 	}
-	engine := pkiengine.NewEngine(
-		openssl.New("", 30*time.Second),
-		cryptoSvc,
+	engine := pkiengine.NewEngine(cryptoSvc,
 		memory.NewCARepository(),
 		memory.NewRevocationRepository(),
 	)

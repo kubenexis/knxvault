@@ -30,14 +30,14 @@ func init() {
 
 // Config holds operator runtime configuration.
 type Config struct {
-	VaultAddr     string
-	VaultToken    string
-	K8sRole       string
-	SATokenPath   string
-	MetricsAddr   string
-	ProbeAddr     string
-	IngressShim   bool
-	GatewayShim   bool
+	VaultAddr   string
+	VaultToken  string
+	K8sRole     string
+	SATokenPath string
+	MetricsAddr string
+	ProbeAddr   string
+	IngressShim bool
+	GatewayShim bool
 	// ACMEHTTP01Addr when set serves /.well-known/acme-challenge/ for HTTP-01.
 	ACMEHTTP01Addr string
 	LeaderElect    bool

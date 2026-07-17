@@ -984,7 +984,7 @@ type AuditEvent struct {
 - Dependency vulnerability scanning (Dependabot + Trivy).
 - Static code analysis (gosec, semgrep).
 - Runtime security (Falco rules for anomalous OpenSSL behavior).
-- Least-privilege container (distroless base image recommended).
+- Least-privilege container: **required** runtime base is `gcr.io/distroless/static-debian13:nonroot` (native PKI only).
 
 ---
 

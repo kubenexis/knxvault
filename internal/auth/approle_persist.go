@@ -45,7 +45,7 @@ func (s *AppRoleStore) loadLocked() {
 	for _, r := range list {
 		s.roles[r.RoleID] = AppRole{
 			RoleID: r.RoleID, Subject: r.Subject,
-			Policies: append([]string(nil), r.Policies...),
+			Policies:   append([]string(nil), r.Policies...),
 			secretHash: r.SecretHash,
 		}
 	}
@@ -57,7 +57,7 @@ func (s *AppRoleStore) saveLocked() {
 		for _, r := range s.roles {
 			list = append(list, approleDiskRecord{
 				RoleID: r.RoleID, Subject: r.Subject,
-				Policies: append([]string(nil), r.Policies...),
+				Policies:   append([]string(nil), r.Policies...),
 				SecretHash: r.secretHash,
 			})
 		}

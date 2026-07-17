@@ -11,8 +11,6 @@ import (
 	"github.com/kubenexis/knxvault/internal/api/handlers"
 	"github.com/kubenexis/knxvault/internal/api/middleware"
 	"github.com/kubenexis/knxvault/internal/auth"
-	"github.com/kubenexis/knxvault/internal/crypto/openssl"
-	"github.com/kubenexis/knxvault/internal/domain/common"
 	"github.com/kubenexis/knxvault/internal/infra/metrics"
 	buildinfo "github.com/kubenexis/knxvault/internal/version"
 )
@@ -212,7 +210,6 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 		if deps.AuthService != nil {
 			pkiGroup := secured.Group("/pki")
 			pkiGroup.Use(middleware.RequirePermission(deps.AuthService, "pki", "write"))
-			pkiGroup.Use(openSSLBreakerMiddleware(deps.OpenSSL))
 			{
 				pkiGroup.POST("/root", pkiHandler.CreateRoot)
 				pkiGroup.POST("/intermediate", pkiHandler.CreateIntermediate)
@@ -447,17 +444,4 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 	}
 
 	return r
-}
-
-func openSSLBreakerMiddleware(ossl *openssl.Wrapper) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if ossl != nil && ossl.BreakerOpen() {
-			c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{
-				"error_code": string(common.ErrCodeInternal),
-				"message":    "openssl circuit breaker open",
-			})
-			return
-		}
-		c.Next()
-	}
 }

@@ -80,12 +80,6 @@ var (
 		},
 		[]string{"engine", "role"},
 	)
-	opensslBreakerOpen = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "knxvault_openssl_breaker_open",
-			Help: "1 when the OpenSSL circuit breaker is open",
-		},
-	)
 	csiMountRotationsTotal = promauto.NewCounter(
 		prometheus.CounterOpts{
 			Name: "knxvault_csi_mount_rotations_total",
@@ -174,15 +168,6 @@ func IncTokenCreateThrottled() { tokenCreateThrottledTotal.Inc() }
 // SetLeasesByEngine records per-role active lease counts (W42-07).
 func SetLeasesByEngine(engine, role string, count int) {
 	leasesByEngine.WithLabelValues(engine, role).Set(float64(count))
-}
-
-// SetOpenSSLBreakerOpen records OpenSSL circuit breaker state.
-func SetOpenSSLBreakerOpen(open bool) {
-	if open {
-		opensslBreakerOpen.Set(1)
-	} else {
-		opensslBreakerOpen.Set(0)
-	}
 }
 
 // IncAuditForwardSent increments successful audit SIEM forwards (W50-27).

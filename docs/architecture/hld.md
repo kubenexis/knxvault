@@ -6,7 +6,7 @@ KNXVault is a lightweight, self-hosted secrets management and PKI system written
 
 | Goal | Implementation |
 |------|----------------|
-| **Security-first** | Envelope encryption, opaque tokens, hash-chained audit logs, OpenSSL sandboxing |
+| **Security-first** | Envelope encryption, opaque tokens, hash-chained audit logs, in-process PKI |
 | **Simplicity** | Thin service layers, explicit configuration, minimal runtime dependencies |
 | **Kubernetes-native** | SA JWT auth, CSI, ESO, **knxvault-operator CRDs**, Raft StatefulSet HA |
 | **Product-profile adapters** | Native services are authoritative; thin `/v1/*` profiles (e.g. Vault for cert-manager) map foreign wire formats only |
@@ -53,7 +53,7 @@ graph TB
         MW[Auth · RBAC · Rate limit · Audit]
         SVC[Service layer]
         ENG[Engines: PKI · KVv2 · Database · SSH]
-        CRYPTO[Envelope crypto + OpenSSL]
+        CRYPTO[Envelope crypto + native PKI]
         RAFT[Dragonboat state machine]
     end
 
@@ -82,7 +82,7 @@ graph TB
 | **Engines** (`internal/engine`) | PKI, KVv2, database, SSH credential generation |
 | **Auth** (`internal/auth`) | Tokens, K8s, OIDC, AppRole, RBAC, lockout |
 | **Operator** (`internal/operator`) | CRDs → issue/renew/sign → TLS Secret or status-only |
-| **Crypto** (`internal/crypto`) | Master key, AES-256-GCM envelope, OpenSSL / native backends |
+| **Crypto** (`internal/crypto`) | Master key, AES-256-GCM envelope, native Go PKI (`x509native`) |
 | **Raft** (`internal/raft`) | Replicated state machine, leader election |
 | **Repositories** (`internal/repository`) | Dragonboat adapters; memory for tests |
 | **Background jobs** | Lease cleanup, CRL refresh, cert renewal (Raft leader only) |

@@ -26,8 +26,7 @@ See [`config/knxvault.example.yaml`](../../config/knxvault.example.yaml) for the
 | `KNXVAULT_UNSEAL_KEY` | — | **Yes when Raft enabled** | Base64 unseal key for seal/unseal; **must differ from master key** when `KNXVAULT_RAFT_ENABLED=true` (startup fails if unset or equal). Not used for envelope encryption. |
 | `KNXVAULT_UNSEAL_THRESHOLD` | `1` | No | Shamir threshold **t** (shares required to unseal). `1` = single full key; `t>1` requires `POST /sys/unseal` with successive `share` values. Offline split: `go run ./scripts/shamir-split`. Lab E2E uses `t=2` — [e2e-and-lab-tests.md](../engineering/e2e-and-lab-tests.md) |
 | `KNXVAULT_JOB_MASTER_KEY_REENCRYPT_INTERVAL` | `1m` | No | Leader job interval for DEK re-encryption after rotation |
-| `KNXVAULT_OPENSSL_BINARY` | `openssl` | No | OpenSSL executable path |
-| `KNXVAULT_OPENSSL_TIMEOUT` | `60s` | No | Max OpenSSL command duration |
+| _(PKI)_ | native only | — | Issuance always uses Go `crypto/x509`. `KNXVAULT_PKI_BACKEND` / `KNXVAULT_OPENSSL_*` are rejected if set to OpenSSL values. |
 
 ## Authentication
 

@@ -1,8 +1,14 @@
 # syntax=docker/dockerfile:1
-# Multi-stage hardened image. Runtime stage uses debian:bookworm-slim for OpenSSL.
-# For distroless (no shell), swap the runtime stage with:
-#   FROM gcr.io/distroless/static-debian12:nonroot
-# and copy only the static knxvault binary (PKI/OpenSSL exec requires a shell stage today).
+# =============================================================================
+# KNXVault — production container image (only supported path)
+#
+# Runtime: gcr.io/distroless/static-debian13:nonroot (Debian 13 / Trixie)
+# Builder: golang:1.26-bookworm (static CGO_ENABLED=0 binaries)
+#
+# Policy: knxvault is ALWAYS built as this distroless image. There is no
+# bookworm-slim/OpenSSL runtime. PKI is always in-process Go crypto/x509
+# (OpenSSL CLI backend removed from the product).
+# =============================================================================
 
 FROM golang:1.26-bookworm AS builder
 
@@ -24,23 +30,22 @@ RUN ldflags="-s -w \
     && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="${ldflags}" -o /out/knxvault-webhook ./cmd/knxvault-webhook \
     && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="${ldflags}" -o /out/knxvault-eso ./cmd/knxvault-eso
 
-FROM debian:bookworm-slim AS runtime
-
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates openssl \
-    && rm -rf /var/lib/apt/lists/* \
-    && useradd -r -u 65532 -g nogroup knxvault
+# Debian 13–based distroless (static, nonroot uid 65532). No shell, no openssl.
+FROM gcr.io/distroless/static-debian13:nonroot
 
 COPY --from=builder /out/knxvault /usr/local/bin/knxvault
 COPY --from=builder /out/knxvault-csi /usr/local/bin/knxvault-csi
 COPY --from=builder /out/knxvault-webhook /usr/local/bin/knxvault-webhook
 COPY --from=builder /out/knxvault-eso /usr/local/bin/knxvault-eso
 
-USER 65532:65532
+# PKI is always in-process Go crypto/x509 (no openssl binary in the image).
+
 EXPOSE 8200
 
+# Exec-form healthcheck (no shell in distroless).
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD ["/usr/local/bin/knxvault", "-healthcheck"]
 
+USER nonroot:nonroot
 ENTRYPOINT ["/usr/local/bin/knxvault"]
 CMD ["serve"]

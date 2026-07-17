@@ -60,7 +60,7 @@ Run: `make test-integration` (builds `bin/knxvault` + `bin/knxvault-cli` first).
 4. **Unseal** with master-key fallback (`unsealDaemon`) — crypto always installs a seal.
 5. Drive CLI: health, doctor, PKI root/issue, KV put/get redaction.
 
-OpenSSL must be on `PATH` for PKI steps.
+PKI steps use native Go issuance (server does not require OpenSSL). Admin hosts may still use `openssl rand` for key material.
 
 ### Multi-share integration (`TestE2EMultiShareUnsealHTTP`)
 

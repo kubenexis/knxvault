@@ -8,7 +8,6 @@ metadata:
 data:
   KNXVAULT_HTTP_ADDR: ":8200"
   KNXVAULT_LOG_LEVEL: "info"
-  KNXVAULT_OPENSSL_BINARY: "/usr/bin/openssl"
   KNXVAULT_RAFT_ENABLED: "true"
   KNXVAULT_RAFT_DATA_DIR: "/var/lib/knxvault/raft"
   KNXVAULT_RAFT_INITIAL_MEMBERS: "1=knxvault-0.knxvault-raft.knxvault.svc.cluster.local:63001,2=knxvault-1.knxvault-raft.knxvault.svc.cluster.local:63001,3=knxvault-2.knxvault-raft.knxvault.svc.cluster.local:63001"

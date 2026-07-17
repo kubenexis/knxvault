@@ -12,7 +12,7 @@ go version
 make install-tools   # golangci-lint v2, gosec, trivy
 ```
 
-OpenSSL 3.x must be on `PATH` for PKI tests.
+PKI tests use the native Go backend (no OpenSSL required on `PATH`).
 
 ## Clone and build
 
@@ -57,7 +57,7 @@ internal/
   audit/                Hash-chained audit service
   backup/               Snapshot export/import
   config/               YAML file + environment configuration
-  crypto/               Master key, envelope crypto, OpenSSL (see docs/architecture/envelope-encryption.md)
+  crypto/               Master key, envelope crypto, native PKI (see docs/architecture/envelope-encryption.md)
   domain/               Pure domain models
   engine/               PKI, KVv2, database engines
   inject/               Secrets injection + CSI provider (`knxvault-csi`)

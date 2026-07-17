@@ -16,7 +16,6 @@ import (
 
 	kvncrypto "github.com/kubenexis/knxvault/internal/crypto"
 	"github.com/kubenexis/knxvault/internal/crypto/memzero"
-	"github.com/kubenexis/knxvault/internal/crypto/openssl"
 	pkibackend "github.com/kubenexis/knxvault/internal/crypto/pki"
 	"github.com/kubenexis/knxvault/internal/domain/common"
 	domainpki "github.com/kubenexis/knxvault/internal/domain/pki"
@@ -80,25 +79,22 @@ type Engine struct {
 	issued   repository.IssuedCertRepository
 }
 
-// NewEngine constructs a PKI engine.
+// NewEngine constructs a PKI engine using the native Go crypto/x509 backend.
+// OpenSSL CLI is not used (distroless-only packaging).
 func NewEngine(
-	ossl *openssl.Wrapper,
 	cryptoSvc *kvncrypto.Service,
 	caRepo repository.CARepository,
 	revoked repository.RevocationRepository,
 ) *Engine {
-	e := &Engine{
+	return &Engine{
+		backend: pkibackend.NewNativeBackend(),
 		crypto:  cryptoSvc,
 		caRepo:  caRepo,
 		revoked: revoked,
 	}
-	if ossl != nil {
-		e.backend = pkibackend.NewOpenSSLBackend(ossl)
-	}
-	return e
 }
 
-// SetBackend configures the PKI issuance backend.
+// SetBackend replaces the PKI issuance backend (tests only).
 func (e *Engine) SetBackend(backend pkibackend.Backend) {
 	e.backend = backend
 }

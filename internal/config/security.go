@@ -33,11 +33,6 @@ func ValidateSecurity(cfg Config, configPath string) error {
 			return err
 		}
 	}
-	switch cfg.PKIBackend {
-	case "", "openssl", "native":
-	default:
-		return fmt.Errorf("invalid pki_backend %q: must be openssl or native", cfg.PKIBackend)
-	}
 	return nil
 }
 

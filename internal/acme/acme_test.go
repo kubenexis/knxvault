@@ -482,8 +482,8 @@ func TestIssueValidAuthzSkip(t *testing.T) {
 	tmp, _ := ss.Issue(context.Background(), acme.OrderRequest{CommonName: "a.com"})
 	block, _ := pem.Decode([]byte(tmp.CertPEM))
 	mock := &mockACME{
-		authz: &xacme.Authorization{Status: xacme.StatusValid, Identifier: xacme.AuthzID{Value: "a.com"}},
-		order: &xacme.Order{URI: "o", AuthzURLs: []string{"a"}, FinalizeURL: "f"},
+		authz:    &xacme.Authorization{Status: xacme.StatusValid, Identifier: xacme.AuthzID{Value: "a.com"}},
+		order:    &xacme.Order{URI: "o", AuthzURLs: []string{"a"}, FinalizeURL: "f"},
 		certDERs: [][]byte{block.Bytes},
 	}
 	setTestACME(c, mock)

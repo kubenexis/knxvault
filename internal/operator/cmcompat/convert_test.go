@@ -3,8 +3,8 @@ package cmcompat_test
 import (
 	"testing"
 
-	"github.com/kubenexis/knxvault/internal/operator/cmcompat"
 	v1 "github.com/kubenexis/knxvault/internal/operator/apis/v1alpha1"
+	"github.com/kubenexis/knxvault/internal/operator/cmcompat"
 )
 
 func TestConvertCertificate(t *testing.T) {

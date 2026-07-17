@@ -2,21 +2,15 @@ package pki_test
 
 import (
 	"context"
-	"os/exec"
 	"testing"
 	"time"
 
 	"github.com/kubenexis/knxvault/internal/crypto"
-	"github.com/kubenexis/knxvault/internal/crypto/openssl"
 	pkiengine "github.com/kubenexis/knxvault/internal/engine/pki"
 	"github.com/kubenexis/knxvault/internal/repository/memory"
 )
 
 func TestRenewCertificate(t *testing.T) {
-	if _, err := exec.LookPath("openssl"); err != nil {
-		t.Skip("openssl not installed")
-	}
-
 	key := make([]byte, 32)
 	for i := range key {
 		key[i] = byte(i)
@@ -27,9 +21,7 @@ func TestRenewCertificate(t *testing.T) {
 	}
 
 	issued := memory.NewIssuedCertRepository()
-	engine := pkiengine.NewEngine(
-		openssl.New("", 30*time.Second),
-		cryptoSvc,
+	engine := pkiengine.NewEngine(cryptoSvc,
 		memory.NewCARepository(),
 		memory.NewRevocationRepository(),
 	)
@@ -83,10 +75,6 @@ func TestRenewCertificate(t *testing.T) {
 }
 
 func TestRenewExpiring(t *testing.T) {
-	if _, err := exec.LookPath("openssl"); err != nil {
-		t.Skip("openssl not installed")
-	}
-
 	key := make([]byte, 32)
 	for i := range key {
 		key[i] = byte(i + 1)
@@ -97,9 +85,7 @@ func TestRenewExpiring(t *testing.T) {
 	}
 
 	issued := memory.NewIssuedCertRepository()
-	engine := pkiengine.NewEngine(
-		openssl.New("", 30*time.Second),
-		cryptoSvc,
+	engine := pkiengine.NewEngine(cryptoSvc,
 		memory.NewCARepository(),
 		memory.NewRevocationRepository(),
 	)

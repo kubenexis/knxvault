@@ -10,7 +10,6 @@ import (
 	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
-	"os/exec"
 	"testing"
 	"time"
 
@@ -19,7 +18,6 @@ import (
 	"github.com/kubenexis/knxvault/internal/api/handlers"
 	"github.com/kubenexis/knxvault/internal/api/middleware"
 	"github.com/kubenexis/knxvault/internal/app"
-	"github.com/kubenexis/knxvault/internal/crypto/openssl"
 	pkiengine "github.com/kubenexis/knxvault/internal/engine/pki"
 	"github.com/kubenexis/knxvault/internal/repository/memory"
 	"github.com/kubenexis/knxvault/internal/service"
@@ -205,18 +203,13 @@ func TestVaultCompatRegisterAppRole(t *testing.T) {
 }
 
 func TestVaultCompatSignPKIFullResponse(t *testing.T) {
-	if _, err := exec.LookPath("openssl"); err != nil {
-		t.Skip("openssl not installed")
-	}
 	gin.SetMode(gin.TestMode)
 
 	cryptoSvc, err := testCryptoService()
 	if err != nil {
 		t.Fatalf("crypto: %v", err)
 	}
-	engine := pkiengine.NewEngine(
-		openssl.New("", 30*time.Second),
-		cryptoSvc,
+	engine := pkiengine.NewEngine(cryptoSvc,
 		memory.NewCARepository(),
 		memory.NewRevocationRepository(),
 	)
@@ -278,10 +271,10 @@ func TestVaultCompatSignPKIFullResponse(t *testing.T) {
 	// CSR sign path (primary cert-manager flow)
 	csrPEM := mustGenerateCSR(t, "csr.example.com")
 	csrBody, _ := json.Marshal(map[string]string{
-		"csr":         csrPEM,
-		"common_name": "csr.example.com",
-		"alt_names":   "csr.example.com",
-		"ttl":         "12h",
+		"csr":                  csrPEM,
+		"common_name":          "csr.example.com",
+		"alt_names":            "csr.example.com",
+		"ttl":                  "12h",
 		"exclude_cn_from_sans": "true",
 	})
 	req2 := httptest.NewRequest(http.MethodPost, "/v1/pki_int/sign/web-server", bytes.NewReader(csrBody))

@@ -5,8 +5,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"os"
-	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -20,8 +18,6 @@ import (
 	"github.com/kubenexis/knxvault/internal/config"
 	"github.com/kubenexis/knxvault/internal/crypto"
 	"github.com/kubenexis/knxvault/internal/crypto/masterkey"
-	"github.com/kubenexis/knxvault/internal/crypto/openssl"
-	pkibackend "github.com/kubenexis/knxvault/internal/crypto/pki"
 	"github.com/kubenexis/knxvault/internal/engine"
 	pkiengine "github.com/kubenexis/knxvault/internal/engine/pki"
 	secretsengine "github.com/kubenexis/knxvault/internal/engine/secrets"
@@ -29,7 +25,6 @@ import (
 	sshengine "github.com/kubenexis/knxvault/internal/engine/secrets/ssh"
 	"github.com/kubenexis/knxvault/internal/infra/k8s"
 	"github.com/kubenexis/knxvault/internal/infra/leader"
-	"github.com/kubenexis/knxvault/internal/infra/metrics"
 	"github.com/kubenexis/knxvault/internal/inject"
 	"github.com/kubenexis/knxvault/internal/notify"
 	"github.com/kubenexis/knxvault/internal/raft"
@@ -44,7 +39,6 @@ import (
 type Dependencies struct {
 	Crypto              *crypto.Service
 	MasterKey           []byte
-	OpenSSL             *openssl.Wrapper
 	Raft                *raft.NodeHostBundle
 	CARepo              repository.CARepository
 	PKIRoleRepo         repository.PKIRoleRepository
@@ -103,16 +97,7 @@ type Dependencies struct {
 
 // NewDependencies initializes crypto, storage, engines, and services from config.
 func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*Dependencies, error) {
-	if err := CheckOpenSSL(cfg); err != nil {
-		return nil, err
-	}
-
-	breaker := openssl.NewBreaker(3, 30*time.Second)
-	breaker.SetOnStateChange(metrics.SetOpenSSLBreakerOpen)
-	ossl := openssl.New(cfg.OpenSSLBinary, cfg.OpenSSLTimeout)
-	ossl.SetBreaker(breaker)
 	deps := &Dependencies{
-		OpenSSL:  ossl,
 		TokenTTL: cfg.TokenTTL,
 		cfg:      cfg,
 	}
@@ -200,8 +185,7 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 			sys.SetStatePath(filepath.Join(cfg.Raft.DataDir, "init.state"))
 		}
 
-		deps.PKIEngine = pkiengine.NewEngine(deps.OpenSSL, deps.Crypto, deps.CARepo, deps.RevokeRepo)
-		deps.PKIEngine.SetBackend(selectPKIBackend(cfg, deps.OpenSSL))
+		deps.PKIEngine = pkiengine.NewEngine(deps.Crypto, deps.CARepo, deps.RevokeRepo)
 		deps.PKIEngine.SetIssuedCertRepository(deps.IssuedCertRepo)
 		deps.PKIEngine.SetPKIRoleRepository(deps.PKIRoleRepo)
 		deps.SecretsEngine = secretsengine.NewKVV2Engine(deps.SecretRepo, deps.Crypto)
@@ -485,36 +469,6 @@ func (d *Dependencies) IsLeader() bool {
 		return true
 	}
 	return d.Leader.IsLeader()
-}
-
-// CheckOpenSSL verifies the OpenSSL binary is available when required by configuration.
-func CheckOpenSSL(cfg config.Config) error {
-	if cfg.PKIBackend == "native" {
-		return nil
-	}
-	binary := cfg.OpenSSLBinary
-	if binary == "" {
-		binary = "openssl"
-	}
-	if filepath.IsAbs(binary) {
-		if _, err := os.Stat(binary); err != nil {
-			return fmt.Errorf("openssl binary not found at %s: %w", binary, err)
-		}
-		return nil
-	}
-	if _, err := exec.LookPath(binary); err != nil {
-		return fmt.Errorf("openssl binary %q not found in PATH: %w", binary, err)
-	}
-	return nil
-}
-
-func selectPKIBackend(cfg config.Config, ossl *openssl.Wrapper) pkibackend.Backend {
-	switch cfg.PKIBackend {
-	case "native":
-		return pkibackend.NewNativeBackend()
-	default:
-		return pkibackend.NewOpenSSLBackend(ossl)
-	}
 }
 
 func resolveUnsealKey(configured string, masterKey []byte) []byte {

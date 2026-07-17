@@ -20,11 +20,14 @@ GO_TOOLCHAIN    ?= go1.26.4
 GOLANGCI_LINT   ?= $(GOPATH_BIN)/golangci-lint
 GOSEC           ?= $(GOPATH_BIN)/gosec
 TRIVY           := $(firstword $(shell command -v trivy 2>/dev/null) $(LOCAL_BIN)/trivy)
-DOCKER          := $(firstword $(shell command -v docker 2>/dev/null))
+# Container CLI: prefer docker, fall back to nerdctl (air-gapped / containerd hosts).
+DOCKER          := $(firstword $(shell command -v docker 2>/dev/null) $(shell command -v nerdctl 2>/dev/null))
 VERSION         ?= 0.4.5
 COMMIT          ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 BUILD_ID        ?= $(shell date +%s)
 IMAGE           ?= knxvault:$(VERSION)
+# Only supported image: multi-stage → gcr.io/distroless/static-debian13:nonroot
+DOCKERFILE      ?= Dockerfile
 export GOTOOLCHAIN := $(GO_TOOLCHAIN)
 
 # -----------------------------------------------------------------------------
@@ -181,10 +184,14 @@ lab-full-e2e: ## Full lab E2E on LAB_HOST (core + vaultcompat + operator)
 	$(call log,Lab full E2E on $(LAB_HOST))
 	bash scripts/lab-full-e2e.sh $(LAB_HOST)
 
-docker-build: ## Build container image ($(IMAGE))
-	$(call log,Building Docker image $(IMAGE))
-	$(call require_cmd,docker)
+docker-build: ## Build distroless/static-debian13 image ($(IMAGE)) via docker or nerdctl
+	$(call log,Building distroless Debian 13 image $(IMAGE) with $(DOCKER))
+	@command -v $(notdir $(DOCKER)) >/dev/null 2>&1 || { \
+		printf "$(COLOR_RED)error: neither docker nor nerdctl found$(COLOR_RESET)\n" >&2; \
+		exit 1; \
+	}
 	$(DOCKER) build \
+		-f $(DOCKERFILE) \
 		--build-arg VERSION=$(VERSION) \
 		--build-arg COMMIT=$(COMMIT) \
 		--build-arg BUILD_ID=$(BUILD_ID) \

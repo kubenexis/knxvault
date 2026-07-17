@@ -60,7 +60,7 @@ func TestHandleOCSPGoodAndRevoked(t *testing.T) {
 		t.Fatalf("Save() = %v", err)
 	}
 
-	engine := pkiengine.NewEngine(nil, cryptoSvc, caRepo, revokeRepo)
+	engine := pkiengine.NewEngine(cryptoSvc, caRepo, revokeRepo)
 
 	leafCert, err := generateLeafCert(issuerCert, issuerKey, big.NewInt(42))
 	if err != nil {

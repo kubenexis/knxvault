@@ -9,7 +9,7 @@ Threat assumptions, cryptographic controls, and operational security guidance fo
 | Master key compromise | All secrets and CA keys recoverable | K8s Secret sealing, short exposure window, backup key custody, `POST /sys/rotate-master-key` |
 | Raft quorum loss | Write unavailability | 3-node cluster, PVC backups, documented failover runbook |
 | Token theft | Unauthorized API access | Short TTL, RBAC least privilege, rate limiting, optional request signing |
-| OpenSSL sandbox escape | Host compromise | Argument validation, `0700` temp dirs, timeouts, non-root container |
+| PKI key material exposure | Host/memory compromise | In-process issuance only; CA keys envelope-encrypted at rest; non-root container |
 | Audit tampering | Compliance failure | Hash-chained log, HMAC export signatures, Raft replication |
 | Network eavesdropping | Credential exposure | TLS at ingress (operator responsibility); server TLS (**W37-01**, shipped) and Raft peer mTLS (**W38-14**, shipped); broader route mTLS → Phase 5 **W34-01** |
 
@@ -55,11 +55,7 @@ For implementation detail (nonce layout, KeyRing rotation, master key loading, w
 
 ### PKI operations
 
-All X.509 operations execute via the OpenSSL CLI in an isolated temporary directory:
-
-- Configurable binary path and timeout
-- No user-controlled OpenSSL config paths
-- See [ADR-0002](../adr/0002-openssl-cli-crypto-backend.md)
+X.509 operations use **in-process** Go `crypto/x509` only (`internal/crypto/x509native`). There is no OpenSSL CLI subprocess. Historical ADR: [ADR-0002](../adr/0002-openssl-cli-crypto-backend.md) (removed).
 
 ## Authentication
 
@@ -204,11 +200,12 @@ Optional controls:
 
 ## Container security
 
-The production image:
+The **only** production image path (`Dockerfile`):
 
-- Multi-stage build, minimal runtime base
-- Runs as non-root
-- Includes only OpenSSL and the static binary
+- Multi-stage build: `golang:1.26-bookworm` builder → `gcr.io/distroless/static-debian13:nonroot` runtime
+- Runs as non-root (uid 65532)
+- Static binaries only (knxvault, knxvault-csi, knxvault-webhook, knxvault-eso) — **no shell, no OpenSSL CLI**
+- PKI is always native Go `crypto/x509` (OpenSSL CLI backend removed from the binary)
 
 CI gates: `gosec`, `golangci-lint`, Trivy vulnerability and license scan, SPDX allow-list.
 

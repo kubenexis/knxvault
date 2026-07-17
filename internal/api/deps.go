@@ -6,7 +6,6 @@ import (
 	"github.com/kubenexis/knxvault/internal/api/handlers"
 	"github.com/kubenexis/knxvault/internal/api/middleware"
 	"github.com/kubenexis/knxvault/internal/auth"
-	"github.com/kubenexis/knxvault/internal/crypto/openssl"
 	"github.com/kubenexis/knxvault/internal/notify"
 	"github.com/kubenexis/knxvault/internal/service"
 )
@@ -20,7 +19,6 @@ type RouterDeps struct {
 	RaftMembership       handlers.RaftMembership
 	CORSAllowedOrigins   []string
 	AuthService          *auth.Service
-	OpenSSL              *openssl.Wrapper
 	PKIService           *service.PKIService
 	SecretsService       *service.SecretsService
 	DatabaseService      *service.DatabaseService

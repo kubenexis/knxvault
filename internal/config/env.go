@@ -28,11 +28,15 @@ func overlayEnv(cfg Config) (Config, error) {
 	} else {
 		cfg.Version = version.Version
 	}
-	if v := os.Getenv("KNXVAULT_OPENSSL_BINARY"); v != "" {
-		cfg.OpenSSLBinary = v
+	// Reject removed OpenSSL PKI settings so misconfigured clusters fail loudly.
+	if v := strings.TrimSpace(os.Getenv("KNXVAULT_PKI_BACKEND")); v != "" && !strings.EqualFold(v, "native") {
+		return Config{}, fmt.Errorf("KNXVAULT_PKI_BACKEND=%q is unsupported: only native Go PKI remains (OpenSSL CLI backend removed)", v)
 	}
-	if v := os.Getenv("KNXVAULT_PKI_BACKEND"); v != "" {
-		cfg.PKIBackend = strings.TrimSpace(strings.ToLower(v))
+	if strings.TrimSpace(os.Getenv("KNXVAULT_OPENSSL_BINARY")) != "" {
+		return Config{}, fmt.Errorf("KNXVAULT_OPENSSL_BINARY is unsupported: OpenSSL CLI PKI backend was removed (native Go crypto/x509 only)")
+	}
+	if strings.TrimSpace(os.Getenv("KNXVAULT_OPENSSL_TIMEOUT")) != "" {
+		return Config{}, fmt.Errorf("KNXVAULT_OPENSSL_TIMEOUT is unsupported: OpenSSL CLI PKI backend was removed (native Go crypto/x509 only)")
 	}
 	if v := os.Getenv("KNXVAULT_JWT_SECRET"); v != "" {
 		cfg.JWTSecret = strings.TrimSpace(v)
@@ -71,13 +75,6 @@ func overlayEnv(cfg Config) (Config, error) {
 			return Config{}, fmt.Errorf("KNXVAULT_SHUTDOWN_GRACE: %w", err)
 		}
 		cfg.ShutdownGrace = d
-	}
-	if v := os.Getenv("KNXVAULT_OPENSSL_TIMEOUT"); v != "" {
-		d, err := time.ParseDuration(v)
-		if err != nil {
-			return Config{}, fmt.Errorf("KNXVAULT_OPENSSL_TIMEOUT: %w", err)
-		}
-		cfg.OpenSSLTimeout = d
 	}
 	if v := os.Getenv("KNXVAULT_TOKEN_TTL"); v != "" {
 		d, err := time.ParseDuration(v)

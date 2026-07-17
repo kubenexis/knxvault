@@ -5,8 +5,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/kubenexis/knxvault/pkg/client"
@@ -47,7 +45,6 @@ type Config struct {
 	Addr       string
 	Token      string
 	ConfigFile string
-	PKIBackend string
 }
 
 // Runner executes doctor checks against a KNXVault deployment.
@@ -60,38 +57,10 @@ type Runner struct {
 func (r *Runner) Run(ctx context.Context) *Report {
 	report := &Report{Addr: r.Config.Addr}
 	r.checkCLIConfig(report)
-	r.checkLocalOpenSSL(report)
 	r.checkServer(ctx, report)
 	r.checkAuth(ctx, report)
 	r.finalize(report)
 	return report
-}
-
-func (r *Runner) checkLocalOpenSSL(report *Report) {
-	backend := strings.TrimSpace(r.Config.PKIBackend)
-	if backend == "" {
-		backend = strings.TrimSpace(strings.ToLower(os.Getenv("KNXVAULT_PKI_BACKEND")))
-	}
-	if backend == "" {
-		backend = "openssl"
-	}
-	if backend != "native" {
-		return
-	}
-	if _, err := exec.LookPath("openssl"); err == nil {
-		report.add(Check{
-			ID:      "local.openssl",
-			Status:  StatusOK,
-			Message: "OpenSSL is installed (optional with native PKI backend)",
-		})
-		return
-	}
-	report.add(Check{
-		ID:      "local.openssl",
-		Status:  StatusWarn,
-		Message: "OpenSSL is not installed but native PKI backend is enabled",
-		Detail:  "Set KNXVAULT_PKI_BACKEND=native on the server; PKI issuance does not require OpenSSL",
-	})
 }
 
 func (r *Runner) checkCLIConfig(report *Report) {

@@ -31,9 +31,9 @@ type UnsealRequest struct {
 
 // UnsealResponse is returned after unseal attempts (including multi-share progress).
 type UnsealResponse struct {
-	Sealed   bool `json:"sealed"`
-	Progress int  `json:"progress,omitempty"`
-	Threshold int `json:"threshold,omitempty"`
+	Sealed    bool `json:"sealed"`
+	Progress  int  `json:"progress,omitempty"`
+	Threshold int  `json:"threshold,omitempty"`
 }
 
 // SplitUnsealRequest is POST /sys/generate-unseal-shares (admin).

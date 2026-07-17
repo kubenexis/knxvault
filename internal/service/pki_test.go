@@ -2,27 +2,18 @@ package service_test
 
 import (
 	"context"
-	"os/exec"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 
-	"github.com/kubenexis/knxvault/internal/crypto/openssl"
 	pkiengine "github.com/kubenexis/knxvault/internal/engine/pki"
 	"github.com/kubenexis/knxvault/internal/repository/memory"
 	"github.com/kubenexis/knxvault/internal/service"
 )
 
 func TestPKIServiceCreateIssueRevokeCRL(t *testing.T) {
-	if _, err := exec.LookPath("openssl"); err != nil {
-		t.Skip("openssl not installed")
-	}
-
 	cryptoSvc := testCrypto(t)
-	engine := pkiengine.NewEngine(
-		openssl.New("", 30*time.Second),
-		cryptoSvc,
+	engine := pkiengine.NewEngine(cryptoSvc,
 		memory.NewCARepository(),
 		memory.NewRevocationRepository(),
 	)
@@ -75,14 +66,8 @@ func TestPKIServiceCreateIssueRevokeCRL(t *testing.T) {
 }
 
 func TestPKIServiceImportAndRotate(t *testing.T) {
-	if _, err := exec.LookPath("openssl"); err != nil {
-		t.Skip("openssl not installed")
-	}
-
 	cryptoSvc := testCrypto(t)
-	engine := pkiengine.NewEngine(
-		openssl.New("", 30*time.Second),
-		cryptoSvc,
+	engine := pkiengine.NewEngine(cryptoSvc,
 		memory.NewCARepository(),
 		memory.NewRevocationRepository(),
 	)

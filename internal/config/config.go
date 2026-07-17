@@ -10,9 +10,6 @@ const (
 	defaultHTTPAddr                      = ":8200"
 	defaultLogLevel                      = "info"
 	defaultShutdownGrace                 = 10 * time.Second
-	defaultOpenSSLTimeout                = 60 * time.Second
-	defaultOpenSSLBinary                 = "openssl"
-	defaultPKIBackend                    = "openssl"
 	defaultTokenTTL                      = 24 * time.Hour
 	defaultHANamespace                   = "knxvault"
 	defaultHALeaseName                   = "knxvault-leader"
@@ -36,9 +33,6 @@ type Config struct {
 	LogLevel        string
 	ShutdownGrace   time.Duration
 	Version         string
-	OpenSSLTimeout  time.Duration
-	OpenSSLBinary   string
-	PKIBackend      string
 	JWTSecret       string
 	K8sAuthInsecure bool
 	RootToken       string
@@ -60,7 +54,7 @@ type Config struct {
 	UnsealKey                     string
 	// UnsealThreshold is Shamir t (shares required). <=1 means single-key unseal.
 	UnsealThreshold int
-	RenewGrace                    time.Duration
+	RenewGrace      time.Duration
 
 	TLSCertFile  string
 	TLSKeyFile   string

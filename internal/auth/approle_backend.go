@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/google/uuid"
 	kvncrypto "github.com/kubenexis/knxvault/internal/crypto"
 	domainsecrets "github.com/kubenexis/knxvault/internal/domain/secrets"
 	"github.com/kubenexis/knxvault/internal/repository"
-	"github.com/google/uuid"
 )
 
 // System path for Raft-replicated AppRole definitions (encrypted envelope).

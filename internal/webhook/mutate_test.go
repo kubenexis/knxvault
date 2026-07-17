@@ -67,9 +67,9 @@ func TestMutatePodRejectsTraversalMountPath(t *testing.T) {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{
-				"knxvault.io/inject":                 "true",
-				"knxvault.io/secret-provider-class":  "spc",
-				"knxvault.io/inject-mount-path":      "/mnt/../etc",
+				"knxvault.io/inject":                "true",
+				"knxvault.io/secret-provider-class": "spc",
+				"knxvault.io/inject-mount-path":     "/mnt/../etc",
 			},
 		},
 		Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "app"}}},

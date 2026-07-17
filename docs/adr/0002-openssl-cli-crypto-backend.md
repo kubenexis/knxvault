@@ -1,49 +1,31 @@
 # ADR-0002: OpenSSL CLI as Cryptographic Backend
 
-**Status:** Accepted  
-**Date:** 2025
+**Status:** Superseded / removed  
+**Date:** 2025  
+**Updated:** 2026-07
 
 ## Context
 
-KNXVault must perform X.509 operations (root/intermediate CA creation, leaf issuance, CRL generation, OCSP) without implementing low-level cryptographic primitives in Go. Options included:
+KNXVault originally performed X.509 operations via the OpenSSL 3.x CLI in a sandboxed temp directory (no CGO). A later native Go `crypto/x509` backend was added for distroless images.
 
-1. **Go `crypto/x509`** — native, no subprocess
-2. **OpenSSL via CGO** — linked library, complex build
-3. **OpenSSL CLI** — subprocess with sandboxed temp directories
+## Decision (original)
 
-## Decision
+Use OpenSSL CLI for PKI issuance; envelope encryption stayed in Go.
 
-Use **OpenSSL 3.x CLI** via a sandboxed wrapper in `internal/crypto/openssl/`:
+## Decision (current)
 
-- Ephemeral `0700` temp directories per operation
-- Strict argument validation; no user-controlled config paths
-- Configurable binary path (`KNXVAULT_OPENSSL_BINARY`) and timeout
-- Non-root container execution
+**Remove the OpenSSL CLI PKI backend entirely.** knxvault is always packaged as `gcr.io/distroless/static-debian13:nonroot` and always issues certificates with Go `crypto/x509` (`internal/crypto/x509native`, `internal/crypto/pki.NativeBackend`).
 
-Envelope encryption (AES-256-GCM for secrets and CA keys) uses Go `crypto` — only X.509 operations go through OpenSSL.
+Config knobs `KNXVAULT_PKI_BACKEND`, `KNXVAULT_OPENSSL_BINARY`, and `KNXVAULT_OPENSSL_TIMEOUT` are rejected at load time if set to OpenSSL-related values.
 
 ## Consequences
 
-### Positive
-
-- Auditable, well-understood cryptographic implementation
-- No CGO build complexity
-- Easy to swap OpenSSL builds or add engine support (Phase 4 HSM)
-- Aligns with LLD security-first principle
-
-### Negative
-
-- Subprocess overhead on PKI operations
-- Requires OpenSSL in container image and host PATH
-- Sandbox escape is a residual risk (mitigated by validation and fuzzing)
-
-### Follow-up
-
-- Phase 4: OpenSSL engine abstraction for HSM
-- Performance benchmarking under high issuance load
-- Optional native `crypto/x509` fast path for read-only operations
+- No openssl binary required at runtime
+- No subprocess / sandbox escape residual risk for PKI
+- No dual-backend operator confusion or CrashLoop when openssl is missing
+- Future PQ / exotic algorithms land in Go (or a new in-process provider), not via CLI
 
 ## References
 
-- [Security model](../architecture/security-model.md)
-- `internal/crypto/openssl/wrapper.go`
+- [PKI native only](../operations/pki-openssl-migration.md)
+- `internal/crypto/x509native/`

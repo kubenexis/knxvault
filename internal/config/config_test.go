@@ -28,36 +28,21 @@ func TestLoadDefaults(t *testing.T) {
 	}
 }
 
-func TestLoadOpenSSL(t *testing.T) {
+func TestLoadRejectsRemovedOpenSSLSettings(t *testing.T) {
 	t.Setenv("KNXVAULT_OPENSSL_BINARY", "/usr/bin/openssl")
-
-	cfg, err := config.Load()
-	if err != nil {
-		t.Fatalf("Load() = %v", err)
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected error for removed KNXVAULT_OPENSSL_BINARY")
 	}
-	if cfg.OpenSSLBinary != "/usr/bin/openssl" {
-		t.Errorf("OpenSSLBinary = %q", cfg.OpenSSLBinary)
+
+	t.Setenv("KNXVAULT_OPENSSL_BINARY", "")
+	t.Setenv("KNXVAULT_PKI_BACKEND", "openssl")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected error for KNXVAULT_PKI_BACKEND=openssl")
 	}
-}
 
-func TestLoadPKIBackend(t *testing.T) {
-	t.Setenv("KNXVAULT_PKI_BACKEND", "native")
-
-	cfg, err := config.Load()
-	if err != nil {
-		t.Fatalf("Load() = %v", err)
-	}
-	if cfg.PKIBackend != "native" {
-		t.Errorf("PKIBackend = %q, want native", cfg.PKIBackend)
-	}
-}
-
-func TestLoadInvalidPKIBackend(t *testing.T) {
-	t.Setenv("KNXVAULT_PKI_BACKEND", "pkcs11")
-
-	_, err := config.Load()
-	if err == nil {
-		t.Fatal("expected error for invalid KNXVAULT_PKI_BACKEND")
+	t.Setenv("KNXVAULT_PKI_BACKEND", "native") // allowed no-op alias
+	if _, err := config.Load(); err != nil {
+		t.Fatalf("native alias should be accepted: %v", err)
 	}
 }
 

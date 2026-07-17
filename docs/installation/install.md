@@ -7,9 +7,9 @@ Install KNXVault as a local binary, container, or 3-node Kubernetes Raft cluster
 | Requirement | Version | Notes |
 |-------------|---------|-------|
 | Go | 1.26+ | For building from source (`GOTOOLCHAIN=go1.26.4`) |
-| OpenSSL | 3.x | Required for PKI operations (host or image must provide `openssl` on `PATH`) |
+| OpenSSL | — | **Not used by the server.** Optional on admin hosts for `openssl rand` key generation only. |
 | Kubernetes | 1.28+ | For production HA deployment (**3 nodes** for Raft quorum) |
-| Docker | optional | For `make docker-build` |
+| Docker or nerdctl | for packaging | `make docker-build` produces the only supported image: distroless `static-debian13` |
 
 ## Option 1: Local binary (development)
 
@@ -60,12 +60,21 @@ Bare-metal lab smoke (host binary, single-node Raft):
 
 After any Raft start, **unseal** (full key or multi-share) before writes — process starts sealed when unseal key is set. Recipe: [Seal and unseal](../recipes/seal-and-unseal.md).
 
-## Option 2: Docker
+## Option 2: Docker (distroless Debian 13)
+
+**Always** build knxvault as the multi-stage image in `Dockerfile`:
+
+| Stage | Base | Purpose |
+|-------|------|---------|
+| builder | `golang:1.26-bookworm` | Static `CGO_ENABLED=0` binaries |
+| runtime | `gcr.io/distroless/static-debian13:nonroot` | Minimal non-root runtime (no shell, no OpenSSL) |
+
+PKI is always native Go `crypto/x509` (OpenSSL CLI backend removed). See [PKI native only](../operations/pki-openssl-migration.md).
 
 In-memory (or default) container:
 
 ```bash
-make docker-build
+make docker-build   # uses docker or nerdctl → knxvault:0.4.5
 
 docker run --rm -p 8200:8200 \
   -e KNXVAULT_MASTER_KEY="$(openssl rand -base64 32)" \

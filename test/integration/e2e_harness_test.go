@@ -48,10 +48,6 @@ type daemonEnv struct {
 func startDaemon(t *testing.T, extraEnv ...string) *daemonEnv {
 	t.Helper()
 
-	if _, err := exec.LookPath("openssl"); err != nil {
-		t.Skip("openssl not found on PATH (required for PKI e2e tests)")
-	}
-
 	serverBin, cliBin := e2eBins(t)
 	workDir := t.TempDir()
 
@@ -97,10 +93,6 @@ func startDaemon(t *testing.T, extraEnv ...string) *daemonEnv {
 
 func startDaemonWithConfig(t *testing.T, httpAddr string) *daemonEnv {
 	t.Helper()
-
-	if _, err := exec.LookPath("openssl"); err != nil {
-		t.Skip("openssl not found on PATH (required for PKI e2e tests)")
-	}
 
 	serverBin, cliBin := e2eBins(t)
 	workDir := t.TempDir()

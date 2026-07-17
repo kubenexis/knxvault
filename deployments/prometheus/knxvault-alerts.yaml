@@ -30,10 +30,3 @@ spec:
             severity: warning
           annotations:
             summary: Lease accumulation detected
-        - alert: KNXVaultOpenSSLBreakerOpen
-          expr: knxvault_openssl_breaker_open == 1
-          for: 1m
-          labels:
-            severity: critical
-          annotations:
-            summary: OpenSSL circuit breaker open

@@ -17,8 +17,6 @@ type File struct {
 	HTTPAddr        string        `yaml:"http_addr,omitempty"`
 	LogLevel        string        `yaml:"log_level,omitempty"`
 	ShutdownGrace   string        `yaml:"shutdown_grace,omitempty"`
-	OpenSSLBinary   string        `yaml:"openssl_binary,omitempty"`
-	OpenSSLTimeout  string        `yaml:"openssl_timeout,omitempty"`
 	JWTSecret       string        `yaml:"jwt_secret,omitempty"`
 	RootToken       string        `yaml:"root_token,omitempty"`
 	TokenTTL        string        `yaml:"token_ttl,omitempty"`
@@ -154,16 +152,6 @@ func applyFile(cfg Config, file File) (Config, error) {
 			return Config{}, fmt.Errorf("shutdown_grace: %w", err)
 		}
 		cfg.ShutdownGrace = d
-	}
-	if v := strings.TrimSpace(file.OpenSSLBinary); v != "" {
-		cfg.OpenSSLBinary = v
-	}
-	if v := strings.TrimSpace(file.OpenSSLTimeout); v != "" {
-		d, err := time.ParseDuration(v)
-		if err != nil {
-			return Config{}, fmt.Errorf("openssl_timeout: %w", err)
-		}
-		cfg.OpenSSLTimeout = d
 	}
 	if v := strings.TrimSpace(file.JWTSecret); v != "" {
 		cfg.JWTSecret = v

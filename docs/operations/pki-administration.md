@@ -2,7 +2,7 @@
 
 Day-2 operations guide for KNXVault PKI: building a CA hierarchy, issuing certificates, renewal, revocation, and trust distribution.
 
-KNXVault PKI uses **OpenSSL 3.x** under the hood. CA private keys and leaf private keys are **encrypted before Raft replication**; CA certificate PEMs are stored in cleartext (public material).
+KNXVault PKI uses **Go `crypto/x509`** (native) under the hood. CA private keys and leaf private keys are **encrypted before Raft replication**; CA certificate PEMs are stored in cleartext (public material).
 
 ## Prerequisites
 
@@ -10,7 +10,7 @@ KNXVault PKI uses **OpenSSL 3.x** under the hood. CA private keys and leaf priva
 |-------------|-------|
 | Running KNXVault | `knxvault serve` with Raft enabled in production |
 | Admin token | Bootstrap `KNXVAULT_ROOT_TOKEN` or scoped token with `pki:write` / `pki:read` |
-| OpenSSL | `KNXVAULT_OPENSSL_BINARY` on server `PATH` (default `openssl`) |
+| PKI backend | Native Go `crypto/x509` only (OpenSSL CLI backend removed) |
 
 Set environment for examples:
 
@@ -109,7 +109,7 @@ Save the response fields:
 | `cert_pem` | Trust anchor for clients |
 | `serial` | Revocation reference |
 
-**TTL formats:** Go durations (`8760h`, `720h`, `30m`) or suffixed values (`365d`, `24h`). Minimum effective cert lifetime is **1 day** (OpenSSL `-days` rounding).
+**TTL formats:** Go durations (`8760h`, `720h`, `30m`) or suffixed values (`365d`, `24h`).
 
 ## Recipe 2: Issue a leaf certificate (signed by CA)
 
@@ -382,7 +382,7 @@ Restore requires the same `KNXVAULT_MASTER_KEY`. See [Backup & restore](../deplo
 |---------|--------------|--------|
 | `403 forbidden` on PKI | Token lacks `pki:write` | Check `/sys/capabilities`; assign `pki-admin` or custom policy |
 | `validation_error` on issue | Unknown CA name in `role` | Verify CA `name` via `GET /pki/ca/:id` |
-| `internal_error` on PKI | OpenSSL failure | Check server logs, disk space, `KNXVAULT_OPENSSL_BINARY` |
+| `internal_error` on PKI | Issuance failure | Check server logs and CA/key material |
 | Auto-renew not running | Not Raft leader / jobs disabled | Confirm `GET /ready` shows leader; check job intervals |
 | Clients reject TLS chain | Missing intermediate | Distribute full chain from `GET /pki/ca/:id/export` |
 

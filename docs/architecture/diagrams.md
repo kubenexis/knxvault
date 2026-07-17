@@ -37,7 +37,7 @@ graph TD
 
     subgraph Infra["Infrastructure"]
         Crypto[Envelope crypto]
-        OpenSSL[OpenSSL / native PKI]
+        NativePKI[Native Go crypto/x509 PKI]
         RaftSM[Raft state machine]
         Jobs[Background jobs]
     end
@@ -52,7 +52,7 @@ graph TD
     PKISvc --> PKIEng
     SecSvc --> KVEng & DBEng & SSHEng
     PKIEng & KVEng --> Crypto
-    PKIEng --> OpenSSL
+    PKIEng --> NativePKI
     PKISvc & SecSvc & AuditSvc --> RaftSM
     Jobs -.->|leader only| RaftSM
 ```
@@ -89,14 +89,14 @@ sequenceDiagram
     participant C as Client / Operator
     participant API as REST API
     participant PKI as PKI engine
-    participant SSL as OpenSSL / native
+    participant Native as Go crypto/x509
     participant Raft as Raft cluster
 
     C->>API: POST /pki/issue or /pki/sign or /pki/renew
     API->>PKI: IssueCertificate / SignCSR / Renew
     PKI->>Raft: ca.get_by_name (read)
-    PKI->>SSL: genrsa + req + x509 or SignCSR
-    SSL-->>PKI: PEM cert + key
+    PKI->>Native: CreateRoot / Issue / SignCSR
+    Native-->>PKI: PEM cert + key
     PKI->>PKI: Encrypt private key (envelope) when storing
     PKI->>Raft: issued.save (if auto_renew / tracked)
     PKI-->>API: Certificate bundle + ca_id when applicable

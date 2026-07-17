@@ -5,12 +5,12 @@ import "net/http"
 // Health codes match HashiCorp Vault GET /v1/sys/health, which cert-manager
 // uses in IsVaultInitializedAndUnsealed (accepts 200, 429, 472, 473).
 const (
-	HealthOK               = http.StatusOK                  // 200 initialized, unsealed, active
-	HealthStandby          = 429                            // unsealed standby
-	HealthDRSecondary      = 472                            // DR secondary (not used)
-	HealthPerfStandby      = 473                            // performance standby (not used)
-	HealthNotInitialized   = http.StatusNotImplemented      // 501
-	HealthSealed           = http.StatusServiceUnavailable  // 503
+	HealthOK             = http.StatusOK                 // 200 initialized, unsealed, active
+	HealthStandby        = 429                           // unsealed standby
+	HealthDRSecondary    = 472                           // DR secondary (not used)
+	HealthPerfStandby    = 473                           // performance standby (not used)
+	HealthNotInitialized = http.StatusNotImplemented     // 501
+	HealthSealed         = http.StatusServiceUnavailable // 503
 )
 
 // HealthState is the input for Vault-shaped health status selection.

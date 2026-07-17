@@ -156,7 +156,7 @@ Configure `KNXVAULT_AUDIT_SIGNING_KEY` for tamper-evident exports.
 |---------|--------------|--------|
 | `/ready` 503, no leader | Raft election in progress or quorum loss | Check pod logs, PVC mounts, network between replicas |
 | `forbidden` on API calls | Missing policy capability | Review `/sys/capabilities`, update policy |
-| `internal_error` on PKI | OpenSSL failure | Check `KNXVAULT_OPENSSL_BINARY`, disk space in temp dirs |
+| `internal_error` on PKI | Native PKI issuance failure | Check server logs and CA configuration |
 | High `knxvault_rate_limited_total` | Aggressive client or attack | Tune `KNXVAULT_RATE_LIMIT_RPM`, investigate client IPs |
 | Restore fails | Master key mismatch | Verify `KNXVAULT_MASTER_KEY` matches backup |
 

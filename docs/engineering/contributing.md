@@ -39,7 +39,7 @@ Commit message format: [Conventional Commits](https://www.conventionalcommits.or
 - Match existing naming, import style, and error handling (`internal/domain/common/errors.go`)
 - Keep handlers thin — delegate to services
 - Domain models must not import infrastructure packages
-- OpenSSL calls only through `internal/crypto/openssl/`
+- PKI issuance only through native Go `crypto/x509` (`internal/crypto/x509native`, `internal/crypto/pki`)
 - Repository interfaces in `internal/repository/interfaces.go` — implementations in `dragonboat/` or `memory/`
 
 ## License

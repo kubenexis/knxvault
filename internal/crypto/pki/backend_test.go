@@ -4,11 +4,9 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/pem"
-	"os/exec"
 	"testing"
 	"time"
 
-	"github.com/kubenexis/knxvault/internal/crypto/openssl"
 	pkibackend "github.com/kubenexis/knxvault/internal/crypto/pki"
 )
 
@@ -29,65 +27,32 @@ func TestNativeBackendCreateRootStructure(t *testing.T) {
 	assertBackendOutput(t, backend, certPEM, keyPEM, true)
 }
 
-func TestNativeAndOpenSSLBackendParity(t *testing.T) {
-	if _, err := exec.LookPath("openssl"); err != nil {
-		t.Skip("openssl not installed")
-	}
-
-	req := pkibackend.RootRequest{
-		CommonName: "Parity Root",
+func TestNativeBackendIssueLeaf(t *testing.T) {
+	backend := pkibackend.NewNativeBackend()
+	ctx := context.Background()
+	caCert, caKey, err := backend.CreateRoot(ctx, pkibackend.RootRequest{
+		CommonName: "Issue Root",
 		TTL:        48 * time.Hour,
 		KeyBits:    2048,
-	}
-	ctx := context.Background()
-
-	native := pkibackend.NewNativeBackend()
-	nativeCert, nativeKey, err := native.CreateRoot(ctx, req)
+	})
 	if err != nil {
-		t.Fatalf("native CreateRoot() = %v", err)
+		t.Fatalf("CreateRoot() = %v", err)
 	}
-
-	ossl := pkibackend.NewOpenSSLBackend(openssl.New("", 30*time.Second))
-	osslCert, osslKey, err := ossl.CreateRoot(ctx, req)
+	leafCert, leafKey, err := backend.IssueCertificate(ctx, pkibackend.IssueRequest{
+		CACertPEM:  caCert,
+		CAKeyPEM:   caKey,
+		CommonName: "leaf.example.com",
+		DNSNames:   []string{"leaf.example.com"},
+		TTL:        24 * time.Hour,
+		KeyBits:    2048,
+	})
 	if err != nil {
-		t.Fatalf("openssl CreateRoot() = %v", err)
+		t.Fatalf("IssueCertificate() = %v", err)
 	}
-
-	assertBackendOutput(t, native, nativeCert, nativeKey, true)
-	assertOpenSSLRootStructure(t, ossl, osslCert, osslKey)
-}
-
-func assertOpenSSLRootStructure(t *testing.T, backend pkibackend.Backend, certPEM, keyPEM []byte) {
-	t.Helper()
-
-	cert, err := backend.ParseCertificate(certPEM)
-	if err != nil {
-		t.Fatalf("ParseCertificate() = %v", err)
-	}
-	if cert.Subject.CommonName != "Parity Root" {
-		t.Fatalf("common name = %q, want Parity Root", cert.Subject.CommonName)
-	}
-	if cert.Subject.Organization[0] != "KNXVault" {
-		t.Fatalf("organization = %v, want KNXVault", cert.Subject.Organization)
-	}
-
-	keyBlock, _ := pem.Decode(keyPEM)
-	if keyBlock == nil {
-		t.Fatal("expected private key pem block")
-	}
-	switch keyBlock.Type {
-	case "RSA PRIVATE KEY", "PRIVATE KEY":
-	default:
-		t.Fatalf("unexpected key pem type %q", keyBlock.Type)
-	}
+	assertBackendOutput(t, backend, leafCert, leafKey, false)
 }
 
 func assertBackendOutput(t *testing.T, backend pkibackend.Backend, certPEM, keyPEM []byte, wantCA bool) {
-	t.Helper()
-	compareCertStructure(t, backend, certPEM, keyPEM, wantCA)
-}
-
-func compareCertStructure(t *testing.T, backend pkibackend.Backend, certPEM, keyPEM []byte, wantCA bool) {
 	t.Helper()
 
 	cert, err := backend.ParseCertificate(certPEM)

@@ -1,19 +1,16 @@
 package pki_test
 
 import (
-	"crypto/x509/pkix"
-	"crypto/rsa"
-	"crypto/rand"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/pem"
-	"os/exec"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/kubenexis/knxvault/internal/crypto"
-	"github.com/kubenexis/knxvault/internal/crypto/openssl"
 	pkibackend "github.com/kubenexis/knxvault/internal/crypto/pki"
 	domainpki "github.com/kubenexis/knxvault/internal/domain/pki"
 	pkiengine "github.com/kubenexis/knxvault/internal/engine/pki"
@@ -30,15 +27,10 @@ func TestEngineCreateRootAndIssue(t *testing.T) {
 		t.Fatalf("NewService() = %v", err)
 	}
 
-	engine := pkiengine.NewEngine(
-		openssl.New("", 30*time.Second),
-		cryptoSvc,
+	engine := pkiengine.NewEngine(cryptoSvc,
 		memory.NewCARepository(),
 		memory.NewRevocationRepository(),
 	)
-	if _, err := exec.LookPath("openssl"); err != nil {
-		engine.SetBackend(pkibackend.NewNativeBackend())
-	}
 
 	ctx := context.Background()
 	root, err := engine.CreateRoot(ctx, pkiengine.CreateRootRequest{
@@ -77,15 +69,10 @@ func testPKIEngine(t *testing.T) *pkiengine.Engine {
 	if err != nil {
 		t.Fatalf("NewService() = %v", err)
 	}
-	engine := pkiengine.NewEngine(
-		openssl.New("", 30*time.Second),
-		cryptoSvc,
+	engine := pkiengine.NewEngine(cryptoSvc,
 		memory.NewCARepository(),
 		memory.NewRevocationRepository(),
 	)
-	if _, err := exec.LookPath("openssl"); err != nil {
-		engine.SetBackend(pkibackend.NewNativeBackend())
-	}
 	engine.SetIssuedCertRepository(memory.NewIssuedCertRepository())
 	engine.SetPKIRoleRepository(memory.NewPKIRoleRepository())
 	return engine
