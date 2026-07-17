@@ -253,6 +253,12 @@ func (e *Engine) CreateIntermediate(ctx context.Context, req CreateIntermediateR
 // defaultLeafTTL is the default leaf lifetime when role has no MaxTTL (W52).
 const defaultLeafTTL = 72 * time.Hour
 
+// defaultMaxLeafTTL caps issuance when role MaxTTLSeconds is unset (W81-10).
+const defaultMaxLeafTTL = 90 * 24 * time.Hour
+
+// defaultRoleMaxTTLSeconds is applied to auto-created CA-named roles.
+const defaultRoleMaxTTLSeconds = int(defaultMaxLeafTTL / time.Second)
+
 // IssueCertificate issues a leaf certificate signed by the named CA role.
 func (e *Engine) IssueCertificate(ctx context.Context, req IssueRequest) (*IssueResult, error) {
 	if e.crypto == nil || e.caRepo == nil || e.backend == nil {
@@ -282,14 +288,15 @@ func (e *Engine) IssueCertificate(ctx context.Context, req IssueRequest) (*Issue
 			return nil, common.Wrap(common.ErrCodeValidation, "invalid ttl", err)
 		}
 	}
+	maxTTL := defaultMaxLeafTTL
 	if pkiRole != nil && pkiRole.MaxTTLSeconds > 0 {
-		max := time.Duration(pkiRole.MaxTTLSeconds) * time.Second
-		if ttl > max {
-			if req.TTL != "" {
-				return nil, common.New(common.ErrCodeValidation, "ttl exceeds role maximum")
-			}
-			ttl = max
+		maxTTL = time.Duration(pkiRole.MaxTTLSeconds) * time.Second
+	}
+	if ttl > maxTTL {
+		if req.TTL != "" {
+			return nil, common.New(common.ErrCodeValidation, "ttl exceeds role maximum")
 		}
+		ttl = maxTTL
 	}
 	caKey, err := e.decryptKey(ca.PrivateKeyEnc, ca.DEKEnc)
 	if err != nil {
@@ -302,6 +309,10 @@ func (e *Engine) IssueCertificate(ctx context.Context, req IssueRequest) (*Issue
 		usage = pkiRole.KeyUsage
 	}
 	if req.ForceKeyUsage != "" {
+		// W81: do not silently override an explicit server-only role with client EKU.
+		if pkiRole != nil && pkiRole.KeyUsage == domainpki.RoleUsageServer && req.ForceKeyUsage != domainpki.RoleUsageServer {
+			return nil, common.New(common.ErrCodeValidation, "force key usage conflicts with role key_usage=server; use a client role")
+		}
 		usage = req.ForceKeyUsage
 	}
 	certPEM, keyPEM, err := e.backend.IssueCertificate(ctx, pkibackend.IssueRequest{
@@ -724,11 +735,12 @@ func (e *Engine) SignCSR(ctx context.Context, req SignCSRRequest) (*SignCSRResul
 			return nil, common.Wrap(common.ErrCodeValidation, "invalid ttl", err)
 		}
 	}
+	maxTTL := defaultMaxLeafTTL
 	if pkiRole != nil && pkiRole.MaxTTLSeconds > 0 {
-		max := time.Duration(pkiRole.MaxTTLSeconds) * time.Second
-		if ttl > max {
-			return nil, common.New(common.ErrCodeValidation, "ttl exceeds role maximum")
-		}
+		maxTTL = time.Duration(pkiRole.MaxTTLSeconds) * time.Second
+	}
+	if ttl > maxTTL {
+		return nil, common.New(common.ErrCodeValidation, "ttl exceeds role maximum")
 	}
 
 	caKey, err := e.decryptKey(ca.PrivateKeyEnc, ca.DEKEnc)
@@ -790,8 +802,9 @@ func (e *Engine) ensureDefaultRole(ctx context.Context, caName string, allowedDo
 		CAName:          caName,
 		AllowedDomains:  domains,
 		AllowSubdomains: allowSubdomains,
-		KeyUsage:        domainpki.RoleUsageServer,
-		MaxTTLSeconds:   0,
+		// Empty KeyUsage allows both server and client issue paths; explicit
+		// key_usage=server on a role blocks client force (W81).
+		MaxTTLSeconds: defaultRoleMaxTTLSeconds,
 	})
 }
 
@@ -848,12 +861,16 @@ func validateIssueAgainstRole(role *domainpki.Role, req IssueRequest) error {
 	if len(req.IPAddresses) > 0 && !role.AllowsAnyDomain() {
 		return common.New(common.ErrCodeValidation, "ip SANs are not allowed by role domain policy (use allowed_domains: [\"*\"] if required)")
 	}
-	if req.TTL != "" && role.MaxTTLSeconds > 0 {
+	if req.TTL != "" {
 		ttl, err := utils.ParseTTL(req.TTL)
 		if err != nil {
 			return common.Wrap(common.ErrCodeValidation, "invalid ttl", err)
 		}
-		if int(ttl.Seconds()) > role.MaxTTLSeconds {
+		maxSec := role.MaxTTLSeconds
+		if maxSec <= 0 {
+			maxSec = defaultRoleMaxTTLSeconds
+		}
+		if int(ttl.Seconds()) > maxSec {
 			return common.New(common.ErrCodeValidation, "ttl exceeds role maximum")
 		}
 	}
@@ -901,12 +918,16 @@ func validateCSRAgainstRole(role *domainpki.Role, csrPEM, ttl string) error {
 			return common.New(common.ErrCodeValidation, fmt.Sprintf("csr name %q not allowed by role", name))
 		}
 	}
-	if ttl != "" && role.MaxTTLSeconds > 0 {
+	if ttl != "" {
 		d, err := utils.ParseTTL(ttl)
 		if err != nil {
 			return common.Wrap(common.ErrCodeValidation, "invalid ttl", err)
 		}
-		if int(d.Seconds()) > role.MaxTTLSeconds {
+		maxSec := role.MaxTTLSeconds
+		if maxSec <= 0 {
+			maxSec = defaultRoleMaxTTLSeconds
+		}
+		if int(d.Seconds()) > maxSec {
 			return common.New(common.ErrCodeValidation, "ttl exceeds role maximum")
 		}
 	}

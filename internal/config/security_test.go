@@ -109,7 +109,8 @@ func productionBase() config.Config {
 		RequireHTTPSClients: true,
 		RootTokenTTL:        4 * time.Hour,
 		ManagedSQLStrict:    true,
-		UnsealAllowCIDRs:    []string{"10.0.0.0/8"},
+		UnsealAllowCIDRs:    []string{"10.0.0.0/16"},
+		K8sTokenAudiences:   []string{"knxvault"},
 	}
 }
 
@@ -234,7 +235,8 @@ func TestLoadProductionProfileFromEnv(t *testing.T) {
 	t.Setenv("KNXVAULT_TLS_KEY", "/certs/tls.key")
 	t.Setenv("KNXVAULT_AUDIT_SIGNING_KEY", "sign")
 	t.Setenv("KNXVAULT_METRICS_BEARER_TOKEN", "m")
-	t.Setenv("KNXVAULT_UNSEAL_ALLOW_CIDRS", "10.0.0.0/8")
+	t.Setenv("KNXVAULT_UNSEAL_ALLOW_CIDRS", "10.0.0.0/16")
+	t.Setenv("KNXVAULT_K8S_TOKEN_AUDIENCES", "knxvault")
 	// clear lab-ish vars
 	t.Setenv("KNXVAULT_JWT_SECRET", "")
 	t.Setenv("KNXVAULT_K8S_AUTH_INSECURE", "")
@@ -277,7 +279,7 @@ security:
   tls_termination: ingress
   metrics_bearer_token: from-file
   unseal_allow_cidrs:
-    - 10.0.0.0/8
+    - 10.0.0.0/16
 audit:
   signing_key: from-file-audit
 `
@@ -324,8 +326,9 @@ func TestMultiNodeRaftForcesProductionProfile(t *testing.T) {
 		AuditSigningKey:    "a",
 		MetricsBearerToken: "m",
 		UnsealKey:          "dGVzdA==",
-		UnsealAllowCIDRs:   []string{"10.0.0.0/8"},
+		UnsealAllowCIDRs:   []string{"10.0.0.0/16"},
 		ManagedSQLStrict:   true,
+		K8sTokenAudiences:  []string{"knxvault"},
 		Raft: config.RaftConfig{
 			Enabled:           true,
 			InitialMembersRaw: "1=a:1,2=b:1,3=c:1",

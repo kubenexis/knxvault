@@ -64,6 +64,8 @@ func ApplySecurityProfileDefaults(cfg *Config) error {
 	cfg.ManagedSQLStrict = true
 	// W80-03: fine-grained PKI ACLs only — no legacy "pki" write fallback.
 	cfg.AllowCoarsePKIWrite = false
+	// W81-07: never allow master-as-unseal in production.
+	cfg.LabUnsealEqualsMaster = false
 	// Cap bootstrap root lifetime (bootstrap-complete / root death is W62-10).
 	if cfg.RootTokenTTL <= 0 || cfg.RootTokenTTL > MaxProductionRootTokenTTL {
 		cfg.RootTokenTTL = MaxProductionRootTokenTTL
@@ -215,6 +217,13 @@ func validateProductionSecurity(cfg Config) error {
 	if cfg.AllowCoarsePKIWrite {
 		return fmt.Errorf("production profile: coarse PKI write fallback is not allowed (KNXVAULT_ALLOW_COARSE_PKI_WRITE)")
 	}
+	if cfg.LabUnsealEqualsMaster {
+		return fmt.Errorf("production profile: lab unseal-equals-master is not allowed")
+	}
+	// W81-06: TokenReview audiences required in production when Raft is enabled (K8s SA auth).
+	if cfg.Raft.Enabled && len(cfg.K8sTokenAudiences) == 0 {
+		return fmt.Errorf("production profile: KNXVAULT_K8S_TOKEN_AUDIENCES required when raft is enabled (e.g. knxvault)")
+	}
 	// W78-09: audit forward URL must pass SSRF checks when set.
 	if strings.TrimSpace(cfg.AuditForwardURL) != "" {
 		if err := acme.ValidateOutboundURL(cfg.AuditForwardURL); err != nil {
@@ -250,11 +259,11 @@ func validateUnsealCIDRsNotWorldOpen(cidrs []string) error {
 	return nil
 }
 
-// MinUnsealCIDRPrefixIPv4 / IPv6 are the shortest allowed unseal prefixes in production (W80-05).
-// /8 matches common RFC1918 10.0.0.0/8 ops; tighter is recommended (admin jump /32 or /24).
+// MinUnsealCIDRPrefixIPv4 / IPv6 are the shortest allowed unseal prefixes in production (W80-05 / W81-02).
+// Prefer admin jump /32 or cluster pod /24; /16 is the widest production allows (not entire 10/8).
 const (
-	MinUnsealCIDRPrefixIPv4 = 8
-	MinUnsealCIDRPrefixIPv6 = 32
+	MinUnsealCIDRPrefixIPv4 = 16
+	MinUnsealCIDRPrefixIPv6 = 48
 )
 
 // validateUnsealCIDRsMaxBreadth rejects CIDRs wider than MinUnsealCIDRPrefix* (half-open nets, /1–/7).

@@ -53,7 +53,7 @@ func ParseMountConfig(attributesJSON, secretsJSON string) (MountConfig, error) {
 		return MountConfig{}, fmt.Errorf("role parameter is required")
 	}
 	if cfg.VaultAddr == "" {
-		cfg.VaultAddr = "http://knxvault.knxvault.svc.cluster.local:8200"
+		cfg.VaultAddr = "https://knxvault.knxvault.svc.cluster.local:8200"
 	}
 	objectsRaw := strings.TrimSpace(attrs["objects"])
 	if objectsRaw == "" {

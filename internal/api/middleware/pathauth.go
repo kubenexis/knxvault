@@ -69,9 +69,10 @@ func RequirePKISignCapability(svc *auth.Service, defaultMount string) gin.Handle
 			mount = "pki"
 		}
 		role := strings.TrimSpace(c.Param("role"))
+		// W81-09: authorize only against the request mount (no cross-mount pki/* bleed).
 		candidates := []string{mount + "/sign"}
 		if role != "" {
-			candidates = []string{mount + "/sign/" + role, mount + "/sign/*", mount + "/sign", "pki/sign/" + role, "pki/sign/*"}
+			candidates = []string{mount + "/sign/" + role, mount + "/sign/*", mount + "/sign"}
 		}
 		var lastErr error
 		for _, pathResource := range candidates {
@@ -82,8 +83,8 @@ func RequirePKISignCapability(svc *auth.Service, defaultMount string) gin.Handle
 				lastErr = err
 			}
 		}
-		// Also allow admin-style glob policies that grant pki/* via path auth on "pki/sign/..."
-		if err := svc.AuthorizePath(c.Request.Context(), principal, "pki/*", auth.CapWrite); err == nil {
+		// Admin-style glob only for the same mount (e.g. pki/* when mount is pki).
+		if err := svc.AuthorizePath(c.Request.Context(), principal, mount+"/*", auth.CapWrite); err == nil {
 			c.Next()
 			return
 		}

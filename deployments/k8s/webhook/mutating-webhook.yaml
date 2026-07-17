@@ -1,10 +1,15 @@
 # Copyright Kubenexis Systems Private Limited.
 # SPDX-License-Identifier: Apache-2.0
 
+# W81-03: caBundle is required for API server trust. Replace REPLACE_WITH_BASE64_CA
+# with the base64-encoded CA that signed knxvault-webhook-tls (or use cert-manager
+# injection annotation when available).
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
 metadata:
   name: knxvault-inject
+  annotations:
+    # Optional: cert-manager.io/inject-ca-from: knxvault/knxvault-webhook-cert
 webhooks:
   - name: inject.knxvault.dev
     admissionReviewVersions: ["v1"]
@@ -15,6 +20,7 @@ webhooks:
         namespace: knxvault
         path: /mutate
         port: 9443
+      caBundle: REPLACE_WITH_BASE64_CA
     rules:
       - apiGroups: [""]
         apiVersions: ["v1"]

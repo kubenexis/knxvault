@@ -5,6 +5,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -153,6 +154,8 @@ func (r *CertificateReconciler) issueOrRenewMulti(ctx context.Context, cert *v1a
 }
 
 func (r *CertificateReconciler) applyTLSSecret(ctx context.Context, cert *v1alpha1.KNXVaultCertificate, result *vaultiface.CertResult, caID string, rev int) error {
+	// W81-12: only overwrite Secrets already owned by this Certificate or non-existent names.
+	// Reject clobbering unrelated Secrets (no controller owner ref to this cert).
 	sec := secretutil.TLSSecret(cert.Namespace, cert.Spec.SecretName, result.CertPEM, result.PrivateKeyPEM, "",
 		result.Serial, result.ExpiresAt, caID, rev, map[string]string{
 			"knxvault.kubenexis.dev/certificate": cert.Name,
@@ -167,6 +170,9 @@ func (r *CertificateReconciler) applyTLSSecret(ctx context.Context, cert *v1alph
 			return r.Create(ctx, sec)
 		}
 		return err
+	}
+	if !secretOwnedByCertificate(&current, cert) {
+		return fmt.Errorf("secret %q exists and is not owned by Certificate %q; refusing overwrite", cert.Spec.SecretName, cert.Name)
 	}
 	if current.Annotations[secretutil.AnnSerial] == result.Serial && string(current.Data[corev1.TLSCertKey]) == result.CertPEM {
 		return nil
@@ -186,6 +192,23 @@ func (r *CertificateReconciler) applyTLSSecret(ctx context.Context, cert *v1alph
 		current.Annotations[k] = v
 	}
 	return r.Update(ctx, &current)
+}
+
+// secretOwnedByCertificate reports whether sec is controlled by cert (W81-12).
+func secretOwnedByCertificate(sec *corev1.Secret, cert *v1alpha1.KNXVaultCertificate) bool {
+	if sec == nil || cert == nil {
+		return false
+	}
+	for _, ref := range sec.OwnerReferences {
+		if ref.UID == cert.UID && ref.Controller != nil && *ref.Controller {
+			return true
+		}
+	}
+	// Label set by this operator on prior writes (migration without owner ref).
+	if sec.Labels != nil && sec.Labels["knxvault.kubenexis.dev/certificate"] == cert.Name {
+		return true
+	}
+	return false
 }
 
 // SetupWithManager registers the controller.

@@ -23,7 +23,7 @@ func baseProdW80() config.Config {
 		MetricsBearerToken:  "metrics-tok",
 		RootTokenTTL:        time.Hour,
 		TLSTermination:      config.TLSTerminationIngress,
-		UnsealAllowCIDRs:    []string{"10.0.0.0/8"},
+		UnsealAllowCIDRs:    []string{"10.0.0.0/16"},
 	}
 }
 
@@ -33,13 +33,13 @@ func TestW80_ProductionRejectsBroadUnsealCIDR(t *testing.T) {
 	if err := config.ValidateSecurity(cfg, ""); err == nil || !strings.Contains(err.Error(), "too broad") {
 		t.Fatalf("want broad CIDR error, got %v", err)
 	}
-	cfg.UnsealAllowCIDRs = []string{"10.0.0.0/7"}
+	cfg.UnsealAllowCIDRs = []string{"10.0.0.0/8"}
 	if err := config.ValidateSecurity(cfg, ""); err == nil || !strings.Contains(err.Error(), "too broad") {
 		t.Fatalf("want /7 error, got %v", err)
 	}
-	cfg.UnsealAllowCIDRs = []string{"10.0.0.0/8", "192.168.0.0/16"}
+	cfg.UnsealAllowCIDRs = []string{"10.0.0.0/16", "192.168.0.0/16"}
 	if err := config.ValidateSecurity(cfg, ""); err != nil {
-		t.Fatalf("expected OK for /8 and /16: %v", err)
+		t.Fatalf("expected OK for /16: %v", err)
 	}
 }
 
@@ -62,12 +62,18 @@ func TestW80_ProductionDisablesCoarsePKIWrite(t *testing.T) {
 	}
 }
 
-func TestW80_LabKeepsCoarsePKIWrite(t *testing.T) {
+func TestW80_LabCoarsePKIWriteOptIn(t *testing.T) {
 	cfg := config.Config{SecurityProfile: config.SecurityProfileLab, AllowCoarsePKIWrite: true}
 	if err := config.ApplySecurityProfileDefaults(&cfg); err != nil {
 		t.Fatal(err)
 	}
 	if !cfg.AllowCoarsePKIWrite {
-		t.Fatal("lab should keep coarse PKI write enabled by default path")
+		t.Fatal("lab should allow explicit coarse PKI write opt-in")
+	}
+	cfg2 := config.Config{SecurityProfile: config.SecurityProfileLab}
+	_ = config.ApplySecurityProfileDefaults(&cfg2)
+	// Zero value remains false after defaults (W81: coarse off by default).
+	if cfg2.AllowCoarsePKIWrite {
+		t.Fatal("lab default AllowCoarsePKIWrite should be false without opt-in")
 	}
 }

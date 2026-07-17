@@ -36,6 +36,7 @@ func TestE2EMultiShareUnsealHTTP(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	t.Setenv("KNXVAULT_RAFT_ENABLED", "false")
 	t.Setenv("KNXVAULT_MASTER_KEY", testMasterKey())
+	t.Setenv("KNXVAULT_LAB_UNSEAL_EQUALS_MASTER", "true")
 	t.Setenv("KNXVAULT_ROOT_TOKEN", "w53-root")
 	t.Setenv("KNXVAULT_UNSEAL_KEY", testUnsealKey())
 	t.Setenv("KNXVAULT_UNSEAL_THRESHOLD", "2")
@@ -118,6 +119,7 @@ func TestE2ETenantPKIScopesCANames(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	t.Setenv("KNXVAULT_RAFT_ENABLED", "false")
 	t.Setenv("KNXVAULT_MASTER_KEY", testMasterKey())
+	t.Setenv("KNXVAULT_LAB_UNSEAL_EQUALS_MASTER", "true")
 	t.Setenv("KNXVAULT_ROOT_TOKEN", "w53-tenant-root")
 	t.Setenv("KNXVAULT_TENANT_MODE", "true")
 	// Clear unseal so we control seal explicitly; harness-style unseal with master.
@@ -193,6 +195,7 @@ func TestE2ECertLoginHTTP(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	t.Setenv("KNXVAULT_RAFT_ENABLED", "false")
 	t.Setenv("KNXVAULT_MASTER_KEY", testMasterKey())
+	t.Setenv("KNXVAULT_LAB_UNSEAL_EQUALS_MASTER", "true")
 	t.Setenv("KNXVAULT_ROOT_TOKEN", "w53-cert-root")
 	t.Setenv("KNXVAULT_UNSEAL_KEY", "")
 

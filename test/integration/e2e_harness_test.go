@@ -68,6 +68,7 @@ func startDaemon(t *testing.T, extraEnv ...string) *daemonEnv {
 		"KNXVAULT_HTTP_ADDR="+env.httpAddr,
 		"KNXVAULT_LOG_LEVEL="+e2eLogLevel,
 		"KNXVAULT_MASTER_KEY="+e2eMasterKey(),
+		"KNXVAULT_LAB_UNSEAL_EQUALS_MASTER=true",
 		"KNXVAULT_ROOT_TOKEN="+e2eRootToken,
 		"KNXVAULT_RAFT_ENABLED=false",
 	)
@@ -120,6 +121,7 @@ log_level: error
 
 	serverEnv := append(os.Environ(),
 		"KNXVAULT_MASTER_KEY="+e2eMasterKey(),
+		"KNXVAULT_LAB_UNSEAL_EQUALS_MASTER=true",
 		"KNXVAULT_ROOT_TOKEN="+e2eRootToken,
 		"KNXVAULT_RAFT_ENABLED=false",
 	)

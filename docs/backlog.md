@@ -27,6 +27,8 @@ Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topological
 
 **W80 High/Medium pack (2026-07-17):** Cloudflare SafeHTTP; SQL GRANT ALL/IN ROLE; prod disables coarse PKI write; operator Secrets least-priv; unseal CIDR breadth; exposure HA replay; doctor lab warn; base NetPol egress — [security-remediation-w80-2026-07-17.md](audit/security-remediation-w80-2026-07-17.md).
 
+**W81 High/Medium pack (2026-07-17):** pathLenZero; unseal `/16`; webhook TLS; TokenReview audiences; lab unseal flag; RSA floor; mount-scoped sign; max leaf TTL; Secret ownership; HTTPS defaults — [security-remediation-w81-2026-07-17.md](audit/security-remediation-w81-2026-07-17.md).
+
 **W75 CIS hardening (network + defaults + multi-tenant stance):** design [`docs/design/cis-hardening-improvements.md`](design/cis-hardening-improvements.md). **P0 done:** multi-node Raft forces production profile (**W75-01**); `deployments/k8s/production/` (**W75-02**).
 
 **Post-quantum readiness** is tracked separately: **[`docs/pq/backlog.md`](pq/backlog.md)** (`PQ-*` IDs) with design under [`docs/pq/`](pq/README.md). Not a claim of PQ-ready product.

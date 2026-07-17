@@ -31,7 +31,8 @@ func TestW79_ProductionRejectsWorldOpenUnsealCIDR(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "too broad") {
 		t.Fatalf("want too broad error, got %v", err)
 	}
-	cfg.UnsealAllowCIDRs = []string{"10.0.0.0/8"}
+	cfg.UnsealAllowCIDRs = []string{"10.0.0.0/16"}
+	cfg.K8sTokenAudiences = []string{"knxvault"}
 	if err := config.ValidateSecurity(cfg, ""); err != nil {
 		t.Fatal(err)
 	}

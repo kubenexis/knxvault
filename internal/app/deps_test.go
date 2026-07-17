@@ -38,6 +38,7 @@ func TestNewDependenciesInMemory(t *testing.T) {
 func TestNewDependenciesEngineRegistry(t *testing.T) {
 	t.Setenv("KNXVAULT_RAFT_ENABLED", "false")
 	t.Setenv("KNXVAULT_MASTER_KEY", testMasterKeyB64())
+	t.Setenv("KNXVAULT_LAB_UNSEAL_EQUALS_MASTER", "true")
 	t.Setenv("KNXVAULT_MASTER_KEY_FILE", "")
 
 	cfg, err := config.Load()
@@ -95,6 +96,7 @@ func TestNewDependenciesRequiresMasterKeyWithRaft(t *testing.T) {
 func TestNewDependenciesServicesWired(t *testing.T) {
 	t.Setenv("KNXVAULT_RAFT_ENABLED", "false")
 	t.Setenv("KNXVAULT_MASTER_KEY", testMasterKeyB64())
+	t.Setenv("KNXVAULT_LAB_UNSEAL_EQUALS_MASTER", "true")
 	t.Setenv("KNXVAULT_MASTER_KEY_FILE", "")
 
 	cfg, err := config.Load()
@@ -119,6 +121,7 @@ func TestNewDependenciesServicesWired(t *testing.T) {
 func TestDependenciesHelpers(t *testing.T) {
 	t.Setenv("KNXVAULT_RAFT_ENABLED", "false")
 	t.Setenv("KNXVAULT_MASTER_KEY", testMasterKeyB64())
+	t.Setenv("KNXVAULT_LAB_UNSEAL_EQUALS_MASTER", "true")
 	t.Setenv("KNXVAULT_MASTER_KEY_FILE", "")
 
 	cfg, err := config.Load()

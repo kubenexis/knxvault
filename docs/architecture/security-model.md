@@ -25,6 +25,8 @@ Honest grades, known gaps (set-and-forget Medium, custody vs HSM, DIY footguns),
 
 **W80 High/Medium pack (2026-07-17):** Cloudflare SafeHTTP; SQL `GRANT ALL`/`IN ROLE` deny; production disables coarse PKI write; operator Secrets least-priv; unseal CIDR max breadth; exposure HA replay via Valkey; doctor lab-profile warn; base NetPol egress. Report: [security-remediation-w80-2026-07-17.md](../audit/security-remediation-w80-2026-07-17.md).
 
+**W81 High/Medium pack (2026-07-17):** Intermediate pathLenZero; unseal min `/16`; webhook TLS/caBundle; TokenReview audiences; no silent master-as-unseal; RSA ≥2048; mount-scoped vault sign; 90d default max leaf TTL; operator Secret ownership; HTTPS edge defaults; SQL denylist. Report: [security-remediation-w81-2026-07-17.md](../audit/security-remediation-w81-2026-07-17.md).
+
 ## Threat model
 
 | Threat | Impact | Mitigations |

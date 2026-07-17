@@ -1,6 +1,9 @@
 # Copyright Kubenexis Systems Private Limited.
 # SPDX-License-Identifier: Apache-2.0
 
+# Production-oriented webhook: TLS certs required (W81-03).
+# Create Secret knxvault-webhook-tls with tls.crt / tls.key, and set caBundle
+# on MutatingWebhookConfiguration (see mutating-webhook.yaml).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -28,11 +31,23 @@ spec:
           env:
             - name: KNXVAULT_WEBHOOK_ADDR
               value: ":9443"
+            - name: KNXVAULT_WEBHOOK_TLS_CERT_FILE
+              value: /etc/knxvault/webhook/tls.crt
+            - name: KNXVAULT_WEBHOOK_TLS_KEY_FILE
+              value: /etc/knxvault/webhook/tls.key
+          volumeMounts:
+            - name: webhook-tls
+              mountPath: /etc/knxvault/webhook
+              readOnly: true
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
+      volumes:
+        - name: webhook-tls
+          secret:
+            secretName: knxvault-webhook-tls
 ---
 apiVersion: v1
 kind: Service

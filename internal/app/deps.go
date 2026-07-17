@@ -218,11 +218,17 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 			}
 			unsealKey = key
 		} else {
-			unsealKey = resolveUnsealKey(cfg.UnsealKey, deps.MasterKey)
+			unsealKey = resolveUnsealKeyWithLab(cfg.UnsealKey, deps.MasterKey, cfg.LabUnsealEqualsMaster)
+			if len(unsealKey) == 0 {
+				return nil, fmt.Errorf("unseal key required: set KNXVAULT_UNSEAL_KEY (base64), enable auto-unseal, or lab-only KNXVAULT_LAB_UNSEAL_EQUALS_MASTER=true")
+			}
 		}
 		// Reject only when an explicit unseal material path is configured (not lab fallback).
 		if (cfg.UnsealKey != "" || cfg.AutoUnsealEnabled) && bytes.Equal(unsealKey, deps.MasterKey) {
 			return nil, fmt.Errorf("unseal key must not equal master key")
+		}
+		if cfg.LabUnsealEqualsMaster && bytes.Equal(unsealKey, deps.MasterKey) && cfg.UnsealKey == "" {
+			log.Warn("lab mode: unseal key equals master key (KNXVAULT_LAB_UNSEAL_EQUALS_MASTER)")
 		}
 		deps.Seal = NewSealState(unsealKey)
 		if cfg.UnsealThreshold > 1 {
@@ -418,9 +424,9 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 	deps.SharedLockout = sharedLock
 	deps.AuthzAudit = middleware.NewAuthzAudit(deps.AuditService)
 	var tokenReviewer k8s.TokenReviewer
-	if reviewer, err := k8s.NewInClusterTokenReviewer(); err == nil {
+	if reviewer, err := k8s.NewInClusterTokenReviewerWithAudiences(cfg.K8sTokenAudiences); err == nil {
 		tokenReviewer = reviewer
-		log.Info("kubernetes TokenReview authentication enabled")
+		log.Info("kubernetes TokenReview authentication enabled", zap.Strings("audiences", cfg.K8sTokenAudiences))
 	} else {
 		log.Warn("kubernetes TokenReview unavailable", zap.Error(err))
 	}
@@ -577,11 +583,16 @@ func (d *Dependencies) IsLeader() bool {
 	return d.Leader.IsLeader()
 }
 
-func resolveUnsealKey(configured string, masterKey []byte) []byte {
+// resolveUnsealKeyWithLab returns configured unseal material. Master key is never used
+// unless labUnsealEqualsMaster is true (W81-07).
+func resolveUnsealKeyWithLab(configured string, masterKey []byte, labUnsealEqualsMaster bool) []byte {
 	if configured != "" {
 		if raw, err := base64.StdEncoding.DecodeString(configured); err == nil && len(raw) > 0 {
 			return raw
 		}
 	}
-	return append([]byte(nil), masterKey...)
+	if labUnsealEqualsMaster && len(masterKey) > 0 {
+		return append([]byte(nil), masterKey...)
+	}
+	return nil
 }

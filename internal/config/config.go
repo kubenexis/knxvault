@@ -137,6 +137,12 @@ type Config struct {
 	// fine-grained pki/ca|roles|issue|sign|revoke (W79/W80). Production forces false.
 	// Env: KNXVAULT_ALLOW_COARSE_PKI_WRITE. YAML: security.allow_coarse_pki_write.
 	AllowCoarsePKIWrite bool
+	// LabUnsealEqualsMaster allows using master key as unseal material (lab only, W81-07).
+	// Env: KNXVAULT_LAB_UNSEAL_EQUALS_MASTER.
+	LabUnsealEqualsMaster bool
+	// K8sTokenAudiences are passed to TokenReview (W81-06). Empty = API server defaults.
+	// Env: KNXVAULT_K8S_TOKEN_AUDIENCES (CSV). Production recommends non-empty.
+	K8sTokenAudiences []string
 	// RequireHTTPSClients rejects non-HTTPS vault addresses in CSI/ESO clients (W52-06).
 	// Loopback http://127.0.0.1 and http://localhost remain allowed for lab.
 	RequireHTTPSClients bool

@@ -19,10 +19,24 @@ import (
 
 const organization = "KNXVault"
 
+// MinRSAKeyBits is the minimum allowed RSA modulus size (W81-08).
+const MinRSAKeyBits = 2048
+
+func normalizeKeyBits(keyBits int) (int, error) {
+	if keyBits == 0 {
+		return MinRSAKeyBits, nil
+	}
+	if keyBits < MinRSAKeyBits {
+		return 0, fmt.Errorf("rsa key_bits must be >= %d (got %d)", MinRSAKeyBits, keyBits)
+	}
+	return keyBits, nil
+}
+
 // CreateRoot generates a self-signed RSA SHA-256 root CA.
 func CreateRoot(commonName string, ttl time.Duration, keyBits int) (certPEM, keyPEM []byte, err error) {
-	if keyBits == 0 {
-		keyBits = 2048
+	keyBits, err = normalizeKeyBits(keyBits)
+	if err != nil {
+		return nil, nil, err
 	}
 	priv, err := rsa.GenerateKey(rand.Reader, keyBits)
 	if err != nil {
@@ -64,8 +78,9 @@ func CreateIntermediate(parentCertPEM, parentKeyPEM []byte, commonName string, t
 		return nil, nil, fmt.Errorf("parse parent key: %w", err)
 	}
 
-	if keyBits == 0 {
-		keyBits = 2048
+	keyBits, err = normalizeKeyBits(keyBits)
+	if err != nil {
+		return nil, nil, err
 	}
 	priv, err := rsa.GenerateKey(rand.Reader, keyBits)
 	if err != nil {
@@ -89,8 +104,10 @@ func CreateIntermediate(parentCertPEM, parentKeyPEM []byte, commonName string, t
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign | x509.KeyUsageDigitalSignature,
 		BasicConstraintsValid: true,
 		IsCA:                  true,
-		MaxPathLen:            0,
-		SignatureAlgorithm:    x509.SHA256WithRSA,
+		// W81-01: MaxPathLen 0 alone is ignored by Go unless MaxPathLenZero is true.
+		MaxPathLen:         0,
+		MaxPathLenZero:     true,
+		SignatureAlgorithm: x509.SHA256WithRSA,
 	}
 
 	return signCertificate(template, parentCert, &priv.PublicKey, parentKey, priv)
@@ -112,8 +129,9 @@ func IssueCertificateWithUsage(caCertPEM, caKeyPEM []byte, commonName string, dn
 		return nil, nil, fmt.Errorf("parse ca key: %w", err)
 	}
 
-	if keyBits == 0 {
-		keyBits = 2048
+	keyBits, err = normalizeKeyBits(keyBits)
+	if err != nil {
+		return nil, nil, err
 	}
 	priv, err := rsa.GenerateKey(rand.Reader, keyBits)
 	if err != nil {

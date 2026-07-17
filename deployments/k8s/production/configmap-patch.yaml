@@ -21,6 +21,7 @@ data:
   KNXVAULT_METRICS_ADDR: ":8201"
   # W75-04: restrict unseal to cluster private ranges + admin jump (adjust for your CNI)
   # Empty = allow all (not recommended). Example private ranges:
-  KNXVAULT_UNSEAL_ALLOW_CIDRS: "10.0.0.0/8,192.168.0.0/16,172.16.0.0/12"
+  KNXVAULT_UNSEAL_ALLOW_CIDRS: "10.0.0.0/16,192.168.0.0/16,172.16.0.0/16"
+  KNXVAULT_K8S_TOKEN_AUDIENCES: "knxvault"
   # Soft multi-tenant off by default (ADR-0011 single trust domain)
   KNXVAULT_TENANT_MODE: "false"

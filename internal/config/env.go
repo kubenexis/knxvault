@@ -356,6 +356,16 @@ func overlayEnv(cfg Config) (Config, error) {
 		}
 		cfg.AllowCoarsePKIWrite = b
 	}
+	if v := os.Getenv("KNXVAULT_LAB_UNSEAL_EQUALS_MASTER"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_LAB_UNSEAL_EQUALS_MASTER: %w", err)
+		}
+		cfg.LabUnsealEqualsMaster = b
+	}
+	if v := os.Getenv("KNXVAULT_K8S_TOKEN_AUDIENCES"); v != "" {
+		cfg.K8sTokenAudiences = splitCSV(v)
+	}
 	if v := os.Getenv("KNXVAULT_REQUIRE_HTTPS_CLIENTS"); v != "" {
 		b, err := strconv.ParseBool(v)
 		if err != nil {

@@ -29,11 +29,18 @@ type TokenReviewer interface {
 
 // APITokenReviewer uses authentication.k8s.io/v1 TokenReview.
 type APITokenReviewer struct {
-	client kubernetes.Interface
+	client    kubernetes.Interface
+	audiences []string
 }
 
 // NewInClusterTokenReviewer constructs a TokenReviewer from in-cluster credentials.
 func NewInClusterTokenReviewer() (TokenReviewer, error) {
+	return NewInClusterTokenReviewerWithAudiences(nil)
+}
+
+// NewInClusterTokenReviewerWithAudiences constructs a TokenReviewer that requests
+// the given audiences (W81-06). Empty audiences keeps API-server default behavior.
+func NewInClusterTokenReviewerWithAudiences(audiences []string) (TokenReviewer, error) {
 	cfg, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, fmt.Errorf("in-cluster config: %w", err)
@@ -42,12 +49,17 @@ func NewInClusterTokenReviewer() (TokenReviewer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("kubernetes client: %w", err)
 	}
-	return &APITokenReviewer{client: client}, nil
+	return &APITokenReviewer{client: client, audiences: append([]string(nil), audiences...)}, nil
 }
 
 // NewTokenReviewerFromClient constructs a TokenReviewer from an existing client.
 func NewTokenReviewerFromClient(client kubernetes.Interface) TokenReviewer {
-	return &APITokenReviewer{client: client}
+	return NewTokenReviewerFromClientWithAudiences(client, nil)
+}
+
+// NewTokenReviewerFromClientWithAudiences sets optional TokenReview audiences (W81-06).
+func NewTokenReviewerFromClientWithAudiences(client kubernetes.Interface, audiences []string) TokenReviewer {
+	return &APITokenReviewer{client: client, audiences: append([]string(nil), audiences...)}
 }
 
 // Review validates a bearer token with the Kubernetes API server.
@@ -55,10 +67,12 @@ func (r *APITokenReviewer) Review(ctx context.Context, token string) (*TokenRevi
 	if r.client == nil {
 		return nil, fmt.Errorf("kubernetes client not configured")
 	}
+	spec := authenticationv1.TokenReviewSpec{Token: token}
+	if len(r.audiences) > 0 {
+		spec.Audiences = append([]string(nil), r.audiences...)
+	}
 	resp, err := r.client.AuthenticationV1().TokenReviews().Create(ctx, &authenticationv1.TokenReview{
-		Spec: authenticationv1.TokenReviewSpec{
-			Token: token,
-		},
+		Spec: spec,
 	}, metav1.CreateOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("token review: %w", err)

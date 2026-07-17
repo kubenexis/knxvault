@@ -33,8 +33,8 @@ func defaults() Config {
 		AuthLockoutTTL:                defaultAuthLockoutTTL,
 		RBACSyncFailClosed:            true,
 		ManagedSQLStrict:              true,
-		// Lab default: legacy policies with resource "pki" still work. Production disables (W80-03).
-		AllowCoarsePKIWrite: true,
+		// W81: coarse "pki" write off by default; opt-in only for legacy lab policies.
+		AllowCoarsePKIWrite: false,
 		RootTokenTTL:        72 * time.Hour,
 		RequireHTTPSClients: true, // W52-06: CSI/ESO/operator prefer HTTPS
 		SecurityProfile:     SecurityProfileLab,

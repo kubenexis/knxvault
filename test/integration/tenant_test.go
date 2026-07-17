@@ -24,6 +24,7 @@ func newTenantRouter(t *testing.T, tenantMode bool) (*gin.Engine, string) {
 	t.Helper()
 	t.Setenv("KNXVAULT_RAFT_ENABLED", "false")
 	t.Setenv("KNXVAULT_MASTER_KEY", testMasterKey())
+	t.Setenv("KNXVAULT_LAB_UNSEAL_EQUALS_MASTER", "true")
 	t.Setenv("KNXVAULT_ROOT_TOKEN", "integration-root")
 	t.Setenv("KNXVAULT_JWT_SECRET", "jwt-test-secret")
 	if tenantMode {

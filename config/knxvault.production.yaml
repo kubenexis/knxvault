@@ -16,8 +16,9 @@
 #   - rate limit on; HTTPS clients required
 #   - audit signing key + metrics bearer required
 #   - unseal_allow_cidrs required (or KNXVAULT_UNSEAL_ALLOW_CIDRS)
-#   - unseal CIDRs must not be world-open (/0) or broader than /8 IPv4 /32 IPv6 (W80-05)
-#   - coarse PKI write fallback disabled (fine-grained pki/ca|roles|issue|sign|revoke)
+#   - unseal CIDRs must not be world-open (/0) or broader than /16 IPv4 /48 IPv6 (W81-02)
+#   - KNXVAULT_K8S_TOKEN_AUDIENCES required when raft enabled (W81-06)
+#   - coarse PKI write fallback disabled; lab unseal=master forbidden
 #   - managed SQL strict mode on
 #   - server TLS (paths below) OR tls_termination: ingress
 #   - multi-node Raft requires peer mTLS
@@ -68,9 +69,12 @@ security:
   cors_allowed_origins: []
   # Restrict unseal plane (required). Override for your admin network.
   unseal_allow_cidrs:
-    - 10.0.0.0/8
+    - 10.0.0.0/16
     - 192.168.0.0/16
+  # Prefer admin jump /32; max breadth /16 (W81-02).
   # metrics_bearer_token: ""  # use KNXVAULT_METRICS_BEARER_TOKEN
+  # TokenReview audiences (required with raft in production):
+  # set via KNXVAULT_K8S_TOKEN_AUDIENCES=knxvault
 
 raft:
   enabled: true
@@ -82,3 +86,4 @@ raft:
   # mtls_cert: /etc/knxvault/raft/tls.crt
   # mtls_key: /etc/knxvault/raft/tls.key
   # mtls_ca: /etc/knxvault/raft/ca.crt
+# KNXVAULT_K8S_TOKEN_AUDIENCES=knxvault
