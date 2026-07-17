@@ -130,7 +130,7 @@ make container-export         # air-gap: build/images/knxvault-$(VERSION).tar
 make build-cli                # build/bin/knxvault-cli on this host
 ```
 
-Image tag defaults to `knxvault:0.5.1` (see Makefile `VERSION` / `IMAGE`). Air-gap: `make container-export` then on the target `sudo nerdctl load -i build/images/knxvault-0.5.1.tar` (see [build-and-deploy-images.md](build-and-deploy-images.md)).
+Image tag defaults to `knxvault:$(VERSION)-$(COMMIT)` (plus alias `knxvault:$(VERSION)`) (see Makefile `VERSION` / `IMAGE`). Air-gap: `make container-export` then load `build/images/knxvault-$(VERSION)-$(COMMIT).tar` (see `build-info-*.txt`) (see [build-and-deploy-images.md](build-and-deploy-images.md)).
 
 ## A3. Run the server (publish the API)
 

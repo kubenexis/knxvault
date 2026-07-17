@@ -37,14 +37,20 @@ DOCKER ?= $(shell \
 VERSION         ?= 0.5.1
 COMMIT          ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 BUILD_ID        ?= $(shell date +%s)
-IMAGE           ?= knxvault:$(VERSION)
-OPERATOR_IMAGE  ?= knxvault-operator:$(VERSION)
+# Image/tarball identity: version + short commit (e.g. 0.5.1-a1b2c3d).
+IMAGE_TAG       ?= $(VERSION)-$(COMMIT)
+IMAGE           ?= knxvault:$(IMAGE_TAG)
+OPERATOR_IMAGE  ?= knxvault-operator:$(IMAGE_TAG)
+# Floating tags without commit (convenient for local manifests); always also tagged after build.
+IMAGE_VERSION   ?= knxvault:$(VERSION)
+OPERATOR_IMAGE_VERSION ?= knxvault-operator:$(VERSION)
 # All build artifacts live under BUILD_DIR (binaries, image tarballs, SBOM, coverage).
 BUILD_DIR       ?= build
 BIN_DIR         ?= $(BUILD_DIR)/bin
 IMAGE_EXPORT_DIR ?= $(BUILD_DIR)/images
-IMAGE_TAR       ?= $(IMAGE_EXPORT_DIR)/knxvault-$(VERSION).tar
-OPERATOR_TAR    ?= $(IMAGE_EXPORT_DIR)/knxvault-operator-$(VERSION).tar
+IMAGE_TAR       ?= $(IMAGE_EXPORT_DIR)/knxvault-$(IMAGE_TAG).tar
+OPERATOR_TAR    ?= $(IMAGE_EXPORT_DIR)/knxvault-operator-$(IMAGE_TAG).tar
+IMAGE_BUILD_INFO ?= $(IMAGE_EXPORT_DIR)/build-info-$(IMAGE_TAG).txt
 # Only supported runtime: multi-stage → gcr.io/distroless/static-debian13:nonroot
 DOCKERFILE      ?= Dockerfile
 DOCKERFILE_OPERATOR ?= Dockerfile.operator
@@ -228,7 +234,7 @@ define require_container_cli
 	fi
 endef
 
-container-build: ## Build distroless server image ($(IMAGE)) via docker or nerdctl
+container-build: ## Build distroless server image ($(IMAGE)); also tags $(IMAGE_VERSION)
 	$(call log,Building distroless Debian 13 image $(IMAGE) with $(DOCKER))
 	$(call require_container_cli)
 	$(DOCKER) build \
@@ -236,9 +242,10 @@ container-build: ## Build distroless server image ($(IMAGE)) via docker or nerdc
 		--build-arg VERSION=$(VERSION) \
 		--build-arg COMMIT=$(COMMIT) \
 		--build-arg BUILD_ID=$(BUILD_ID) \
-		-t $(IMAGE) .
+		-t $(IMAGE) \
+		-t $(IMAGE_VERSION) .
 
-k8s-operator-build: ## Build distroless knxvault-operator image ($(OPERATOR_IMAGE))
+k8s-operator-build: ## Build distroless operator image ($(OPERATOR_IMAGE)); also tags $(OPERATOR_IMAGE_VERSION)
 	$(call log,Building distroless operator image $(OPERATOR_IMAGE) with $(DOCKER))
 	$(call require_container_cli)
 	$(DOCKER) build \
@@ -246,11 +253,12 @@ k8s-operator-build: ## Build distroless knxvault-operator image ($(OPERATOR_IMAG
 		--build-arg VERSION=$(VERSION) \
 		--build-arg COMMIT=$(COMMIT) \
 		--build-arg BUILD_ID=$(BUILD_ID) \
-		-t $(OPERATOR_IMAGE) .
+		-t $(OPERATOR_IMAGE) \
+		-t $(OPERATOR_IMAGE_VERSION) .
 
 container-build-all: container-build k8s-operator-build ## Build server + operator distroless images
 
-container-export: ## Export server image $(IMAGE) to $(IMAGE_TAR) for air-gap load
+container-export: ## Export server image $(IMAGE) to $(IMAGE_TAR) (name includes commit)
 	$(call log,Exporting $(IMAGE) → $(IMAGE_TAR))
 	$(call require_container_cli)
 	@mkdir -p $(IMAGE_EXPORT_DIR)
@@ -259,7 +267,7 @@ container-export: ## Export server image $(IMAGE) to $(IMAGE_TAR) for air-gap lo
 	@ls -lh $(IMAGE_TAR)
 	@printf "$(COLOR_GREEN)Load on target: $(DOCKER) load -i $(IMAGE_TAR)$(COLOR_RESET)\n"
 
-k8s-operator-export: ## Export operator image $(OPERATOR_IMAGE) to $(OPERATOR_TAR) for air-gap load
+k8s-operator-export: ## Export operator image $(OPERATOR_IMAGE) to $(OPERATOR_TAR) (name includes commit)
 	$(call log,Exporting $(OPERATOR_IMAGE) → $(OPERATOR_TAR))
 	$(call require_container_cli)
 	@mkdir -p $(IMAGE_EXPORT_DIR)
@@ -268,11 +276,32 @@ k8s-operator-export: ## Export operator image $(OPERATOR_IMAGE) to $(OPERATOR_TA
 	@ls -lh $(OPERATOR_TAR)
 	@printf "$(COLOR_GREEN)Load on target: $(DOCKER) load -i $(OPERATOR_TAR)$(COLOR_RESET)\n"
 
-container-export-all: container-export k8s-operator-export ## Export server + operator images as air-gap tarballs
+# Write build-info sidecar next to tarballs for air-gap inventory.
+define write_image_build_info
+	@mkdir -p $(IMAGE_EXPORT_DIR)
+	@printf '%s\n' \
+		"version=$(VERSION)" \
+		"commit=$(COMMIT)" \
+		"build_id=$(BUILD_ID)" \
+		"image_tag=$(IMAGE_TAG)" \
+		"server_image=$(IMAGE)" \
+		"server_image_version_alias=$(IMAGE_VERSION)" \
+		"operator_image=$(OPERATOR_IMAGE)" \
+		"operator_image_version_alias=$(OPERATOR_IMAGE_VERSION)" \
+		"server_tar=$(notdir $(IMAGE_TAR))" \
+		"operator_tar=$(notdir $(OPERATOR_TAR))" \
+		"built_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+		> $(IMAGE_BUILD_INFO)
+	@printf "$(COLOR_GREEN)Wrote $(IMAGE_BUILD_INFO)$(COLOR_RESET)\n"
+endef
+
+container-export-all: container-export k8s-operator-export ## Export server + operator images as air-gap tarballs (+ build-info)
 	$(call log,Air-gap image tarballs in $(IMAGE_EXPORT_DIR))
-	@ls -lh $(IMAGE_EXPORT_DIR)/*.tar 2>/dev/null || true
+	$(write_image_build_info)
+	@ls -lh $(IMAGE_EXPORT_DIR)/*$(IMAGE_TAG)* 2>/dev/null || ls -lh $(IMAGE_EXPORT_DIR)/ 2>/dev/null || true
 	@printf "$(COLOR_GREEN)Standalone needs: $(notdir $(IMAGE_TAR))$(COLOR_RESET)\n"
 	@printf "$(COLOR_GREEN)Kubernetes needs: $(notdir $(IMAGE_TAR)) + $(notdir $(OPERATOR_TAR)) (if using operator)$(COLOR_RESET)\n"
+	@printf "$(COLOR_GREEN)Identify this build: IMAGE_TAG=$(IMAGE_TAG) commit=$(COMMIT)$(COLOR_RESET)\n"
 
 # Deprecated aliases (prefer container-build / k8s-operator-build / container-build-all).
 docker-build: container-build
@@ -387,8 +416,13 @@ help: ## Show available targets and descriptions
 		| awk 'BEGIN {FS = ":.*## "}; {printf "  $(COLOR_GREEN)make %-18s$(COLOR_RESET) %s\n", $$1, $$2}'
 	@printf "\n$(COLOR_BOLD)Variables$(COLOR_RESET)\n\n"
 	@printf "  $(COLOR_CYAN)BUILD_DIR$(COLOR_RESET)        = $(BUILD_DIR)\n"
+	@printf "  $(COLOR_CYAN)VERSION$(COLOR_RESET)         = $(VERSION)\n"
+	@printf "  $(COLOR_CYAN)COMMIT$(COLOR_RESET)          = $(COMMIT)\n"
+	@printf "  $(COLOR_CYAN)IMAGE_TAG$(COLOR_RESET)       = $(IMAGE_TAG)\n"
+	@printf "  $(COLOR_CYAN)IMAGE$(COLOR_RESET)           = $(IMAGE)\n"
 	@printf "  $(COLOR_CYAN)BINARY$(COLOR_RESET)          = $(BINARY)\n"
 	@printf "  $(COLOR_CYAN)IMAGE_EXPORT_DIR$(COLOR_RESET)= $(IMAGE_EXPORT_DIR)\n"
+	@printf "  $(COLOR_CYAN)IMAGE_TAR$(COLOR_RESET)       = $(IMAGE_TAR)\n"
 	@printf "  $(COLOR_CYAN)SBOM_FILE$(COLOR_RESET)       = $(SBOM_FILE)\n"
 	@printf "  $(COLOR_CYAN)TRIVY_SEVERITY$(COLOR_RESET)  = $(TRIVY_SEVERITY)\n"
 	@printf "  $(COLOR_CYAN)TRIVY_CACHE_DIR$(COLOR_RESET) = $(TRIVY_CACHE_DIR)\n"

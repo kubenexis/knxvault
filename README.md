@@ -71,7 +71,7 @@ curl -s http://localhost:8200/secrets/kv/app/db \
 
 ```bash
 make container-build          # builds knxvault:0.5.1 (distroless/static-debian13)
-make container-export-all     # air-gap tarballs: build/images/*.tar (server + operator)
+make container-export-all     # air-gap tarballs: build/images/*-$(VERSION)-$(COMMIT).tar + build-info (server + operator)
 docker run --rm -p 8200:8200 \
   -e KNXVAULT_MASTER_KEY="$(openssl rand -base64 32)" \
   -e KNXVAULT_ROOT_TOKEN=dev-root-token \

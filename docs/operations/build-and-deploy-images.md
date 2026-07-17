@@ -17,15 +17,20 @@ How to **build** knxvault container images, **which images** each topology needs
 
 | Image (default tag) | Dockerfile | Makefile | Binaries inside | Used for |
 |---------------------|------------|----------|-----------------|----------|
-| **`knxvault:0.5.1`** | `Dockerfile` | `make container-build` | `knxvault`, `knxvault-csi`, `knxvault-webhook`, `knxvault-eso` | Server (always); CSI / webhook / ESO adapters by **command override** |
-| **`knxvault-operator:0.5.1`** | `Dockerfile.operator` | `make k8s-operator-build` | `knxvault-operator` | Kubernetes certificate operator only |
+| **`knxvault:$(VERSION)-$(COMMIT)`** (e.g. `knxvault:0.5.1-a1b2c3d`) | `Dockerfile` | `make container-build` | `knxvault`, `knxvault-csi`, `knxvault-webhook`, `knxvault-eso` | Server (always); CSI / webhook / ESO adapters by **command override** |
+| **`knxvault-operator:$(VERSION)-$(COMMIT)`** | `Dockerfile.operator` | `make k8s-operator-build` | `knxvault-operator` | Kubernetes certificate operator only |
 
-Version comes from Makefile `VERSION` (default `0.5.1`). Override:
+**Identity:** image tags and export tarball names use **`IMAGE_TAG = VERSION-COMMIT`** (short git SHA) so each build is unique. Builds also apply a floating alias **`knxvault:VERSION`** / **`knxvault-operator:VERSION`** for local manifests that pin only the semver.
 
 ```bash
-make container-build IMAGE=registry.example.com/knxvault:0.5.1
-make k8s-operator-build OPERATOR_IMAGE=registry.example.com/knxvault-operator:0.5.1
-# or both:
+# Default: knxvault:0.5.1-<shortsha>  (+ alias knxvault:0.5.1)
+make container-build
+make k8s-operator-build
+make container-build-all
+
+# Registry with commit identity
+make container-build IMAGE=registry.example.com/knxvault:0.5.1-$(git rev-parse --short HEAD)
+# or both with explicit version:
 make container-build-all VERSION=0.5.1
 ```
 
@@ -351,12 +356,12 @@ Expect non-root user, entrypoint `knxvault`, no shell.
 make container-build              # knxvault:VERSION  (standalone + K8s server/CSI/webhook/ESO)
 make k8s-operator-build           # knxvault-operator:VERSION  (K8s operator only)
 make container-build-all          # both images
-make container-export-all         # air-gap tarballs → build/images/*.tar
+make container-export-all         # air-gap: build/images/*-$(VERSION)-$(COMMIT).tar + build-info-*.txt
 make build-cli                    # host admin binary
 
 # Air-gap load (target host)
-sudo nerdctl load -i build/images/knxvault-0.5.1.tar
-sudo nerdctl load -i build/images/knxvault-operator-0.5.1.tar   # K8s operator
+sudo nerdctl load -i build/images/knxvault-0.5.1-<commit>.tar
+sudo nerdctl load -i build/images/knxvault-operator-0.5.1-<commit>.tar   # K8s operator
 
 # Standalone (containerd)
 nerdctl run -d --name knxvault -p 8200:8200 … knxvault:0.5.1 serve
