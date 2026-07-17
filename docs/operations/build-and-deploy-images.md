@@ -140,18 +140,44 @@ make build-cli
 # → bin/knxvault-cli
 ```
 
-### 3.5 Air-gap / move images to another host
+### 3.5 Air-gap / export images as tarballs
+
+After `make container-build-all` (or individual builds), export OCI/docker-compatible archives for offline transfer:
 
 ```bash
-# On build host
-nerdctl save -o knxvault-0.4.5.tar knxvault:0.4.5
-nerdctl save -o knxvault-operator-0.4.5.tar knxvault-operator:0.4.5
+# Build then export (recommended)
+make container-build-all
+make container-export-all
+# → dist/images/knxvault-0.4.5.tar
+# → dist/images/knxvault-operator-0.4.5.tar
 
-# On target (containerd)
-nerdctl load -i knxvault-0.4.5.tar
-nerdctl load -i knxvault-operator-0.4.5.tar
-nerdctl images | grep knxvault
+# Individual targets
+make container-export          # server only (standalone needs this)
+make k8s-operator-export       # operator only (K8s cert automation)
+
+# Overrides
+make container-export-all IMAGE_EXPORT_DIR=/tmp/airgap VERSION=0.4.5
 ```
+
+| Topology | Tarballs required |
+|----------|-------------------|
+| **Standalone** containerd | `knxvault-$(VERSION).tar` only |
+| **Kubernetes** (vault only) | `knxvault-$(VERSION).tar` on every node (or registry) |
+| **Kubernetes** + operator | both `knxvault-*.tar` and `knxvault-operator-*.tar` |
+
+**On the air-gapped target** (same engine as build when possible):
+
+```bash
+# containerd / nerdctl
+sudo nerdctl load -i knxvault-0.4.5.tar
+sudo nerdctl load -i knxvault-operator-0.4.5.tar   # if K8s operator
+sudo nerdctl images | grep knxvault
+
+# Docker Engine
+docker load -i knxvault-0.4.5.tar
+```
+
+Also ship **host `knxvault-cli`** (`make build-cli` → copy `bin/knxvault-cli`) — not an image.
 
 Kubernetes nodes: load into each node’s containerd **or** push to an internal registry and set `image:` on manifests.
 

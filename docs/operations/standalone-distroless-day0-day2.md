@@ -126,10 +126,11 @@ mkdir -p ~/knxvault-day0 && chmod 700 ~/knxvault-day0
 ```bash
 cd /path/to/knxvault
 make container-build          # knxvault:<version>  (distroless/static-debian13)
-make build-cli             # bin/knxvault-cli on this host
+make container-export         # air-gap: dist/images/knxvault-$(VERSION).tar
+make build-cli                # bin/knxvault-cli on this host
 ```
 
-Image tag defaults to `knxvault:0.4.5` (see Makefile `VERSION` / `IMAGE`). Load into the target host’s containerd if you built elsewhere (`nerdctl save | nerdctl load`, air-gap tarball, etc.).
+Image tag defaults to `knxvault:0.4.5` (see Makefile `VERSION` / `IMAGE`). Air-gap: `make container-export` then on the target `sudo nerdctl load -i dist/images/knxvault-0.4.5.tar` (see [build-and-deploy-images.md](build-and-deploy-images.md)).
 
 ## A3. Run the server (publish the API)
 

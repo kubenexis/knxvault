@@ -1,8 +1,10 @@
 *~
 /bin/
+/dist/
 # Build artifacts
 coverage-controllers.out
 coverage-operator.out
+coverage-acme.out
 coverage.out
 *.dll
 .DS_Store

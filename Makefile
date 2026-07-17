@@ -39,6 +39,10 @@ COMMIT          ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknow
 BUILD_ID        ?= $(shell date +%s)
 IMAGE           ?= knxvault:$(VERSION)
 OPERATOR_IMAGE  ?= knxvault-operator:$(VERSION)
+# Air-gap tarball export directory (OCI/docker save format).
+IMAGE_EXPORT_DIR ?= dist/images
+IMAGE_TAR       ?= $(IMAGE_EXPORT_DIR)/knxvault-$(VERSION).tar
+OPERATOR_TAR    ?= $(IMAGE_EXPORT_DIR)/knxvault-operator-$(VERSION).tar
 # Only supported runtime: multi-stage → gcr.io/distroless/static-debian13:nonroot
 DOCKERFILE      ?= Dockerfile
 DOCKERFILE_OPERATOR ?= Dockerfile.operator
@@ -119,7 +123,7 @@ all: ## Run fmt, vet, lint, docs-lint, gosec, licenses, scan, test, test-integra
 # Go quality
 # =============================================================================
 
-.PHONY: fmt vet lint docs-lint gosec semgrep licenses test test-integration test-coverage build build-cli build-csi build-webhook build-eso build-operator generate-clients test-clients check-client-drift sbom scan tidy install-tools container-build k8s-operator-build container-build-all docker-build docker-build-operator docker-build-all clean
+.PHONY: fmt vet lint docs-lint gosec semgrep licenses test test-integration test-coverage build build-cli build-csi build-webhook build-eso build-operator generate-clients test-clients check-client-drift sbom scan tidy install-tools container-build k8s-operator-build container-build-all container-export k8s-operator-export container-export-all docker-build docker-build-operator docker-build-all clean
 
 fmt: ## Check Go formatting (gofmt)
 	$(call log,Checking gofmt)
@@ -239,6 +243,30 @@ k8s-operator-build: ## Build distroless knxvault-operator image ($(OPERATOR_IMAG
 
 container-build-all: container-build k8s-operator-build ## Build server + operator distroless images
 
+container-export: ## Export server image $(IMAGE) to $(IMAGE_TAR) for air-gap load
+	$(call log,Exporting $(IMAGE) → $(IMAGE_TAR))
+	$(call require_container_cli)
+	@mkdir -p $(IMAGE_EXPORT_DIR)
+	$(DOCKER) save -o $(IMAGE_TAR) $(IMAGE)
+	@test -s $(IMAGE_TAR)
+	@ls -lh $(IMAGE_TAR)
+	@printf "$(COLOR_GREEN)Load on target: $(DOCKER) load -i $(IMAGE_TAR)$(COLOR_RESET)\n"
+
+k8s-operator-export: ## Export operator image $(OPERATOR_IMAGE) to $(OPERATOR_TAR) for air-gap load
+	$(call log,Exporting $(OPERATOR_IMAGE) → $(OPERATOR_TAR))
+	$(call require_container_cli)
+	@mkdir -p $(IMAGE_EXPORT_DIR)
+	$(DOCKER) save -o $(OPERATOR_TAR) $(OPERATOR_IMAGE)
+	@test -s $(OPERATOR_TAR)
+	@ls -lh $(OPERATOR_TAR)
+	@printf "$(COLOR_GREEN)Load on target: $(DOCKER) load -i $(OPERATOR_TAR)$(COLOR_RESET)\n"
+
+container-export-all: container-export k8s-operator-export ## Export server + operator images as air-gap tarballs
+	$(call log,Air-gap image tarballs in $(IMAGE_EXPORT_DIR))
+	@ls -lh $(IMAGE_EXPORT_DIR)/*.tar 2>/dev/null || true
+	@printf "$(COLOR_GREEN)Standalone needs: $(notdir $(IMAGE_TAR))$(COLOR_RESET)\n"
+	@printf "$(COLOR_GREEN)Kubernetes needs: $(notdir $(IMAGE_TAR)) + $(notdir $(OPERATOR_TAR)) (if using operator)$(COLOR_RESET)\n"
+
 # Deprecated aliases (prefer container-build / k8s-operator-build / container-build-all).
 docker-build: container-build
 docker-build-operator: k8s-operator-build
@@ -327,8 +355,8 @@ tidy: ## Run go mod tidy
 
 clean: ## Remove built binaries and generated artifacts
 	$(call log,Cleaning build artifacts)
-	@rm -rf bin
-	@rm -f $(SBOM_FILE) sbom-binary.json coverage.out trivy-report.json trivy-results.sarif
+	@rm -rf bin dist
+	@rm -f $(SBOM_FILE) sbom-binary.json coverage.out coverage-operator.out coverage-acme.out trivy-report.json trivy-results.sarif
 	@printf "$(COLOR_GREEN)Clean complete.$(COLOR_RESET)\n"
 
 install-tools: ## Install golangci-lint v2 and gosec (Go 1.26 toolchain)
