@@ -1,0 +1,254 @@
+# Copyright Kubenexis Systems Private Limited.
+# SPDX-License-Identifier: Apache-2.0
+#
+# CI/CD: quality gate → validated container builds → GHCR
+# Images: ghcr.io/<owner>/knxvault and ghcr.io/<owner>/knxvault-operator
+#
+# Push to GHCR when:
+#   - push to main, or
+#   - push of tag v*, or
+#   - workflow_dispatch on main / tag
+# Pull requests run quality + image build/scan but do not push.
+
+name: CI
+
+"on":
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_TOOLCHAIN: go1.26.5
+  # Default semver when not building from a v* tag (keep in sync with Makefile VERSION).
+  DEFAULT_VERSION: "0.5.1"
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Quality gate (same stages as `make quality` + integration + host binaries)
+  # ---------------------------------------------------------------------------
+  quality:
+    name: Quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.5"
+          check-latest: false
+          cache: true
+
+      - name: Install lint / security tools
+        run: make install-tools
+
+      # Pin setup-trivy to a post-incident release (see Aqua GHSA-69fq-xp46-6x23).
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@v0.2.6
+        with:
+          version: v0.69.3
+          cache: true
+
+      - name: Quality gate (fmt vet lint docs licenses gosec scan test coverage)
+        run: make quality
+
+      - name: Integration tests + host binaries + SBOM
+        run: |
+          make test-integration
+          make build build-cli
+          make sbom
+
+      - name: Upload SBOM artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ github.sha }}
+          path: |
+            build/sbom.json
+            build/sbom-binary.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # Container images: build → scan → push to GHCR (validated)
+  # ---------------------------------------------------------------------------
+  images:
+    name: Images (${{ matrix.image_name }})
+    needs: [quality]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+      # SLSA provenance / SBOM attestations attached to the GHCR image
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image_name: knxvault
+            dockerfile: Dockerfile
+            description: KNXVault server (serve + CSI/webhook/ESO binaries)
+          - image_name: knxvault-operator
+            dockerfile: Dockerfile.operator
+            description: KNXVault Kubernetes certificate operator
+    env:
+      # GHCR requires lowercase path segments
+      IMAGE_ORG: ${{ github.repository_owner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version, commit, and image refs
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORG="$(echo "${IMAGE_ORG}" | tr '[:upper:]' '[:lower:]')"
+          COMMIT="$(git rev-parse --short HEAD)"
+          BUILD_ID="${GITHUB_RUN_ID}"
+
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="${DEFAULT_VERSION}"
+          fi
+
+          IMAGE_TAG="${VERSION}-${COMMIT}"
+          REPO="ghcr.io/${ORG}/${{ matrix.image_name }}"
+
+          # Tags always include unique commit identity.
+          TAGS="${REPO}:${IMAGE_TAG}"
+          # Floating semver alias (manifests pin this).
+          TAGS="${TAGS},${REPO}:${VERSION}"
+          # short SHA convenience tag
+          TAGS="${TAGS},${REPO}:sha-${COMMIT}"
+
+          if [[ "${GITHUB_REF}" == refs/heads/main ]]; then
+            TAGS="${TAGS},${REPO}:main"
+          fi
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            TAGS="${TAGS},${REPO}:latest"
+          fi
+
+          PUSH=false
+          if [[ "${{ github.event_name }}" == "push" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            if [[ "${GITHUB_REF}" == refs/heads/main || "${GITHUB_REF}" == refs/tags/v* ]]; then
+              PUSH=true
+            fi
+          fi
+
+          {
+            echo "org=${ORG}"
+            echo "version=${VERSION}"
+            echo "commit=${COMMIT}"
+            echo "build_id=${BUILD_ID}"
+            echo "image_tag=${IMAGE_TAG}"
+            echo "repository=${REPO}"
+            echo "tags=${TAGS}"
+            echo "push=${PUSH}"
+          } >> "${GITHUB_OUTPUT}"
+
+          echo "Repository: ${REPO}"
+          echo "Tags:       ${TAGS}"
+          echo "Push:       ${PUSH}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: steps.meta.outputs.push == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build image (load locally for validation)
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          load: true
+          push: false
+          tags: ${{ steps.meta.outputs.tags }}
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            COMMIT=${{ steps.meta.outputs.commit }}
+            BUILD_ID=${{ steps.meta.outputs.build_id }}
+          labels: |
+            org.opencontainers.image.title=${{ matrix.image_name }}
+            org.opencontainers.image.description=${{ matrix.description }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.url=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+            org.opencontainers.image.licenses=Apache-2.0
+            org.opencontainers.image.vendor=Kubenexis Systems Private Limited
+          cache-from: type=gha,scope=${{ matrix.image_name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image_name }}
+
+      # Pin trivy-action to a post-incident release (v0.35.0+); avoid floating tags.
+      - name: Trivy image scan (HIGH/CRITICAL gate)
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          image-ref: ${{ steps.meta.outputs.repository }}:${{ steps.meta.outputs.image_tag }}
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
+          format: table
+          scanners: vuln
+          version: v0.69.3
+
+      - name: Push validated image to GHCR
+        if: steps.meta.outputs.push == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            COMMIT=${{ steps.meta.outputs.commit }}
+            BUILD_ID=${{ steps.meta.outputs.build_id }}
+          labels: |
+            org.opencontainers.image.title=${{ matrix.image_name }}
+            org.opencontainers.image.description=${{ matrix.description }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.url=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+            org.opencontainers.image.licenses=Apache-2.0
+            org.opencontainers.image.vendor=Kubenexis Systems Private Limited
+          cache-from: type=gha,scope=${{ matrix.image_name }}
+          provenance: mode=max
+          sbom: true
+
+      - name: Summary
+        shell: bash
+        run: |
+          {
+            echo "## ${{ matrix.image_name }}"
+            echo ""
+            echo "| Field | Value |"
+            echo "|-------|-------|"
+            echo "| Repository | \`${{ steps.meta.outputs.repository }}\` |"
+            echo "| Image tag | \`${{ steps.meta.outputs.image_tag }}\` |"
+            echo "| Tags | \`${{ steps.meta.outputs.tags }}\` |"
+            echo "| Pushed | \`${{ steps.meta.outputs.push }}\` |"
+            echo "| Digest (build) | \`${{ steps.build.outputs.digest }}\` |"
+          } >> "${GITHUB_STEP_SUMMARY}"

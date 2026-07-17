@@ -216,6 +216,65 @@ nerdctl push ${REG}/knxvault:0.5.1
 # then set image: on StatefulSet / operator Deployment
 ```
 
+### 3.7 GitHub Actions CI/CD (validated builds → GHCR)
+
+Workflow: [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml).
+
+| Stage | Job | What runs |
+|-------|-----|-----------|
+| **Quality** | `quality` | `make install-tools` → `make quality` (fmt, vet, lint, docs-lint, gosec, licenses, SPDX headers, Trivy FS, unit tests, coverage gates) → integration tests → host binaries → SBOM |
+| **Images** | `images` (matrix: server + operator) | Buildx build with `VERSION`/`COMMIT`/`BUILD_ID` → **Trivy image scan** (HIGH/CRITICAL gate) → push to **GHCR** only if scan passes |
+
+**When images are pushed**
+
+| Event | Push to GHCR? |
+|-------|----------------|
+| Pull request | No (build + scan only) |
+| Push to `main` | Yes |
+| Tag `v*` (e.g. `v0.5.1`) | Yes |
+| `workflow_dispatch` on `main` or `v*` tag | Yes |
+
+**Published image names** (org = GitHub owner, lowercased):
+
+| Image | Repository |
+|-------|------------|
+| Server | `ghcr.io/<owner>/knxvault` |
+| Operator | `ghcr.io/<owner>/knxvault-operator` |
+
+**Tags applied on a successful validated push**
+
+| Tag | Meaning |
+|-----|---------|
+| `<version>-<shortsha>` | Unique build (e.g. `0.5.1-a1b2c3d`) — primary identity |
+| `<version>` | Floating semver (e.g. `0.5.1`) — matches K8s manifests |
+| `sha-<shortsha>` | Commit convenience tag |
+| `main` | Latest successful `main` build |
+| `latest` | Only on `v*` tags |
+
+On `v*` tags, `<version>` is taken from the tag name (`v0.5.1` → `0.5.1`). On `main`, version defaults to Makefile `VERSION` / workflow `DEFAULT_VERSION` (keep them aligned when bumping).
+
+**Auth / package setup (one-time, org owners)**
+
+1. Workflow uses `permissions: packages: write` and `GITHUB_TOKEN` — no extra secret required for pushes from this repo.
+2. After the first successful push, open each package under the org → **Package settings** → link to the `knxvault` repository and set visibility (**Public** for open pull, or **Private** + `imagePullSecret`).
+3. Pull example:
+
+```bash
+# public package
+nerdctl pull ghcr.io/kubenexis/knxvault:0.5.1
+# private package
+echo "$GHCR_TOKEN" | nerdctl login ghcr.io -u USER --password-stdin
+nerdctl pull ghcr.io/kubenexis/knxvault:0.5.1
+```
+
+**Local parity**
+
+```bash
+make quality
+make test-integration build build-cli sbom
+make container-build-all   # same GHCR-style names as CI
+```
+
 ---
 
 ## 4. Standalone deployment (containerd + nerdctl)

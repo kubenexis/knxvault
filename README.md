@@ -7,6 +7,11 @@ SPDX-License-Identifier: CC-BY-4.0
 
 Lightweight, production-grade secrets management and PKI built in Go.
 
+[![CI](https://github.com/kubenexis/knxvault/actions/workflows/ci.yml/badge.svg)](https://github.com/kubenexis/knxvault/actions/workflows/ci.yml)
+
+**Container images (GHCR):** `ghcr.io/kubenexis/knxvault` · `ghcr.io/kubenexis/knxvault-operator`  
+Validated builds are produced by GitHub Actions (`make quality` + Trivy image scan) and pushed on `main` and `v*` tags. Details: [Build and deploy images § CI/CD](docs/operations/build-and-deploy-images.md#37-github-actions-cicd-validated-builds--ghcr).
+
 ## License
 
 KNXVault follows the [CNCF Charter](https://github.com/cncf/foundation/blob/main/charter.md) §11 default IP policy:
@@ -92,6 +97,8 @@ curl -s http://localhost:8200/secrets/kv/app/db \
 ```bash
 make container-build          # builds ghcr.io/kubenexis/knxvault:0.5.1-<sha> (+ :0.5.1 alias)
 make container-export-all     # air-gap tarballs: build/images/*-$(VERSION)-$(COMMIT).tar + build-info (server + operator)
+# Or pull a CI-validated image from GHCR (after first successful main/tag workflow):
+# docker pull ghcr.io/kubenexis/knxvault:0.5.1
 docker run --rm -p 8200:8200 \
   -e KNXVAULT_MASTER_KEY="$(openssl rand -base64 32)" \
   -e KNXVAULT_ROOT_TOKEN=dev-root-token \
