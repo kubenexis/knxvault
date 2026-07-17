@@ -10,6 +10,17 @@ import (
 )
 
 // Auth authenticates requests using bearer tokens.
+// TokenID returns the authenticated token hash from context, or empty.
+func TokenID(c *gin.Context) string {
+	if c == nil {
+		return ""
+	}
+	if principal, ok := auth.PrincipalFromContext(c.Request.Context()); ok {
+		return principal.TokenID
+	}
+	return ""
+}
+
 func Auth(svc *auth.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if svc == nil {

@@ -52,8 +52,14 @@ type AuditFile struct {
 	ForwardURL string `yaml:"forward_url,omitempty"`
 }
 
-// SecurityFile configures rate limiting, signing, CORS, and TLS.
+// SecurityFile configures rate limiting, signing, CORS, TLS, and security profile.
 type SecurityFile struct {
+	// Profile is lab (default) or production (M-PRODSEC-1 fail-closed posture).
+	Profile string `yaml:"profile,omitempty"`
+	// TLSTermination is server (process TLS) or ingress (edge TLS).
+	TLSTermination string `yaml:"tls_termination,omitempty"`
+	// MetricsBearerToken requires Authorization: Bearer on GET /metrics (production required).
+	MetricsBearerToken     string   `yaml:"metrics_bearer_token,omitempty"`
 	RateLimitEnabled       *bool    `yaml:"rate_limit_enabled,omitempty"`
 	RateLimitRPM           *int     `yaml:"rate_limit_rpm,omitempty"`
 	RequestSigningKey      string   `yaml:"request_signing_key,omitempty"`
@@ -133,6 +139,8 @@ func LoadFile(path string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	// overlayEnv already applied profile defaults + ValidateSecurity("") ;
+	// re-validate with config path for permission checks.
 	if err := ValidateSecurity(cfg, path); err != nil {
 		return Config{}, err
 	}
@@ -229,6 +237,15 @@ func applyFile(cfg Config, file File) (Config, error) {
 		}
 	}
 	if file.Security != nil {
+		if v := strings.TrimSpace(file.Security.Profile); v != "" {
+			cfg.SecurityProfile = v
+		}
+		if v := strings.TrimSpace(file.Security.TLSTermination); v != "" {
+			cfg.TLSTermination = v
+		}
+		if v := strings.TrimSpace(file.Security.MetricsBearerToken); v != "" {
+			cfg.MetricsBearerToken = v
+		}
 		if file.Security.RateLimitEnabled != nil {
 			cfg.RateLimitEnabled = *file.Security.RateLimitEnabled
 		}

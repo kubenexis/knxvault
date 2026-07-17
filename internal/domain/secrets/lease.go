@@ -16,6 +16,10 @@ type Lease struct {
 	ExpiresAt  time.Time
 	RevokedAt  *time.Time
 	Renewable  bool
+	// TokenID is the hashed client token that issued the lease (cascade revoke).
+	TokenID string
+	// Metadata is engine-private opaque data (JSON-friendly string map).
+	Metadata map[string]string
 }
 
 // Validate checks required lease fields.

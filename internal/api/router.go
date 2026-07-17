@@ -58,6 +58,7 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 			authGroup.POST("/oidc/:role", authHandler.LoginOIDC)
 			authGroup.POST("/token", authHandler.LoginToken)
 			authGroup.POST("/cert", authHandler.LoginCert) // mTLS client cert → token
+			authGroup.POST("/ldap", authHandler.LoginLDAP) // W70 native LDAP
 		}
 		securedAuth := authGroup.Group("/")
 		securedAuth.Use(middleware.Auth(deps.AuthService))
@@ -358,9 +359,129 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 			middleware.RequirePermission(deps.AuthService, "sys/leases", "read"),
 			leaseHandler.List,
 		)
+		secured.POST("/sys/leases/renew",
+			middleware.RequirePermission(deps.AuthService, "sys/leases", "write"),
+			leaseHandler.Renew,
+		)
+		secured.POST("/sys/leases/revoke/:lease_id",
+			middleware.RequirePermission(deps.AuthService, "sys/leases", "write"),
+			leaseHandler.RevokeOne,
+		)
 		secured.PUT("/sys/leases/revoke",
 			middleware.RequirePermission(deps.AuthService, "sys/leases", "write"),
 			leaseHandler.BulkRevoke,
+		)
+		secured.POST("/sys/leases/revoke-prefix",
+			middleware.RequirePermission(deps.AuthService, "sys/leases", "write"),
+			leaseHandler.RevokePrefix,
+		)
+		secured.POST("/sys/leases/tidy",
+			middleware.RequirePermission(deps.AuthService, "sys/leases", "write"),
+			leaseHandler.Tidy,
+		)
+	}
+
+	if deps.CubbyholeService != nil && deps.AuthService != nil {
+		ch := handlers.NewCubbyholeHandler(deps.CubbyholeService)
+		secured.PUT("/cubbyhole/*path",
+			middleware.RequirePermission(deps.AuthService, "cubbyhole", "write"),
+			ch.Put,
+		)
+		secured.GET("/cubbyhole/*path",
+			middleware.RequirePermission(deps.AuthService, "cubbyhole", "read"),
+			ch.Get,
+		)
+		secured.DELETE("/cubbyhole/*path",
+			middleware.RequirePermission(deps.AuthService, "cubbyhole", "delete"),
+			ch.Delete,
+		)
+	}
+
+	if deps.WrappingService != nil && deps.AuthService != nil {
+		wh := handlers.NewWrappingHandler(deps.WrappingService)
+		secured.POST("/sys/wrapping/wrap",
+			middleware.RequirePermission(deps.AuthService, "sys/wrapping", "write"),
+			wh.Wrap,
+		)
+		secured.POST("/sys/wrapping/unwrap",
+			middleware.RequirePermission(deps.AuthService, "sys/wrapping", "write"),
+			wh.Unwrap,
+		)
+		secured.POST("/sys/wrapping/lookup",
+			middleware.RequirePermission(deps.AuthService, "sys/wrapping", "read"),
+			wh.Lookup,
+		)
+	}
+
+	if deps.TransitService != nil && deps.AuthService != nil {
+		th := handlers.NewTransitHandler(deps.TransitService)
+		secured.POST("/transit/keys/:name",
+			middleware.RequirePermission(deps.AuthService, "transit/keys", "write"),
+			th.CreateKey,
+		)
+		secured.GET("/transit/keys/:name",
+			middleware.RequirePermission(deps.AuthService, "transit/keys", "read"),
+			th.ReadKey,
+		)
+		secured.POST("/transit/keys/:name/rotate",
+			middleware.RequirePermission(deps.AuthService, "transit/keys", "write"),
+			th.RotateKey,
+		)
+		secured.POST("/transit/encrypt/:name",
+			middleware.RequirePermission(deps.AuthService, "transit/encrypt", "write"),
+			th.Encrypt,
+		)
+		secured.POST("/transit/decrypt/:name",
+			middleware.RequirePermission(deps.AuthService, "transit/decrypt", "write"),
+			th.Decrypt,
+		)
+		secured.POST("/transit/rewrap/:name",
+			middleware.RequirePermission(deps.AuthService, "transit/encrypt", "write"),
+			th.Rewrap,
+		)
+		secured.POST("/transit/sign/:name",
+			middleware.RequirePermission(deps.AuthService, "transit/sign", "write"),
+			th.Sign,
+		)
+		secured.POST("/transit/verify/:name",
+			middleware.RequirePermission(deps.AuthService, "transit/sign", "read"),
+			th.Verify,
+		)
+		secured.POST("/transit/hmac/:name",
+			middleware.RequirePermission(deps.AuthService, "transit/hmac", "write"),
+			th.HMAC,
+		)
+	}
+
+	if deps.IdentityService != nil && deps.AuthService != nil {
+		ih := handlers.NewIdentityHandler(deps.IdentityService)
+		secured.POST("/identity/entity",
+			middleware.RequirePermission(deps.AuthService, "identity", "sudo"),
+			ih.CreateEntity,
+		)
+		secured.GET("/identity/entity",
+			middleware.RequirePermission(deps.AuthService, "identity", "read"),
+			ih.ListEntities,
+		)
+		secured.GET("/identity/entity/:id",
+			middleware.RequirePermission(deps.AuthService, "identity", "read"),
+			ih.GetEntity,
+		)
+		secured.POST("/identity/entity/:id/disable",
+			middleware.RequirePermission(deps.AuthService, "identity", "sudo"),
+			ih.DisableEntity,
+		)
+		secured.POST("/identity/alias",
+			middleware.RequirePermission(deps.AuthService, "identity", "sudo"),
+			ih.CreateAlias,
+		)
+		secured.POST("/identity/group",
+			middleware.RequirePermission(deps.AuthService, "identity", "sudo"),
+			ih.CreateGroup,
+		)
+		secured.GET("/identity/group",
+			middleware.RequirePermission(deps.AuthService, "identity", "read"),
+			ih.ListGroups,
 		)
 	}
 

@@ -89,6 +89,8 @@ K8s template: [`deployments/k8s/secret.yaml`](../../deployments/k8s/secret.yaml)
 
 ## Bootstrap hardening checklist
 
+Manual checklist today. **Productization** (profile fail-closed, production kustomize, root revoke, doctor gate, KMS unseal) is tracked as **M-PRODSEC-1 / M-CUSTODY-1** — see [production security posture design](../design/production-security-posture.md) and [posture assessment](../architecture/security-posture-assessment.md).
+
 - [ ] Replace bootstrap root token with scoped policies and roles
 - [ ] Store `KNXVAULT_MASTER_KEY` in a sealed K8s Secret or external KMS
 - [ ] Store `KNXVAULT_UNSEAL_KEY` separately from master (required with Raft; never equal master)
@@ -100,6 +102,7 @@ K8s template: [`deployments/k8s/secret.yaml`](../../deployments/k8s/secret.yaml)
 - [ ] Store admin DB credentials in KV, not in database role config
 - [ ] Schedule encrypted backups (`scripts/backup.sh` or CLI)
 - [ ] Post-deploy verify: unseal completed, `/health`/`/ready` (`sealed:false`, `raft_ready:true`), `doctor --json` (`fail:0`)
+- [ ] Prefer operator **SA auth** (no root token) and restrict who can create `KNXVaultClusterIssuer`
 
 ## PKI-specific guidance
 

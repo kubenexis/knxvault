@@ -111,11 +111,13 @@ Prefer `secret.put` for concurrent writes; it allocates the next version and sav
 
 ### Lease (`internal/domain/secrets/lease.go`)
 
-Dynamic credential leases (database engine).
+Dynamic credential leases (database, SSH, unified M-LEASE-1).
 
 | Field | Notes |
 |-------|-------|
 | `ID` | Opaque lease identifier |
+| `TokenID` | Issuing client token hash (cascade revoke) |
+| `Metadata` | Optional engine string map |
 | `RoleName` | Database role config reference |
 | `ExpiresAt` | TTL boundary |
 | `Revoked` | Early termination |

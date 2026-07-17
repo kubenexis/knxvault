@@ -29,6 +29,8 @@ raft:
 	t.Setenv("KNXVAULT_HTTP_ADDR", ":8300")
 	t.Setenv("KNXVAULT_RAFT_INITIAL_MEMBERS", "1=10.0.0.1:63001,2=10.0.0.2:63001")
 	t.Setenv("KNXVAULT_UNSEAL_KEY", "dGVzdC11bnNlYWwta2V5MTIzNDU2Nzg5MDEyMzQ1Ng==")
+	// Lab: multi-node without mTLS requires explicit insecure (production profile forbids this).
+	t.Setenv("KNXVAULT_RAFT_ALLOW_INSECURE", "true")
 
 	cfg, err := config.LoadFile(path)
 	if err != nil {

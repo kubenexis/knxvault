@@ -1,49 +1,39 @@
-# Lease management (W42-08)
+# Lease management (M-LEASE-1)
 
-Unified lease APIs for database and SSH dynamic credentials. See also [Day-2 operations](day2.md), [Database credentials](../deploy/database-credentials.md), and [Dynamic SSH credentials](../recipes/dynamic-ssh-credentials.md).
+Unified lease lifecycle for dynamic secrets (database, SSH, and future engines).
 
-## Lookup
+## APIs
 
-```bash
-curl -H "Authorization: Bearer $TOKEN" \
-  "$KNXVAULT_ADDR/sys/leases/$LEASE_ID"
-```
+| Method | Path | Permission | Description |
+|--------|------|------------|-------------|
+| `GET` | `/sys/leases` | `sys/leases` read | List (filters: `engine`, `role`, `prefix`, `token_id`, `active_only`, `limit`, `offset`) |
+| `GET` | `/sys/leases/:lease_id` | `sys/leases` read | Lookup |
+| `POST` | `/sys/leases/renew` | `sys/leases` write | Body: `{"lease_id","ttl_seconds"}` |
+| `POST` | `/sys/leases/revoke/:lease_id` | `sys/leases` write | Revoke one |
+| `PUT` | `/sys/leases/revoke` | `sys/leases` write | Bulk by engine/role/path_prefix |
+| `POST` | `/sys/leases/revoke-prefix` | `sys/leases` write | Body: `{"prefix"}` |
+| `POST` | `/sys/leases/tidy` | `sys/leases` write | Force-revoke expired leases |
 
-## List with filters
+## Cascade revoke
 
-```bash
-curl -H "Authorization: Bearer $TOKEN" \
-  "$KNXVAULT_ADDR/sys/leases?engine=database&role=readonly&active_only=true"
-```
+When a client token is revoked (`DELETE /auth/token/self` or admin revoke), knxvault **cascades** to all active leases with matching `token_id` (when engines stamp the issuing token hash on the lease).
 
-CLI: `knxvault-cli sys leases list --engine database`
+## Engine hooks
 
-## Bulk revoke (incident playbook)
+`LeaseService` registers:
 
-When a role is compromised, revoke all active leases:
+- **database** / **ssh** — engine-specific revoke and renew  
+- Other engines — repository mark-revoked if no hook registered  
 
-```bash
-curl -X PUT -H "Authorization: Bearer $TOKEN" \
-  -d '{"engine":"database","role":"compromised-role"}' \
-  "$KNXVAULT_ADDR/sys/leases/revoke"
-```
+New dynamic engines should call `RegisterRevoker` / `RegisterRenewer` and set `Lease.TokenID` on issue.
 
-## Role tuning (W42-04)
+## Operations tips
 
-Database/SSH roles support `default_ttl`, `max_ttl`, `renewable`, `period`, `max_leases`.
+- Monitor `knxvault_active_leases` (leader job).  
+- After mass compromise: bulk revoke by `path_prefix` or tidy + rotate roles.  
+- Tenant mode: prefer per-tenant path prefixes; lease ID tenant prefix is **W64-01** residual.
 
-## Warnings (W42-05)
+## Related
 
-Renew responses may include `warnings[]` when remaining TTL is below 10% of max.
-
-## Background renewal (W42-06)
-
-The Raft leader renews expiring database and SSH leases on the cert-renew job interval. Trigger orchestrated renewal manually:
-
-```bash
-curl -X POST -H "Authorization: Bearer $TOKEN" \
-  -d '{"db_grace":"24h","ssh_grace":"24h","pki_grace":"72h"}' \
-  "$KNXVAULT_ADDR/sys/rotation/run"
-```
-
-Response includes `ssh_leases_renewed` alongside `db_leases_renewed` and `kv_rotated`.
+- [Vault-class capability plan](../design/vault-class-capability-plan.md) §6.1  
+- Dynamic DB: [database-credentials.md](../deploy/database-credentials.md)  

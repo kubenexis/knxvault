@@ -53,5 +53,6 @@ Do not open public issues for security vulnerabilities. Report privately to the 
 ## Related documents
 
 - [Development guide](development.md)
+- [Extensibility / plugins](extensibility.md) — engines, façades, DNS-01 webhooks
 - [Testing guide](testing.md)
 - [Licensing policy](../licensing.md)

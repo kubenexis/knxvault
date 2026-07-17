@@ -13,6 +13,13 @@ type LeaseResponse struct {
 	Renewable  bool       `json:"renewable"`
 	Revoked    bool       `json:"revoked"`
 	RevokedAt  *time.Time `json:"revoked_at,omitempty"`
+	TokenID    string     `json:"token_id,omitempty"`
+}
+
+// LeaseRenewRequest renews a lease.
+type LeaseRenewRequest struct {
+	LeaseID    string `json:"lease_id"`
+	TTLSeconds int    `json:"ttl_seconds"`
 }
 
 // BulkLeaseRevokeRequest selects leases for bulk revocation.

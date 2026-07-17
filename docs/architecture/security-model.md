@@ -2,6 +2,16 @@
 
 Threat assumptions, cryptographic controls, and operational security guidance for KNXVault.
 
+## Posture assessment and roadmap
+
+Honest grades, known gaps (set-and-forget Medium, custody vs HSM, DIY footguns), and the program to close them:
+
+- [Security posture assessment](security-posture-assessment.md) — baseline  
+- [Production security posture design](../design/production-security-posture.md) — M-PRODSEC-1 / M-CUSTODY-1  
+- Backlog **W62-***, **W63-***, optional **W64-*** in [`docs/backlog.md`](../backlog.md)
+
+**Shipped (A1):** set `KNXVAULT_SECURITY_PROFILE=production` (or `security.profile: production`) for fail-closed startup validation — requires audit signing key, metrics bearer, TLS or `TLS_TERMINATION=ingress`, rejects lab auth/Raft insecure flags, caps root TTL at 4h, requires multi-node Raft mTLS, and hardens Valkey URL shape. See `config/knxvault.production.yaml` and [configuration](../installation/configuration.md).
+
 ## Threat model
 
 | Threat | Impact | Mitigations |

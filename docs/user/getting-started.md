@@ -1,6 +1,6 @@
 # Getting Started
 
-A hands-on introduction to KNXVault secrets, PKI, and access control.
+A hands-on introduction to KNXVault secrets, PKI, access control, **Transit**, **wrapping**, and **leases**.
 
 ## Prerequisites
 
@@ -43,12 +43,17 @@ curl -s "$KNXVAULT_ADDR/ready"
 
 | Concept | Description |
 |---------|-------------|
-| **Secrets engine** | Pluggable backend for secret types (KVv2, database creds, PKI) |
+| **Secrets engine** | Backend for secret types (KVv2, database, SSH, cubbyhole, Transit) |
 | **Path** | Hierarchical identifier (e.g. `app/database/password`) |
 | **Policy** | RBAC document granting capabilities on path prefixes |
 | **Token** | Opaque credential presented as `Authorization: Bearer` |
-| **Lease** | Time-bounded dynamic credential with renew/revoke |
+| **Lease** | Time-bounded dynamic credential; unified renew/revoke/tidy under `/sys/leases` |
+| **Cubbyhole** | Per-token private KV; wiped on token revoke |
+| **Wrapping** | Single-use token that carries a secret payload once |
+| **Transit** | Encryption-as-a-Service (encrypt/decrypt/sign without storing app data) |
 | **CA hierarchy** | Root → intermediate → leaf certificate chain |
+
+More recipes: [response wrapping](../recipes/response-wrapping.md), [Transit](../recipes/transit-eaas.md), [leases](../operations/lease-management.md), [secret sync](../integration/secret-sync.md).
 
 ## 1. Authenticate
 

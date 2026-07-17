@@ -11,6 +11,11 @@ Version-controlled documentation for architects, operators, developers, and inte
 | [System diagrams](architecture/diagrams.md) | Architects | Mermaid: layers, operator TLS, Vault profile, Raft |
 | [Data models](architecture/data-models.md) | Engineers | Domain entities, PKI role resolution, operator status |
 | [Security model](architecture/security-model.md) | Security / SRE | Threat model, crypto, auth (incl. AppRole), audit |
+| [**Security posture assessment**](architecture/security-posture-assessment.md) | Architects / Security | Honest baseline grades; gaps vs set-and-forget / Vault Ent / DIY |
+| [**Production security posture design**](design/production-security-posture.md) | Engineers | M-PRODSEC-1 / M-CUSTODY-1 programs A–C; W62–W64 |
+| [**Vault-class capability plan**](design/vault-class-capability-plan.md) | Architects / Engineers | Transit, wrap, cubbyhole, leases, identity, dyn engines, DR; W65–W73; deferred cloud/KMIP/plugins |
+| [Secret sync matrix](integration/secret-sync.md) | Operators | CSI vs ESO vs wrap (M-SYNC-1) |
+| [LDAP and IdP](integration/ldap-and-idp.md) | Operators | W70: IdP→OIDC preferred; native LDAP bind |
 | [**Post-quantum (PQ) readiness**](pq/README.md) | Architects / Security | Current state, dual planes, generations g1/g2, **PQ backlog** |
 | [Envelope encryption](architecture/envelope-encryption.md) | Engineers / Security | AES-GCM envelope, DEKs, nonces, master key rotation |
 | [Dragonboat storage](storage/dragonboat.md) | Engineers | Raft topology, command catalog, snapshots |
@@ -83,6 +88,7 @@ Version-controlled documentation for architects, operators, developers, and inte
 | Document | Audience | Description |
 |----------|----------|-------------|
 | [Development guide](engineering/development.md) | Contributors | Local setup, `make` targets, layout |
+| [**Extensibility / plugins**](engineering/extensibility.md) | Contributors / integrators | Engines, product profiles, DNS-01 webhooks (no Vault-style `.so` plugins) |
 | [Testing guide](engineering/testing.md) | Contributors | Unit, integration, local E2E, coverage gates |
 | [E2E and lab test map](engineering/e2e-and-lab-tests.md) | QA / SRE | Layers, multi-share unseal, W53 matrix, pre-release checklist |
 | [Manual testing strategy](engineering/manual-testing-strategy.md) | QA / SRE | Network disruption (MT-01), rotation latency (MT-02), seal stress (MT-33) |

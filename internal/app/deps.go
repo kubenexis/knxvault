@@ -21,8 +21,10 @@ import (
 	"github.com/kubenexis/knxvault/internal/engine"
 	pkiengine "github.com/kubenexis/knxvault/internal/engine/pki"
 	secretsengine "github.com/kubenexis/knxvault/internal/engine/secrets"
+	cubbyholeengine "github.com/kubenexis/knxvault/internal/engine/secrets/cubbyhole"
 	databaseengine "github.com/kubenexis/knxvault/internal/engine/secrets/database"
 	sshengine "github.com/kubenexis/knxvault/internal/engine/secrets/ssh"
+	transitengine "github.com/kubenexis/knxvault/internal/engine/transit"
 	"github.com/kubenexis/knxvault/internal/infra/k8s"
 	"github.com/kubenexis/knxvault/internal/infra/leader"
 	"github.com/kubenexis/knxvault/internal/inject"
@@ -74,6 +76,12 @@ type Dependencies struct {
 	LeaseService           *service.LeaseService
 	AuditPackService       *service.AuditPackService
 	MachineIdentityService *service.MachineIdentityService
+	CubbyholeEngine        *cubbyholeengine.Engine
+	CubbyholeService       *service.CubbyholeService
+	WrappingService        *service.WrappingService
+	TransitEngine          *transitengine.Engine
+	TransitService         *service.TransitService
+	IdentityService        *service.IdentityService
 	CacheStore             cache.Store
 	AuthzAudit             *middleware.AuthzAudit
 	ExposureWebhook        *notify.Webhook
@@ -294,7 +302,33 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 	deps.LeaseService = service.NewLeaseService(deps.LeaseRepo, deps.DatabaseEngine, deps.SSHEngine, deps.AuditService)
 	deps.ExposureWebhook = notify.NewWebhook(cfg.ExposureWebhookURL)
 
+	if deps.SecretRepo != nil && deps.Crypto != nil {
+		deps.CubbyholeEngine = cubbyholeengine.NewEngine(deps.SecretRepo, deps.Crypto)
+		deps.CubbyholeService = service.NewCubbyholeService(deps.CubbyholeEngine, deps.AuditService)
+		deps.WrappingService = service.NewWrappingService(deps.CubbyholeEngine, deps.AuditService)
+		deps.TransitEngine = transitengine.NewEngine(deps.SecretRepo, deps.Crypto)
+		deps.TransitService = service.NewTransitService(deps.TransitEngine, deps.AuditService)
+		if deps.EngineRegistry != nil {
+			// Transit is not a SecretEngine Put/Get adapter; registry remains KV/DB/SSH.
+			_ = deps.TransitEngine
+		}
+	}
+	deps.IdentityService = service.NewIdentityService(deps.AuditService)
+
 	deps.AuthService = auth.NewService(tokenStore, rbac, cfg.JWTSecret)
+	deps.AuthService.SetLeaseCascade(deps.LeaseService)
+	if deps.CubbyholeService != nil {
+		deps.AuthService.SetTokenCleaner(deps.CubbyholeService)
+	}
+	deps.AuthService.SetIdentityResolver(deps.IdentityService)
+	if url := cfg.LDAPURL; url != "" {
+		deps.AuthService.SetLDAPDefaults(&auth.LDAPConfig{
+			URL:                url,
+			UserDNTemplate:     cfg.LDAPUserDNTemplate,
+			DefaultPolicies:    cfg.LDAPDefaultPolicies,
+			InsecureSkipVerify: cfg.LDAPInsecureSkipVerify,
+		})
+	}
 	approleStore := deps.AuthService.EnsureAppRoleStore()
 	if cfg.Raft.DataDir != "" {
 		approleStore.SetPersistPath(filepath.Join(cfg.Raft.DataDir, "approles.json"))

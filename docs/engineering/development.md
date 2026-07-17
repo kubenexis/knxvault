@@ -103,6 +103,8 @@ See [LLD §3.1](../lld.md) for the full directory specification.
 6. **Tests** — unit tests alongside code; integration/E2E in `test/integration/`; for seal/unseal or Raft start paths re-run `make lab-full-e2e` when possible
 7. **Docs** — update relevant guide in `docs/`; keep [e2e-and-lab-tests.md](e2e-and-lab-tests.md) / [lab-full-e2e.md](lab-full-e2e.md) current if lab checks change
 
+For **engines, product profiles, DNS-01 webhooks, and operator issuer extension** (how knxvault is extended without Vault-style plugins), see [Extensibility](extensibility.md).
+
 ## CSI validation (optional)
 
 Requires Docker and `kind` on `PATH`:
@@ -120,6 +122,7 @@ Significant design changes require an ADR in [`docs/adr/`](../adr/README.md).
 
 ## Related documents
 
+- [Extensibility / plugins](extensibility.md)
 - [Testing guide](testing.md)
 - [E2E and lab test map](e2e-and-lab-tests.md)
 - [Lab full E2E](lab-full-e2e.md)

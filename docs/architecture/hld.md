@@ -17,9 +17,12 @@ KNXVault is a lightweight, self-hosted secrets management and PKI system written
 
 ### In scope (current release)
 
-- **Secrets:** KVv2 with versioning, TTL, and check-and-set; dynamic database / SSH credentials with leases
+- **Secrets:** KVv2 with versioning, TTL, and check-and-set; dynamic database / SSH credentials with leases; **cubbyhole**; **Transit EaaS**
+- **Leases:** Unified renew/revoke/tidy + cascade on token revoke (M-LEASE-1)
+- **Wrapping:** Single-use response wrapping tokens (M-WRAP-1)
+- **Identity:** Entity / alias / group layer (M-IDENT-1)
 - **PKI:** Root and intermediate CAs, leaf issue/renew, **CSR sign** (`POST /pki/sign`), revocation (CRL), basic OCSP
-- **Auth:** Bootstrap root token, opaque client tokens, Kubernetes ServiceAccount JWT, **AppRole** (Vault-profile login), OIDC
+- **Auth:** Bootstrap root token, opaque client tokens, Kubernetes ServiceAccount JWT, **AppRole**, OIDC, optional **LDAP** (W70)
 - **Authorization:** RBAC policies with path, IP, time, and namespace conditions
 - **TLS automation (K8s):** **knxvault-operator** multi-issuer CRDs (Vault PKI, **ACME**, **SelfSigned**) replace cert-manager for private and public TLS
 - **Vault product profile:** optional dual-run with cert-manager (`/v1/*`); prefer operator
@@ -34,6 +37,14 @@ KNXVault is a lightweight, self-hosted secrets management and PKI system written
 - PKCS#11 HSM-backed CA keys (stub / design only)
 - Third-party enterprise CAs (Venafi, AWS PCA, …) — future external issuer plugin
 - GUI
+- **Cloud IAM secret engines** (AWS / Azure / GCP dynamic credentials) — **not required near-term** (backlog **LT-02**)
+- **Cloud auth methods** (AWS IAM, Azure MSI, GCP) — **not required near-term** (backlog **LT-15**); use K8s SA, AppRole, OIDC/JWT
+
+How the project **is** extended today (in-tree engines, product profiles, DNS-01 HTTP webhooks — not loadable `.so` plugins): [Extensibility guide](../engineering/extensibility.md).
+
+Production posture (set-and-forget profile, custody roadmap, safer operator defaults): [Security posture assessment](security-posture-assessment.md) · [Production security posture design](../design/production-security-posture.md).
+
+Vault-class capability roadmap (transit, wrapping, leases, identity, DR; no plugins; cloud IAM/auth deferred): [Vault-class capability plan](../design/vault-class-capability-plan.md).
 
 ## Logical architecture
 

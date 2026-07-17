@@ -1,0 +1,72 @@
+# KNXVault production security profile (M-PRODSEC-1 / A1).
+#
+# Usage:
+#   knxvault serve --config config/knxvault.production.yaml
+#   # or: KNXVAULT_SECURITY_PROFILE=production
+#
+# Secrets (master key, unseal, root bootstrap, metrics bearer, audit signing)
+# MUST come from the environment or a sealed Secret — do not commit real values.
+# Environment variables override this file.
+#
+# Fail-closed rules when security.profile=production:
+#   - no k8s_auth_insecure, no jwt_secret, no raft_allow_insecure
+#   - rate limit on; HTTPS clients required
+#   - audit signing key + metrics bearer required
+#   - server TLS (paths below) OR tls_termination: ingress
+#   - multi-node Raft requires peer mTLS
+#   - root token TTL capped at 4h
+#   - Valkey URL if set must be rediss:// or include credentials
+#
+# See docs/design/production-security-posture.md
+
+http_addr: ":8200"
+log_level: info
+shutdown_grace: 10s
+token_ttl: 24h
+k8s_auth_insecure: false
+
+# Bootstrap root: set KNXVAULT_ROOT_TOKEN in the environment only (never in Git).
+# Production profile caps KNXVAULT_ROOT_TOKEN_TTL at 4h (default under this profile).
+
+ha:
+  enabled: true
+  namespace: knxvault
+  lease_name: knxvault-leader
+
+jobs:
+  lease_cleanup_interval: 1m
+  crl_refresh_interval: 15m
+  cert_renew_interval: 1h
+  kv_rotation_interval: 5m
+  renew_grace: 72h
+
+audit:
+  # Required in production — set via env preferred:
+  # signing_key: ""   # use KNXVAULT_AUDIT_SIGNING_KEY
+  # forward_url: https://siem.example.com/ingest
+
+security:
+  profile: production
+  # server = process serves TLS (set tls_cert/tls_key or KNXVAULT_TLS_*)
+  # ingress = TLS at load balancer; process may listen plain HTTP on a private net
+  tls_termination: server
+  tls_cert: /etc/knxvault/tls/server.pem
+  tls_key: /etc/knxvault/tls/server.key
+  # mtls_required: true
+  # mtls_ca: /etc/knxvault/tls/client-ca.pem
+  rate_limit_enabled: true
+  rate_limit_rpm: 300
+  request_signing_required: false
+  cors_allowed_origins: []
+  # metrics_bearer_token: ""  # use KNXVAULT_METRICS_BEARER_TOKEN
+
+raft:
+  enabled: true
+  # node_id: set per replica (or KNXVAULT_POD_NAME on StatefulSet)
+  # address: "knxvault-0.knxvault:63001"
+  data_dir: /var/lib/knxvault/raft
+  # initial_members: "1=knxvault-0.knxvault:63001,2=knxvault-1.knxvault:63001,3=knxvault-2.knxvault:63001"
+  # Multi-node production requires mTLS:
+  # mtls_cert: /etc/knxvault/raft/tls.crt
+  # mtls_key: /etc/knxvault/raft/tls.key
+  # mtls_ca: /etc/knxvault/raft/ca.crt

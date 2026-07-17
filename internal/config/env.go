@@ -305,6 +305,28 @@ func overlayEnv(cfg Config) (Config, error) {
 		}
 		cfg.RequireHTTPSClients = b
 	}
+	if v := os.Getenv("KNXVAULT_SECURITY_PROFILE"); v != "" {
+		cfg.SecurityProfile = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("KNXVAULT_TLS_TERMINATION"); v != "" {
+		cfg.TLSTermination = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("KNXVAULT_LDAP_URL"); v != "" {
+		cfg.LDAPURL = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("KNXVAULT_LDAP_USER_DN_TEMPLATE"); v != "" {
+		cfg.LDAPUserDNTemplate = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("KNXVAULT_LDAP_DEFAULT_POLICIES"); v != "" {
+		cfg.LDAPDefaultPolicies = splitCSV(v)
+	}
+	if v := os.Getenv("KNXVAULT_LDAP_INSECURE_SKIP_VERIFY"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_LDAP_INSECURE_SKIP_VERIFY: %w", err)
+		}
+		cfg.LDAPInsecureSkipVerify = b
+	}
 
 	raft, err := overlayRaftEnv(cfg.Raft)
 	if err != nil {
@@ -312,6 +334,9 @@ func overlayEnv(cfg Config) (Config, error) {
 	}
 	cfg.Raft = raft
 	if err := cfg.Raft.Validate(); err != nil {
+		return Config{}, err
+	}
+	if err := ApplySecurityProfileDefaults(&cfg); err != nil {
 		return Config{}, err
 	}
 	if err := ValidateSecurity(cfg, ""); err != nil {

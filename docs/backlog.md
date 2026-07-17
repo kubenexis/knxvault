@@ -8,6 +8,12 @@ Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topological
 
 **Milestone M-DNS01-1 (P1, after M-ACME-1):** cert-manager-class **DNS-01 providers + webhooks** — design [`docs/design/dns01-providers-and-webhooks.md`](design/dns01-providers-and-webhooks.md), backlog **W61-01…** below. Webhook-first extensibility; optional in-tree Route53/RFC2136.
 
+**Milestone M-PRODSEC-1 (P0/P1):** Production **set-and-forget** security profile, bootstrap root death, production kustomize, doctor gate — design [`docs/design/production-security-posture.md`](design/production-security-posture.md), assessment [`docs/architecture/security-posture-assessment.md`](architecture/security-posture-assessment.md), backlog **W62-01…** below.
+
+**Milestone M-CUSTODY-1 (P1, after M-PRODSEC-1 core):** KMS auto-unseal + master wrap / optional PKCS#11 — same design doc §6 / §8 Phase 1, backlog **W63-01…**. Optional multi-tenant SaaS isolation **W64-*** only if product goal.
+
+**Vault-class capability program (P0/P1):** **Partial shipped** (leases/wrap/transit/identity/LDAP/sync-docs) — master plan [`docs/design/vault-class-capability-plan.md`](design/vault-class-capability-plan.md) — leases **W67**, wrapping/cubbyhole **W66**, transit **W65**, JWT **W71**, identity **W68**, dyn engines **W69**, DR **W72**, sync **W73**. Cloud IAM (**LT-02**) and cloud auth (**LT-15**) **not near-term**. No plugin framework.
+
 **Post-quantum readiness** is tracked separately: **[`docs/pq/backlog.md`](pq/backlog.md)** (`PQ-*` IDs) with design under [`docs/pq/`](pq/README.md). Not a claim of PQ-ready product.
 
 **Legend**
@@ -572,6 +578,231 @@ Report: `docs/audit/formal-w53-residual-features-2026-07-16.md`.
 
 ---
 
+## Milestone M-DNS01-1 — DNS-01 providers and webhooks (cert-manager parity)
+
+**Status:** Not started (design 2026-07-17).  
+**Design:** [`docs/design/dns01-providers-and-webhooks.md`](design/dns01-providers-and-webhooks.md)  
+**Depends on:** M-ACME-1 core (`internal/acme`, operator ACME, CLI).  
+**Priority:** **P1**.
+
+| Field | Value |
+|-------|-------|
+| **Claim when done** | DNS-01: registry + webhook v1 + multi-solver selectors; CF hardened; webhook template for out-of-tree providers (Route53/RFC2136 optional in-tree) |
+| **Phases** | **A** registry/webhook · **B** CRD solvers · **C** providers/templates · **D** CI/harden |
+| **Exit** | Design §8 acceptance criteria |
+
+### Phase A — Registry + webhook v1
+
+| ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
+|----|----------|--------|--------|------|------------|-------|-------------|---------------------|
+| **W61-01** | P1 | Not started | M | crypto | M-ACME-1 | Provider registry | `providers.Register` / factory by name for memory, cloudflare, webhook | Unit tests; operator + CLI use registry |
+| **W61-02** | P1 | Not started | M | crypto | W61-01 | Webhook protocol v1 | Additive JSON: `apiVersion`, `config`, `key`; keep old body | Dual-read tests |
+| **W61-03** | P1 | Not started | M | security | W61-02 | Webhook bearer auth | SecretKeyRef / file token → Authorization header | 401 surfaces clear error |
+| **W61-04** | P1 | Not started | S | security | W61-02 | Webhook URL allowlist | Optional allowlist; default SSRF validation | Unit tests |
+| **W61-05** | P1 | Not started | M | cli | W61-02, W61-03 | CLI profile webhook config | `webhook_config` / auth token file in ACME profile | Example under `examples/acme/` |
+| **W61-06** | P1 | Not started | S | observability | W61-01 | DNS-01 metrics + logs | `*_dns01_present_total{provider}`; no secrets in logs | Metrics registered |
+
+### Phase B — Multi-solver CRD + Cloudflare
+
+| ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
+|----|----------|--------|--------|------|------------|-------|-------------|---------------------|
+| **W61-07** | P1 | Not started | L | k8s | W61-01 | CRD `acme.solvers[]` + selectors | `dnsZones` / `dnsNames`; legacy `dns01` still works | DeepCopy + unit tests |
+| **W61-08** | P1 | Not started | M | k8s | W61-07 | Operator solver selection | Pick first matching solver for certificate domain | Selector unit tests |
+| **W61-09** | P1 | Not started | M | crypto | W61-01 | Cloudflare harden | TTL, multi-TXT cleanup, zone match, backoff | Unit tests with httptest |
+| **W61-10** | P2 | Not started | S | k8s | W61-07 | cmcompat DNS01 webhook map | Document + map cert-manager webhook fields | Mapping table in docs |
+| **W61-11** | P1 | Not started | S | docs | W61-07, W61-05 | DNS-01 operator + CLI guide | Solvers, secrets, staging, webhook install | Matrix + runbook updated |
+
+### Phase C — In-tree providers and webhook template
+
+| ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
+|----|----------|--------|--------|------|------------|-------|-------------|---------------------|
+| **W61-12** | P2 | Not started | L | crypto | W61-01 | In-tree RFC2136 (TSIG) | Optional first-party dynamic DNS | Mock tests; permissive license |
+| **W61-13** | P2 | Not started | L | crypto | W61-01 | In-tree Route53 | Optional; raw SigV4 preferred over heavy SDK | License gate pass |
+| **W61-14** | P1 | Not started | M | k8s | W61-02 | Webhook Deployment template | `deployments/acme-dns-webhook-template/` + sample handler docs | README applies on kind |
+| **W61-15** | P1 | Not started | S | docs | W61-14 | Provider catalog | In-tree vs webhook-only list | Doc in operations/ |
+
+### Phase D — CI and hardening
+
+| ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
+|----|----------|--------|--------|------|------------|-------|-------------|---------------------|
+| **W61-16** | P1 | Not started | M | ci | W61-02 | Mock webhook integration test | CI-safe Present/CleanUp + ACME path | Test in `make test` or labeled CI |
+| **W61-17** | P2 | Not started | S | crypto | W61-01 | Propagation wait / TTL knobs | Configurable delay before ACME Accept | Unit-configurable |
+| **W61-18** | P1 | Not started | S | security | W61-03 | Out-of-tree webhook security checklist | Threat model for webhook authors | Doc published |
+
+> **M-DNS01-1 sequencing:** **W61-01–W61-06** (contract) before **W61-07–W11** (CRD). Prefer **W61-14/15** (webhook ecosystem) over rushing **W61-12/13** if capacity is tight. Milestone can exit without Route53/RFC2136 if webhook template + multi-solver ship.
+
+---
+
+## Milestone M-PRODSEC-1 — Production security posture (set-and-forget + safer defaults)
+
+**Status:** Partial — **A1 profile fail-closed shipped** (W62-01/02/04, 2026-07-17). Remaining: doctor, kustomize, bootstrap root death.  
+**Design:** [`docs/design/production-security-posture.md`](design/production-security-posture.md)  
+**Assessment baseline:** [`docs/architecture/security-posture-assessment.md`](architecture/security-posture-assessment.md)  
+**Closes:** Production “set and forget” Medium; root/ClusterIssuer DIY footguns; encodes operator-security checklist into product.
+
+| Field | Value |
+|-------|-------|
+| **Claim after exit** | Production profile **fails closed** on lab/insecure config; Day-0 ends with **no live root** and **SA-only operator**; `doctor --profile production` is the install gate |
+| **Phases** | **A** profile + doctor · **B** manifests + operator · **C** bootstrap root death · **D** docs/e2e |
+
+### Phase A — Profile + doctor
+
+| ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
+|----|----------|--------|--------|------|------------|-------|-------------|---------------------|
+| ~~**W62-01**~~ | P0 | **Complete** | M | security | — | `security.profile` / `KNXVAULT_SECURITY_PROFILE` | `lab` \| `production`; wire into config load | Done — env + YAML `security.profile`; default lab |
+| ~~**W62-02**~~ | P0 | **Complete** | M | security | W62-01 | Production `ValidateSecurity` | Reject insecure k8s auth, Raft multi-node without mTLS, missing audit signing / metrics bearer; TLS or ingress; valkey shape; root TTL cap 4h | Done — `internal/config/security.go` + table tests; multi-node counts `InitialMembersRaw` |
+| **W62-03** | P0 | Not started | M | cli | W62-02 | `doctor --profile production` | Fail (not warn) on root-alive, no TLS, no Raft mTLS, insecure flags, no audit signing | CLI tests + docs |
+| ~~**W62-04**~~ | P1 | **Complete** | S | docs | W62-01 | `config/knxvault.production.yaml` | Production defaults: rate limit on, insecure off, profile production | Done — file + configuration.md + example YAML |
+
+### Phase B — Production pack + operator defaults
+
+| ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
+|----|----------|--------|--------|------|------------|-------|-------------|---------------------|
+| **W62-05** | P0 | Not started | M | k8s | W62-01 | `deployments/k8s/production/` kustomize | NetworkPolicy, metrics bearer/Service, base STS overlay with production profile | `kubectl apply -k` documented |
+| **W62-06** | P0 | Not started | M | k8s | W62-05 | Issuer / ClusterIssuer RBAC | Only platform ns/group can create ClusterIssuer; sample Roles | Manifest + operator-security update |
+| **W62-07** | P0 | Not started | S | k8s | — | Operator samples SA-only | Root-token operator path lab-only; production samples use K8s role | Samples + runbook |
+| **W62-08** | P1 | Not started | M | k8s | W62-02, W62-07 | Operator production fail-closed | Refuse static root when profile=production (or operator flag `production`) | Unit/integration test |
+
+### Phase C — Bootstrap root death
+
+| ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
+|----|----------|--------|--------|------|------------|-------|-------------|---------------------|
+| **W62-09** | P0 | Not started | M | auth | W62-01 | Short prod root TTL + non-renewable option | Production profile default root TTL 1–4h (configurable) | Config + token tests |
+| **W62-10** | P0 | Not started | L | auth | W62-09 | Bootstrap complete API/Job | `POST /sys/bootstrap/complete` (or equivalent) revokes root after admin+operator roles exist | API test; audit event |
+| **W62-11** | P1 | Not started | M | k8s | W62-10, W62-07 | Bootstrap Job manifest | Creates operator role policies; calls complete; no root left in STS env | Day-0 doc + kind smoke |
+
+### Phase D — Docs, golden path, regression
+
+| ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
+|----|----------|--------|--------|------|------------|-------|-------------|---------------------|
+| **W62-12** | P0 | Not started | M | docs | W62-03, W62-05, W62-10 | Golden-path Day-0 | Single production narrative; lab paths labeled | operator-runbook + install + kubernetes-cli updated |
+| **W62-13** | P1 | Not started | S | docs | W62-12 | Migration: revoke cert-manager tokens | Dual-run teardown checklist | pki-replace-cert-manager section |
+| **W62-14** | P1 | Not started | M | ci | W62-02, W62-03 | Posture e2e | Integration: bad prod config fails start; doctor fail cases | `make test-integration` or labeled job |
+| **W62-15** | P1 | Not started | S | security | W62-02 | Past Critical/High regression map | Link audit findings to permanent tests (index doc) | `docs/audit/` or engineering note |
+
+> **M-PRODSEC-1 sequencing:** **W62-01–04** then **W62-05–08** in parallel with **W62-09–11**. Exit without KMS (that is **M-CUSTODY-1**). Align Issuer webhook allowlist implementation with **W61-03/04** when both in flight.
+
+---
+
+## Milestone M-CUSTODY-1 — KMS / HSM custody
+
+**Status:** Not started.  
+**Design:** [`docs/design/production-security-posture.md`](design/production-security-posture.md) §6 / §8 Phase 1.  
+**Depends on:** M-PRODSEC-1 profile concepts helpful but not hard-blocked for design spikes.
+
+| ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
+|----|----------|--------|--------|------|------------|-------|-------------|---------------------|
+| **W63-01** | P1 | Not started | L | crypto | — | KMS auto-unseal (one provider) | Unwrap unseal key via cloud KMS (or equivalent) at start | Lab test with mock/localstack or documented cloud sandbox |
+| **W63-02** | P1 | Not started | L | crypto | W63-01 | KMS-wrapped master key | Master ciphertext at rest; unwrap for envelope crypto | Restart + decrypt secrets without plain master in Secret |
+| **W63-03** | P1 | Not started | M | docs | W63-01 | Custody + break-glass runbook | Ceremony, IAM split, recovery | `docs/operations/` runbook |
+| **W63-04** | P2 | Not started | XL | crypto | W63-02 | PKCS#11 CA keys | Optional offline root/intermediate | Design + PoC; license-safe PKCS#11 path |
+| **W63-05** | P2 | Not started | M | security | W63-01 | Production profile + KMS | Prod profile can require KMS unseal when configured | ValidateSecurity rules |
+
+> Prefer **W63-01** before **W63-04**. Do not block M-PRODSEC-1 on HSM.
+
+---
+
+## Optional — Multi-tenant SaaS isolation (W64)
+
+**Status:** Not started — **only if** multi-tenant SaaS is a product goal. Default: single trust domain.  
+**Design:** production-security-posture §6.2; residuals in [W53 report](audit/formal-w53-residual-features-2026-07-16.md). Full capability context: [vault-class-capability-plan.md](design/vault-class-capability-plan.md) §6.16.
+
+| ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
+|----|----------|--------|--------|------|------------|-------|-------------|---------------------|
+| **W64-00** | P2 | Not started | S | docs | — | Product decision record | Single-tenant platform vs SaaS multi-tenant | ADR or product note |
+| **W64-01** | P2 | Not started | M | auth | W64-00 SaaS | Tenant-prefix lease IDs | Close W53 cross-tenant renew residual | Tests deny cross-tenant lease |
+| **W64-02** | P2 | Not started | M | auth | W64-01 | Tenant quotas + rate limits | Per-tenant caps | Config + tests |
+| **W64-03** | P2 | Not started | L | storage | W64-00 SaaS | Optional per-tenant cluster mode | True isolation when ADR-0005 insufficient | Design + PoC doc |
+| **W64-04** | P2 | Not started | M | audit | W64-01 | Tenant-scoped audit export | Filter export by tenant | API + test |
+
+---
+
+## Vault-class capability program (W65–W73)
+
+**Status:** Not started (design 2026-07-17).  
+**Design / plan:** [`docs/design/vault-class-capability-plan.md`](design/vault-class-capability-plan.md)  
+**Principles:** no binary plugins; cloud IAM/auth deferred (LT-02/LT-15); SAML via IdP→OIDC; Sentinel→OPA/native policy.
+
+> **Sequencing:** **W67** (leases) before **W66** (wrap) and **W69** (dyn engines). **W65** (transit) can parallel W66 after crypto review. **W71** before **W68**. **W63** parallel after W62. Do **not** start LT-02/LT-15 without a new product decision.
+
+### M-LEASE-1 — Unified lease framework (W67)
+
+| ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
+|----|----------|--------|--------|------|------------|-------|-------------|---------------------|
+| **W67-01** | P0 | **Complete** | M | crypto | — | LeaseService + OnRevoke hooks | Single registry; DB/SSH call hooks | Unit tests; engines use registry only |
+| **W67-02** | P0 | **Complete** | M | api | W67-01 | Sys lease list/lookup/renew/revoke/tidy | REST + OpenAPI | Handler tests |
+| **W67-03** | P0 | **Complete** | M | auth | W67-01 | Cascade revoke on token revoke | Leases owned by token revoked | Integration test |
+| **W67-04** | P1 | **Complete** | S | observability | W67-02 | Lease metrics + audit | active_leases accurate | Metrics + audit actions |
+| **W67-05** | P1 | Not started | M | auth | W67-01, W64-01 | Tenant-safe lease IDs | Align tenant mode | Cross-tenant renew denied |
+
+### M-WRAP-1 — Cubbyhole + response wrapping (W66)
+
+| ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
+|----|----------|--------|--------|------|------------|-------|-------------|---------------------|
+| **W66-01** | P0 | **Complete** | M | crypto | — | Cubbyhole engine | Per-token private KV; wipe on revoke | Unit tests |
+| **W66-02** | P0 | **Complete** | M | api | W66-01 | Response wrap mint | Header/flag → wrapping token | Single-use; TTL |
+| **W66-03** | P0 | **Complete** | S | api | W66-02 | Unwrap (+ optional lookup) | `POST /sys/wrapping/unwrap` | OpenAPI + tests |
+| **W66-04** | P1 | **Complete** | S | docs | W66-03 | Wrap bootstrap recipe | Docs recipe | Recipe published |
+
+### M-TRANSIT-1 — Transit EaaS (W65)
+
+| ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
+|----|----------|--------|--------|------|------------|-------|-------------|---------------------|
+| **W65-01** | P0 | **Complete** | L | crypto | — | Transit keys + encrypt/decrypt/rotate | Envelope-stored keys; versioned ciphertext | Round-trip + rotate tests |
+| **W65-02** | P1 | **Complete** | M | crypto | W65-01 | Sign / verify / HMAC | Asymmetric + HMAC ops | Unit tests |
+| **W65-03** | P1 | **Complete** | M | api | W65-01 | Handlers + RBAC + OpenAPI | Path capabilities | Handler tests |
+| **W65-04** | P1 | **Complete** | S | docs | W65-03 | Transit guide + recipe | User docs | Docs linked from README |
+| **W65-05** | P2 | Not started | L | crypto | W65-01 | Transform/tokenization decision | Narrow FPE or external | ADR + implement or defer note |
+
+### M-JWT-1 — JWT variants + GitHub (W71)
+
+| ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
+|----|----------|--------|--------|------|------------|-------|-------------|---------------------|
+| **W71-01** | P1 | Not started | M | auth | — | Generic JWT auth roles + login | iss/aud/claims → policies | Bound-claims tests |
+| **W71-02** | P1 | Not started | S | docs | W71-01 | GitHub Actions OIDC recipe | Prefer OIDC over PAT | Recipe published |
+| **W71-03** | P2 | Not started | M | auth | W71-01 | Optional GitHub token method | Only if OIDC insufficient | Tests + docs |
+
+### M-IDENT-1 — Identity entity/group (W68)
+
+| ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
+|----|----------|--------|--------|------|------------|-------|-------------|---------------------|
+| **W68-01** | P1 | **Complete** | L | auth | — | Entity/alias/group domain + Raft | CRUD | Unit tests |
+| **W68-02** | P1 | **Complete** | M | auth | W68-01, W71-01 | Login merges group policies | entity_id on token | Multi-auth test |
+| **W68-03** | P1 | **Complete** | M | auth | W68-01 | NHI / agent → entity | Migration note | Tests |
+| **W68-04** | P1 | **Complete** | S | docs | W68-02 | Identity API docs | OpenAPI + guide | Docs |
+
+### M-DYN-1 — Curated dynamic engines (W69)
+
+| ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
+|----|----------|--------|--------|------|------------|-------|-------------|---------------------|
+| **W69-01** | P1 | Not started | S | docs | W67-01 | Engine contribution checklist | Leases, licenses, tests | engineering/ doc |
+| **W69-02** | P1 | Not started | L | crypto | W67-01 | First new engine (e.g. Redis/Valkey) | Creds + revoke + lease | Tests + recipe |
+| **W69-03** | P2 | Not started | L | crypto | W69-02 | Second engine optional | Same bar | Tests |
+
+### Optional LDAP (W70)
+
+| ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
+|----|----------|--------|--------|------|------------|-------|-------------|---------------------|
+| **W70-01** | P2 | **Complete** | S | docs | — | IdP → OIDC for LDAP/AD | Preferred path | Guide published |
+| **W70-02** | P2 | **Complete** | L | auth | — | Native LDAP auth | Only if no IdP | Bind + group map tests |
+
+### M-DR-1 — Disaster recovery (W72)
+
+| ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
+|----|----------|--------|--------|------|------------|-------|-------------|---------------------|
+| **W72-01** | P1 | Not started | M | ops | — | Backup ship to object storage | CronJob/script | Lab restore from object store |
+| **W72-02** | P1 | Not started | M | docs | W72-01 | Promote runbook + RPO/RTO | Ops doc | Published |
+| **W72-03** | P2 | Not started | L | storage | W72-01 | Optional continuous async ship | Not Vault streaming PR | Design + flag |
+
+### M-SYNC-1 — Secret sync (W73)
+
+| ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
+|----|----------|--------|--------|------|------------|-------|-------------|---------------------|
+| **W73-01** | P1 | **Complete** | S | docs | — | CSI vs ESO vs wrap matrix | Decision guide | Docs |
+| **W73-02** | P2 | Not started | L | k8s | W73-01 | Push-sync controller optional | One external store PoC | On-demand only |
+
+---
+
 ## Post-quantum readiness (separate backlog)
 
 Tracked under **[`docs/pq/backlog.md`](pq/backlog.md)** with IDs **PQ-01…PQ-93** (phases PQ-0 document/harden through PQ-5 optional KEM wrap). Design: dual crypto planes, generations **g1** (classical default for Harbor/legacy) / **g2+** (opt-in). Index: [`docs/pq/README.md`](pq/README.md).
@@ -583,7 +814,8 @@ Deferred packaging and ecosystem work — not scheduled for Tier 0 / Phase 4–5
 | Item | Area | Rationale |
 |------|------|-----------|
 | **Helm chart** | k8s | Deferred as **LT-03**. Near-term: raw manifests in `deployments/k8s/` (**W28-02**). |
-| **Cloud dynamic secrets (AWS IAM)** | crypto | Deferred as **LT-02**. Near-term: database dynamic engine + OIDC auth. |
+| **Cloud dynamic secrets (AWS/Azure/GCP IAM)** | crypto | Deferred as **LT-02**. **Not required near-term** (product decision 2026-07-17). Near-term: database + SSH dynamic engines + OIDC/K8s/AppRole auth. |
+| **Cloud auth methods (AWS IAM, Azure MSI, GCP)** | auth | Deferred as **LT-15**. **Not required near-term** (same decision). Prefer K8s SA, AppRole, OIDC/JWT. |
 | Helm hooks (pre-upgrade backup) | k8s | Depends on **LT-03** Helm chart. |
 | Grafana dashboards bundled in chart | docs | Depends on **LT-03** Helm chart + W10 metrics. |
 | gRPC API, Web UI, OPA integration | api | **LT-04–LT-06** (LLD §10.3). |
@@ -596,7 +828,10 @@ Deferred packaging and ecosystem work — not scheduled for Tier 0 / Phase 4–5
 | ID | Title | Area | Effort | Depends on | Description | Acceptance criteria |
 |----|-------|------|--------|------------|-------------|---------------------|
 | **LT-01** | Terraform provider | docs | L | LT-03, Phase 5 stable | **Gap:** LLD §9.4 / §12.2.4 Terraform provider; no IaC. **Hint:** `terraform-provider-knxvault/` with `hashicorp/terraform-plugin-framework`. Resources: `knxvault_kv_secret`, `knxvault_policy`, `knxvault_pki_root` (data). Auth via `KNXVAULT_TOKEN`. `docs/integration/terraform.md`. Defer until **LT-03** (Helm), **W36-02** (TokenReview), and API surface stable (**W38-01**). | `terraform apply` creates KV + policy; destroy removes. CI acceptance test. |
-| **LT-02** | Cloud dynamic secrets engine (AWS IAM scaffold) | crypto | XL | W37-02, W36-20 | **Gap:** LLD §9.4 “Advanced dynamic secret engines (AWS, cloud OAuth)”; only DB engine exists. **Hint:** `internal/engine/secrets/aws/` + `POST /secrets/aws/creds/:role`; STS `AssumeRole` via **W37-02** OIDC. Register in **W36-20** `EngineRegistry`. **No near-term impact on vanilla K8s/KubeVirt** — use KV + database engine instead. | Temporary IAM creds issued; lease documented; LocalStack or sandbox test. |
+| **LT-02** | Cloud dynamic secrets engines (AWS / Azure / GCP IAM) | crypto | XL | W37-02, W36-20 | **Not required near-term (2026-07-17).** LLD §9.4 cloud OAuth/IAM engines. Scaffold later: e.g. `internal/engine/secrets/aws/` + STS `AssumeRole`, Azure/GCP equivalents, lease revoke. **Do not schedule** ahead of transit/wrapping/leases/KMS unseal or M-PRODSEC. Near-term: KV + database + SSH. | When revived: temporary cloud creds + lease docs + sandbox test per cloud. |
+| **LT-15** | Cloud auth methods (AWS IAM, Azure MSI, GCP) | auth | XL | W37-02 | **Not required near-term (2026-07-17).** Verify cloud identity docs / metadata-bound tokens → policies. Prefer **OIDC/JWT** and **Kubernetes SA** instead. Schedule only if non-K8s cloud VMs must login without an IdP. Plan: [vault-class-capability-plan.md](design/vault-class-capability-plan.md) §6.7. | When revived: one cloud PoC maps instance/role → client token; audit + lockout. |
+| **LT-16** | KMIP server or façade | crypto | XL | W65-01 | **External KMIP preferred.** Optional thin façade over Transit later. Do not schedule near-term. | Decision note or external integration doc. |
+| **LT-17** | Performance scale-out (not Vault PR) | storage | XL | Phase 3 stable | **Not** Vault Performance Replication. Options: vertical scale, Raft learners if supported, multi-cluster. | Design ADR if product requires multi-region reads. |
 | **LT-03** | Helm chart (production install) | k8s | M | W28-02, W37-01 | **Gap:** LLD §1.2, §6.1, §6.6 Helm-first deployment; only `deployments/helm/.gitkeep` + raw manifests. **Hint:** `deployments/helm/knxvault/` per LLD §6.1: `values.yaml` (`raft.*`, `persistence`, `tls`), StatefulSet from `statefulset.yaml`, Service/Ingress templates. Hooks → **LT-09**. Defer until **W37-01** TLS and **W38-05** PDB/NetPol patterns proven in raw manifests. | `helm install` 3-node Raft; README + `docs/deploy/kubernetes.md` updated. |
 | **LT-04** | gRPC API alongside REST | api | L | Phase 5 stable | **Gap:** LLD §10.3 gRPC for service mesh. **Hint:** `api/proto/knxvault/v1/` with grpc-gateway or parallel handlers; mTLS from **W37-01**. | grpcurl list/get KV works; REST unchanged. |
 | **LT-05** | Web UI admin console | docs | XL | Phase 5 stable | **Gap:** LLD §10.3 optional React/Vue UI. **Hint:** Separate repo `knxvault-ui/` consuming OpenAPI; OIDC login (**W37-02**). | Read-only secrets/PKI view; no secrets in browser storage. |

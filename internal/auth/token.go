@@ -257,6 +257,21 @@ type Service struct {
 	audit              AuditRecorder
 	lockout            Lockout
 	approles           *AppRoleStore
+	ldapBinder         LDAPBinder
+	identityResolver   IdentityResolver
+	leaseCascade       LeaseCascade
+	tokenCleaner       TokenCleaner
+	ldapDefaults       *LDAPConfig
+}
+
+// LeaseCascade revokes leases when a token is revoked (M-LEASE-1).
+type LeaseCascade interface {
+	RevokeByTokenID(ctx context.Context, tokenID string) (int, error)
+}
+
+// TokenCleaner cleans per-token resources (cubbyhole) on revoke (M-WRAP-1).
+type TokenCleaner interface {
+	WipeToken(ctx context.Context, tokenID string) error
 }
 
 // Lockout is the lockout tracker abstraction (local or cluster-shared).
@@ -697,7 +712,31 @@ func (s *Service) RenewToken(ctx context.Context, token string, increment time.D
 	return s.tokens.Renew(ctx, token, increment)
 }
 
-// RevokeToken invalidates the caller token.
+// RevokeToken invalidates the caller token and cascades lease / cubbyhole cleanup.
 func (s *Service) RevokeToken(ctx context.Context, token string) error {
-	return s.tokens.Revoke(ctx, token)
+	id := hashToken(token)
+	if err := s.tokens.Revoke(ctx, token); err != nil {
+		return err
+	}
+	if s.leaseCascade != nil {
+		_, _ = s.leaseCascade.RevokeByTokenID(ctx, id)
+	}
+	if s.tokenCleaner != nil {
+		_ = s.tokenCleaner.WipeToken(ctx, id)
+	}
+	return nil
+}
+
+// SetLeaseCascade wires lease cascade on token revoke (M-LEASE-1).
+func (s *Service) SetLeaseCascade(c LeaseCascade) {
+	if s != nil {
+		s.leaseCascade = c
+	}
+}
+
+// SetTokenCleaner wires cubbyhole wipe on token revoke (M-WRAP-1).
+func (s *Service) SetTokenCleaner(c TokenCleaner) {
+	if s != nil {
+		s.tokenCleaner = c
+	}
 }

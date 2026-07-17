@@ -76,25 +76,51 @@ Jobs run on the **Raft leader** when Raft is enabled.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `KNXVAULT_AUDIT_SIGNING_KEY` | — | HMAC key for audit export and per-entry signatures |
+| **`KNXVAULT_SECURITY_PROFILE`** | `lab` | **`lab`** (default) or **`production`**. Production is **fail-closed** at startup (M-PRODSEC-1 A1). YAML: `security.profile`. See [production security posture](../design/production-security-posture.md) and `config/knxvault.production.yaml`. |
+| **`KNXVAULT_TLS_TERMINATION`** | `server` under production | `server` = process TLS via cert/key; `ingress` = edge TLS (process may listen plain HTTP). YAML: `security.tls_termination`. |
+| `KNXVAULT_AUDIT_SIGNING_KEY` | — | HMAC key for audit export and per-entry signatures (**required** when profile=`production`) |
 | `KNXVAULT_AUDIT_FORWARD_URL` | — | HTTP sink for async audit entry forwarding |
+| `KNXVAULT_METRICS_BEARER_TOKEN` | — | Require `Authorization: Bearer` on `GET /metrics` (**required** when profile=`production`). YAML: `security.metrics_bearer_token`. |
 | `KNXVAULT_CORS_ALLOWED_ORIGINS` | — | Comma-separated origins for CORS (e.g. `https://app.example.com`) |
-| `KNXVAULT_RATE_LIMIT_ENABLED` | `true` | Per-token/IP rate limiting (W52-05) |
+| `KNXVAULT_RATE_LIMIT_ENABLED` | `true` | Per-token/IP rate limiting (W52-05); **forced on** in production profile |
 | `KNXVAULT_RATE_LIMIT_RPM` | `300` | Requests per minute per client |
-| `KNXVAULT_VALKEY_CACHE_URL` | — | Valkey URL for KV cache + **cluster-shared** rate limit and auth lockout (W53) |
+| `KNXVAULT_VALKEY_CACHE_URL` | — | Valkey URL for KV cache + **cluster-shared** rate limit and auth lockout (W53). In **production**, if set must be `rediss://` / `valkeys://` or include credentials |
 | `KNXVAULT_TENANT_MODE` | `false` | Tenant namespace scoping for KV + DB/SSH/PKI resources (W32-04 / W53) |
 | `KNXVAULT_REQUEST_SIGNING_KEY` | — | HMAC key for `X-KNX-Signature` header |
 | `KNXVAULT_REQUEST_SIGNING_REQUIRED` | `false` | Reject unsigned requests when true |
-| `KNXVAULT_TLS_CERT` | — | HTTPS server certificate PEM path |
+| `KNXVAULT_TLS_CERT` | — | HTTPS server certificate PEM path (**required** in production unless `TLS_TERMINATION=ingress`) |
 | `KNXVAULT_TLS_KEY` | — | HTTPS server private key PEM path |
 | `KNXVAULT_MTLS_REQUIRED` | `false` | Require client certificates on KV write routes (also enables peer certs for `POST /auth/cert`) |
 | `KNXVAULT_MTLS_CA` | — | Client CA bundle when mTLS is enabled |
+| `KNXVAULT_ROOT_TOKEN_TTL` | `72h` lab / **≤4h** production | Bootstrap root lifetime; production profile **caps at 4h** |
+| `KNXVAULT_RAFT_ALLOW_INSECURE` | `false` | Lab-only: skip multi-node Raft mTLS and allow `k8s_auth_insecure`. **Rejected** when profile=`production` |
 | `KNXVAULT_OIDC_DEFAULT_TTL` | `1h` | Default OIDC-issued client token TTL |
+| `KNXVAULT_LDAP_URL` | — | Optional native LDAP URL (`ldap://` / `ldaps://`) for `POST /auth/ldap` (W70) |
+| `KNXVAULT_LDAP_USER_DN_TEMPLATE` | — | DN template with `%s` username (e.g. `uid=%s,ou=people,dc=example,dc=com`) |
+| `KNXVAULT_LDAP_DEFAULT_POLICIES` | — | Comma-separated policies after successful LDAP bind |
+| `KNXVAULT_LDAP_INSECURE_SKIP_VERIFY` | `false` | Lab-only TLS skip for ldaps |
 | `KNXVAULT_JOB_KV_ROTATION_INTERVAL` | `5m` | Leader job for scheduled KV rotation |
 | `KNXVAULT_ROTATION_WEBHOOK_URL` | — | Webhook on successful KV rotation |
 | `KNXVAULT_EXPOSURE_SIGNING_KEY` | — | HMAC key for `POST /sys/exposure/report` |
 | `KNXVAULT_EXPOSURE_AUTO_REVOKE` | `false` | Auto-revoke leases / rotate KV on exposure report |
 | `KNXVAULT_EXPOSURE_WEBHOOK_URL` | — | Webhook on exposure reports |
+
+### Production profile (`KNXVAULT_SECURITY_PROFILE=production`)
+
+Startup **fails** unless:
+
+| Requirement | Notes |
+|-------------|--------|
+| No lab auth | No `KNXVAULT_JWT_SECRET`, no `k8s_auth_insecure`, no `RAFT_ALLOW_INSECURE` |
+| Audit signing key | `KNXVAULT_AUDIT_SIGNING_KEY` |
+| Metrics bearer | `KNXVAULT_METRICS_BEARER_TOKEN` |
+| TLS | Server cert+key **or** `KNXVAULT_TLS_TERMINATION=ingress` |
+| Rate limit / HTTPS clients / RBAC fail-closed | Forced or required on |
+| Multi-node Raft | Peer mTLS cert/key/CA required |
+| Root token TTL | Capped at **4h** |
+| Valkey (optional) | TLS or credentials in URL |
+
+Example file: [`config/knxvault.production.yaml`](../../config/knxvault.production.yaml). Design: [production security posture](../design/production-security-posture.md).
 
 See [Tier 0 production features](../product/tier0-production.md) and [exposure detection](../integration/exposure-detection.md).
 

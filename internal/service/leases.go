@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	auditsvc "github.com/kubenexis/knxvault/internal/audit"
@@ -15,12 +16,26 @@ import (
 	"github.com/kubenexis/knxvault/internal/service/audithelper"
 )
 
-// LeaseService provides unified lease operations (W42-01–03).
+// LeaseRevoker is called when a lease is revoked (engine-specific cleanup).
+type LeaseRevoker interface {
+	RevokeLease(ctx context.Context, leaseID string) error
+}
+
+// LeaseRenewer extends a lease TTL in an engine.
+type LeaseRenewer interface {
+	Renew(ctx context.Context, leaseID string, ttlSeconds int) error
+}
+
+// LeaseService provides unified lease operations (M-LEASE-1 / W67).
 type LeaseService struct {
 	leases   repository.LeaseRepository
 	database *databaseengine.Engine
 	ssh      *sshengine.Engine
 	audit    *auditsvc.Service
+
+	mu       sync.RWMutex
+	hooks    map[string]LeaseRevoker // engine name -> revoker
+	renewers map[string]LeaseRenewer
 }
 
 // NewLeaseService constructs a lease service.
@@ -30,20 +45,58 @@ func NewLeaseService(
 	ssh *sshengine.Engine,
 	audit *auditsvc.Service,
 ) *LeaseService {
-	return &LeaseService{leases: leases, database: database, ssh: ssh, audit: audit}
+	s := &LeaseService{
+		leases:   leases,
+		database: database,
+		ssh:      ssh,
+		audit:    audit,
+		hooks:    make(map[string]LeaseRevoker),
+		renewers: make(map[string]LeaseRenewer),
+	}
+	if database != nil {
+		s.hooks["database"] = dbRevoker{database}
+		s.renewers["database"] = dbRenewer{database}
+	}
+	if ssh != nil {
+		s.hooks["ssh"] = sshRevoker{ssh}
+		s.renewers["ssh"] = sshRenewer{ssh}
+	}
+	return s
+}
+
+// RegisterRevoker registers an OnRevoke hook for an engine name.
+func (s *LeaseService) RegisterRevoker(engine string, r LeaseRevoker) {
+	if s == nil || engine == "" || r == nil {
+		return
+	}
+	s.mu.Lock()
+	s.hooks[engine] = r
+	s.mu.Unlock()
+}
+
+// RegisterRenewer registers a renew hook for an engine.
+func (s *LeaseService) RegisterRenewer(engine string, r LeaseRenewer) {
+	if s == nil || engine == "" || r == nil {
+		return
+	}
+	s.mu.Lock()
+	s.renewers[engine] = r
+	s.mu.Unlock()
 }
 
 // LeaseView is engine-agnostic lease metadata.
 type LeaseView struct {
-	ID         string     `json:"lease_id"`
-	Engine     string     `json:"engine"`
-	Role       string     `json:"role"`
-	Path       string     `json:"path"`
-	TTLSeconds int        `json:"ttl_seconds"`
-	ExpiresAt  time.Time  `json:"expires_at"`
-	Renewable  bool       `json:"renewable"`
-	Revoked    bool       `json:"revoked"`
-	RevokedAt  *time.Time `json:"revoked_at,omitempty"`
+	ID         string            `json:"lease_id"`
+	Engine     string            `json:"engine"`
+	Role       string            `json:"role"`
+	Path       string            `json:"path"`
+	TTLSeconds int               `json:"ttl_seconds"`
+	ExpiresAt  time.Time         `json:"expires_at"`
+	Renewable  bool              `json:"renewable"`
+	Revoked    bool              `json:"revoked"`
+	RevokedAt  *time.Time        `json:"revoked_at,omitempty"`
+	TokenID    string            `json:"token_id,omitempty"`
+	Metadata   map[string]string `json:"metadata,omitempty"`
 }
 
 // LeaseListFilter filters lease list queries.
@@ -51,9 +104,24 @@ type LeaseListFilter struct {
 	Engine     string
 	Role       string
 	Prefix     string
+	TokenID    string
 	ActiveOnly bool
 	Limit      int
 	Offset     int
+}
+
+// Register creates a lease record (engines may also Save directly; prefer this for token binding).
+func (s *LeaseService) Register(ctx context.Context, lease *domainsecrets.Lease) error {
+	if s == nil || s.leases == nil {
+		return common.New(common.ErrCodeInternal, "lease repository not configured")
+	}
+	if lease == nil {
+		return common.New(common.ErrCodeValidation, "lease required")
+	}
+	if err := lease.Validate(); err != nil {
+		return common.Wrap(common.ErrCodeValidation, "lease", err)
+	}
+	return s.leases.Save(ctx, lease)
 }
 
 // Get returns lease metadata by ID.
@@ -91,6 +159,9 @@ func (s *LeaseService) List(ctx context.Context, filter LeaseListFilter) ([]Leas
 		if filter.Prefix != "" && !strings.HasPrefix(lease.Path, filter.Prefix) {
 			continue
 		}
+		if filter.TokenID != "" && lease.TokenID != filter.TokenID {
+			continue
+		}
 		if filter.ActiveOnly && !lease.Active(now) {
 			continue
 		}
@@ -106,6 +177,64 @@ func (s *LeaseService) List(ctx context.Context, filter LeaseListFilter) ([]Leas
 		out = out[:filter.Limit]
 	}
 	return out, nil
+}
+
+// Renew extends a lease via the engine renewer or repository TTL update.
+func (s *LeaseService) Renew(ctx context.Context, id string, ttlSeconds int) (*LeaseView, error) {
+	if s == nil || s.leases == nil {
+		return nil, common.New(common.ErrCodeInternal, "lease repository not configured")
+	}
+	lease, err := s.leases.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if !lease.Active(time.Now().UTC()) {
+		return nil, common.New(common.ErrCodeValidation, "lease not active")
+	}
+	if !lease.Renewable {
+		return nil, common.New(common.ErrCodeValidation, "lease is not renewable")
+	}
+	if ttlSeconds <= 0 {
+		ttlSeconds = lease.TTLSeconds
+	}
+	s.mu.RLock()
+	renewer := s.renewers[lease.Engine]
+	s.mu.RUnlock()
+	if renewer != nil {
+		if err := renewer.Renew(ctx, id, ttlSeconds); err != nil {
+			audithelper.Record(s.audit, ctx, "lease.renew", "sys/leases/"+id, err, nil)
+			return nil, err
+		}
+	} else {
+		lease.TTLSeconds = ttlSeconds
+		lease.ExpiresAt = time.Now().UTC().Add(time.Duration(ttlSeconds) * time.Second)
+		if err := s.leases.Save(ctx, lease); err != nil {
+			return nil, err
+		}
+	}
+	updated, err := s.leases.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	audithelper.Record(s.audit, ctx, "lease.renew", "sys/leases/"+id, nil, map[string]any{"ttl": ttlSeconds})
+	return toLeaseView(updated), nil
+}
+
+// Revoke revokes a single lease via engine hook + repository.
+func (s *LeaseService) Revoke(ctx context.Context, id string) error {
+	if s == nil || s.leases == nil {
+		return common.New(common.ErrCodeInternal, "lease repository not configured")
+	}
+	lease, err := s.leases.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	return s.revokeOne(ctx, lease.ID, lease.Engine)
+}
+
+// RevokePrefix revokes active leases under a path prefix.
+func (s *LeaseService) RevokePrefix(ctx context.Context, prefix string) (*BulkRevokeResult, error) {
+	return s.BulkRevoke(ctx, BulkRevokeRequest{PathPrefix: prefix})
 }
 
 // BulkRevokeRequest selects leases to revoke.
@@ -146,21 +275,65 @@ func (s *LeaseService) BulkRevoke(ctx context.Context, req BulkRevokeRequest) (*
 	return result, nil
 }
 
+// Tidy revokes expired leases (force cleanup).
+func (s *LeaseService) Tidy(ctx context.Context, limit int) (int, error) {
+	if s == nil || s.leases == nil {
+		return 0, common.New(common.ErrCodeInternal, "lease repository not configured")
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	expired, err := s.leases.ListExpired(ctx, time.Now().UTC(), limit)
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, lease := range expired {
+		if lease.RevokedAt != nil {
+			continue
+		}
+		if err := s.revokeOne(ctx, lease.ID, lease.Engine); err != nil {
+			// best-effort continue
+			continue
+		}
+		n++
+	}
+	audithelper.Record(s.audit, ctx, "lease.tidy", "sys/leases", nil, map[string]any{"revoked": n})
+	return n, nil
+}
+
+// RevokeByTokenID cascades lease revocation when a client token is revoked.
+func (s *LeaseService) RevokeByTokenID(ctx context.Context, tokenID string) (int, error) {
+	if tokenID == "" {
+		return 0, nil
+	}
+	leases, err := s.List(ctx, LeaseListFilter{TokenID: tokenID, ActiveOnly: true})
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, v := range leases {
+		if err := s.revokeOne(ctx, v.ID, v.Engine); err != nil {
+			continue
+		}
+		n++
+	}
+	if n > 0 {
+		audithelper.Record(s.audit, ctx, "lease.cascade_revoke", "sys/leases", nil, map[string]any{"token_id": tokenID, "count": n})
+	}
+	return n, nil
+}
+
 func (s *LeaseService) revokeOne(ctx context.Context, id, engine string) error {
+	s.mu.RLock()
+	hook := s.hooks[engine]
+	s.mu.RUnlock()
 	var err error
-	switch engine {
-	case "database":
-		if s.database == nil {
-			return common.New(common.ErrCodeInternal, "database engine not configured")
-		}
-		_, err = s.database.RevokeLease(ctx, id)
-	case "ssh":
-		if s.ssh == nil {
-			return common.New(common.ErrCodeInternal, "ssh engine not configured")
-		}
-		err = s.ssh.RevokeLease(ctx, id)
-	default:
-		err = common.New(common.ErrCodeValidation, "unsupported lease engine")
+	if hook != nil {
+		err = hook.RevokeLease(ctx, id)
+	} else {
+		// Generic path: mark revoked only
+		err = s.leases.Revoke(ctx, id, time.Now().UTC())
 	}
 	audithelper.Record(s.audit, ctx, "lease.revoke", "sys/leases/"+id, err, map[string]any{"lease_id": id, "engine": engine})
 	return err
@@ -180,5 +353,34 @@ func toLeaseView(lease *domainsecrets.Lease) *LeaseView {
 		Renewable:  lease.Renewable,
 		Revoked:    lease.RevokedAt != nil,
 		RevokedAt:  lease.RevokedAt,
+		TokenID:    lease.TokenID,
+		Metadata:   lease.Metadata,
 	}
+}
+
+type dbRevoker struct{ e *databaseengine.Engine }
+
+func (d dbRevoker) RevokeLease(ctx context.Context, id string) error {
+	_, err := d.e.RevokeLease(ctx, id)
+	return err
+}
+
+type sshRevoker struct{ e *sshengine.Engine }
+
+func (d sshRevoker) RevokeLease(ctx context.Context, id string) error {
+	return d.e.RevokeLease(ctx, id)
+}
+
+type dbRenewer struct{ e *databaseengine.Engine }
+
+func (d dbRenewer) Renew(ctx context.Context, id string, ttl int) error {
+	_, err := d.e.Renew(ctx, id, ttl)
+	return err
+}
+
+type sshRenewer struct{ e *sshengine.Engine }
+
+func (d sshRenewer) Renew(ctx context.Context, id string, ttl int) error {
+	_, err := d.e.Renew(ctx, id, ttl)
+	return err
 }

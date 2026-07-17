@@ -25,8 +25,11 @@ Step-by-step guides for common tasks. Each recipe is self-contained: prerequisit
 1. [Kubernetes auth security model](kubernetes-auth-security.md)
 2. [OIDC authentication](oidc-authentication.md)
 3. [RBAC policies and roles](rbac-policies.md)
-4. [Audit export](audit-export.md)
-5. [Audit SIEM forwarding](audit-siem-forwarding.md)
+4. [Response wrapping and cubbyhole](response-wrapping.md)
+5. [Transit Encryption-as-a-Service](transit-eaas.md)
+6. [Identity entities and groups](identity-entities.md)
+7. [Audit export](audit-export.md)
+8. [Audit SIEM forwarding](audit-siem-forwarding.md)
 
 ### Path C — High availability and operations
 

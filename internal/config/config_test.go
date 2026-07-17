@@ -116,6 +116,8 @@ func TestLoadRaft(t *testing.T) {
 	t.Setenv("KNXVAULT_RAFT_ELECTION_RTT", "12")
 	t.Setenv("KNXVAULT_RAFT_HEARTBEAT_RTT", "2")
 	t.Setenv("KNXVAULT_UNSEAL_KEY", "dGVzdC11bnNlYWwta2V5MTIzNDU2Nzg5MDEyMzQ1Ng==")
+	// Lab multi-node without certs (production profile forbids ALLOW_INSECURE).
+	t.Setenv("KNXVAULT_RAFT_ALLOW_INSECURE", "true")
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -140,6 +142,7 @@ func TestLoadRaftNodeIDFromPodName(t *testing.T) {
 	t.Setenv("KNXVAULT_RAFT_DATA_DIR", "/tmp/raft")
 	t.Setenv("KNXVAULT_RAFT_INITIAL_MEMBERS", "1=127.0.0.1:63001,3=127.0.0.1:63003")
 	t.Setenv("KNXVAULT_UNSEAL_KEY", "dGVzdC11bnNlYWwta2V5MTIzNDU2Nzg5MDEyMzQ1Ng==")
+	t.Setenv("KNXVAULT_RAFT_ALLOW_INSECURE", "true")
 
 	cfg, err := config.Load()
 	if err != nil {

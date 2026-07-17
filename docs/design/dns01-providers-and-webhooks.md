@@ -6,7 +6,7 @@
 | **Date** | 2026-07-17 |
 | **Milestone** | **M-DNS01-1** — DNS-01 provider framework + webhook parity (backlog **W61-***) |
 | **Depends on** | M-ACME-1 (`internal/acme`, operator ACME, CLI `acme`) — [acme-letsencrypt-unified.md](acme-letsencrypt-unified.md) |
-| **Related** | [multi-issuer-acme.md](multi-issuer-acme.md) · [certificate-support-matrix.md](../operations/certificate-support-matrix.md) · cert-manager [DNS01](https://cert-manager.io/docs/configuration/acme/dns01/) · [webhook](https://cert-manager.io/docs/configuration/acme/dns01/webhook/) |
+| **Related** | [multi-issuer-acme.md](multi-issuer-acme.md) · [certificate-support-matrix.md](../operations/certificate-support-matrix.md) · [extensibility.md](../engineering/extensibility.md) (how to write DNS webhooks / engines) · cert-manager [DNS01](https://cert-manager.io/docs/configuration/acme/dns01/) · [webhook](https://cert-manager.io/docs/configuration/acme/dns01/webhook/) |
 
 ---
 

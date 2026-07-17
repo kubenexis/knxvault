@@ -32,6 +32,7 @@ func defaults() Config {
 		ManagedSQLStrict:              true,
 		RootTokenTTL:                  72 * time.Hour,
 		RequireHTTPSClients:           true, // W52-06: CSI/ESO/operator prefer HTTPS
+		SecurityProfile:               SecurityProfileLab,
 		Raft:                          defaultRaft(),
 	}
 }

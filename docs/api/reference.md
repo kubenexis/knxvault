@@ -176,6 +176,53 @@ Authenticated sign routes accept `X-Vault-Token` or `Authorization: Bearer`.
 
 Sign body accepts Vault fields used by cert-manager: `csr`, `common_name`, `alt_names`, `ip_sans`, `uri_sans`, `ttl`, `exclude_cn_from_sans`. Response `data` includes `certificate`, `issuing_ca`, `ca_chain`, `serial_number`, `expiration`.
 
+## Leases (M-LEASE-1)
+
+| Method | Path | Permission | Description |
+|--------|------|------------|-------------|
+| GET | `/sys/leases` | `sys/leases` read | List/filter leases |
+| GET | `/sys/leases/:id` | `sys/leases` read | Lookup |
+| POST | `/sys/leases/renew` | `sys/leases` write | Renew |
+| POST | `/sys/leases/revoke/:id` | `sys/leases` write | Revoke one |
+| PUT | `/sys/leases/revoke` | `sys/leases` write | Bulk revoke |
+| POST | `/sys/leases/revoke-prefix` | `sys/leases` write | Prefix revoke |
+| POST | `/sys/leases/tidy` | `sys/leases` write | Expire cleanup |
+
+## Cubbyhole & wrapping (M-WRAP-1)
+
+| Method | Path | Permission | Description |
+|--------|------|------------|-------------|
+| PUT/GET/DELETE | `/cubbyhole/*path` | `cubbyhole` | Per-token private KV |
+| POST | `/sys/wrapping/wrap` | `sys/wrapping` write | Mint wrapping token |
+| POST | `/sys/wrapping/unwrap` | `sys/wrapping` write | Single-use unwrap |
+| POST | `/sys/wrapping/lookup` | `sys/wrapping` read | Wrap metadata |
+
+## Transit (M-TRANSIT-1)
+
+| Method | Path | Permission | Description |
+|--------|------|------------|-------------|
+| POST | `/transit/keys/:name` | `transit/keys` write | Create key |
+| GET | `/transit/keys/:name` | `transit/keys` read | Key metadata |
+| POST | `/transit/keys/:name/rotate` | `transit/keys` write | Rotate |
+| POST | `/transit/encrypt|decrypt|rewrap/:name` | encrypt/decrypt write | Crypto ops |
+| POST | `/transit/sign|verify|hmac/:name` | sign/hmac | Integrity ops |
+
+## Identity (M-IDENT-1)
+
+| Method | Path | Permission | Description |
+|--------|------|------------|-------------|
+| POST/GET | `/identity/entity` | identity sudo/read | Create/list entities |
+| GET | `/identity/entity/:id` | identity read | Get entity |
+| POST | `/identity/entity/:id/disable` | identity sudo | Disable entity |
+| POST | `/identity/alias` | identity sudo | Create alias |
+| POST/GET | `/identity/group` | identity sudo/read | Groups |
+
+## LDAP auth (W70)
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/auth/ldap` | No | Username/password bind; server LDAP env config |
+
 ## Go client
 
 ```go
@@ -190,3 +237,5 @@ Package: [`pkg/client`](../../pkg/client/).
 - [Getting started](../user/getting-started.md)
 - [Configuration reference](../installation/configuration.md)
 - [Security model](../architecture/security-model.md)
+- [Lease management](../operations/lease-management.md)
+- [Vault-class capability plan](../design/vault-class-capability-plan.md)

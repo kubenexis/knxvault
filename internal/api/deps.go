@@ -32,6 +32,10 @@ type RouterDeps struct {
 	LeaseService         *service.LeaseService
 	AuditPackService     *service.AuditPackService
 	MachineIdentitySvc   *service.MachineIdentityService
+	CubbyholeService     *service.CubbyholeService
+	WrappingService      *service.WrappingService
+	TransitService       *service.TransitService
+	IdentityService      *service.IdentityService
 	TenantMode           bool
 	AuthzAudit           *middleware.AuthzAudit
 	ExposureSigningKey   string

@@ -31,10 +31,14 @@ audit:
   # forward_url: ""
 
 security:
-  rate_limit_enabled: false
+  # profile: lab          # default — lab/dev; use production for fail-closed posture
+  # profile: production   # see config/knxvault.production.yaml and docs/design/production-security-posture.md
+  # tls_termination: server   # or ingress (edge TLS; production allows plain listen)
+  rate_limit_enabled: true
   rate_limit_rpm: 300
   request_signing_required: false
   cors_allowed_origins: []
+  # metrics_bearer_token: ""  # required when profile=production (or KNXVAULT_METRICS_BEARER_TOKEN)
   # tls_cert: /etc/knxvault/tls/server.pem
   # tls_key: /etc/knxvault/tls/server.key
   # mtls_required: false

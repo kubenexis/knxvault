@@ -25,6 +25,18 @@ const (
 	defaultAuthLockoutThreshold          = 5
 	defaultAuthLockoutTTL                = 15 * time.Minute
 	defaultOIDCTokenTTL                  = 1 * time.Hour
+
+	// Security profiles (M-PRODSEC-1 / A1).
+	SecurityProfileLab        = "lab"
+	SecurityProfileProduction = "production"
+
+	// TLSTerminationIngress means API TLS is terminated at an ingress/load balancer;
+	// the process may listen plain HTTP on a private network only.
+	TLSTerminationIngress = "ingress"
+	TLSTerminationServer  = "server"
+
+	// MaxProductionRootTokenTTL is the longest allowed bootstrap root TTL in production.
+	MaxProductionRootTokenTTL = 4 * time.Hour
 )
 
 // Config holds process-wide settings loaded from environment variables.
@@ -37,6 +49,13 @@ type Config struct {
 	K8sAuthInsecure bool
 	RootToken       string
 	TokenTTL        time.Duration
+
+	// SecurityProfile is lab (default) or production (fail-closed posture).
+	// Env: KNXVAULT_SECURITY_PROFILE. YAML: security.profile.
+	SecurityProfile string
+	// TLSTermination is empty/server (process TLS) or ingress (edge TLS, process may be plain).
+	// Env: KNXVAULT_TLS_TERMINATION. YAML: security.tls_termination.
+	TLSTermination string
 
 	HAEnabled               bool
 	HANamespace             string
@@ -99,6 +118,12 @@ type Config struct {
 	// RequireHTTPSClients rejects non-HTTPS vault addresses in CSI/ESO clients (W52-06).
 	// Loopback http://127.0.0.1 and http://localhost remain allowed for lab.
 	RequireHTTPSClients bool
+
+	// LDAP (W70) — optional native directory auth defaults.
+	LDAPURL                string
+	LDAPUserDNTemplate     string
+	LDAPDefaultPolicies    []string
+	LDAPInsecureSkipVerify bool
 
 	Raft RaftConfig
 }

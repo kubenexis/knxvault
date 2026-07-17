@@ -25,6 +25,41 @@ func NewAuthHandler(svc *auth.Service, ttl time.Duration) *AuthHandler {
 	return &AuthHandler{auth: svc, ttl: ttl}
 }
 
+// LoginLDAP handles POST /auth/ldap (W70 native LDAP bind).
+func (h *AuthHandler) LoginLDAP(c *gin.Context) {
+	var req struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	cfg := auth.LDAPConfig{
+		URL:                c.GetHeader("X-KNX-LDAP-URL"),
+		UserDNTemplate:     c.GetHeader("X-KNX-LDAP-UserDN-Template"),
+		DefaultPolicies:    []string{"default"},
+		InsecureSkipVerify: c.GetHeader("X-KNX-LDAP-Insecure") == "true",
+	}
+	// Prefer body-driven config when server has LDAPDefaults on service via headers for lab;
+	// production should set server-side defaults via env (applied in deps).
+	if h.auth != nil && h.auth.LDAPDefaults() != nil {
+		cfg = *h.auth.LDAPDefaults()
+	}
+	ctx := auth.WithLoginAuditContext(c.Request.Context(), c.ClientIP(), c.GetHeader("X-Request-ID"))
+	token, record, err := h.auth.LoginLDAP(ctx, req.Username, req.Password, cfg)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, dto.LoginResponse{
+		ClientToken: token,
+		TTL:         int(time.Until(record.ExpiresAt).Seconds()),
+		Policies:    record.Policies,
+		Renewable:   record.Renewable,
+	})
+}
+
 // LoginOIDC handles POST /auth/oidc/:role.
 func (h *AuthHandler) LoginOIDC(c *gin.Context) {
 	var req dto.OIDCLoginRequest

@@ -70,7 +70,8 @@ func TestLeaseServiceListOffsetBeyondLength(t *testing.T) {
 	}
 }
 
-func TestLeaseServiceBulkRevokeRequiresEngine(t *testing.T) {
+func TestLeaseServiceBulkRevokeWithoutEngineHook(t *testing.T) {
+	// M-LEASE-1: unknown/unwired engines still mark leases revoked via repository.
 	leases := memory.NewLeaseRepository()
 	now := time.Now().UTC()
 	lease := &domainsecrets.Lease{
@@ -82,8 +83,33 @@ func TestLeaseServiceBulkRevokeRequiresEngine(t *testing.T) {
 		t.Fatalf("Save() = %v", err)
 	}
 	svc := service.NewLeaseService(leases, nil, nil, auditsvc.NewService(memory.NewAuditRepository()))
-	_, err := svc.BulkRevoke(context.Background(), service.BulkRevokeRequest{Engine: "database"})
-	if err == nil {
-		t.Fatal("expected error when database engine not configured")
+	res, err := svc.BulkRevoke(context.Background(), service.BulkRevokeRequest{Engine: "database"})
+	if err != nil {
+		t.Fatalf("BulkRevoke() = %v", err)
+	}
+	if res.Revoked != 1 {
+		t.Fatalf("revoked=%d", res.Revoked)
+	}
+}
+
+func TestLeaseServiceRenewAndCascade(t *testing.T) {
+	leases := memory.NewLeaseRepository()
+	now := time.Now().UTC()
+	lease := &domainsecrets.Lease{
+		ID: "l1", Engine: "custom", RoleName: "r", Path: "custom/x",
+		TTLSeconds: 60, CreatedAt: now, ExpiresAt: now.Add(time.Minute),
+		Renewable: true, TokenID: "tokhash",
+	}
+	if err := leases.Save(context.Background(), lease); err != nil {
+		t.Fatal(err)
+	}
+	svc := service.NewLeaseService(leases, nil, nil, auditsvc.NewService(memory.NewAuditRepository()))
+	view, err := svc.Renew(context.Background(), "l1", 120)
+	if err != nil || view.TTLSeconds != 120 {
+		t.Fatalf("Renew: %v %+v", err, view)
+	}
+	n, err := svc.RevokeByTokenID(context.Background(), "tokhash")
+	if err != nil || n != 1 {
+		t.Fatalf("cascade: %v %d", err, n)
 	}
 }
