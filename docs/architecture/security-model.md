@@ -31,6 +31,10 @@ Honest grades, known gaps (set-and-forget Medium, custody vs HSM, DIY footguns),
 
 **W83 cycle-2 residual (2026-07-17):** Deny bare GRANT role TO; wrap meta CAS + cluster-first read; ImportCA RSA-only.
 
+**W84–W85 residual cycles (2026-07-17):** OCSP body cap + wrap GC mutex (W84); KVv2 reserved internal engine paths (W85).
+
+**W86 open security backlog (2026-07-17):** Full re-audit after W85 — operator custody Secret isolation (**Critical**), ESO TLS/auth, Raft mTLS overlay, NetPol/unseal plane, SQL allowlist holes, ImportCA IsCA, etc. Work items **W86-01…** in [`docs/backlog.md`](../backlog.md); mapping [security-audit-w86-backlog-2026-07-17.md](../audit/security-audit-w86-backlog-2026-07-17.md).
+
 ## Threat model
 
 | Threat | Impact | Mitigations |

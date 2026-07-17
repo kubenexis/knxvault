@@ -7,7 +7,7 @@ SPDX-License-Identifier: CC-BY-4.0
 
 Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topologically sorted by dependency** — implement in listed order within each phase.
 
-**Current focus (2026-07-16):** **P0 W50 audit remediation** (full-codebase review 7f32c606) after W30 Complete + **operator hardening P0/P1/P2** (SA auth, leader election, CSR sign API, issuer vault Ready, Secret annotations, delivery None, backoff, ns RBAC example). Prefer KNXVault PKI + operator for vault-issued TLS (**no cert-manager**). Remaining Phase 5: tenant depth (W32), HSM (W31-02).
+**Current focus (2026-07-17):** **P0 W86 security backlog** (custody isolation, ESO edge, production deploy plane) after W78–W85 engine packs. Prefer KNXVault PKI + operator for vault-issued TLS (**no cert-manager**). Remaining Phase 5: tenant depth (W32), HSM (W31-02 / M-CUSTODY-1).
 
 **Milestone M-ACME-1 (P1):** Unified **Let's Encrypt / ACME** for **standalone + Kubernetes + `knxvault-cli acme`** — design [`docs/design/acme-letsencrypt-unified.md`](design/acme-letsencrypt-unified.md), backlog **W60-01…** below. K8s operator ACME already shipped; gap is CLI + standalone.
 
@@ -28,6 +28,10 @@ Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topological
 **W80 High/Medium pack (2026-07-17):** Cloudflare SafeHTTP; SQL GRANT ALL/IN ROLE; prod disables coarse PKI write; operator Secrets least-priv; unseal CIDR breadth; exposure HA replay; doctor lab warn; base NetPol egress — [security-remediation-w80-2026-07-17.md](audit/security-remediation-w80-2026-07-17.md).
 
 **W81 High/Medium pack (2026-07-17):** pathLenZero; unseal `/16`; webhook TLS; TokenReview audiences; lab unseal flag; RSA floor; mount-scoped sign; max leaf TTL; Secret ownership; HTTPS defaults — [security-remediation-w81-2026-07-17.md](audit/security-remediation-w81-2026-07-17.md).
+
+**W82–W85 residual cycles (2026-07-17):** SQL normalize/membership + ImportCA RSA (W82); bare GRANT role + wrap CAS (W83); OCSP body cap / wrap GC (W84); KVv2 reserved internal paths (W85). Cycle reports under [`docs/audit/`](audit/).
+
+**W86 security backlog (2026-07-17, open):** Full re-audit after W85 — **Critical/High** on K8s custody + ESO edge; **Medium** on SQL allowlist, ImportCA IsCA, unseal plane, ABAC headers, deploy completeness. Mapping: [security-audit-w86-backlog-2026-07-17.md](audit/security-audit-w86-backlog-2026-07-17.md). Work items **W86-01…** below.
 
 **W75 CIS hardening (network + defaults + multi-tenant stance):** design [`docs/design/cis-hardening-improvements.md`](design/cis-hardening-improvements.md). **P0 done:** multi-node Raft forces production profile (**W75-01**); `deployments/k8s/production/` (**W75-02**).
 
@@ -718,6 +722,44 @@ Report: `docs/audit/formal-w53-residual-features-2026-07-16.md`.
 > Prefer **W63-01** before **W63-04**. Do not block M-PRODSEC-1 on HSM.
 
 ---
+
+## Milestone W86 — Full re-audit residual backlog (2026-07-17)
+
+**Status:** **Not started** (open after W78–W85 engine packs).  
+**Priority:** **P0** for Critical/High (custody + ESO); **P1** for Medium engines/deploy; **P2** Low.  
+**Audit report / ID map:** [`docs/audit/security-audit-w86-backlog-2026-07-17.md`](audit/security-audit-w86-backlog-2026-07-17.md)  
+**Context:** Core seal/crypto/PKI/KV isolation is strong; residual risk is primarily **default Kubernetes custody co-location**, **ESO edge**, and **allowlist/deploy completeness**.
+
+| ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
+|----|----------|--------|--------|------|------------|-------|-------------|---------------------|
+| **W86-01** | P0 | Not started | M | k8s | W80-04 | Isolate vault custody Secrets from operator | Operator Role must not `get` master/unseal/root Secret; split NS or `resourceNames`/labels for TLS Secrets only | Operator SA cannot `get secret/knxvault`; TLS cert delivery still works |
+| **W86-02** | P0 | Not started | S | k8s | W86-01 | Remove root token from operator sample | Drop optional `KNXVAULT_ROOT_TOKEN` env; SA login only | Deployment uses `KNXVAULT_K8S_ROLE` only; docs updated |
+| **W86-03** | P0 | Not started | M | k8s | W81-12 | Certificate Secret ownership OwnerRef-only | Stop label-only ownership spoof; refuse clobber of unrelated Secrets | Unit test: labeled but unowned Secret not overwritten |
+| **W86-04** | P0 | Not started | M | k8s | — | ESO adapter TLS | Listen TLS; align ClusterSecretStore URL; cert mounts in deploy | HTTPS fetch works; plaintext default gone |
+| **W86-05** | P0 | Not started | M | security | W86-04 | ESO fetch requires caller identity | No silent TokenFile shared proxy; require header token or authenticated SA path | Unauthenticated `/fetch` → 401 even with TokenFile unless explicit break-glass |
+| **W86-06** | P0 | Not started | M | k8s | W75-02, W50-20 | Production Raft mTLS materials in overlay | Mounts/Secrets for `KNXVAULT_RAFT_MTLS_*` in production kustomize | Multi-node production apply documents cert bootstrap; no lab insecure required |
+| **W86-07** | P0 | Not started | S | k8s | W75-03 | Base NetPol metrics-only for monitoring | Monitoring must not reach API :8200 (use :8201 + bearer) | Base + production NetPol deny monitoring→8200 unseal/API |
+| **W86-08** | P1 | Not started | S | security | W62-01 | Reduce lab profile set-and-forget risk | Doctor/docs/CI: non-loopback or Raft warns/fails without production | Documented gate; unit/doctor test |
+| **W86-09** | P1 | Not started | M | security | W75-04, W81-02 | Tighten unseal plane examples | Prefer admin jump `/32`; document Ingress path deny for `/sys/unseal` | Production samples ≤ `/24` or jump CIDR; runbook path deny |
+| **W86-10** | P1 | Not started | M | security | W43-03 | Shared login/unseal rate limits (Valkey) | HA multiplies process-local limits | With Valkey, cluster-wide login/unseal counters |
+| **W86-11** | P1 | Not started | S | security | W19-02 | Production request-signing guidance | Optional force when key set, or doctor warn | Docs + optional ValidateSecurity/doctor check |
+| **W86-12** | P1 | Not started | M | auth | W44-02 | Bind ABAC env/cluster to trusted claims | Do not trust client headers alone for production policies | Docs + optional deny when headers not from trusted path |
+| **W86-13** | P1 | Not started | S | k8s | W81-03 | Webhook caBundle Day-0 wiring | cert-manager inject or bootstrap Secret; no bare placeholder in happy path | Production webhook apply path includes real caBundle |
+| **W86-14** | P1 | Not started | S | k8s | W86-07 | Ingress path deny for unseal | Document/sample Ingress rules excluding `/sys/unseal` | Recipe or kustomize Ingress patch |
+| **W86-15** | P1 | Not started | M | security | W83-01 | Managed SQL deny AS SELECT / PUBLIC / tighten DDL | Close post-W83 allowlist holes | Unit tests deny exfil shapes; object GRANT still works |
+| **W86-16** | P1 | Not started | S | crypto | W82-02 | ImportCA requires IsCA + certSign KU | Align import with generated CA policy | Unit test rejects leaf import as CA |
+| **W86-17** | P1 | Not started | S | security | W50-22 | Ban sqlite/file managed admin URLs in production | Managed connection_url postgres-only under production | ValidateSecurity or engine gate |
+| **W86-18** | P2 | Not started | M | auth | W81-09 | Vault-compat mount ↔ CA binding | Document or enforce mount-name to allowed CA set | Docs or policy test multi-mount isolation |
+| **W86-19** | P2 | Not started | S | k8s | — | Operator leader lease namespaced Role | Avoid cluster-wide leases CRUD | Role in knxvault NS only |
+| **W86-20** | P2 | Not started | S | k8s | — | Operator metrics auth/NetPol sample | Bearer or NetPol on :8080 | Manifest + note |
+| **W86-21** | P2 | Not started | S | security | — | Slim production image optional | Split CLI out of server image or multi-stage product note | Doc decision or slim Dockerfile |
+| **W86-22** | P2 | Not started | S | k8s | W86-04 | Operator default vault URL https | Code default matches HTTPS posture | Unit/default test |
+| **W86-L01** | P2 | Not started | S | security | W84 | OCSP response cache / dedicated signer | Reduce unauth decrypt DoS | Cache or rate doc |
+| **W86-L02** | P2 | Not started | M | crypto | W65 | Transit rotate CAS multi-node | PutAtomic with version | Race test |
+| **W86-L03** | P2 | Not started | M | crypto | — | Envelope path AAD optional | Bind path to ciphertext | Design note |
+| **W86-L04** | P2 | Not started | S | api | — | OpenAPI auth or disable in production | Reduce surface | Config flag |
+
+> **Sequencing:** **W86-01 → W86-02** first (custody). **W86-04 → W86-05** next (ESO). **W86-06/07/13/14** for deploy plane. Engines **W86-15–17**. Do not reopen closed W78–W85 IDs without new evidence.
 
 ## Milestone W77 — Three-cycle security audit (2026-07-17)
 
