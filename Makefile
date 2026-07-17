@@ -255,27 +255,66 @@ define require_container_cli
 	fi
 endef
 
+# Ensure a just-built image is visible to $(DOCKER) (nerdctl may use docker.io/library/ prefix).
+define ensure_image
+	@ref="$(1)"; \
+	if $(DOCKER) image inspect "$$ref" >/dev/null 2>&1; then \
+		: ; \
+	elif $(DOCKER) image inspect "docker.io/library/$$ref" >/dev/null 2>&1; then \
+		$(DOCKER) tag "docker.io/library/$$ref" "$$ref" >/dev/null 2>&1 || true; \
+	else \
+		printf "$(COLOR_RED)error: image $$ref not found after build$(COLOR_RESET)\n" >&2; \
+		printf "  DOCKER=$(DOCKER)\n" >&2; \
+		printf "  Looking for tag $(IMAGE_TAG). Images matching 'knxvault':\n" >&2; \
+		$(DOCKER) images 2>/dev/null | grep -E 'knxvault|REPOSITORY' | head -20 >&2 || true; \
+		printf "  Hint: rebuild with: make container-build DOCKER='$(DOCKER)'\n" >&2; \
+		exit 1; \
+	fi
+endef
+
+define save_image
+	@mkdir -p $(IMAGE_EXPORT_DIR)
+	$(call ensure_image,$(1))
+	@# Prefer short name; fall back to fully-qualified if needed.
+	@ref="$(1)"; \
+	if ! $(DOCKER) image inspect "$$ref" >/dev/null 2>&1; then \
+		ref="docker.io/library/$(1)"; \
+	fi; \
+	$(DOCKER) save -o $(2) "$$ref"; \
+	test -s $(2); \
+	ls -lh $(2); \
+	printf "$(COLOR_GREEN)Load on target: $(DOCKER) load -i $(2)$(COLOR_RESET)\n"
+endef
+
 container-build: ## Build distroless server image ($(IMAGE)); also tags $(IMAGE_VERSION)
 	$(call log,Building distroless Debian 13 image $(IMAGE) with $(DOCKER))
 	$(call require_container_cli)
-	$(DOCKER) build \
+	@$(DOCKER) build \
 		-f $(DOCKERFILE) \
 		--build-arg VERSION=$(VERSION) \
 		--build-arg COMMIT=$(COMMIT) \
 		--build-arg BUILD_ID=$(BUILD_ID) \
 		-t $(IMAGE) \
-		-t $(IMAGE_VERSION) .
+		-t $(IMAGE_VERSION) \
+		-t docker.io/library/$(IMAGE) \
+		.
+	$(call ensure_image,$(IMAGE))
+	@printf "$(COLOR_GREEN)Built $(IMAGE)$(COLOR_RESET)\n"
 
 k8s-operator-build: ## Build distroless operator image ($(OPERATOR_IMAGE)); also tags $(OPERATOR_IMAGE_VERSION)
 	$(call log,Building distroless operator image $(OPERATOR_IMAGE) with $(DOCKER))
 	$(call require_container_cli)
-	$(DOCKER) build \
+	@$(DOCKER) build \
 		-f $(DOCKERFILE_OPERATOR) \
 		--build-arg VERSION=$(VERSION) \
 		--build-arg COMMIT=$(COMMIT) \
 		--build-arg BUILD_ID=$(BUILD_ID) \
 		-t $(OPERATOR_IMAGE) \
-		-t $(OPERATOR_IMAGE_VERSION) .
+		-t $(OPERATOR_IMAGE_VERSION) \
+		-t docker.io/library/$(OPERATOR_IMAGE) \
+		.
+	$(call ensure_image,$(OPERATOR_IMAGE))
+	@printf "$(COLOR_GREEN)Built $(OPERATOR_IMAGE)$(COLOR_RESET)\n"
 
 container-build-all: container-build k8s-operator-build ## Build server + operator distroless images
 
@@ -283,28 +322,12 @@ container-build-all: container-build k8s-operator-build ## Build server + operat
 container-export: container-build ## Build (if needed) and export server image → $(IMAGE_TAR)
 	$(call log,Exporting $(IMAGE) → $(IMAGE_TAR))
 	$(call require_container_cli)
-	@mkdir -p $(IMAGE_EXPORT_DIR)
-	@if ! $(DOCKER) image inspect $(IMAGE) >/dev/null 2>&1; then \
-		printf "$(COLOR_RED)error: image $(IMAGE) not found after build$(COLOR_RESET)\n" >&2; \
-		exit 1; \
-	fi
-	$(DOCKER) save -o $(IMAGE_TAR) $(IMAGE)
-	@test -s $(IMAGE_TAR)
-	@ls -lh $(IMAGE_TAR)
-	@printf "$(COLOR_GREEN)Load on target: $(DOCKER) load -i $(IMAGE_TAR)$(COLOR_RESET)\n"
+	$(call save_image,$(IMAGE),$(IMAGE_TAR))
 
 k8s-operator-export: k8s-operator-build ## Build (if needed) and export operator image → $(OPERATOR_TAR)
 	$(call log,Exporting $(OPERATOR_IMAGE) → $(OPERATOR_TAR))
 	$(call require_container_cli)
-	@mkdir -p $(IMAGE_EXPORT_DIR)
-	@if ! $(DOCKER) image inspect $(OPERATOR_IMAGE) >/dev/null 2>&1; then \
-		printf "$(COLOR_RED)error: image $(OPERATOR_IMAGE) not found after build$(COLOR_RESET)\n" >&2; \
-		exit 1; \
-	fi
-	$(DOCKER) save -o $(OPERATOR_TAR) $(OPERATOR_IMAGE)
-	@test -s $(OPERATOR_TAR)
-	@ls -lh $(OPERATOR_TAR)
-	@printf "$(COLOR_GREEN)Load on target: $(DOCKER) load -i $(OPERATOR_TAR)$(COLOR_RESET)\n"
+	$(call save_image,$(OPERATOR_IMAGE),$(OPERATOR_TAR))
 
 # Write build-info sidecar next to tarballs for air-gap inventory.
 define write_image_build_info
