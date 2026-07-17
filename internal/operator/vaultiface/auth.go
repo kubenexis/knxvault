@@ -45,4 +45,3 @@ func (h *HTTPAPI) ensureToken(ctx context.Context) error {
 	h.tokenTTL = time.Now().Add(30 * time.Minute)
 	return nil
 }
-
