@@ -19,7 +19,7 @@ ARG VERSION=0.5.1
 ARG COMMIT=unknown
 ARG BUILD_ID=0
 
-ENV GOTOOLCHAIN=go1.26.4
+ENV GOTOOLCHAIN=go1.26.5
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download

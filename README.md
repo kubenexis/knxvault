@@ -24,7 +24,7 @@ Contributions require a [Developer Certificate of Origin](https://developercerti
 
 ## Requirements
 
-- Go 1.26+ (auto-downloaded via `GOTOOLCHAIN=go1.26.4` in the Makefile)
+- Go 1.26.5+ (auto-downloaded via `GOTOOLCHAIN=go1.26.5` in the Makefile)
 - `golangci-lint` v2, `gosec`, `trivy` (install: `make install-tools`)
 - Dragonboat Raft storage (`KNXVAULT_RAFT_ENABLED=true`) for production; in-memory repos used when unset
 - Docker or nerdctl (for `make container-build` — **required** production packaging path)
