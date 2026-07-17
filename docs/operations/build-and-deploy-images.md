@@ -93,12 +93,27 @@ command -v nerdctl || command -v docker
 # Prefer nerdctl when the runtime is containerd
 ```
 
+**Container CLI selection (`make docker-build`):**
+
+| Order | Backend | When |
+|-------|---------|------|
+| 1 | `docker` | `docker info` succeeds |
+| 2 | `nerdctl` | rootless/rootful `nerdctl info` succeeds |
+| 3 | `sudo nerdctl` | rootful containerd (common on build hosts) |
+
+If you see `rootless containerd not running`, either start rootless containerd or force rootful:
+
+```bash
+make docker-build-all DOCKER='sudo nerdctl'
+# or permanently: export DOCKER='sudo nerdctl'
+```
+
 Pull bases once (air-gap: transfer these layers too):
 
 ```bash
 # example with nerdctl (use sudo if rootful containerd)
-nerdctl pull golang:1.26-bookworm
-nerdctl pull gcr.io/distroless/static-debian13:nonroot
+sudo nerdctl pull golang:1.26-bookworm
+sudo nerdctl pull gcr.io/distroless/static-debian13:nonroot
 ```
 
 ### 3.2 Build server image
@@ -109,7 +124,7 @@ make docker-build
 # → knxvault:0.4.5  (or IMAGE=…)
 ```
 
-`make docker-build` uses the first of `docker` or `nerdctl` on `PATH`.
+`make docker-build` auto-picks a **working** `docker` / `nerdctl` / `sudo nerdctl` (see above).
 
 ### 3.3 Build operator image (Kubernetes TLS automation)
 

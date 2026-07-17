@@ -20,8 +20,20 @@ GO_TOOLCHAIN    ?= go1.26.4
 GOLANGCI_LINT   ?= $(GOPATH_BIN)/golangci-lint
 GOSEC           ?= $(GOPATH_BIN)/gosec
 TRIVY           := $(firstword $(shell command -v trivy 2>/dev/null) $(LOCAL_BIN)/trivy)
-# Container CLI: prefer docker, fall back to nerdctl (air-gapped / containerd hosts).
-DOCKER          := $(firstword $(shell command -v docker 2>/dev/null) $(shell command -v nerdctl 2>/dev/null))
+# Container CLI: first working backend (docker, rootless nerdctl, or rootful sudo nerdctl).
+# Override: make docker-build DOCKER='sudo nerdctl'
+DOCKER ?= $(shell \
+	if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then \
+		command -v docker; \
+	elif command -v nerdctl >/dev/null 2>&1 && nerdctl info >/dev/null 2>&1; then \
+		command -v nerdctl; \
+	elif command -v nerdctl >/dev/null 2>&1 && sudo -n nerdctl info >/dev/null 2>&1; then \
+		echo "sudo nerdctl"; \
+	elif command -v nerdctl >/dev/null 2>&1 && sudo nerdctl info >/dev/null 2>&1; then \
+		echo "sudo nerdctl"; \
+	else \
+		echo ""; \
+	fi)
 VERSION         ?= 0.4.5
 COMMIT          ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 BUILD_ID        ?= $(shell date +%s)
@@ -192,12 +204,22 @@ lab-full-e2e: ## Full lab E2E on LAB_HOST (core + vaultcompat + operator)
 	$(call log,Lab full E2E on $(LAB_HOST))
 	bash scripts/lab-full-e2e.sh $(LAB_HOST)
 
+# Fail fast if no working container engine (rootless nerdctl often needs setup or sudo).
+define require_container_cli
+	@if [ -z "$(strip $(DOCKER))" ]; then \
+		printf "$(COLOR_RED)error: no working container CLI (docker/nerdctl)$(COLOR_RESET)\n" >&2; \
+		printf "  tried: docker info, nerdctl info, sudo nerdctl info\n" >&2; \
+		printf "  fix one of:\n" >&2; \
+		printf "    - start Docker daemon, or\n" >&2; \
+		printf "    - rootless: containerd-rootless-setuptool.sh install, or\n" >&2; \
+		printf "    - rootful containerd: make docker-build DOCKER='sudo nerdctl'\n" >&2; \
+		exit 1; \
+	fi
+endef
+
 docker-build: ## Build distroless server image ($(IMAGE)) via docker or nerdctl
 	$(call log,Building distroless Debian 13 image $(IMAGE) with $(DOCKER))
-	@command -v $(notdir $(DOCKER)) >/dev/null 2>&1 || { \
-		printf "$(COLOR_RED)error: neither docker nor nerdctl found$(COLOR_RESET)\n" >&2; \
-		exit 1; \
-	}
+	$(call require_container_cli)
 	$(DOCKER) build \
 		-f $(DOCKERFILE) \
 		--build-arg VERSION=$(VERSION) \
@@ -207,10 +229,7 @@ docker-build: ## Build distroless server image ($(IMAGE)) via docker or nerdctl
 
 docker-build-operator: ## Build distroless operator image ($(OPERATOR_IMAGE))
 	$(call log,Building distroless operator image $(OPERATOR_IMAGE) with $(DOCKER))
-	@command -v $(notdir $(DOCKER)) >/dev/null 2>&1 || { \
-		printf "$(COLOR_RED)error: neither docker nor nerdctl found$(COLOR_RESET)\n" >&2; \
-		exit 1; \
-	}
+	$(call require_container_cli)
 	$(DOCKER) build \
 		-f $(DOCKERFILE_OPERATOR) \
 		--build-arg VERSION=$(VERSION) \
