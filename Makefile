@@ -258,19 +258,28 @@ k8s-operator-build: ## Build distroless operator image ($(OPERATOR_IMAGE)); also
 
 container-build-all: container-build k8s-operator-build ## Build server + operator distroless images
 
-container-export: ## Export server image $(IMAGE) to $(IMAGE_TAR) (name includes commit)
+# Export always rebuilds so `make clean container-export-all` works and tags match this COMMIT.
+container-export: container-build ## Build (if needed) and export server image → $(IMAGE_TAR)
 	$(call log,Exporting $(IMAGE) → $(IMAGE_TAR))
 	$(call require_container_cli)
 	@mkdir -p $(IMAGE_EXPORT_DIR)
+	@if ! $(DOCKER) image inspect $(IMAGE) >/dev/null 2>&1; then \
+		printf "$(COLOR_RED)error: image $(IMAGE) not found after build$(COLOR_RESET)\n" >&2; \
+		exit 1; \
+	fi
 	$(DOCKER) save -o $(IMAGE_TAR) $(IMAGE)
 	@test -s $(IMAGE_TAR)
 	@ls -lh $(IMAGE_TAR)
 	@printf "$(COLOR_GREEN)Load on target: $(DOCKER) load -i $(IMAGE_TAR)$(COLOR_RESET)\n"
 
-k8s-operator-export: ## Export operator image $(OPERATOR_IMAGE) to $(OPERATOR_TAR) (name includes commit)
+k8s-operator-export: k8s-operator-build ## Build (if needed) and export operator image → $(OPERATOR_TAR)
 	$(call log,Exporting $(OPERATOR_IMAGE) → $(OPERATOR_TAR))
 	$(call require_container_cli)
 	@mkdir -p $(IMAGE_EXPORT_DIR)
+	@if ! $(DOCKER) image inspect $(OPERATOR_IMAGE) >/dev/null 2>&1; then \
+		printf "$(COLOR_RED)error: image $(OPERATOR_IMAGE) not found after build$(COLOR_RESET)\n" >&2; \
+		exit 1; \
+	fi
 	$(DOCKER) save -o $(OPERATOR_TAR) $(OPERATOR_IMAGE)
 	@test -s $(OPERATOR_TAR)
 	@ls -lh $(OPERATOR_TAR)
