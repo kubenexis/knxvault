@@ -153,8 +153,9 @@ After `make container-build-all` (or individual builds), export OCI/docker-compa
 # Build then export (recommended)
 make container-build-all
 make container-export-all
-# → build/images/knxvault-0.5.1.tar
-# → build/images/knxvault-operator-0.5.1.tar
+# → build/images/knxvault-0.5.1-<commit>.tar
+# → build/images/knxvault-operator-0.5.1-<commit>.tar
+# → build/images/build-info-0.5.1-<commit>.txt
 
 # Individual targets
 make container-export          # server only (standalone needs this)
@@ -162,24 +163,27 @@ make k8s-operator-export       # operator only (K8s cert automation)
 
 # Overrides
 make container-export-all IMAGE_EXPORT_DIR=/tmp/airgap VERSION=0.5.1
+# IMAGE_TAG defaults to $(VERSION)-$(COMMIT)
 ```
 
 | Topology | Tarballs required |
 |----------|-------------------|
-| **Standalone** containerd | `knxvault-$(VERSION).tar` only |
-| **Kubernetes** (vault only) | `knxvault-$(VERSION).tar` on every node (or registry) |
-| **Kubernetes** + operator | both `knxvault-*.tar` and `knxvault-operator-*.tar` |
+| **Standalone** containerd | `knxvault-$(IMAGE_TAG).tar` only |
+| **Kubernetes** (vault only) | `knxvault-$(IMAGE_TAG).tar` on every node (or registry) |
+| **Kubernetes** + operator | both server + operator tarballs for that `IMAGE_TAG` |
 
 **On the air-gapped target** (same engine as build when possible):
 
 ```bash
-# containerd / nerdctl
-sudo nerdctl load -i knxvault-0.5.1.tar
-sudo nerdctl load -i knxvault-operator-0.5.1.tar   # if K8s operator
+# containerd / nerdctl — use exact names from build-info-*.txt
+sudo nerdctl load -i build/images/knxvault-0.5.1-<commit>.tar
+sudo nerdctl load -i build/images/knxvault-operator-0.5.1-<commit>.tar   # if K8s operator
 sudo nerdctl images | grep knxvault
+# optional alias for manifests that pin knxvault:0.5.1
+# sudo nerdctl tag knxvault:0.5.1-<commit> knxvault:0.5.1
 
 # Docker Engine
-docker load -i knxvault-0.5.1.tar
+docker load -i build/images/knxvault-0.5.1-<commit>.tar
 ```
 
 Also ship **host `knxvault-cli`** (`make build-cli` → copy `build/bin/knxvault-cli`) — not an image.
