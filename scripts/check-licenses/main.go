@@ -36,15 +36,17 @@ var licensePatterns = []struct {
 		regexp.MustCompile(`(?i)Permission is hereby granted, free of charge`),
 		regexp.MustCompile(`(?i)SPDX-License-Identifier:\s*MIT`),
 	}},
-	{spdx: "BSD-2-Clause", matches: []*regexp.Regexp{
-		regexp.MustCompile(`(?i)BSD 2-Clause`),
-		regexp.MustCompile(`(?i)SPDX-License-Identifier:\s*BSD-2-Clause`),
-		regexp.MustCompile(`(?is)Redistribution and use in source and binary forms.+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"`),
-	}},
+	// Prefer BSD-3 before BSD-2: a 3-clause text also contains the 2-clause body.
 	{spdx: "BSD-3-Clause", matches: []*regexp.Regexp{
 		regexp.MustCompile(`(?i)BSD 3-Clause`),
 		regexp.MustCompile(`(?i)SPDX-License-Identifier:\s*BSD-3-Clause`),
-		regexp.MustCompile(`(?is)Redistribution and use in source and binary forms.+Neither the name`),
+		regexp.MustCompile(`(?is)Redistribution and use in source and binary forms.+(?:Neither the name|The names of its contributors may not be used)`),
+	}},
+	{spdx: "BSD-2-Clause", matches: []*regexp.Regexp{
+		regexp.MustCompile(`(?i)BSD 2-Clause`),
+		regexp.MustCompile(`(?i)SPDX-License-Identifier:\s*BSD-2-Clause`),
+		// "AS IS" may be line-wrapped in some LICENSE files (e.g. go-difflib).
+		regexp.MustCompile(`(?is)Redistribution and use in source and binary forms.+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS\s*"AS\s*IS"`),
 	}},
 	{spdx: "ISC", matches: []*regexp.Regexp{
 		regexp.MustCompile(`(?i)ISC License`),
@@ -71,11 +73,14 @@ var licensePatterns = []struct {
 	}},
 }
 
-// moduleLicenseOverrides maps modules without standard LICENSE files to SPDX IDs.
+// moduleLicenseOverrides maps modules without standard LICENSE files (or with
+// nonstandard wording) to SPDX IDs.
 var moduleLicenseOverrides = map[string]string{
 	"github.com/pkg/errors":            "BSD-2-Clause",
 	"github.com/cockroachdb/sentry-go": "BSD-3-Clause",
 	"github.com/magiconair/properties": "BSD-2-Clause",
+	// BSD-3-Clause; LICENSE wraps "AS IS" across lines (transitive via testify).
+	"github.com/pmezard/go-difflib": "BSD-3-Clause",
 }
 
 func main() {
