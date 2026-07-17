@@ -317,7 +317,7 @@ Also keep platform PVC snapshots and Secret custody. Restore needs the **same ma
 2. Roll knxvault image (StatefulSet) via kubectl/GitOps  
 3. Restore API access; **unseal**  
 4. `knxvault-cli doctor --json`  
-5. Smoke: `kv get` known path; optional `pki issue` or Certificate renew  
+5. Smoke: `kv get` known path (values `[REDACTED]` by default; use `--show-secrets` only when needed); optional `pki issue` or Certificate renew  
 6. Roll operator if needed  
 
 ## B5. Incident seal
