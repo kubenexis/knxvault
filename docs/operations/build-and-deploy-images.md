@@ -349,8 +349,14 @@ Expect non-root user, entrypoint `knxvault`, no shell.
 ```bash
 # Build everything you need for both topologies
 make container-build              # knxvault:VERSION  (standalone + K8s server/CSI/webhook/ESO)
-make k8s-operator-build     # knxvault-operator:VERSION  (K8s operator only)
-make build-cli                 # host admin binary
+make k8s-operator-build           # knxvault-operator:VERSION  (K8s operator only)
+make container-build-all          # both images
+make container-export-all         # air-gap tarballs → dist/images/*.tar
+make build-cli                    # host admin binary
+
+# Air-gap load (target host)
+sudo nerdctl load -i dist/images/knxvault-0.4.5.tar
+sudo nerdctl load -i dist/images/knxvault-operator-0.4.5.tar   # K8s operator
 
 # Standalone (containerd)
 nerdctl run -d --name knxvault -p 8200:8200 … knxvault:0.4.5 serve
@@ -358,5 +364,5 @@ export KNXVAULT_ADDR=http://127.0.0.1:8200
 ./bin/knxvault-cli sys unseal "$UNSEAL"
 
 # Kubernetes
-# push images → set image: → kubectl apply → port-forward → knxvault-cli unseal/doctor
+# load or push images → set image: → kubectl apply → port-forward → knxvault-cli unseal/doctor
 ```
