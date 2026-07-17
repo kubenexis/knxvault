@@ -71,9 +71,9 @@ jobs:
           make build build-cli
           test -x build/bin/knxvault
           test -x build/bin/knxvault-cli
-          # Smoke-check both host binaries are runnable (CLI has no "version" subcommand).
-          build/bin/knxvault version
-          build/bin/knxvault-cli --help | head -5
+          # Smoke-check both host binaries report build metadata.
+          build/bin/knxvault -v
+          build/bin/knxvault-cli -v
           make sbom
 
       - name: Upload host binaries (knxvault + knxvault-cli)
