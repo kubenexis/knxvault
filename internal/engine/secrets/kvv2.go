@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,6 +19,30 @@ import (
 	"github.com/kubenexis/knxvault/internal/repository"
 	"github.com/kubenexis/knxvault/internal/utils"
 )
+
+// reservedKVPathPrefixes are internal engine storage namespaces that must not
+// be reachable via the public KVv2 API (W85-01).
+var reservedKVPathPrefixes = []string{
+	"cubbyhole/",
+	"sys/wrapping/",
+	"sys/internal/",
+	"database/creds/",
+	"ssh/creds/",
+	"transit/keys/",
+}
+
+func rejectReservedKVPath(path string) error {
+	p := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(path)), "/")
+	if p == "" {
+		return nil
+	}
+	for _, pref := range reservedKVPathPrefixes {
+		if p == strings.TrimSuffix(pref, "/") || strings.HasPrefix(p, pref) {
+			return common.New(common.ErrCodeForbidden, "path is reserved for an internal engine")
+		}
+	}
+	return nil
+}
 
 const engineName = "kv"
 
@@ -59,6 +84,9 @@ func (e *KVV2Engine) Put(ctx context.Context, path string, data map[string]any, 
 	}
 	if path == "" {
 		return nil, common.New(common.ErrCodeValidation, "secret path is required")
+	}
+	if err := rejectReservedKVPath(path); err != nil {
+		return nil, err
 	}
 	if len(data) == 0 {
 		return nil, common.New(common.ErrCodeValidation, "secret data is required")
@@ -127,6 +155,9 @@ func (e *KVV2Engine) GetVersion(ctx context.Context, path string, version int) (
 	if e.repo == nil || e.crypto == nil {
 		return nil, common.New(common.ErrCodeInternal, "kv engine not fully configured")
 	}
+	if err := rejectReservedKVPath(path); err != nil {
+		return nil, err
+	}
 
 	var (
 		sv  *domainsecrets.SecretVersion
@@ -194,6 +225,9 @@ func (e *KVV2Engine) DestroyVersion(ctx context.Context, path string, version in
 	if path == "" || version < 1 {
 		return common.New(common.ErrCodeValidation, "path and version are required")
 	}
+	if err := rejectReservedKVPath(path); err != nil {
+		return err
+	}
 	return e.repo.DestroyVersion(ctx, path, version)
 }
 
@@ -202,6 +236,9 @@ func (e *KVV2Engine) ListPaths(ctx context.Context, prefix string) ([]string, er
 	if e.repo == nil {
 		return nil, common.New(common.ErrCodeInternal, "kv engine not fully configured")
 	}
+	if err := rejectReservedKVPath(prefix); err != nil {
+		return nil, err
+	}
 	versions, err := e.repo.ListByPath(ctx, prefix)
 	if err != nil {
 		return nil, err
@@ -209,6 +246,9 @@ func (e *KVV2Engine) ListPaths(ctx context.Context, prefix string) ([]string, er
 	seen := make(map[string]struct{})
 	var paths []string
 	for _, sv := range versions {
+		if rejectReservedKVPath(sv.Path) != nil {
+			continue
+		}
 		if _, ok := seen[sv.Path]; ok {
 			continue
 		}
@@ -222,6 +262,9 @@ func (e *KVV2Engine) ListPaths(ctx context.Context, prefix string) ([]string, er
 func (e *KVV2Engine) ListVersions(ctx context.Context, path string) ([]VersionMetadata, error) {
 	if e.repo == nil {
 		return nil, common.New(common.ErrCodeInternal, "kv engine not fully configured")
+	}
+	if err := rejectReservedKVPath(path); err != nil {
+		return nil, err
 	}
 	versions, err := e.repo.ListByPath(ctx, path)
 	if err != nil {
@@ -297,6 +340,9 @@ func (e *KVV2Engine) GetMetadata(ctx context.Context, path string, version int) 
 func (e *KVV2Engine) Delete(ctx context.Context, path string) error {
 	if e.repo == nil || e.crypto == nil {
 		return common.New(common.ErrCodeInternal, "kv engine not fully configured")
+	}
+	if err := rejectReservedKVPath(path); err != nil {
+		return err
 	}
 
 	latest, err := e.repo.GetLatest(ctx, path)
