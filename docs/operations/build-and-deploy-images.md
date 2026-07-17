@@ -147,19 +147,18 @@ make build-cli
 
 ### 3.5 Air-gap / export images as tarballs
 
-After `make container-build-all` (or individual builds), export OCI/docker-compatible archives for offline transfer:
+Export targets **rebuild images first**, so `make clean container-export-all` is valid.
 
 ```bash
-# Build then export (recommended)
-make container-build-all
+# Rebuild (if needed) + export (recommended one-liner)
 make container-export-all
 # → build/images/knxvault-0.5.1-<commit>.tar
 # → build/images/knxvault-operator-0.5.1-<commit>.tar
 # → build/images/build-info-0.5.1-<commit>.txt
 
-# Individual targets
-make container-export          # server only (standalone needs this)
-make k8s-operator-export       # operator only (K8s cert automation)
+# Individual targets (each depends on matching *-build)
+make container-export          # server only (standalone)
+make k8s-operator-export       # operator only (K8s)
 
 # Overrides
 make container-export-all IMAGE_EXPORT_DIR=/tmp/airgap VERSION=0.5.1
