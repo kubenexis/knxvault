@@ -752,7 +752,7 @@ Report: `docs/audit/formal-w53-residual-features-2026-07-16.md`.
 | **W86-18** | P2 | Not started | M | auth | W81-09 | Vault-compat mount ↔ CA binding | Document or enforce mount-name to allowed CA set | Docs or policy test multi-mount isolation |
 | **W86-19** | P2 | Not started | S | k8s | — | Operator leader lease namespaced Role | Avoid cluster-wide leases CRUD | Role in knxvault NS only |
 | **W86-20** | P2 | Not started | S | k8s | — | Operator metrics auth/NetPol sample | Bearer or NetPol on :8080 | Manifest + note |
-| **W86-21** | P2 | Not started | S | security | — | Slim production image optional | Split CLI out of server image or multi-stage product note | Doc decision or slim Dockerfile |
+| ~~**W86-21**~~ | P2 | **Complete** | S | security | — | CLI not in server image | `knxvault-cli` host/CI artifact only; Dockerfile has no CLI | Image binaries: serve + CSI + webhook + ESO only |
 | **W86-22** | P2 | Not started | S | k8s | W86-04 | Operator default vault URL https | Code default matches HTTPS posture | Unit/default test |
 | **W86-L01** | P2 | Not started | S | security | W84 | OCSP response cache / dedicated signer | Reduce unauth decrypt DoS | Cache or rate doc |
 | **W86-L02** | P2 | Not started | M | crypto | W65 | Transit rotate CAS multi-node | PutAtomic with version | Race test |

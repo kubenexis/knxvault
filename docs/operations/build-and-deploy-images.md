@@ -22,7 +22,7 @@ How to **build** knxvault container images, **which images** each topology needs
 
 | Image (default ref) | Dockerfile | Makefile | Binaries inside | Used for |
 |---------------------|------------|----------|-----------------|----------|
-| **`ghcr.io/kubenexis/knxvault:$(VERSION)-$(COMMIT)`** (e.g. `…/knxvault:0.5.1-a1b2c3d`) | `Dockerfile` | `make container-build` | `knxvault`, `knxvault-csi`, `knxvault-webhook`, `knxvault-eso` | Server (always); CSI / webhook / ESO adapters by **command override** |
+| **`ghcr.io/kubenexis/knxvault:$(VERSION)-$(COMMIT)`** (e.g. `…/knxvault:0.5.1-a1b2c3d`) | `Dockerfile` | `make container-build` | `knxvault`, `knxvault-csi`, `knxvault-webhook`, `knxvault-eso` (**not** `knxvault-cli`) | Server (always); CSI / webhook / ESO adapters by **command override** |
 | **`ghcr.io/kubenexis/knxvault-operator:$(VERSION)-$(COMMIT)`** | `Dockerfile.operator` | `make k8s-operator-build` | `knxvault-operator` | Kubernetes certificate operator only |
 
 **Naming:** images are always **`ghcr.io/<org>/<repository>:<tag>`** (GitHub Container Registry). Defaults: `IMAGE_REGISTRY=ghcr.io`, `IMAGE_ORG=kubenexis`, repositories `knxvault` and `knxvault-operator`. Override `IMAGE_ORG` for forks, or set `IMAGE` / `OPERATOR_IMAGE` for a full custom ref.
@@ -58,7 +58,7 @@ Default entrypoint of `ghcr.io/kubenexis/knxvault:…` is **`/usr/local/bin/knxv
 
 | Artifact | Build | Deploy |
 |----------|-------|--------|
-| **`knxvault-cli`** | `make build-cli` → `build/bin/knxvault-cli` | Copy to admin host / package as `.deb` later; never baked into distroless server |
+| **`knxvault-cli`** | `make build-cli` → `build/bin/knxvault-cli`; CI uploads artifact `knxvault-binaries-linux-amd64-*` | Admin host only — **never** baked into any knxvault container image |
 | Host server binary (optional) | `make build` → `build/bin/knxvault` | Bare-metal only; **not** the supported production packaging path |
 
 ### Third-party / platform images (not built here)
@@ -148,12 +148,16 @@ make k8s-operator-build
 # → ghcr.io/kubenexis/knxvault-operator:0.5.1-<sha>  (+ :0.5.1)
 ```
 
-### 3.4 Build host CLI
+### 3.4 Build host CLI (separate download — not in the image)
 
 ```bash
 make build-cli
 # → build/bin/knxvault-cli
 ```
+
+GitHub Actions **Quality** job builds the same binary and uploads it as a workflow artifact
+(`knxvault-binaries-linux-amd64-<sha>` contains `knxvault` + `knxvault-cli`). Use that for
+air-gap admin workstations; do **not** expect `knxvault-cli` inside the server container.
 
 ### 3.5 Air-gap / export images as tarballs
 

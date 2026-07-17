@@ -3,7 +3,8 @@
 #
 # CI/CD: quality gate → host binaries (incl. knxvault-cli) → validated container builds → GHCR
 # Images: ghcr.io/<owner>/knxvault and ghcr.io/<owner>/knxvault-operator
-# Host artifacts: build/bin/knxvault + build/bin/knxvault-cli (uploaded every run)
+# Host artifacts: build/bin/knxvault + build/bin/knxvault-cli (uploaded every run).
+# knxvault-cli is admin-only: never baked into container images (download via artifact / make build-cli).
 #
 # Push to GHCR when:
 #   - push to main, or
@@ -116,7 +117,7 @@ jobs:
         include:
           - image_name: knxvault
             dockerfile: Dockerfile
-            description: KNXVault server (serve + knxvault-cli + CSI/webhook/ESO binaries)
+            description: KNXVault server (serve + CSI/webhook/ESO binaries; CLI is a separate host artifact)
           - image_name: knxvault-operator
             dockerfile: Dockerfile.operator
             description: KNXVault Kubernetes certificate operator

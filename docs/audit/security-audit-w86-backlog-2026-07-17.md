@@ -61,7 +61,7 @@ SPDX-License-Identifier: CC-BY-4.0
 | M11 | Medium | Vault-compat mount ACL ≠ CA isolation (role→CA only) | **W86-18** | auth |
 | M12 | Medium | Operator ClusterRole cluster-wide leases | **W86-19** | k8s |
 | M13 | Medium | Operator metrics `:8080` without auth/NetPol sample | **W86-20** | k8s |
-| M14 | Medium | Multi-binary production image includes CLI (TCB size) | **W86-21** | security |
+| M14 | Medium | Multi-binary production image includes CLI (TCB size) | **~~W86-21~~ Complete** — CLI removed from Dockerfile; CI host artifact only | security |
 | M15 | Medium | Operator code default vault `http://…` (manifest HTTPS overrides) | **W86-22** | k8s |
 
 ## Low / design residual (tracked, not P0)
