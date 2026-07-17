@@ -1,8 +1,9 @@
 # Copyright Kubenexis Systems Private Limited.
 # SPDX-License-Identifier: Apache-2.0
 #
-# CI/CD: quality gate → validated container builds → GHCR
+# CI/CD: quality gate → host binaries (incl. knxvault-cli) → validated container builds → GHCR
 # Images: ghcr.io/<owner>/knxvault and ghcr.io/<owner>/knxvault-operator
+# Host artifacts: build/bin/knxvault + build/bin/knxvault-cli (uploaded every run)
 #
 # Push to GHCR when:
 #   - push to main, or
@@ -68,7 +69,22 @@ jobs:
         run: |
           make test-integration
           make build build-cli
+          test -x build/bin/knxvault
+          test -x build/bin/knxvault-cli
+          # Smoke-check both host binaries are runnable (CLI has no "version" subcommand).
+          build/bin/knxvault version
+          build/bin/knxvault-cli --help | head -5
           make sbom
+
+      - name: Upload host binaries (knxvault + knxvault-cli)
+        uses: actions/upload-artifact@v4
+        with:
+          name: knxvault-binaries-linux-amd64-${{ github.sha }}
+          path: |
+            build/bin/knxvault
+            build/bin/knxvault-cli
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Upload SBOM artifacts
         if: always()
@@ -100,7 +116,7 @@ jobs:
         include:
           - image_name: knxvault
             dockerfile: Dockerfile
-            description: KNXVault server (serve + CSI/webhook/ESO binaries)
+            description: KNXVault server (serve + knxvault-cli + CSI/webhook/ESO binaries)
           - image_name: knxvault-operator
             dockerfile: Dockerfile.operator
             description: KNXVault Kubernetes certificate operator
