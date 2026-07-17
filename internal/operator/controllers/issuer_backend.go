@@ -98,10 +98,6 @@ func issueACME(ctx context.Context, c client.Client, ns string, spec *v1alpha1.A
 	cfg.AccountKey = accountKey
 
 	solvers := acme.SolverSpec{HTTP01: spec.HTTP01}
-	if SharedHTTP01 != nil && spec.HTTP01 {
-		// Prefer process-wide presenter when operator started HTTP-01 listener.
-		// NewIssuerFromKind still builds MemoryHTTP01; we override after.
-	}
 	if spec.DNS01 != nil {
 		solvers.DNSProvider = spec.DNS01.Provider
 		solvers.WebhookURL = spec.DNS01.WebhookURL

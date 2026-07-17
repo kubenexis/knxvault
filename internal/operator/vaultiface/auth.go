@@ -46,11 +46,3 @@ func (h *HTTPAPI) ensureToken(ctx context.Context) error {
 	return nil
 }
 
-// setStaticTokenForTest injects a token without SA login (unit tests).
-func (h *HTTPAPI) setStaticTokenForTest(token string) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	h.C.Token = token
-	h.tokenTTL = time.Now().Add(time.Hour)
-	h.saPath = ""
-}

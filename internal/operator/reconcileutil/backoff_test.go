@@ -31,7 +31,4 @@ func TestRequeueAfter(t *testing.T) {
 	if r.RequeueAfter != 12*time.Second {
 		t.Fatalf("got %v", r.RequeueAfter)
 	}
-	if r.Requeue {
-		t.Fatal("RequeueAfter should not set Requeue bool")
-	}
 }

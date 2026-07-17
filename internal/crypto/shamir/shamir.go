@@ -102,8 +102,7 @@ func interpolate(points [][2]byte, x byte) byte {
 	return result
 }
 
-// GF(2^8) with AES polynomial 0x11b
-func gfAdd(a, b byte) byte { return a ^ b }
+// GF(2^8) with AES polynomial 0x11b (add and sub are XOR).
 func gfSub(a, b byte) byte { return a ^ b }
 
 func gfMul(a, b byte) byte {

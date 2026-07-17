@@ -136,11 +136,5 @@ func ConvertClusterIssuer(in CMIssuer) (v1alpha1.KNXVaultClusterIssuerSpec, erro
 	if err != nil {
 		return v1alpha1.KNXVaultClusterIssuerSpec{}, err
 	}
-	return v1alpha1.KNXVaultClusterIssuerSpec{
-		VaultCAName: ns.VaultCAName,
-		CARef:       ns.CARef,
-		Vault:       ns.Vault,
-		ACME:        ns.ACME,
-		SelfSigned:  ns.SelfSigned,
-	}, nil
+	return v1alpha1.KNXVaultClusterIssuerSpec(ns), nil
 }

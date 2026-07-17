@@ -685,9 +685,7 @@ func (s *Service) CreateToken(ctx context.Context, subject string, policies []st
 	if ttl > MaxClientTokenTTL {
 		ttl = MaxClientTokenTTL
 	}
-	if ttl <= 0 && s.tokens != nil {
-		// TokenStore.Create applies its default when ttl <= 0.
-	}
+	// TokenStore.Create applies its default when ttl <= 0.
 	return s.tokens.Create(ctx, subject, policies, ttl, renewable, time.Time{})
 }
 

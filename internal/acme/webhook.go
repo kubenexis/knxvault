@@ -17,10 +17,6 @@ type dnsWebhookBody struct {
 	Value  string `json:"value"`
 }
 
-func postDNSWebhook(ctx context.Context, client HTTPDoer, rawURL, action, domain, fqdn, value string) error {
-	return postDNSWebhookOpts(ctx, client, rawURL, action, domain, fqdn, value, false)
-}
-
 func postDNSWebhookOpts(ctx context.Context, client HTTPDoer, rawURL, action, domain, fqdn, value string, skipValidate bool) error {
 	if !skipValidate {
 		if err := ValidateOutboundURL(rawURL); err != nil {
