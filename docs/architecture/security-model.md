@@ -29,6 +29,8 @@ Honest grades, known gaps (set-and-forget Medium, custody vs HSM, DIY footguns),
 
 **W82 cycle-1 residual (2026-07-17):** Managed SQL comment/whitespace normalization + membership forms; ImportCA RSA ≥2048.
 
+**W83 cycle-2 residual (2026-07-17):** Deny bare GRANT role TO; wrap meta CAS + cluster-first read; ImportCA RSA-only.
+
 ## Threat model
 
 | Threat | Impact | Mitigations |
