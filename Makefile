@@ -121,25 +121,25 @@ endef
 .PHONY: all quality
 # Pre-merge quality gate (no container image build, no integration suite).
 quality: ## Pre-merge gate: fmt vet lint docs-lint gosec licenses license-headers-check scan test test-coverage
-	$(MAKE) --no-print-directory fmt
-	$(MAKE) --no-print-directory vet
-	$(MAKE) --no-print-directory lint
-	$(MAKE) --no-print-directory docs-lint
-	$(MAKE) --no-print-directory gosec
-	$(MAKE) --no-print-directory licenses
-	$(MAKE) --no-print-directory license-headers-check
-	$(MAKE) --no-print-directory scan
-	$(MAKE) --no-print-directory test
-	$(MAKE) --no-print-directory test-coverage
+	@$(MAKE) --no-print-directory fmt
+	@$(MAKE) --no-print-directory vet
+	@$(MAKE) --no-print-directory lint
+	@$(MAKE) --no-print-directory docs-lint
+	@$(MAKE) --no-print-directory gosec
+	@$(MAKE) --no-print-directory licenses
+	@$(MAKE) --no-print-directory license-headers-check
+	@$(MAKE) --no-print-directory scan
+	@$(MAKE) --no-print-directory test
+	@$(MAKE) --no-print-directory test-coverage
 	@printf "$(COLOR_GREEN)Quality gate passed.$(COLOR_RESET)\n"
 
 # Full local pipeline including integration tests, binaries, and SBOM.
 all: ## quality + test-integration + build + build-cli + sbom
-	$(MAKE) --no-print-directory quality
-	$(MAKE) --no-print-directory test-integration
-	$(MAKE) --no-print-directory build
-	$(MAKE) --no-print-directory build-cli
-	$(MAKE) --no-print-directory sbom
+	@$(MAKE) --no-print-directory quality
+	@$(MAKE) --no-print-directory test-integration
+	@$(MAKE) --no-print-directory build
+	@$(MAKE) --no-print-directory build-cli
+	@$(MAKE) --no-print-directory sbom
 	@printf "$(COLOR_GREEN)All pipeline stages passed.$(COLOR_RESET)\n"
 
 # =============================================================================
