@@ -242,7 +242,8 @@ test-coverage: ## Coverage gate ≥COVERAGE_MIN% operator pure-logic; ≥COVERAG
 test-integration: build build-cli ## Run integration tests (API + Raft + daemon e2e)
 	$(call log,Running integration tests)
 	$(call require_cmd,go)
-	$(GO) test ./test/integration/... -count=1
+	# 5m covers multi-node Raft under load + e2e binary rebuild; -count=1 disables cache.
+	$(GO) test ./test/integration/... -count=1 -timeout 5m -p 1
 
 # Lab host full E2E (SSH). Override: make lab-full-e2e LAB_HOST=192.168.137.131
 LAB_HOST ?= 192.168.137.131
