@@ -20,7 +20,8 @@ PKI tests use the native Go backend (no OpenSSL required on `PATH`).
 git clone https://github.com/your-org/knxvault.git
 cd knxvault
 
-make all          # fmt, vet, lint, gosec, licenses, scan, test, integration, build
+make quality      # pre-merge: fmt, vet, lint, docs-lint, gosec, licenses, scan, test, test-coverage
+make all          # quality + test-integration + build + build-cli + sbom
 make build        # binary only
 make build-cli      # knxvault-cli
 make build-csi      # knxvault-csi (Secrets Store provider)
@@ -77,7 +78,9 @@ See [LLD §3.1](../lld.md) for the full directory specification.
 
 | Target | Purpose |
 |--------|---------|
-| `make fmt` | `gofmt` + `goimports` |
+| **`make quality`** | **Pre-merge gate:** fmt, vet, lint, docs-lint, gosec, licenses, scan, test, test-coverage |
+| `make all` | quality + test-integration + build + build-cli + sbom |
+| `make fmt` | `gofmt` check |
 | `make vet` | `go vet` |
 | `make lint` | golangci-lint v2 |
 | `make test` | Unit tests |
@@ -88,6 +91,7 @@ See [LLD §3.1](../lld.md) for the full directory specification.
 | `make licenses` | SPDX allow-list check |
 | `make scan` | Trivy vulnerability scan |
 | `make container-build` | Container image |
+| `make container-export-all` | Air-gap image tarballs under `build/images/` |
 
 ## Adding a feature
 

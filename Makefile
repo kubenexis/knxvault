@@ -115,8 +115,9 @@ endef
 # Primary pipeline
 # =============================================================================
 
-.PHONY: all
-all: ## Run fmt, vet, lint, docs-lint, gosec, licenses, scan, test, test-integration, build, and sbom
+.PHONY: all quality
+# Pre-merge quality gate (no container image build, no integration suite).
+quality: ## Pre-merge gate: fmt vet lint docs-lint gosec licenses scan test test-coverage
 	$(MAKE) --no-print-directory fmt
 	$(MAKE) --no-print-directory vet
 	$(MAKE) --no-print-directory lint
@@ -125,6 +126,12 @@ all: ## Run fmt, vet, lint, docs-lint, gosec, licenses, scan, test, test-integra
 	$(MAKE) --no-print-directory licenses
 	$(MAKE) --no-print-directory scan
 	$(MAKE) --no-print-directory test
+	$(MAKE) --no-print-directory test-coverage
+	@printf "$(COLOR_GREEN)Quality gate passed.$(COLOR_RESET)\n"
+
+# Full local pipeline including integration tests, binaries, and SBOM.
+all: ## quality + test-integration + build + build-cli + sbom
+	$(MAKE) --no-print-directory quality
 	$(MAKE) --no-print-directory test-integration
 	$(MAKE) --no-print-directory build
 	$(MAKE) --no-print-directory build-cli

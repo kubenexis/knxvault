@@ -168,11 +168,13 @@ Reference: [`docs/cli/reference.md`](docs/cli/reference.md) · Backup: [`docs/de
 ## Development
 
 ```bash
-make all                   # fmt, vet, lint, gosec, licenses, scan, test, test-integration, build, build-cli, sbom
+make quality               # pre-merge: fmt, vet, lint, docs-lint, gosec, licenses, scan, test, coverage
+make all                   # quality + test-integration + build + build-cli + sbom
 make test                  # unit tests only
 make test-integration      # API + 3-node Raft integration tests
 make gosec                 # security static analysis
-make container-build          # container image
+make container-build       # container image (tag: VERSION-COMMIT)
+make container-export-all  # air-gap tarballs under build/images/
 ```
 
 Observability: [`docs/metrics.md`](docs/metrics.md)
