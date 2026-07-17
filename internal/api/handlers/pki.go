@@ -350,6 +350,9 @@ func (h *PKIHandler) RotateCA(c *gin.Context) {
 	c.JSON(http.StatusCreated, toCAResponse(result))
 }
 
+// maxOCSPRequestBytes bounds unauthenticated OCSP body size (W84 Low residual).
+const maxOCSPRequestBytes = 16 << 10
+
 // OCSP handles POST /pki/ocsp/:id (application/ocsp-request).
 func (h *PKIHandler) OCSP(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
@@ -357,9 +360,11 @@ func (h *PKIHandler) OCSP(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
+	// Limit body before full read (unauthenticated DoS surface).
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxOCSPRequestBytes)
 	body, err := c.GetRawData()
 	if err != nil {
-		_ = c.Error(err)
+		_ = c.Error(common.New(common.ErrCodeValidation, "ocsp request too large or unreadable"))
 		return
 	}
 	resp, err := h.svc.HandleOCSP(c.Request.Context(), id, body)

@@ -108,7 +108,9 @@ func (s *WrappingService) Wrap(ctx context.Context, payload map[string]any, ttl 
 		_ = s.cubby.Delete(ctx, id, wrapPath)
 		return nil, err
 	}
+	s.mu.Lock()
 	s.gcExpiredLocked(ctx)
+	s.mu.Unlock()
 	audithelper.Record(s.audit, ctx, "wrapping.wrap", "sys/wrapping", nil, map[string]any{"ttl": int(ttl.Seconds())})
 	return &WrapResult{Token: token, TTL: int(ttl.Seconds()), Creation: now, ExpiresAt: exp}, nil
 }
