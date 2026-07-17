@@ -105,12 +105,19 @@ func (t *SharedLockoutTracker) Clear(key string) {
 }
 
 func (t *SharedLockoutTracker) incr(key string) int {
-	// Get-modify-set (best-effort without native INCR).
+	ctx := context.Background()
+	if inc, ok := t.store.(cache.IncrStore); ok {
+		n, err := inc.Incr(ctx, key, t.ttl)
+		if err == nil {
+			return int(n)
+		}
+	}
+	// Fallback get-modify-set when store lacks atomic INCR.
 	n := 0
-	if raw, ok := t.store.Get(context.Background(), key); ok {
+	if raw, ok := t.store.Get(ctx, key); ok {
 		n, _ = strconv.Atoi(string(raw))
 	}
 	n++
-	t.store.Set(context.Background(), key, []byte(strconv.Itoa(n)), t.ttl)
+	t.store.Set(ctx, key, []byte(strconv.Itoa(n)), t.ttl)
 	return n
 }

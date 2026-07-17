@@ -196,7 +196,8 @@ func TestProbeDirectory(t *testing.T) {
 		_, _ = w.Write([]byte(`{"newNonce":"x"}`))
 	}))
 	defer srv.Close()
-	c := acme.NewClient(acme.Config{DirectoryURL: srv.URL}, nil, nil)
+	// SkipTLSVerify marks lab/Pebble-style loopback (SafeHTTPClient would block 127.0.0.1).
+	c := acme.NewClient(acme.Config{DirectoryURL: srv.URL, SkipTLSVerify: true}, nil, nil)
 	info := c.ProbeDirectory(context.Background())
 	if !info.Ready {
 		t.Fatalf("info=%+v", info)

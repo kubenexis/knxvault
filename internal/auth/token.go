@@ -50,9 +50,15 @@ func (s *TokenStore) SetRepository(repo repository.TokenRepository) {
 	s.repo = repo
 }
 
-// Issue creates a new opaque client token.
+// Issue creates a new opaque client token with a hard max lifetime equal to the TTL
+// (not infinitely renewable — W77). Callers needing longer max should use Create.
 func (s *TokenStore) Issue(ctx context.Context, subject string, policies []string) (string, *TokenRecord, error) {
-	return s.Create(ctx, subject, policies, s.ttl, true, time.Time{})
+	ttl := s.ttl
+	if ttl <= 0 {
+		ttl = 24 * time.Hour
+	}
+	max := time.Now().UTC().Add(ttl)
+	return s.Create(ctx, subject, policies, ttl, true, max)
 }
 
 // Create issues a token with explicit TTL and renewability.
@@ -703,8 +709,15 @@ func (s *Service) CreateToken(ctx context.Context, subject string, policies []st
 	if ttl > MaxClientTokenTTL {
 		ttl = MaxClientTokenTTL
 	}
-	// TokenStore.Create applies its default when ttl <= 0.
-	return s.tokens.Create(ctx, subject, policies, ttl, renewable, time.Time{})
+	if ttl <= 0 {
+		ttl = s.tokens.ttl
+		if ttl <= 0 {
+			ttl = 24 * time.Hour
+		}
+	}
+	// Hard stop at max lifetime (W77) — renewals cannot exceed this.
+	max := time.Now().UTC().Add(ttl)
+	return s.tokens.Create(ctx, subject, policies, ttl, renewable, max)
 }
 
 // RenewToken extends the caller token TTL.

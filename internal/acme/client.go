@@ -307,17 +307,18 @@ func (c *Client) cleanupChallenge(ctx context.Context, api ACMEAPI, authz *xacme
 }
 
 func (c *Client) httpClient() *http.Client {
-	// Safe clone: DefaultTransport may be replaced in tests/custom agents.
-	var tr = http.DefaultTransport
+	// Production / non-lab: dial-time SSRF filter (W76 ACME directory residual).
+	// Lab SkipTLSVerify (Pebble loopback) keeps a permissive transport.
+	if !c.cfg.SkipTLSVerify {
+		return SafeHTTPClient(60 * time.Second)
+	}
+	// Lab/staging ACME only — gated by explicit SkipTLSVerify config.
+	var tr http.RoundTripper
 	if base, ok := http.DefaultTransport.(*http.Transport); ok {
 		cloned := base.Clone()
-		if c.cfg.SkipTLSVerify {
-			// Lab/staging ACME only — gated by explicit SkipTLSVerify config.
-			cloned.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #nosec G402
-		}
+		cloned.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #nosec G402
 		tr = cloned
-	} else if c.cfg.SkipTLSVerify {
-		// Fallback transport when DefaultTransport is not *http.Transport.
+	} else {
 		tr = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}} // #nosec G402
 	}
 	return &http.Client{Timeout: 60 * time.Second, Transport: tr}

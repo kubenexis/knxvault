@@ -52,24 +52,32 @@ type RaftMembership interface {
 
 // SysHandler serves system endpoints.
 type SysHandler struct {
-	auth            *auth.Service
-	pki             *service.PKIService
-	database        *service.DatabaseService
-	rotation        *service.RotationService
-	orchestration   *service.OrchestrationService
-	masterKey       *service.MasterKeyService
-	seal            SealController
-	raft            RaftMembership
-	masterKeyBytes  []byte
-	exposureAuto    bool
-	exposureWebhook *notify.Webhook
-	unsealAllowNets []*net.IPNet
+	auth                 *auth.Service
+	pki                  *service.PKIService
+	database             *service.DatabaseService
+	rotation             *service.RotationService
+	orchestration        *service.OrchestrationService
+	masterKey            *service.MasterKeyService
+	seal                 SealController
+	raft                 RaftMembership
+	masterKeyBytes       []byte
+	exposureAuto         bool
+	exposureWebhook      *notify.Webhook
+	exposurePathPrefixes []string
+	unsealAllowNets      []*net.IPNet
 }
 
 // SetUnsealAllowNets configures source IP allowlist for unseal (W75-04).
 func (h *SysHandler) SetUnsealAllowNets(nets []*net.IPNet) {
 	if h != nil {
 		h.unsealAllowNets = nets
+	}
+}
+
+// SetExposurePathPrefixes limits auto-rotate secret paths (W76 exposure blast-radius).
+func (h *SysHandler) SetExposurePathPrefixes(prefixes []string) {
+	if h != nil {
+		h.exposurePathPrefixes = append([]string(nil), prefixes...)
 	}
 }
 
@@ -173,13 +181,17 @@ func (h *SysHandler) ReportExposure(c *gin.Context) {
 		return
 	}
 	actions := make([]string, 0, 2)
-	if h.exposureAuto {
-		if req.LeaseID != "" && h.database != nil {
+	// W77: no auto crypto actions while sealed.
+	sealed := h.seal != nil && h.seal.Sealed()
+	if h.exposureAuto && !sealed {
+		// Lease auto-revoke: constrain lease ID shape (W76 blast-radius).
+		if req.LeaseID != "" && h.database != nil && validExposureLeaseID(req.LeaseID) {
 			if _, err := h.database.Revoke(c.Request.Context(), req.LeaseID); err == nil {
 				actions = append(actions, "lease_revoked")
 			}
 		}
-		if req.SecretPath != "" && h.rotation != nil {
+		// Path rotation only when path is under an allowed prefix (empty list = no path rotation).
+		if req.SecretPath != "" && h.rotation != nil && exposurePathAllowed(req.SecretPath, h.exposurePathPrefixes) {
 			policy, err := h.rotation.GetPolicy(c.Request.Context(), req.SecretPath)
 			if err == nil && policy != nil {
 				if err := h.rotation.RotatePath(c.Request.Context(), policy); err == nil {
@@ -466,14 +478,77 @@ func (h *SysHandler) IssueListenerTLS(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+// listenerTLSWriteRoot is the only directory allowed for listener PEM writes (W77 path jail).
+// Override with env is applied by SetListenerTLSWriteDir when configured.
+var listenerTLSWriteRoot = "/var/lib/knxvault/tls"
+
+// SetListenerTLSWriteDir configures the allowlisted directory for IssueListenerTLS file writes.
+func (h *SysHandler) SetListenerTLSWriteDir(dir string) {
+	if dir != "" {
+		listenerTLSWriteRoot = dir
+	}
+}
+
 func writeListenerPEM(certFile, keyFile, certPEM, keyPEM string) error {
-	for _, path := range []string{certFile, keyFile} {
-		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+	root, err := filepath.Abs(listenerTLSWriteRoot)
+	if err != nil {
+		return err
+	}
+	for _, p := range []string{certFile, keyFile} {
+		abs, err := filepath.Abs(p)
+		if err != nil {
+			return err
+		}
+		// Must be under root (prefix match with separator).
+		if abs != root && !strings.HasPrefix(abs, root+string(filepath.Separator)) {
+			return fmt.Errorf("tls write path %q outside allowlisted directory %q", p, root)
+		}
+		if strings.Contains(p, "..") {
+			return fmt.Errorf("tls write path must not contain parent references")
+		}
+		if err := os.MkdirAll(filepath.Dir(abs), 0o700); err != nil {
 			return err
 		}
 	}
-	if err := os.WriteFile(certFile, []byte(certPEM), 0o600); err != nil {
+	certAbs, _ := filepath.Abs(certFile)
+	keyAbs, _ := filepath.Abs(keyFile)
+	if err := os.WriteFile(certAbs, []byte(certPEM), 0o600); err != nil {
 		return err
 	}
-	return os.WriteFile(keyFile, []byte(keyPEM), 0o600)
+	return os.WriteFile(keyAbs, []byte(keyPEM), 0o600)
+}
+
+func validExposureLeaseID(id string) bool {
+	id = strings.TrimSpace(id)
+	if len(id) < 4 || len(id) > 128 {
+		return false
+	}
+	for _, r := range id {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '.' || r == '_' || r == '-' || r == '/' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func exposurePathAllowed(path string, prefixes []string) bool {
+	path = strings.TrimSpace(path)
+	if path == "" || strings.Contains(path, "..") {
+		return false
+	}
+	if len(prefixes) == 0 {
+		// Fail closed for path rotation when no prefixes configured (lease-only auto actions).
+		return false
+	}
+	for _, p := range prefixes {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		if path == p || strings.HasPrefix(path, strings.TrimSuffix(p, "/")+"/") || strings.HasPrefix(path, p) {
+			return true
+		}
+	}
+	return false
 }

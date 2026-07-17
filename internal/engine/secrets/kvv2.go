@@ -291,7 +291,9 @@ func (e *KVV2Engine) GetMetadata(ctx context.Context, path string, version int) 
 	return meta, nil
 }
 
-// Delete soft-deletes the latest secret version.
+// Delete soft-deletes the latest secret version (W77).
+// Marks the current latest version destroyed so GetLatest no longer returns data.
+// Historical versions remain available via explicit version query until permanent destroy.
 func (e *KVV2Engine) Delete(ctx context.Context, path string) error {
 	if e.repo == nil || e.crypto == nil {
 		return common.New(common.ErrCodeInternal, "kv engine not fully configured")
@@ -301,15 +303,5 @@ func (e *KVV2Engine) Delete(ctx context.Context, path string) error {
 	if err != nil {
 		return err
 	}
-
-	destroyed := &domainsecrets.SecretVersion{
-		ID:        uuid.New(),
-		Path:      path,
-		Version:   latest.Version + 1,
-		DataEnc:   []byte{0},
-		DEKEnc:    latest.DEKEnc,
-		CreatedAt: time.Now().UTC(),
-		Destroyed: true,
-	}
-	return e.repo.SaveVersion(ctx, destroyed)
+	return e.repo.DestroyVersion(ctx, path, latest.Version)
 }

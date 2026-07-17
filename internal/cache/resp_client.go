@@ -78,6 +78,43 @@ func (c *respClient) Delete(ctx context.Context, key string) {
 	_ = writeCommand(conn, "DEL", key)
 }
 
+// Incr implements atomic INCR + optional EXPIRE (W76 lockout/rate-limit).
+func (c *respClient) Incr(ctx context.Context, key string, ttl time.Duration) (int64, error) {
+	conn, err := c.dial(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = conn.Close() }()
+	if err := writeCommand(conn, "INCR", key); err != nil {
+		return 0, err
+	}
+	n, err := readInteger(bufio.NewReader(conn))
+	if err != nil {
+		return 0, err
+	}
+	if ttl > 0 {
+		_ = writeCommand(conn, "EXPIRE", key, fmt.Sprintf("%d", int(ttl.Seconds())))
+		_, _ = readInteger(bufio.NewReader(conn)) // consume EXPIRE reply
+	}
+	return n, nil
+}
+
+func readInteger(r *bufio.Reader) (int64, error) {
+	line, err := r.ReadString('\n')
+	if err != nil {
+		return 0, err
+	}
+	line = strings.TrimSpace(line)
+	if !strings.HasPrefix(line, ":") {
+		return 0, fmt.Errorf("unexpected RESP integer: %q", line)
+	}
+	var n int64
+	if _, err := fmt.Sscanf(line, ":%d", &n); err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
 func (c *respClient) dial(ctx context.Context) (net.Conn, error) {
 	d := net.Dialer{Timeout: 2 * time.Second}
 	return d.DialContext(ctx, "tcp", c.addr)

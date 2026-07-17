@@ -143,7 +143,8 @@ func (s *SealState) SubmitShare(share []byte) (unsealed bool, have, need int, er
 	if s == nil || len(s.unsealKey) == 0 {
 		return false, 0, 1, "unseal not configured"
 	}
-	if len(share) < 2 {
+	// Expect x-coordinate byte + at least one secret byte (W76-12 structure check).
+	if len(share) < 2 || len(share) > 256 {
 		return false, 0, 1, "invalid share"
 	}
 	s.mu.Lock()
@@ -156,22 +157,43 @@ func (s *SealState) SubmitShare(share []byte) (unsealed bool, have, need int, er
 		return false, len(s.pending), need, "unseal rate limited"
 	}
 	x := share[0]
+	if x == 0 {
+		s.failCount++
+		s.lastFail = time.Now()
+		return false, len(s.pending), need, "invalid share index"
+	}
+	// Reject length mismatch vs first accepted share (same split ceremony).
+	if len(s.pending) > 0 {
+		for _, existing := range s.pending {
+			if len(existing) != len(share) {
+				s.failCount++
+				s.lastFail = time.Now()
+				if s.failCount >= 5 {
+					s.pending = make(map[byte][]byte)
+				}
+				return false, len(s.pending), need, "share length mismatch"
+			}
+			break
+		}
+	}
 	cp := append([]byte(nil), share...)
 	s.pending[x] = cp
 	have = len(s.pending)
 	if have < need {
 		return false, have, need, ""
 	}
-	// Collect shares and try combine.
 	list := make([][]byte, 0, have)
 	for _, sh := range s.pending {
 		list = append(list, sh)
 	}
-	// Import shamir at package level - need to add import
 	combined, err := combineShares(list)
 	if err != nil {
 		s.failCount++
 		s.lastFail = time.Now()
+		if s.failCount >= 3 {
+			s.pending = make(map[byte][]byte)
+			have = 0
+		}
 		return false, have, need, "share combine failed"
 	}
 	if len(combined) != len(s.unsealKey) || subtle.ConstantTimeCompare(combined, s.unsealKey) != 1 {

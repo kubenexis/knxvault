@@ -77,6 +77,10 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 	if deps.AuthService != nil {
 		authHandler := handlers.NewAuthHandler(deps.AuthService, deps.TokenTTL)
 		authGroup := r.Group("/auth")
+		// W77: do not mint tokens while sealed (login still requires unseal first).
+		if deps.Seal != nil {
+			authGroup.Use(middleware.SealGuard(deps.Seal))
+		}
 		if deps.AuthLoginLimiter != nil {
 			authGroup.Use(middleware.AuthLoginThrottle(deps.AuthLoginLimiter))
 		}
@@ -148,6 +152,7 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 			deps.ExposureAutoRevoke,
 			deps.ExposureWebhook,
 		)
+		sys.SetExposurePathPrefixes(deps.ExposurePathPrefixes)
 		secured.GET("/sys/capabilities", sys.Capabilities)
 		secured.POST("/sys/init",
 			middleware.RequirePermission(deps.AuthService, "sys/init", "write"),
@@ -207,11 +212,15 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 		if deps.AuthLoginLimiter != nil {
 			v1.Use(middleware.AuthLoginThrottle(deps.AuthLoginLimiter))
 		}
-		// Explicit auth mounts (cert-manager defaults).
-		v1.POST("/auth/kubernetes/login", vaultCompat.LoginKubernetes)
-		v1.POST("/auth/approle/login", vaultCompat.LoginAppRole)
+		// Explicit auth mounts (cert-manager defaults). W77: seal blocks login mint.
+		v1Login := []gin.HandlerFunc{}
+		if deps.Seal != nil {
+			v1Login = append(v1Login, middleware.SealGuard(deps.Seal))
+		}
+		v1.POST("/auth/kubernetes/login", append(append([]gin.HandlerFunc{}, v1Login...), vaultCompat.LoginKubernetes)...)
+		v1.POST("/auth/approle/login", append(append([]gin.HandlerFunc{}, v1Login...), vaultCompat.LoginAppRole)...)
 		// Custom auth mount paths (mountPath / path overrides).
-		v1.POST("/auth/:mount/login", vaultCompat.LoginMount)
+		v1.POST("/auth/:mount/login", append(append([]gin.HandlerFunc{}, v1Login...), vaultCompat.LoginMount)...)
 
 		v1Auth := v1.Group("/")
 		v1Auth.Use(middleware.Auth(deps.AuthService))
@@ -233,8 +242,13 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 	if deps.PKIService != nil {
 		pkiHandler := handlers.NewPKIHandler(deps.PKIService)
 		// W52: rate-limit unauthenticated OCSP to reduce CA decrypt DoS.
+		// W77: seal guard — do not decrypt CA keys while sealed.
 		ocspLimiter := middleware.NewRateLimiter(120, true)
-		r.POST("/pki/ocsp/:id", ocspLimiter.Middleware(), pkiHandler.OCSP)
+		ocspHandlers := []gin.HandlerFunc{ocspLimiter.Middleware(), pkiHandler.OCSP}
+		if deps.Seal != nil {
+			ocspHandlers = append([]gin.HandlerFunc{middleware.SealGuard(deps.Seal)}, ocspHandlers...)
+		}
+		r.POST("/pki/ocsp/:id", ocspHandlers...)
 		if deps.AuthService != nil {
 			pkiGroup := secured.Group("/pki")
 			pkiGroup.Use(middleware.RequirePermission(deps.AuthService, "pki", "write"))
@@ -565,6 +579,7 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 			deps.ExposureAutoRevoke, deps.ExposureWebhook,
 		)
 		sysUnseal.SetUnsealAllowNets(unsealNets)
+		sysUnseal.SetExposurePathPrefixes(deps.ExposurePathPrefixes)
 		unsealLimiter := middleware.NewRateLimiter(10, true)
 		r.POST("/sys/unseal", unsealLimiter.Middleware(), sysUnseal.Unseal)
 	}
@@ -581,6 +596,7 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 				deps.OrchestrationService, deps.MasterKeyService, deps.Seal, deps.RaftMembership, deps.MasterKey,
 				deps.ExposureAutoRevoke, deps.ExposureWebhook,
 			)
+			sysHandler.SetExposurePathPrefixes(deps.ExposurePathPrefixes)
 			sysHandler.ReportExposure(c)
 		})
 	}

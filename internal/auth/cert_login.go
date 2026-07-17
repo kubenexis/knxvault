@@ -53,21 +53,17 @@ func (s *Service) LoginWithClientCert(ctx context.Context, certs []*x509.Certifi
 	}
 	auditCtx.ClientIdentity = identity
 
+	// W77: cert login is fail-closed — only *persisted* roles (GetStoredRole), never built-in PoliciesForRole.
+	// CN=admin must not grant admin unless an admin role was explicitly stored in the role repository.
 	policies := append([]string(nil), opts.DefaultPolicies...)
-	if s.roles != nil {
-		// Map CN/SAN → role only when an explicit role exists.
-		if rolePolicies := s.roles.PoliciesForRole(ctx, identity); len(rolePolicies) > 0 {
-			policies = rolePolicies
+	if br, ok := s.roles.(RoleBindingResolver); ok {
+		if stored, err := br.GetStoredRole(ctx, identity); err == nil && stored != nil {
+			policies = flattenRolePolicies(stored.Policies, stored.PolicyGroups)
 		}
 	}
 	if len(policies) == 0 {
-		// Do not auto-bind privileged names from CN alone without a defined role (W76).
-		if isPrivilegedRoleName(identity) {
-			s.recordLoginFailure(ctx, lockKey, auditCtx, "privileged cert identity requires explicit role")
-			return "", nil, common.New(common.ErrCodeForbidden, "privileged cert identity requires explicit role mapping")
-		}
-		// Fall back to a single synthetic policy name matching identity for RBAC lookup.
-		policies = []string{identity}
+		s.recordLoginFailure(ctx, lockKey, auditCtx, "no cert role mapping")
+		return "", nil, common.New(common.ErrCodeUnauthorized, "no role mapped for client certificate identity")
 	}
 
 	token, record, err := s.tokens.Issue(ctx, fmt.Sprintf("cert:%s", identity), policies)
@@ -80,13 +76,4 @@ func (s *Service) LoginWithClientCert(ctx context.Context, certs []*x509.Certifi
 	}
 	s.recordLoginAudit(ctx, true, auditCtx)
 	return token, record, nil
-}
-
-func isPrivilegedRoleName(name string) bool {
-	switch strings.ToLower(strings.TrimSpace(name)) {
-	case "admin", "root", "superuser", "sudo", "operator":
-		return true
-	default:
-		return false
-	}
 }

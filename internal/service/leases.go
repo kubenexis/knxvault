@@ -371,17 +371,8 @@ func (s *LeaseService) SetTenantMode(enabled bool) {
 }
 
 func (s *LeaseService) checkTenantLease(ctx context.Context, id string) error {
-	if s == nil || !s.tenantMode {
-		return nil
-	}
-	ns := tenantNamespaceFromCtx(ctx)
-	if ns == "" {
-		return nil // non-SA callers without ns: no extra check
-	}
-	if !tenant.ValidateLeaseIDAccess(ns, id, true) {
-		return common.New(common.ErrCodeForbidden, "cross-tenant lease access denied")
-	}
-	return nil
+	// Fail closed: same rules as assertTenantLeaseAccess (W76-06).
+	return assertTenantLeaseAccess(ctx, s != nil && s.tenantMode, id)
 }
 
 func tenantNamespaceFromCtx(ctx context.Context) string {

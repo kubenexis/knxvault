@@ -68,18 +68,26 @@ func (l *SharedRateLimiter) Middleware() gin.HandlerFunc {
 }
 
 func (l *SharedRateLimiter) allowShared(key string) bool {
-	// Minute bucket
+	// Minute bucket with atomic INCR when available (W76).
 	bucket := time.Now().UTC().Format("200601021504")
 	ck := fmt.Sprintf("%s%s:%s", l.prefix, bucket, key)
+	ctx := context.Background()
 	n := 0
-	if raw, ok := l.store.Get(context.Background(), ck); ok {
+	if inc, ok := l.store.(cache.IncrStore); ok {
+		v, err := inc.Incr(ctx, ck, 2*time.Minute)
+		if err == nil {
+			n = int(v)
+			return n <= l.limit
+		}
+	}
+	if raw, ok := l.store.Get(ctx, ck); ok {
 		n, _ = strconv.Atoi(string(raw))
 	}
 	n++
 	if n > l.limit {
 		return false
 	}
-	l.store.Set(context.Background(), ck, []byte(strconv.Itoa(n)), 2*time.Minute)
+	l.store.Set(ctx, ck, []byte(strconv.Itoa(n)), 2*time.Minute)
 	return true
 }
 

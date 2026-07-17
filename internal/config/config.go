@@ -85,8 +85,14 @@ type Config struct {
 
 	ExposureSigningKey string
 	ExposureAutoRevoke bool
-	ExposureWebhookURL string
-	RotationWebhookURL string
+	// ExposurePathPrefixes when non-empty limits auto-rotate paths (prefix match). Empty + auto-revoke = deny path rotation (lease-only).
+	ExposurePathPrefixes []string
+	ExposureWebhookURL   string
+	RotationWebhookURL   string
+	// MasterKeyPrevious are older master keys (base64 32-byte) for decrypt after rotation (W63/W76).
+	MasterKeyPrevious []string
+	// MasterKeyRotationAllowInsecure allows in-process rotation on multi-node Raft without cluster key sync (lab only).
+	MasterKeyRotationAllowInsecure bool
 
 	OIDCDefaultTTL          time.Duration
 	RateLimitEnabled        bool

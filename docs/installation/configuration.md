@@ -88,6 +88,9 @@ Jobs run on the **Raft leader** when Raft is enabled.
 | `KNXVAULT_METRICS_BEARER_TOKEN` | — | Require `Authorization: Bearer` on `GET /metrics` (**required** when profile=`production`). YAML: `security.metrics_bearer_token`. |
 | `KNXVAULT_METRICS_ADDR` | — | Dedicated metrics listen address (e.g. `:8201`). When set, `/metrics` is **not** on the API listener (W75-03). |
 | `KNXVAULT_UNSEAL_ALLOW_CIDRS` | — | Comma-separated CIDRs/IPs allowed for `POST /sys/unseal` (W75-04). Empty = allow all (lab). |
+| `KNXVAULT_EXPOSURE_PATH_PREFIXES` | — | Comma-separated secret path prefixes allowed for exposure **auto-rotate** (W76). Empty = no path auto-rotate (lease revoke only). |
+| `KNXVAULT_MASTER_KEY_PREVIOUS` | — | Comma-separated base64 32-byte older master keys for decrypt after rotation (W76/W63). |
+| `KNXVAULT_MASTER_KEY_ROTATION_ALLOW_INSECURE` | `false` | Allow in-process master key rotation on multi-node Raft without cluster key sync (lab only). |
 | `KNXVAULT_AUTO_UNSEAL` | `false` | Enable auto-unseal on start (W63/P3). |
 | `KNXVAULT_AUTO_UNSEAL_PROVIDER` | — | `aes-kek` (AES-256-GCM with injected KEK; cloud KMS supplies KEK via CSI). |
 | `KNXVAULT_AUTO_UNSEAL_CIPHERTEXT` | — | Base64 sealed unseal key. |

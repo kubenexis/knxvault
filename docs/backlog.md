@@ -711,6 +711,22 @@ Report: `docs/audit/formal-w53-residual-features-2026-07-16.md`.
 
 ---
 
+## Milestone W77 — Three-cycle security audit (2026-07-17)
+
+**Status:** **Complete**.  
+**Report:** [`docs/audit/security-remediation-w77-3cycle-2026-07-17.md`](audit/security-remediation-w77-3cycle-2026-07-17.md)
+
+| ID | Status | Title |
+|----|--------|-------|
+| ~~W77-01~~ | **Complete** | Cert login fail-closed (stored roles only) |
+| ~~W77-02~~ | **Complete** | KV soft-delete hides latest |
+| ~~W77-03~~ | **Complete** | Token max lifetime on Issue/Create |
+| ~~W77-04~~ | **Complete** | OCSP seal guard |
+| ~~W77-05~~ | **Complete** | Login seal guard |
+| ~~W77-06~~ | **Complete** | Listener TLS path jail |
+| ~~W77-07~~ | **Complete** | Exposure sealed skip |
+| ~~W77-08~~ | **Complete** | Glob single-segment `*` |
+
 ## Milestone W76 — Three-cycle security remediation (2026-07-17)
 
 **Status:** **Complete** (3 review cycles).  

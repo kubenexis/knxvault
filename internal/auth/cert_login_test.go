@@ -10,6 +10,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"fmt"
 	"math/big"
 	"testing"
 	"time"
@@ -56,8 +57,35 @@ func TestLoginWithClientCert(t *testing.T) {
 	}
 }
 
+func TestLoginWithClientCertDeniesUnmappedAdminCN(t *testing.T) {
+	store := auth.NewTokenStore(time.Hour)
+	svc := auth.NewService(store, auth.NewRBAC(), "")
+	// No stored role for "admin" — must fail closed (not built-in admin policies).
+	svc.SetRoleResolver(staticRole{})
+	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	tmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(2),
+		Subject:      pkix.Name{CommonName: "admin"},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+	}
+	der, _ := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	cert, _ := x509.ParseCertificate(der)
+	if _, _, err := svc.LoginWithClientCert(context.Background(), []*x509.Certificate{cert}, auth.CertLoginOptions{}); err == nil {
+		t.Fatal("expected deny for unmapped admin CN")
+	}
+}
+
 type staticRole map[string][]string
 
 func (s staticRole) PoliciesForRole(_ context.Context, role string) []string {
 	return s[role]
+}
+
+func (s staticRole) GetStoredRole(_ context.Context, name string) (*domainauth.Role, error) {
+	pols := s[name]
+	if len(pols) == 0 {
+		return nil, fmt.Errorf("role not found")
+	}
+	return &domainauth.Role{Name: name, Policies: pols}, nil
 }

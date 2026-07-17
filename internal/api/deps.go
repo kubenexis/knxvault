@@ -43,6 +43,7 @@ type RouterDeps struct {
 	AuthzAudit           *middleware.AuthzAudit
 	ExposureSigningKey   string
 	ExposureAutoRevoke   bool
+	ExposurePathPrefixes []string
 	ExposureWebhook      *notify.Webhook
 	MTLSRequired         bool
 	TokenTTL             time.Duration

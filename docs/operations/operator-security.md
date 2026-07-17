@@ -98,6 +98,14 @@ Manual checklist today. **Productization** (profile fail-closed, production kust
 
 **Production K8s install (preferred):** `kubectl apply -k deployments/k8s/production` — sets `KNXVAULT_SECURITY_PROFILE=production` and a default-deny-style NetworkPolicy. Multi-node Raft **forces** production in the binary unless lab + `KNXVAULT_RAFT_ALLOW_INSECURE=true`.
 
+### W77 security notes (operators)
+
+- **Client-cert auth:** only works when a **persisted** role matches the cert CN/DNS SAN; built-in name→policy maps are not applied. Create the role before using mTLS login.
+- **Seal:** login, OCSP, and exposure auto-actions are blocked while sealed; unseal first for Day-2 crypto paths.
+- **KV delete:** soft-delete marks the latest version destroyed; subsequent GET without `?version=` returns not found.
+- **Tokens:** issued tokens have a hard max lifetime equal to the issue TTL (renewals cannot extend forever).
+- **Listener TLS file write:** PEMs may only be written under `/var/lib/knxvault/tls` (path jail).
+
 - [ ] Replace bootstrap root token with scoped policies and roles
 - [ ] Store `KNXVAULT_MASTER_KEY` in a sealed K8s Secret or external KMS
 - [ ] Store `KNXVAULT_UNSEAL_KEY` separately from master (required with Raft; never equal master)

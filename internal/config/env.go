@@ -183,6 +183,19 @@ func overlayEnv(cfg Config) (Config, error) {
 		}
 		cfg.ExposureAutoRevoke = auto
 	}
+	if v := os.Getenv("KNXVAULT_EXPOSURE_PATH_PREFIXES"); v != "" {
+		cfg.ExposurePathPrefixes = splitCSV(v)
+	}
+	if v := os.Getenv("KNXVAULT_MASTER_KEY_PREVIOUS"); v != "" {
+		cfg.MasterKeyPrevious = splitCSV(v)
+	}
+	if v := os.Getenv("KNXVAULT_MASTER_KEY_ROTATION_ALLOW_INSECURE"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_MASTER_KEY_ROTATION_ALLOW_INSECURE: %w", err)
+		}
+		cfg.MasterKeyRotationAllowInsecure = b
+	}
 	if v := os.Getenv("KNXVAULT_EXPOSURE_WEBHOOK_URL"); v != "" {
 		cfg.ExposureWebhookURL = strings.TrimSpace(v)
 	}

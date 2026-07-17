@@ -92,6 +92,7 @@ func New(ctx context.Context, cfg config.Config, log *zap.Logger) (*App, error) 
 		BackupService:        deps.BackupService,
 		ExposureSigningKey:   cfg.ExposureSigningKey,
 		ExposureAutoRevoke:   cfg.ExposureAutoRevoke,
+		ExposurePathPrefixes: cfg.ExposurePathPrefixes,
 		ExposureWebhook:      deps.ExposureWebhook,
 		TokenTTL:             deps.TokenTTL,
 		HAStatus:             deps,

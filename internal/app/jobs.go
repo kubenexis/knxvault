@@ -307,6 +307,10 @@ func (j *JobRunner) updateActiveLeasesMetric(ctx context.Context) {
 }
 
 func (j *JobRunner) runCRLRefresh(ctx context.Context) {
+	if j.sealed() {
+		j.log.Debug("skip CRL refresh while sealed")
+		return
+	}
 	if j.pki == nil || j.cas == nil {
 		return
 	}

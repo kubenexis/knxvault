@@ -41,6 +41,17 @@ func (k *KeyRing) ActiveVersion() byte {
 	return k.active
 }
 
+// SetActiveVersion selects which registered key version encrypts new DEKs.
+func (k *KeyRing) SetActiveVersion(version byte) error {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if _, ok := k.keys[version]; !ok {
+		return fmt.Errorf("unknown key version %d", version)
+	}
+	k.active = version
+	return nil
+}
+
 // AddKey registers a new master key version and makes it active.
 func (k *KeyRing) AddKey(version byte, masterKey []byte) error {
 	if version == 0 {

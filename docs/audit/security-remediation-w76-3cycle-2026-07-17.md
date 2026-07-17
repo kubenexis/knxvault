@@ -36,12 +36,17 @@ Three consecutive review → fix → test → docs cycles against knxvault after
 - New unit tests: unseal CIDR validation, sealed job guard, webhook SSRF, tenant lease assert, lease ID encoding.
 - Best-effort: no new zero-value padding tests for thin `main` packages.
 
-## Residual / deferred
+## Residual closures (full observation pass)
 
-- Master key rotation still process-local (W63-02); multi-node coordination not code-enforced.
-- Shared lockout INCR race (document residual).
-- ACME directory dial-time SSRF residual (webhooks already dial-safe).
-- Exposure auto-revoke blast radius (HMAC key custody).
+| ID | Finding | Remediation |
+|----|---------|-------------|
+| W76-06b | LeaseService empty-ns fail-open | `checkTenantLease` → `assertTenantLeaseAccess` (fail closed) |
+| W76-08 | Lockout/rate-limit get-modify-set race | `cache.IncrStore` + RESP `INCR` / memory mutex |
+| W76-09 | ACME directory dial SSRF | `SafeHTTPClient` when `!SkipTLSVerify` |
+| W76-10 | Exposure auto-action blast radius | Lease ID charset/length; path rotate only under `KNXVAULT_EXPOSURE_PATH_PREFIXES` |
+| W76-11 | Master key multi-node rotation unsafe | Block multi-node rotate unless `MASTER_KEY_ROTATION_ALLOW_INSECURE`; load previous keys via `MASTER_KEY_PREVIOUS` |
+| W76-12 | Shamir share garbage / overwrite | Structure checks, length match, clear pending after failures |
+| W76-02b | CRL refresh while sealed | Seal skip in `runCRLRefresh` |
 
 ## Verify
 

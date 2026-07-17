@@ -59,6 +59,30 @@ func (s *Service) RotateMasterKey(newMasterKey []byte) (byte, error) {
 	return next, nil
 }
 
+// LoadPreviousMasterKey registers an older master key version for decrypting historical DEKs (W76/W63).
+// Versions are assigned as 1..n in order before the active key remains highest.
+func (s *Service) LoadPreviousMasterKey(masterKey []byte) error {
+	if s == nil || s.ring == nil {
+		return fmt.Errorf("crypto service not configured")
+	}
+	if len(masterKey) != 32 {
+		return fmt.Errorf("previous master key must be 32 bytes, got %d", len(masterKey))
+	}
+	versions := s.ring.Versions()
+	// Insert as next free version below active: use max+1 then swap active back... simpler: AddKey with next and re-set active.
+	// KeyRing.AddKey always sets active to new version; restore previous active after load.
+	active := s.ring.ActiveVersion()
+	next := byte(1)
+	if len(versions) > 0 {
+		next = versions[len(versions)-1] + 1
+	}
+	if err := s.ring.AddKey(next, masterKey); err != nil {
+		return err
+	}
+	// Keep original active for new encryptions (previous keys are decrypt-only until Rotate).
+	return s.ring.SetActiveVersion(active)
+}
+
 // DEKNeedsReencrypt reports whether a wrapped DEK should be re-encrypted.
 func (s *Service) DEKNeedsReencrypt(enc []byte) bool {
 	if s == nil || s.ring == nil {

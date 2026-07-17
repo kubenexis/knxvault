@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -119,9 +120,19 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 		if err != nil {
 			return nil, fmt.Errorf("crypto service: %w", err)
 		}
+		// Load previous master key versions for decrypt after rotation (W76/W63).
+		for i, prevB64 := range cfg.MasterKeyPrevious {
+			raw, decErr := base64.StdEncoding.DecodeString(strings.TrimSpace(prevB64))
+			if decErr != nil || len(raw) != 32 {
+				return nil, fmt.Errorf("KNXVAULT_MASTER_KEY_PREVIOUS[%d]: need base64 32-byte key", i)
+			}
+			if loadErr := svc.LoadPreviousMasterKey(raw); loadErr != nil {
+				return nil, fmt.Errorf("load previous master key %d: %w", i, loadErr)
+			}
+		}
 		deps.Crypto = svc
 		deps.MasterKey = append([]byte(nil), key...)
-		log.Info("master key loaded")
+		log.Info("master key loaded", zap.Int("previous_versions", len(cfg.MasterKeyPrevious)))
 	} else if cfg.Raft.Enabled {
 		return nil, fmt.Errorf("master key required when raft is enabled: %w", err)
 	} else {
@@ -181,6 +192,17 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 
 	if deps.Crypto != nil {
 		deps.MasterKeyService = service.NewMasterKeyService(deps.Crypto, deps.CARepo, deps.SecretRepo)
+		multiNode := false
+		if cfg.Raft.Enabled {
+			if len(cfg.Raft.InitialMembers) > 1 {
+				multiNode = true
+			} else if raw := strings.TrimSpace(cfg.Raft.InitialMembersRaw); raw != "" {
+				if members, err := raft.ParseInitialMembers(raw); err == nil && len(members) > 1 {
+					multiNode = true
+				}
+			}
+		}
+		deps.MasterKeyService.SetRaftRotationPolicy(multiNode, cfg.MasterKeyRotationAllowInsecure)
 		if cfg.Raft.Enabled && cfg.UnsealKey == "" && !cfg.AutoUnsealEnabled {
 			return nil, fmt.Errorf("KNXVAULT_UNSEAL_KEY is required when raft is enabled (or enable auto-unseal)")
 		}

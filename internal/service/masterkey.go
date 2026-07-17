@@ -18,11 +18,22 @@ type MasterKeyService struct {
 	crypto  *crypto.Service
 	cas     repository.CARepository
 	secrets repository.SecretRepository
+	// multiNodeRaft when true requires allowInsecure for in-process rotation (W76/W63).
+	multiNodeRaft bool
+	allowInsecure bool
 }
 
 // NewMasterKeyService constructs a master key rotation service.
 func NewMasterKeyService(cryptoSvc *crypto.Service, cas repository.CARepository, secrets repository.SecretRepository) *MasterKeyService {
 	return &MasterKeyService{crypto: cryptoSvc, cas: cas, secrets: secrets}
+}
+
+// SetRaftRotationPolicy configures multi-node Raft rotation guards.
+func (s *MasterKeyService) SetRaftRotationPolicy(multiNode bool, allowInsecure bool) {
+	if s != nil {
+		s.multiNodeRaft = multiNode
+		s.allowInsecure = allowInsecure
+	}
 }
 
 // RotateRequest carries a new master key.
@@ -39,6 +50,10 @@ type RotateResult struct {
 func (s *MasterKeyService) Rotate(_ context.Context, req RotateRequest) (*RotateResult, error) {
 	if s == nil || s.crypto == nil {
 		return nil, common.New(common.ErrCodeInternal, "master key service not configured")
+	}
+	if s.multiNodeRaft && !s.allowInsecure {
+		return nil, common.New(common.ErrCodeForbidden,
+			"master key rotation on multi-node Raft requires KNXVAULT_MASTER_KEY_ROTATION_ALLOW_INSECURE=true and distributing previous keys via KNXVAULT_MASTER_KEY_PREVIOUS on every node")
 	}
 	raw, err := base64.StdEncoding.DecodeString(req.NewKeyBase64)
 	if err != nil {

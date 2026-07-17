@@ -63,10 +63,14 @@ func matchGlob(pat, str string, pi, si int) bool {
 				}
 				return false
 			}
+			// Single * matches one path segment only (no '/'); use ** for multi-segment (W77).
 			pi++
 			for si <= len(str) {
 				if matchGlob(pat, str, pi, si) {
 					return true
+				}
+				if si < len(str) && str[si] == '/' {
+					break
 				}
 				si++
 			}
