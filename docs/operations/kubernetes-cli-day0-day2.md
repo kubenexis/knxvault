@@ -9,6 +9,7 @@ One coherent guide for **administering knxvault in Kubernetes with `knxvault-cli
 | **Day-2** | Doctor/ready, unseal after restart, backup, upgrades, seal, app onboarding via CLI + CRDs |
 | **Companion** | Full platform narrative (why, custody, multi-share): [operator runbook](operator-runbook.md) |
 | **Not this guide** | Standalone containerd without K8s — [standalone Day-0/Day-2](standalone-distroless-day0-day2.md) |
+| **Images / registry** | [Build and deploy images](build-and-deploy-images.md) |
 
 ```text
 Day-0  =  empty cluster  →  knxvault HA + admin path via knxvault-cli

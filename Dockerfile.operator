@@ -1,0 +1,30 @@
+# syntax=docker/dockerfile:1
+# =============================================================================
+# knxvault-operator — distroless Debian 13 image (Kubernetes only)
+# Runtime: gcr.io/distroless/static-debian13:nonroot
+# =============================================================================
+
+FROM golang:1.26-bookworm AS builder
+
+ARG VERSION=0.4.5
+ARG COMMIT=unknown
+ARG BUILD_ID=0
+
+ENV GOTOOLCHAIN=go1.26.4
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN ldflags="-s -w \
+    -X github.com/kubenexis/knxvault/internal/version.Version=${VERSION} \
+    -X github.com/kubenexis/knxvault/internal/version.Commit=${COMMIT} \
+    -X github.com/kubenexis/knxvault/internal/version.BuildID=${BUILD_ID}" \
+    && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="${ldflags}" \
+      -o /out/knxvault-operator ./cmd/operator
+
+FROM gcr.io/distroless/static-debian13:nonroot
+
+COPY --from=builder /out/knxvault-operator /usr/local/bin/knxvault-operator
+
+USER nonroot:nonroot
+ENTRYPOINT ["/usr/local/bin/knxvault-operator"]

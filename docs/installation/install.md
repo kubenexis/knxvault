@@ -9,7 +9,7 @@ Install KNXVault as a local binary, container, or 3-node Kubernetes Raft cluster
 | Go | 1.26+ | For building from source (`GOTOOLCHAIN=go1.26.4`) |
 | OpenSSL | — | **Not used by the server.** Optional on admin hosts for `openssl rand` key generation only. |
 | Kubernetes | 1.28+ | For production HA deployment (**3 nodes** for Raft quorum) |
-| Docker or nerdctl | for packaging | `make docker-build` produces the only supported image: distroless `static-debian13` |
+| Docker or nerdctl | for packaging | `make docker-build` → distroless `static-debian13` server image; see [Build and deploy images](../operations/build-and-deploy-images.md) |
 
 ## Option 1: Local binary (development)
 
@@ -60,7 +60,10 @@ Bare-metal lab smoke (host binary, single-node Raft):
 
 After any Raft start, **unseal** (full key or multi-share) before writes — process starts sealed when unseal key is set. Recipe: [Seal and unseal](../recipes/seal-and-unseal.md).
 
-## Option 2: Docker (distroless Debian 13)
+## Option 2: Docker / containerd (distroless Debian 13)
+
+**Build catalog, image matrix, and containerd (`nerdctl`) deploy steps:**  
+[Build and deploy images](../operations/build-and-deploy-images.md).
 
 **Always** build knxvault as the multi-stage image in `Dockerfile`:
 

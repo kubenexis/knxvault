@@ -26,8 +26,10 @@ VERSION         ?= 0.4.5
 COMMIT          ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 BUILD_ID        ?= $(shell date +%s)
 IMAGE           ?= knxvault:$(VERSION)
-# Only supported image: multi-stage → gcr.io/distroless/static-debian13:nonroot
+OPERATOR_IMAGE  ?= knxvault-operator:$(VERSION)
+# Only supported runtime: multi-stage → gcr.io/distroless/static-debian13:nonroot
 DOCKERFILE      ?= Dockerfile
+DOCKERFILE_OPERATOR ?= Dockerfile.operator
 export GOTOOLCHAIN := $(GO_TOOLCHAIN)
 
 # -----------------------------------------------------------------------------
@@ -105,7 +107,7 @@ all: ## Run fmt, vet, lint, docs-lint, gosec, licenses, scan, test, test-integra
 # Go quality
 # =============================================================================
 
-.PHONY: fmt vet lint docs-lint gosec semgrep licenses test test-integration test-coverage build build-cli build-csi build-webhook build-eso build-operator generate-clients test-clients check-client-drift sbom scan tidy install-tools docker-build clean
+.PHONY: fmt vet lint docs-lint gosec semgrep licenses test test-integration test-coverage build build-cli build-csi build-webhook build-eso build-operator generate-clients test-clients check-client-drift sbom scan tidy install-tools docker-build docker-build-operator docker-build-all clean
 
 fmt: ## Check Go formatting (gofmt)
 	$(call log,Checking gofmt)
@@ -184,7 +186,7 @@ lab-full-e2e: ## Full lab E2E on LAB_HOST (core + vaultcompat + operator)
 	$(call log,Lab full E2E on $(LAB_HOST))
 	bash scripts/lab-full-e2e.sh $(LAB_HOST)
 
-docker-build: ## Build distroless/static-debian13 image ($(IMAGE)) via docker or nerdctl
+docker-build: ## Build distroless server image ($(IMAGE)) via docker or nerdctl
 	$(call log,Building distroless Debian 13 image $(IMAGE) with $(DOCKER))
 	@command -v $(notdir $(DOCKER)) >/dev/null 2>&1 || { \
 		printf "$(COLOR_RED)error: neither docker nor nerdctl found$(COLOR_RESET)\n" >&2; \
@@ -196,6 +198,21 @@ docker-build: ## Build distroless/static-debian13 image ($(IMAGE)) via docker or
 		--build-arg COMMIT=$(COMMIT) \
 		--build-arg BUILD_ID=$(BUILD_ID) \
 		-t $(IMAGE) .
+
+docker-build-operator: ## Build distroless operator image ($(OPERATOR_IMAGE))
+	$(call log,Building distroless operator image $(OPERATOR_IMAGE) with $(DOCKER))
+	@command -v $(notdir $(DOCKER)) >/dev/null 2>&1 || { \
+		printf "$(COLOR_RED)error: neither docker nor nerdctl found$(COLOR_RESET)\n" >&2; \
+		exit 1; \
+	}
+	$(DOCKER) build \
+		-f $(DOCKERFILE_OPERATOR) \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg COMMIT=$(COMMIT) \
+		--build-arg BUILD_ID=$(BUILD_ID) \
+		-t $(OPERATOR_IMAGE) .
+
+docker-build-all: docker-build docker-build-operator ## Build server + operator distroless images
 
 build: ## Build statically linked release binary to bin/knxvault
 	$(call log,Building static binary $(BINARY))

@@ -8,15 +8,15 @@ KNXVault ships **raw Kubernetes manifests** in [`deployments/k8s/`](../../deploy
 - Container image built locally or pushed to your registry
 - Persistent volumes for Raft data (StatefulSet)
 
-## Build the image
+## Build images
+
+Catalog, matrix, and containerd/`nerdctl` steps: **[Build and deploy images](../operations/build-and-deploy-images.md)**.
 
 ```bash
-make docker-build
-# or with a registry tag:
-docker build -t registry.example.com/knxvault:0.4.5 .
+make docker-build              # knxvault:VERSION (server + CSI/webhook/ESO binaries)
+make docker-build-operator     # knxvault-operator:VERSION (optional cert automation)
+# tag/push to registry; set image: on StatefulSet and operator Deployment
 ```
-
-Update `deployments/k8s/statefulset.yaml` `image:` to match your tag.
 
 ## Configure secrets
 

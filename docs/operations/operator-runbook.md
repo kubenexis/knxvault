@@ -28,6 +28,7 @@ Day-2  =  everything after acceptance (restarts, backups, upgrades, incidents)
 | Day-2 tables | [Day-2 operations](day2.md) |
 | **Standalone (no K8s)** distroless + host CLI | [Standalone Day-0 / Day-2](standalone-distroless-day0-day2.md) |
 | **Kubernetes + host CLI** (CLI-first Day-0/Day-2) | [Kubernetes CLI Day-0 / Day-2](kubernetes-cli-day0-day2.md) |
+| **Build images / what to ship** | [Build and deploy images](build-and-deploy-images.md) |
 | Lab proof | [E2E and lab tests](../engineering/e2e-and-lab-tests.md) |
 | Post-quantum (future) | [docs/pq/](../pq/README.md) — dual planes, g1/g2; Harbor stays classical (**g1**) |
 

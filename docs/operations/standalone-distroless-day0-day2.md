@@ -8,6 +8,7 @@ One coherent guide for running **knxvault without Kubernetes**: a **distroless c
 | **Day-0** | Keys → build/load image → run (publish API) → point CLI → unseal (if Raft) → smoke → first CA/secret → accept |
 | **Day-2** | Health, restarts/unseal, backup, upgrades, seal incidents, token hygiene |
 | **Not this guide** | 3-pod Kubernetes HA StatefulSet, knxvault-operator CRDs, CSI — see [operator runbook](operator-runbook.md) |
+| **Images / nerdctl build** | [Build and deploy images](build-and-deploy-images.md) |
 
 ```text
 Day-0  =  no vault  →  container serving secrets & certs, adminable from the host
