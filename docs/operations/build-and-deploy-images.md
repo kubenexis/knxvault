@@ -17,16 +17,16 @@ How to **build** knxvault container images, **which images** each topology needs
 
 | Image (default tag) | Dockerfile | Makefile | Binaries inside | Used for |
 |---------------------|------------|----------|-----------------|----------|
-| **`knxvault:0.4.5`** | `Dockerfile` | `make container-build` | `knxvault`, `knxvault-csi`, `knxvault-webhook`, `knxvault-eso` | Server (always); CSI / webhook / ESO adapters by **command override** |
-| **`knxvault-operator:0.4.5`** | `Dockerfile.operator` | `make k8s-operator-build` | `knxvault-operator` | Kubernetes certificate operator only |
+| **`knxvault:0.5.1`** | `Dockerfile` | `make container-build` | `knxvault`, `knxvault-csi`, `knxvault-webhook`, `knxvault-eso` | Server (always); CSI / webhook / ESO adapters by **command override** |
+| **`knxvault-operator:0.5.1`** | `Dockerfile.operator` | `make k8s-operator-build` | `knxvault-operator` | Kubernetes certificate operator only |
 
-Version comes from Makefile `VERSION` (default `0.4.5`). Override:
+Version comes from Makefile `VERSION` (default `0.5.1`). Override:
 
 ```bash
-make container-build IMAGE=registry.example.com/knxvault:0.4.5
-make k8s-operator-build OPERATOR_IMAGE=registry.example.com/knxvault-operator:0.4.5
+make container-build IMAGE=registry.example.com/knxvault:0.5.1
+make k8s-operator-build OPERATOR_IMAGE=registry.example.com/knxvault-operator:0.5.1
 # or both:
-make container-build-all VERSION=0.4.5
+make container-build-all VERSION=0.5.1
 ```
 
 Default entrypoint of `knxvault:…` is **`/usr/local/bin/knxvault`** with `CMD ["serve"]`. Other binaries share the same image:
@@ -78,7 +78,7 @@ Default entrypoint of `knxvault:…` is **`/usr/local/bin/knxvault`** with `CMD 
 | Host **`knxvault-cli`** for admin | ESO adapter | — |
 | StorageClass + Secret + RBAC | Example sidecars (`busybox` / `curl`) | — |
 
-Manifests set `image: knxvault:0.4.5` / `knxvault-operator:0.4.5` with `imagePullPolicy: IfNotPresent` in several places — retag to your registry for real clusters.
+Manifests set `image: knxvault:0.5.1` / `knxvault-operator:0.5.1` with `imagePullPolicy: IfNotPresent` in several places — retag to your registry for real clusters.
 
 ---
 
@@ -121,7 +121,7 @@ sudo nerdctl pull gcr.io/distroless/static-debian13:nonroot
 ```bash
 cd /path/to/knxvault
 make container-build
-# → knxvault:0.4.5  (or IMAGE=…)
+# → knxvault:0.5.1  (or IMAGE=…)
 ```
 
 `make container-build` auto-picks a **working** `docker` / `nerdctl` / `sudo nerdctl` (see above).
@@ -130,7 +130,7 @@ make container-build
 
 ```bash
 make k8s-operator-build
-# → knxvault-operator:0.4.5
+# → knxvault-operator:0.5.1
 ```
 
 ### 3.4 Build host CLI
@@ -148,15 +148,15 @@ After `make container-build-all` (or individual builds), export OCI/docker-compa
 # Build then export (recommended)
 make container-build-all
 make container-export-all
-# → build/images/knxvault-0.4.5.tar
-# → build/images/knxvault-operator-0.4.5.tar
+# → build/images/knxvault-0.5.1.tar
+# → build/images/knxvault-operator-0.5.1.tar
 
 # Individual targets
 make container-export          # server only (standalone needs this)
 make k8s-operator-export       # operator only (K8s cert automation)
 
 # Overrides
-make container-export-all IMAGE_EXPORT_DIR=/tmp/airgap VERSION=0.4.5
+make container-export-all IMAGE_EXPORT_DIR=/tmp/airgap VERSION=0.5.1
 ```
 
 | Topology | Tarballs required |
@@ -169,12 +169,12 @@ make container-export-all IMAGE_EXPORT_DIR=/tmp/airgap VERSION=0.4.5
 
 ```bash
 # containerd / nerdctl
-sudo nerdctl load -i knxvault-0.4.5.tar
-sudo nerdctl load -i knxvault-operator-0.4.5.tar   # if K8s operator
+sudo nerdctl load -i knxvault-0.5.1.tar
+sudo nerdctl load -i knxvault-operator-0.5.1.tar   # if K8s operator
 sudo nerdctl images | grep knxvault
 
 # Docker Engine
-docker load -i knxvault-0.4.5.tar
+docker load -i knxvault-0.5.1.tar
 ```
 
 Also ship **host `knxvault-cli`** (`make build-cli` → copy `build/bin/knxvault-cli`) — not an image.
@@ -185,10 +185,10 @@ Kubernetes nodes: load into each node’s containerd **or** push to an internal 
 
 ```bash
 REG=registry.example.com/knx
-nerdctl tag knxvault:0.4.5 ${REG}/knxvault:0.4.5
-nerdctl tag knxvault-operator:0.4.5 ${REG}/knxvault-operator:0.4.5
-nerdctl push ${REG}/knxvault:0.4.5
-nerdctl push ${REG}/knxvault-operator:0.4.5
+nerdctl tag knxvault:0.5.1 ${REG}/knxvault:0.5.1
+nerdctl tag knxvault-operator:0.5.1 ${REG}/knxvault-operator:0.5.1
+nerdctl push ${REG}/knxvault:0.5.1
+nerdctl push ${REG}/knxvault-operator:0.5.1
 # Update image: fields in StatefulSet / operator Deployment
 ```
 
@@ -201,8 +201,8 @@ End-to-end ops narrative: [standalone-distroless-day0-day2.md](standalone-distro
 ### 4.1 One-time on the host
 
 ```bash
-# build or load knxvault:0.4.5 into this host's containerd
-make container-build    # or nerdctl load -i knxvault-0.4.5.tar
+# build or load knxvault:0.5.1 into this host's containerd
+make container-build    # or nerdctl load -i knxvault-0.5.1.tar
 make build-cli
 
 mkdir -p /var/lib/knxvault/raft
@@ -229,7 +229,7 @@ nerdctl run -d --name knxvault --restart=unless-stopped \
   -e KNXVAULT_RAFT_ADDRESS=127.0.0.1:63001 \
   -e KNXVAULT_RAFT_DATA_DIR=/var/lib/knxvault/raft \
   -e KNXVAULT_RAFT_INITIAL_MEMBERS=1=127.0.0.1:63001 \
-  knxvault:0.4.5 serve
+  knxvault:0.5.1 serve
 ```
 
 Lab without persistence (data lost on stop):
@@ -238,7 +238,7 @@ Lab without persistence (data lost on stop):
 nerdctl run -d --name knxvault -p 8200:8200 \
   -e KNXVAULT_MASTER_KEY="$MASTER" \
   -e KNXVAULT_ROOT_TOKEN="$ROOT" \
-  knxvault:0.4.5 serve
+  knxvault:0.5.1 serve
 ```
 
 ### 4.3 Admin from the host (CLI, not exec)
@@ -320,10 +320,10 @@ Then CRDs + operator RBAC + Deployment + sample Certificate CRDs.
 
 ```bash
 # Inspect config (nerdctl)
-nerdctl image inspect knxvault:0.4.5 --format '{{.Config.Entrypoint}} {{.Config.Cmd}} {{.Config.User}}'
+nerdctl image inspect knxvault:0.5.1 --format '{{.Config.Entrypoint}} {{.Config.Cmd}} {{.Config.User}}'
 
 # Run one-shot (no serve): version
-nerdctl run --rm --entrypoint /usr/local/build/bin/knxvault knxvault:0.4.5 -version
+nerdctl run --rm --entrypoint /usr/local/bin/knxvault knxvault:0.5.1 -version
 ```
 
 Expect non-root user, entrypoint `knxvault`, no shell.
@@ -355,11 +355,11 @@ make container-export-all         # air-gap tarballs → build/images/*.tar
 make build-cli                    # host admin binary
 
 # Air-gap load (target host)
-sudo nerdctl load -i build/images/knxvault-0.4.5.tar
-sudo nerdctl load -i build/images/knxvault-operator-0.4.5.tar   # K8s operator
+sudo nerdctl load -i build/images/knxvault-0.5.1.tar
+sudo nerdctl load -i build/images/knxvault-operator-0.5.1.tar   # K8s operator
 
 # Standalone (containerd)
-nerdctl run -d --name knxvault -p 8200:8200 … knxvault:0.4.5 serve
+nerdctl run -d --name knxvault -p 8200:8200 … knxvault:0.5.1 serve
 export KNXVAULT_ADDR=http://127.0.0.1:8200
 ./build/bin/knxvault-cli sys unseal "$UNSEAL"
 

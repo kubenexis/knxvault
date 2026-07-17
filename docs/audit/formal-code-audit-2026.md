@@ -4,7 +4,7 @@
 |-------|-------|
 | **Report version** | 1.0 |
 | **Audit date** | 2026-07-01 |
-| **Product version audited** | v0.4.5 (main branch, uncommitted SSH + test expansion) |
+| **Product version audited** | v0.5.1 (main branch, uncommitted SSH + test expansion) |
 | **Scope** | Full 10-phase technical audit per BFSI POC acceptance criteria |
 | **Methodology** | Static code review, architecture doc cross-check, backlog/traceability alignment, targeted test execution |
 | **Auditors** | Automated codebase review (Cursor agent) with subagent phase decomposition |

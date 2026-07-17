@@ -1275,7 +1275,7 @@ KNXVault includes a native **Command-Line Interface (CLI)** tool named `knxvault
 
 ### 11.3 CLI Command Structure
 
-> **Implementation status (v0.4.5):** The shipped binary is `knxvault-cli`. Implemented commands are documented in [`docs/cli/reference.md`](cli/reference.md). The structure below includes planned commands beyond the current MVP.
+> **Implementation status (v0.5.1):** The shipped binary is `knxvault-cli`. Implemented commands are documented in [`docs/cli/reference.md`](cli/reference.md). The structure below includes planned commands beyond the current MVP.
 
 ```bash
 knxvault-cli [global flags] <command> <subcommand> [flags]
@@ -1335,7 +1335,7 @@ knxvault audit list
 ```bash
 knxvault admin init                     # Bootstrap master key + initial root CA
 knxvault admin rekey
-knxvault-cli sys seal / unseal           # Implemented (v0.4.5)
+knxvault-cli sys seal / unseal           # Implemented (v0.5.1)
 ```
 
 ### 11.4 Implementation Highlights

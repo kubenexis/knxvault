@@ -23,8 +23,8 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.LogLevel != "info" {
 		t.Errorf("LogLevel = %q, want info", cfg.LogLevel)
 	}
-	if cfg.Version != "0.4.5" {
-		t.Errorf("Version = %q, want 0.4.5", cfg.Version)
+	if cfg.Version != "0.5.1" {
+		t.Errorf("Version = %q, want 0.5.1", cfg.Version)
 	}
 }
 

@@ -70,12 +70,12 @@ curl -s http://localhost:8200/secrets/kv/app/db \
 (Debian 13 / Trixie). PKI is **always** in-process Go `crypto/x509` — there is no OpenSSL CLI backend and no openssl binary in the image.
 
 ```bash
-make container-build          # builds knxvault:0.4.5 (distroless/static-debian13)
+make container-build          # builds knxvault:0.5.1 (distroless/static-debian13)
 make container-export-all     # air-gap tarballs: build/images/*.tar (server + operator)
 docker run --rm -p 8200:8200 \
   -e KNXVAULT_MASTER_KEY="$(openssl rand -base64 32)" \
   -e KNXVAULT_ROOT_TOKEN=dev-root-token \
-  knxvault:0.4.5 serve
+  knxvault:0.5.1 serve
 # (nerdctl works the same: make container-build uses docker or nerdctl)
 ```
 
@@ -122,7 +122,7 @@ Server configuration loads in this order: **defaults → `/etc/knxvault.conf` (w
 |----------|---------|-------------|
 | `KNXVAULT_HTTP_ADDR` | `:8200` | HTTP listen address |
 | `KNXVAULT_LOG_LEVEL` | `info` | Log level |
-| `KNXVAULT_VERSION` | `0.4.5` | Version string (build metadata when unset) |
+| `KNXVAULT_VERSION` | `0.5.1` | Version string (build metadata when unset) |
 | `KNXVAULT_SHUTDOWN_GRACE` | `10s` | Graceful shutdown timeout |
 | `KNXVAULT_RAFT_ENABLED` | `false` | Enable Dragonboat Raft storage |
 | `KNXVAULT_RAFT_NODE_ID` | _(K8s: from pod ordinal)_ | Stable Raft member ID (> 0); see [docs/storage/dragonboat.md](docs/storage/dragonboat.md#raft-node-ids--how-to-choose-and-assign) |

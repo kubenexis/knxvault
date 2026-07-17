@@ -52,7 +52,7 @@ curl -s $KNXVAULT_ADDR/metrics | grep knxvault_build_info
 ## Rollback
 
 ```bash
-kubectl -n knxvault set image statefulset/knxvault knxvault=registry.example.com/knxvault:0.4.5
+kubectl -n knxvault set image statefulset/knxvault knxvault=registry.example.com/knxvault:0.5.1
 # Repeat rolling restart
 # Or restore from pre-upgrade backup if schema migration failed
 ```

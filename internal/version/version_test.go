@@ -13,8 +13,8 @@ import (
 
 func TestGetAndString(t *testing.T) {
 	info := version.Get()
-	if info.Version != "0.4.5" {
-		t.Fatalf("Version = %q, want 0.4.5", info.Version)
+	if info.Version != "0.5.1" {
+		t.Fatalf("Version = %q, want 0.5.1", info.Version)
 	}
 	if !strings.Contains(version.String(), info.Version) {
 		t.Fatalf("String() = %q, want version substring", version.String())
@@ -36,7 +36,7 @@ func TestHandleArgs(t *testing.T) {
 func TestPrint(t *testing.T) {
 	var buf bytes.Buffer
 	version.Print(&buf)
-	if !strings.Contains(buf.String(), "0.4.5") {
+	if !strings.Contains(buf.String(), "0.5.1") {
 		t.Fatalf("Print() = %q", buf.String())
 	}
 }
@@ -50,7 +50,7 @@ func TestAnnounceZap(t *testing.T) {
 		t.Fatalf("entries = %d, want 1", len(entries))
 	}
 	fields := entries[0].ContextMap()
-	if fields["version"] != "0.4.5" {
+	if fields["version"] != "0.5.1" {
 		t.Fatalf("logged version = %v", fields["version"])
 	}
 	if _, ok := fields["commit"]; !ok {

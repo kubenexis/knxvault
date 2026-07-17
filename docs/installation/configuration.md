@@ -14,7 +14,7 @@ See [`config/knxvault.example.yaml`](../../config/knxvault.example.yaml) for the
 |----------|---------|----------|-------------|
 | `KNXVAULT_HTTP_ADDR` | `:8200` | No | HTTP listen address |
 | `KNXVAULT_LOG_LEVEL` | `info` | No | `debug`, `info`, `warn`, `error` |
-| `KNXVAULT_VERSION` | `0.4.5` | No | Version string in metrics and health (build metadata when unset) |
+| `KNXVAULT_VERSION` | `0.5.1` | No | Version string in metrics and health (build metadata when unset) |
 | `KNXVAULT_SHUTDOWN_GRACE` | `10s` | No | Graceful shutdown timeout |
 
 ## Cryptography

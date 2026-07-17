@@ -9,7 +9,7 @@
 | **Result** | **PASS** (20 / 20 checks) — historical |
 | **Date (UTC)** | 2026-07-16T02:07:26Z |
 | **Host** | `e2e-test01.example.local` (`192.168.137.131`) |
-| **Binary** | `knxvault` / `knxvault-cli` **0.4.5** @ commit `b973d53` |
+| **Binary** | `knxvault` / `knxvault-cli` **0.5.1** @ commit `b973d53` |
 | **Mode** | Single-node Dragonboat Raft (host process, not K8s STS) |
 | **Unseal** | Full-key `POST /sys/unseal` (not multi-share) |
 | **Listen** | HTTP `:8200`, Raft `127.0.0.1:63001` |
@@ -82,7 +82,7 @@ Sample health payload:
 ```json
 {
   "status": "healthy",
-  "version": "0.4.5",
+  "version": "0.5.1",
   "leader": true,
   "ha_enabled": true,
   "raft_enabled": true,

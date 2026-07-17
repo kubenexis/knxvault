@@ -34,7 +34,7 @@ DOCKER ?= $(shell \
 	else \
 		echo ""; \
 	fi)
-VERSION         ?= 0.4.5
+VERSION         ?= 0.5.1
 COMMIT          ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 BUILD_ID        ?= $(shell date +%s)
 IMAGE           ?= knxvault:$(VERSION)

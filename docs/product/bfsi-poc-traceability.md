@@ -4,7 +4,7 @@ Formal mapping of **BFSI POC must-have requirements** to KNXVault implementation
 
 | Field | Value |
 |-------|-------|
-| **Product version** | v0.4.5 |
+| **Product version** | v0.5.1 |
 | **Matrix version** | 1.0 |
 | **Last updated** | 2026-07-01 (backlog audit) |
 | **Scope** | Prospect POC / regulated workload evaluation (BFSI) |

@@ -5,7 +5,7 @@
 | **Result** | **PASS** (53 / 53 checks) |
 | **Date (UTC)** | 2026-07-16T08:31:57Z |
 | **Host** | `e2e-test01` (`192.168.137.131`) |
-| **Binary** | `knxvault` / `knxvault-cli` / `knxvault-operator` **0.4.5** |
+| **Binary** | `knxvault` / `knxvault-cli` / `knxvault-operator` **0.5.1** |
 | **Mode** | Single-node Dragonboat Raft (host process) + operator against local API |
 | **Unseal** | **Shamir multi-share** — start sealed → offline t-of-n shares → data plane (no full-key unseal on open path) |
 | **Script** | `scripts/lab-full-e2e.sh` |

@@ -44,7 +44,7 @@ spec:
       serviceAccountName: knxvault-eso
       containers:
         - name: knxvault-eso
-          image: knxvault:0.4.5
+          image: knxvault:0.5.1
           command: ["/usr/local/bin/knxvault-eso"]
           env:
             - name: KNXVAULT_ESO_ADDR
