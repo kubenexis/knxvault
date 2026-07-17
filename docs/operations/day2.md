@@ -55,11 +55,15 @@ Full PKI operations (CA hierarchy, issuance, trust bundles, Kubernetes integrati
 
 | Guide | Topics |
 |-------|--------|
-| [PKI administration](pki-administration.md) | Root/intermediate/leaf recipes, import/export, renewal, revocation, CSR sign |
+| [PKI administration](pki-administration.md) | Root/intermediate/leaf recipes, import/export, renewal, revocation, CSR sign (**private CA**) |
+| [Unified ACME / Let's Encrypt](../design/acme-letsencrypt-unified.md) | Public TLS: operator ACME + `knxvault-cli acme` (standalone/host) |
 | [Replace cert-manager](pki-replace-cert-manager.md) | **Preferred** — knxvault-operator CRDs, no cert-manager |
 | [PKI Kubernetes integration](pki-kubernetes.md) | Ingress TLS, CronJob, operator, optional Vault profile |
 | [cert-manager recipe](../recipes/cert-manager-integration.md) | Optional legacy Vault issuer (`/v1/*`) |
 | [PKI security best practices](pki-security-practices.md) | Trust hierarchy, key handling, production checklist |
+
+**Day-2 ACME renew (host):** `knxvault-cli acme renew --config /etc/knxvault/acme.d/edge.yaml` or `examples/systemd/knxvault-acme-renew.timer`.  
+**Day-2 ACME renew (K8s):** operator reconciles `KNXVaultCertificate` within `renewBefore`.
 
 ### Certificate renewal (summary)
 

@@ -162,17 +162,23 @@ test: ## Run unit tests
 	$(call require_cmd,go)
 	$(GO) test $$(go list ./... | grep -v '/test/integration') -count=1
 
-test-coverage: ## Coverage gate ≥COVERAGE_MIN% on pure operator/acme packages
-	$(call log,Running coverage gate (min $(COVERAGE_MIN)% on pure logic packages))
+# ACME package includes network/Issue paths; gate pure logic at COVERAGE_MIN and acme at COVERAGE_ACME_MIN.
+COVERAGE_ACME_MIN ?= 70
+test-coverage: ## Coverage gate ≥COVERAGE_MIN% operator pure-logic; ≥COVERAGE_ACME_MIN% acme
+	$(call log,Running coverage gate - operator min $(COVERAGE_MIN) pct acme min $(COVERAGE_ACME_MIN) pct)
 	$(call require_cmd,go)
 	@$(GO) test ./internal/operator/renew ./internal/operator/secretutil ./internal/operator/statusutil \
 		./internal/operator/reconcileutil ./internal/operator/certlogic \
-		./internal/acme \
 		-count=1 -covermode=atomic -coverprofile=coverage-operator.out; \
 	$(GO) test ./internal/operator/cmcompat ./internal/operator/apis/v1alpha1 -count=1 -cover 2>&1 | tail -6; \
 	pct=$$($(GO) tool cover -func=coverage-operator.out | awk '/^total:/{gsub(/%/,"",$$3); print $$3}'); \
 	echo "operator pure-logic coverage: $${pct}% (min $(COVERAGE_MIN)%)"; \
 	awk -v p="$${pct}" -v m="$(COVERAGE_MIN)" 'BEGIN{ if ((p+0) < (m+0)) { print "coverage below gate" > "/dev/stderr"; exit 1 } }'; \
+	$(GO) test ./internal/acme ./internal/acme/filestore ./internal/acme/vaultstore \
+		-count=1 -covermode=atomic -coverprofile=coverage-acme.out; \
+	apct=$$($(GO) tool cover -func=coverage-acme.out | awk '/^total:/{gsub(/%/,"",$$3); print $$3}'); \
+	echo "acme package coverage: $${apct}% (min $(COVERAGE_ACME_MIN)%)"; \
+	awk -v p="$${apct}" -v m="$(COVERAGE_ACME_MIN)" 'BEGIN{ if ((p+0) < (m+0)) { print "acme coverage below gate" > "/dev/stderr"; exit 1 } }'; \
 	$(GO) test ./internal/operator/controllers ./internal/operator/vaultiface -count=1 -cover 2>&1 | tail -8
 
 test-integration: build build-cli ## Run integration tests (API + Raft + daemon e2e)

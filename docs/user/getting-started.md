@@ -179,7 +179,10 @@ kubectl apply -f deployments/operator/crds/
 kubectl apply -f deployments/operator/samples/certificate-example.yaml
 # Or self-signed lab certs
 kubectl apply -f deployments/operator/samples/selfsigned-certificate.yaml
-# Or ACME (Let's Encrypt) — see acme-clusterissuer-example.yaml
+# ACME / Let's Encrypt:
+#   K8s: operator samples — deployments/operator/samples/acme-clusterissuer-example.yaml
+#   Standalone/host: knxvault-cli acme --config examples/acme/edge-staging.yaml
+#   Design: docs/design/acme-letsencrypt-unified.md
 ```
 
 Guides: [Replace cert-manager](../operations/pki-replace-cert-manager.md), [support matrix](../operations/certificate-support-matrix.md).

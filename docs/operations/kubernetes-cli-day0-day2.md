@@ -338,7 +338,30 @@ CA compromise: [ca-compromise](runbooks/ca-compromise.md).
 | Role → app ServiceAccount | API |
 | Write secrets | `knxvault-cli kv put app/<name> …` |
 | Deliver secrets | CSI / ESO — [secrets injection](../deploy/secrets-injection.md) |
-| TLS Secret | Operator `KNXVaultCertificate` or CLI `pki issue` + manual Secret |
+| **Private** TLS Secret | Operator Vault issuer / CLI `pki issue` |
+| **Public** Let's Encrypt TLS | Operator **ACME** issuer (`KNXVaultClusterIssuer` `spec.acme`) — sample `deployments/operator/samples/acme-clusterissuer-example.yaml` |
+
+### B6.1 ACME / Let's Encrypt (Kubernetes)
+
+In-cluster automation uses **knxvault-operator** ACME mode (not `knxvault-cli pki`):
+
+1. Deploy operator + CRDs.  
+2. Apply ACME `KNXVaultClusterIssuer` (staging first).  
+3. Apply `KNXVaultCertificate` → `kubernetes.io/tls` Secret.  
+4. Point Ingress TLS at that Secret.
+
+**Host CLI ACME** (`knxvault-cli acme`) is for **standalone / edge host files**, not a replacement for operator-managed Secrets. Use CLI ACME when you terminate TLS on a host next to containerd, or for lab without CRDs.
+
+```bash
+# Operator path (preferred in-cluster)
+kubectl apply -f deployments/operator/samples/acme-clusterissuer-example.yaml
+# + KNXVaultCertificate referencing that issuer
+
+# Host edge path (files on admin/jump host)
+knxvault-cli acme issue --config /etc/knxvault/acme.d/edge.yaml
+```
+
+Design: [acme-letsencrypt-unified.md](../design/acme-letsencrypt-unified.md).
 
 ## B7. Troubleshooting (CLI + K8s)
 

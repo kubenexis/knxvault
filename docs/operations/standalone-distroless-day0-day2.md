@@ -341,14 +341,37 @@ knxvault-cli sys unseal "$(cat unseal.key)"
 
 CA compromise: [ca-compromise runbook](runbooks/ca-compromise.md).
 
-## B6. Ongoing PKI and secrets
+## B6. Ongoing PKI, public TLS (ACME), and secrets
 
 | Task | Tooling |
 |------|---------|
-| Issue / renew / revoke certs | `knxvault-cli pki …` or API — [pki-administration.md](pki-administration.md) |
+| **Private** platform CA certs | `knxvault-cli pki …` or API — [pki-administration.md](pki-administration.md) |
+| **Public** Let's Encrypt / ACME | `knxvault-cli acme …` with a profile YAML (host, not distroless) — [unified ACME design](../design/acme-letsencrypt-unified.md) |
 | App secrets | `knxvault-cli kv …` |
 | Listener TLS material | `knxvault-cli sys issue-listener-tls` |
 | Token/policy hygiene | scoped tokens; retire root — [day2.md](day2.md#token-hygiene) |
+
+### B6.1 Public TLS (Let's Encrypt) on standalone
+
+ACME does **not** run inside the distroless container. On the **host**:
+
+```bash
+# Edit domains / webroot / paths first
+sudo cp examples/acme/edge-staging.yaml /etc/knxvault/acme.d/edge.yaml
+# Prefer staging until challenge path works, then switch directory_url to production LE
+
+knxvault-cli acme doctor --config /etc/knxvault/acme.d/edge.yaml
+knxvault-cli acme register --config /etc/knxvault/acme.d/edge.yaml
+knxvault-cli acme issue --config /etc/knxvault/acme.d/edge.yaml
+knxvault-cli acme status --config /etc/knxvault/acme.d/edge.yaml
+
+# Day-2 renew (or systemd timer: examples/systemd/knxvault-acme-renew.*)
+knxvault-cli acme renew --config /etc/knxvault/acme.d/edge.yaml
+# optional long-running:
+# knxvault-cli acme agent --config /etc/knxvault/acme.d/edge.yaml --interval 1h
+```
+
+Point your reverse proxy at the delivered `cert_path` / `key_path`. Private CA workflows remain under `pki`.
 
 ## B7. Troubleshooting (standalone)
 

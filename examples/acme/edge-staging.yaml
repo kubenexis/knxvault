@@ -1,0 +1,39 @@
+# ACME profile for standalone / host CLI (Let's Encrypt staging).
+# Usage:
+#   knxvault-cli acme doctor --config examples/acme/edge-staging.yaml
+#   knxvault-cli acme register --config examples/acme/edge-staging.yaml
+#   knxvault-cli acme issue --config examples/acme/edge-staging.yaml
+#   knxvault-cli acme renew --config examples/acme/edge-staging.yaml
+#
+# Prefer staging until HTTP-01/DNS-01 is proven, then switch directory_url to production.
+
+profile: edge-staging
+directory_url: https://acme-staging-v02.api.letsencrypt.org/directory
+email: ops@example.com
+accept_tos: true
+account_key_file: /var/lib/knxvault/acme/account.key
+
+http01:
+  mode: webroot
+  webroot: /var/www/html
+  # mode: listen
+  # listen_addr: ":80"
+
+# dns01:
+#   provider: cloudflare
+#   api_token_file: /etc/knxvault/cloudflare.token
+#   zone_id: ""
+
+domains:
+  - name: app.example.com
+    sans:
+      - app.example.com
+
+delivery:
+  type: files
+  cert_path: /etc/ssl/knxvault/app.fullchain.pem
+  key_path: /etc/ssl/knxvault/app.key.pem
+
+state_file: /var/lib/knxvault/acme/app.acme-state.json
+renew_before: 720h
+# post_renew_hook: /usr/local/bin/reload-nginx.sh

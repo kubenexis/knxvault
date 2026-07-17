@@ -266,7 +266,10 @@ Then CRDs + operator RBAC + Deployment + sample Certificate CRDs.
 | `knxvault:…` | **Yes** | **Yes** | **Yes** | **Yes** |
 | `knxvault-operator:…` | No | No | **Yes** | No* |
 | Host `knxvault-cli` | **Yes** | **Yes** | **Yes** | **Yes** |
+| Host ACME profiles (`examples/acme/`) | Optional (public TLS) | Optional (edge TLS) | Optional | Optional |
 | Upstream CSI driver images | No | No | No | **Yes** |
+
+**Public TLS note:** Let's Encrypt automation runs on the **host CLI** (`knxvault-cli acme`) or **operator ACME CRDs** — never inside the distroless `knxvault` server image.
 
 \*CSI does not require the operator image.
 

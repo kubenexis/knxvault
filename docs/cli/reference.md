@@ -68,7 +68,16 @@ token: dev-root-token
 | `database creds <role> [--ttl]` | `POST /secrets/database/creds/:role` |
 | `backup create [-o file] [--include-audit]` | Export encrypted backup |
 | `backup restore -f file` | Restore encrypted backup |
+| `acme register\|issue\|renew\|status\|doctor --config profile.yaml` | Public ACME / Let's Encrypt (file delivery); **not** private CA |
+| `acme agent --config profile.yaml [--interval]` | Long-running renew loop (optional) |
 | `completion [bash\|zsh\|fish]` | Generate shell completion scripts |
+
+Private CA vs public ACME:
+
+| Command group | Trust |
+|---------------|--------|
+| `pki …` | knxvault private CA (`POST /pki/*`) |
+| `acme …` | Let's Encrypt / other ACME directories (host-side; see `examples/acme/`) |
 
 ## Examples
 

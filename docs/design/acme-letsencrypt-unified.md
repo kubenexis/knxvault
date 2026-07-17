@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Status** | Proposed |
+| **Status** | Implemented (M-ACME-1 core A–C; Phase D stubs ADR + vaultstore) |
 | **Date** | 2026-07-17 |
 | **Authors** | knxvault engineering |
 | **Milestone** | **M-ACME-1** — Unified ACME / Let's Encrypt (see backlog **W60-***) |

@@ -1,0 +1,15 @@
+[Unit]
+Description=KNXVault ACME certificate renew (host CLI)
+Documentation=file:///usr/share/doc/knxvault/acme-letsencrypt-unified.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+# Install knxvault-cli on PATH; point at your profile.
+ExecStart=/usr/local/bin/knxvault-cli acme renew --config /etc/knxvault/acme.d/edge.yaml
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

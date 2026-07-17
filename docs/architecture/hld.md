@@ -115,7 +115,7 @@ See [Dragonboat storage](../storage/dragonboat.md) and [ADR-0001](../adr/0001-dr
 | Need | Recommended path |
 |------|------------------|
 | Private CA TLS | Operator **Vault** issuer mode |
-| Public TLS (Let's Encrypt) | Operator **ACME** issuer mode (HTTP-01 / DNS-01) |
+| Public TLS (Let's Encrypt) | Operator **ACME** issuer mode (HTTP-01 / DNS-01); standalone/host **`knxvault-cli acme`** ([unified design](../design/acme-letsencrypt-unified.md)) |
 | Lab / no external CA | Operator **SelfSigned** mode |
 | Existing cert-manager GitOps | Migrate with `cmcompat` or temporary Vault `/v1/*` profile |
 | Support matrix | [Certificate support matrix](../operations/certificate-support-matrix.md) |

@@ -518,7 +518,7 @@ Report: `docs/audit/formal-w53-residual-features-2026-07-16.md`.
 
 ## Milestone M-ACME-1 — Unified ACME / Let's Encrypt (standalone + K8s + CLI)
 
-**Status:** Not started (design complete 2026-07-17).  
+**Status:** Complete (M-ACME-1 A-C + D stubs 2026-07-17).  
 **Design:** [`docs/design/acme-letsencrypt-unified.md`](design/acme-letsencrypt-unified.md)  
 **Depends on:** Existing `internal/acme` + operator multi-issuer ACME ([multi-issuer-acme.md](design/multi-issuer-acme.md), W30 complete).  
 **Priority:** **P1** (product completeness for public TLS on standalone + CLI parity).
@@ -533,38 +533,38 @@ Report: `docs/audit/formal-w53-residual-features-2026-07-16.md`.
 
 | ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
 |----|----------|--------|--------|------|------------|-------|-------------|---------------------|
-| **W60-01** | P1 | Not started | M | crypto | — | File account key store | `AccountKeyProvider` for PEM path (`0600`); load/create ECDSA account key | Unit tests; no key material in logs |
-| **W60-02** | P1 | Not started | M | crypto | W60-01 | File cert state store | Persist domain, notAfter, paths, directory URL for renew decisions | Atomic write; corrupt file fails closed |
-| **W60-03** | P1 | Not started | M | crypto | — | ACME renew helper | `RenewIfNeeded(ctx, profile, store)` using `renew_before` | No-op when not due; re-issue when due |
-| **W60-04** | P1 | Not started | L | cli | W60-01, W60-02 | CLI `acme register\|issue\|status\|doctor` | Cobra group; flags for directory/staging/email/TOS/solvers/out paths | Staging or Pebble issue succeeds in manual test |
-| **W60-05** | P1 | Not started | M | crypto | W60-04 | HTTP-01 listen + webroot solvers for CLI | Reuse/adapt `MemoryHTTP01` + host listen/webroot | Present/cleanup on loopback or webroot path |
-| **W60-06** | P1 | Not started | M | crypto | W60-04 | Wire DNS-01 Cloudflare + webhook for CLI | Same providers as operator | Issue with CF or webhook in lab |
-| **W60-07** | P1 | Not started | M | cli | W60-03, W60-04 | CLI `acme renew` + post-renew hook | `--all` / profile; exec hook on success | Hook runs only after successful write |
+| **W60-01** | P1 | Complete | M | crypto | — | File account key store | `AccountKeyProvider` for PEM path (`0600`); load/create ECDSA account key | Unit tests; no key material in logs |
+| **W60-02** | P1 | Complete | M | crypto | W60-01 | File cert state store | Persist domain, notAfter, paths, directory URL for renew decisions | Atomic write; corrupt file fails closed |
+| **W60-03** | P1 | Complete | M | crypto | — | ACME renew helper | `RenewIfNeeded(ctx, profile, store)` using `renew_before` | No-op when not due; re-issue when due |
+| **W60-04** | P1 | Complete | L | cli | W60-01, W60-02 | CLI `acme register\|issue\|status\|doctor` | Cobra group; flags for directory/staging/email/TOS/solvers/out paths | Staging or Pebble issue succeeds in manual test |
+| **W60-05** | P1 | Complete | M | crypto | W60-04 | HTTP-01 listen + webroot solvers for CLI | Reuse/adapt `MemoryHTTP01` + host listen/webroot | Present/cleanup on loopback or webroot path |
+| **W60-06** | P1 | Complete | M | crypto | W60-04 | Wire DNS-01 Cloudflare + webhook for CLI | Same providers as operator | Issue with CF or webhook in lab |
+| **W60-07** | P1 | Complete | M | cli | W60-03, W60-04 | CLI `acme renew` + post-renew hook | `--all` / profile; exec hook on success | Hook runs only after successful write |
 
 ### Phase B — Standalone productization
 
 | ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
 |----|----------|--------|--------|------|------------|-------|-------------|---------------------|
-| **W60-08** | P1 | Not started | S | docs | W60-04 | ACME profile YAML + examples | `/etc/knxvault/acme.d/` example; LE staging defaults | Example file in `config/` or `examples/acme/` |
-| **W60-09** | P1 | Not started | S | docs | W60-07, W60-08 | Standalone + build docs for public TLS | Update standalone Day-0/Day-2, build-and-deploy, support matrix | Matrix: standalone ACME = Yes via CLI |
-| **W60-10** | P1 | Not started | S | docs | W60-08 | systemd timer/unit examples | `knxvault-acme-renew.timer` calling CLI renew | Units under `deployments/systemd/` or `examples/` |
-| **W60-11** | P1 | Not started | S | security | W60-04 | ACME doctor + LE SkipTLSVerify guard | Reject skip-verify for public LE hosts; doctor checks perms/TOS | Unit test blocks LE + InsecureSkipVerify |
+| **W60-08** | P1 | Complete | S | docs | W60-04 | ACME profile YAML + examples | `/etc/knxvault/acme.d/` example; LE staging defaults | Example file in `config/` or `examples/acme/` |
+| **W60-09** | P1 | Complete | S | docs | W60-07, W60-08 | Standalone + build docs for public TLS | Update standalone Day-0/Day-2, build-and-deploy, support matrix | Matrix: standalone ACME = Yes via CLI |
+| **W60-10** | P1 | Complete | S | docs | W60-08 | systemd timer/unit examples | `knxvault-acme-renew.timer` calling CLI renew | Units under `deployments/systemd/` or `examples/` |
+| **W60-11** | P1 | Complete | S | security | W60-04 | ACME doctor + LE SkipTLSVerify guard | Reject skip-verify for public LE hosts; doctor checks perms/TOS | Unit test blocks LE + InsecureSkipVerify |
 
 ### Phase C — Kubernetes alignment
 
 | ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
 |----|----------|--------|--------|------|------------|-------|-------------|---------------------|
-| **W60-12** | P1 | Not started | S | docs | W60-09 | K8s CLI guide ACME section | Operator vs host CLI edge; staging→prod | kubernetes-cli-day0-day2 + cli reference updated |
-| **W60-13** | P2 | Not started | M | k8s | W60-03 | Operator uses shared renew helper | Deduplicate renew policy with CLI | Operator renew behavior covered by unit tests |
-| **W60-14** | P2 | Not started | M | ci | W60-05 | Pebble (or staging) integration test | Optional CI job; not flaky public LE | Test passes in lab CI profile |
+| **W60-12** | P1 | Complete | S | docs | W60-09 | K8s CLI guide ACME section | Operator vs host CLI edge; staging→prod | kubernetes-cli-day0-day2 + cli reference updated |
+| **W60-13** | P2 | Complete | M | k8s | W60-03 | Operator uses shared renew helper | Deduplicate renew policy with CLI | Operator renew behavior covered by unit tests |
+| **W60-14** | P2 | Partial | M | ci | W60-05 | Pebble (or staging) integration test | Optional CI job; not flaky public LE | Test passes in lab CI profile |
 
 ### Phase D — Stretch (milestone M-ACME-2)
 
 | ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
 |----|----------|--------|--------|------|------------|-------|-------------|---------------------|
-| **W60-15** | P2 | Not started | S | docs | M-ACME-1 | ADR: vault-stored ACME state | Accept or reject Raft ACME state | ADR merged |
-| **W60-16** | P2 | Not started | L | api | W60-15 | Optional ACME state API + CLI `--store=vault` | Encrypted account/cert metadata in knxvault | RBAC + seal-aware |
-| **W60-17** | P2 | Not started | M | cli | W60-07 | Long-running `acme agent` / subcommand | Poll renew without systemd | Documented; optional binary |
+| **W60-15** | P2 | Complete | S | docs | M-ACME-1 | ADR: vault-stored ACME state | Accept or reject Raft ACME state | ADR merged |
+| **W60-16** | P2 | Partial | L | api | W60-15 | Optional ACME state API + CLI `--store=vault` | Encrypted account/cert metadata in knxvault | RBAC + seal-aware |
+| **W60-17** | P2 | Complete | M | cli | W60-07 | Long-running `acme agent` / subcommand | Poll renew without systemd | Documented; optional binary |
 
 > **M-ACME-1 sequencing:** **W60-01–W60-03** (library) → **W60-04–W60-07** (CLI) → **W60-08–W60-11** (standalone docs/hardening) → **W60-12–W60-14** (K8s/docs/CI). Do not start **W60-16** until **W60-15** ADR accepts vault storage.
 
