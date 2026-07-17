@@ -18,6 +18,7 @@ Version-controlled documentation for architects, operators, developers, and inte
 | [Security model](architecture/security-model.md) | Security / SRE | Threat model, crypto, auth (incl. AppRole), audit |
 | [**Security posture assessment**](architecture/security-posture-assessment.md) | Architects / Security | Honest baseline grades; gaps vs set-and-forget / Vault Ent / DIY |
 | [**Production security posture design**](design/production-security-posture.md) | Engineers | M-PRODSEC-1 / M-CUSTODY-1 programs A–C; W62–W64 |
+| [**Distributed Trust Platform (DTP)**](design/distributed-trust-platform.md) | Architects / SRE | Base Core+K8s; add-ons opt-in; multi-instance; **M-DTP / W90-*** |
 | [**Vault-class capability plan**](design/vault-class-capability-plan.md) | Architects / Engineers | Transit, wrap, cubbyhole, leases, identity, dyn engines, DR; W65–W73; deferred cloud/KMIP/plugins |
 | [**CIS hardening improvements**](design/cis-hardening-improvements.md) | Architects / SRE | Network segmentation, secure defaults, multi-tenant stance; **W75** |
 | [Secret sync matrix](integration/secret-sync.md) | Operators | CSI vs ESO vs wrap (M-SYNC-1) |
