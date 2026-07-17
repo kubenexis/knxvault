@@ -23,6 +23,8 @@ Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topological
 
 **W78 full audit pack (2026-07-17):** CSR email/URI, LDAP max TTL, ACME SSRF+skipTLS, PKI default role, SQL strict, operator Secrets RBAC, unseal CIDRs, OIDC/JWKS, audit forward, KeyUsage, CSI fileName, ImportCA match, AppRole salt, unseal CT — [security-remediation-w78-2026-07-17.md](audit/security-remediation-w78-2026-07-17.md).
 
+**W79 residual pack (2026-07-17):** SafeHTTP no proxy; operator Secret read scoped; PKI ACL split; SQL SUPERUSER deny; OIDC audience+https JWKS; CGNAT SSRF; unseal /0 reject; AppRole salted-only — [security-remediation-w79-2026-07-17.md](audit/security-remediation-w79-2026-07-17.md).
+
 **W75 CIS hardening (network + defaults + multi-tenant stance):** design [`docs/design/cis-hardening-improvements.md`](design/cis-hardening-improvements.md). **P0 done:** multi-node Raft forces production profile (**W75-01**); `deployments/k8s/production/` (**W75-02**).
 
 **Post-quantum readiness** is tracked separately: **[`docs/pq/backlog.md`](pq/backlog.md)** (`PQ-*` IDs) with design under [`docs/pq/`](pq/README.md). Not a claim of PQ-ready product.

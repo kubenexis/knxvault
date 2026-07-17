@@ -112,9 +112,10 @@ func (h *PKIHandler) IssueClientCert(c *gin.Context) {
 		return
 	}
 	result, err := h.svc.IssueCertificate(c.Request.Context(), pkiengine.IssueRequest{
-		Role:       req.Role,
-		CommonName: req.CommonName,
-		TTL:        req.TTL,
+		Role:          req.Role,
+		CommonName:    req.CommonName,
+		TTL:           req.TTL,
+		ForceKeyUsage: domainpki.RoleUsageClient, // W79: always clientAuth EKU for this API
 	})
 	if err != nil {
 		_ = c.Error(err)

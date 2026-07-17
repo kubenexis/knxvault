@@ -228,14 +228,17 @@ func (v *OIDCValidator) Validate(ctx context.Context, cfg *domainauth.OIDCConfig
 		return "", nil, common.New(common.ErrCodeUnauthorized, "invalid oidc jwt claims")
 	}
 	iss, _ := mapClaims["iss"].(string)
-	// W78-08: issuer is required (fail closed).
+	// W78-08 / W79-05: issuer and audience required (fail closed).
 	if strings.TrimSpace(cfg.Issuer) == "" {
 		return "", nil, common.New(common.ErrCodeUnauthorized, "oidc issuer is required")
 	}
 	if iss != cfg.Issuer {
 		return "", nil, common.New(common.ErrCodeUnauthorized, "issuer mismatch")
 	}
-	if cfg.Audience != "" && !audienceMatches(mapClaims["aud"], cfg.Audience) {
+	if strings.TrimSpace(cfg.Audience) == "" {
+		return "", nil, common.New(common.ErrCodeUnauthorized, "oidc audience is required")
+	}
+	if !audienceMatches(mapClaims["aud"], cfg.Audience) {
 		return "", nil, common.New(common.ErrCodeUnauthorized, "audience mismatch")
 	}
 	sub, _ := mapClaims["sub"].(string)
@@ -260,15 +263,18 @@ func audienceMatches(audClaim any, expected string) bool {
 }
 
 // validateJWKSURL allows public https JWKS endpoints and loopback lab servers; blocks
-// private/metadata SSRF targets (W78-08).
+// private/metadata SSRF targets (W78-08). Non-loopback JWKS must use https (W79-05).
 func validateJWKSURL(raw string) error {
+	raw = strings.TrimSpace(raw)
+	lower := strings.ToLower(raw)
 	if acme.IsLoopbackDirectoryURL(raw) {
-		// Lab/tests: loopback only; scheme still must be http(s).
-		if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(raw)), "http://") &&
-			!strings.HasPrefix(strings.ToLower(strings.TrimSpace(raw)), "https://") {
+		if !strings.HasPrefix(lower, "http://") && !strings.HasPrefix(lower, "https://") {
 			return fmt.Errorf("jwks url scheme must be http or https")
 		}
 		return nil
+	}
+	if !strings.HasPrefix(lower, "https://") {
+		return fmt.Errorf("jwks url must use https (except loopback lab)")
 	}
 	return acme.ValidateOutboundURL(raw)
 }

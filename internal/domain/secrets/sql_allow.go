@@ -37,6 +37,13 @@ var managedSQLDenySubstrings = []string{
 	" union ",
 	" into outfile",
 	"load_file",
+	// W79-04: privilege escalation attributes on CREATE/ALTER ROLE|USER
+	"superuser",
+	"createdb",
+	"createrole",
+	"replication",
+	"bypassrls",
+	"with admin option",
 }
 
 // ValidateManagedSQLStatements enforces template-only SQL for managed execution (W50-22).

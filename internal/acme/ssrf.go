@@ -45,9 +45,9 @@ func validateOutboundURL(raw string, resolveDNS bool) error {
 	if host == "" {
 		return fmt.Errorf("url host required")
 	}
-	// Block obvious metadata hostnames.
+	// Block obvious metadata / internal hostnames (W79).
 	lh := strings.ToLower(host)
-	if lh == "metadata.google.internal" || lh == "metadata" || strings.HasSuffix(lh, ".internal") {
+	if isBlockedHostname(lh) {
 		return fmt.Errorf("url host not allowed")
 	}
 	// If host is an IP literal, check private ranges.
@@ -73,11 +73,47 @@ func validateOutboundURL(raw string, resolveDNS bool) error {
 	return nil
 }
 
+func isBlockedHostname(host string) bool {
+	switch host {
+	case "metadata", "metadata.google.internal", "metadata.goog",
+		"kubernetes.default", "kubernetes.default.svc",
+		"instance-data", "instance-data.ec2.internal":
+		return true
+	}
+	if strings.HasSuffix(host, ".internal") || strings.HasSuffix(host, ".localhost") {
+		return true
+	}
+	// AWS IMDS hostname variants
+	if strings.Contains(host, "169.254.169.254") {
+		return true
+	}
+	return false
+}
+
+// isBlockedIP reports non-public destinations (W79 expands CGNAT + docs ranges).
 func isBlockedIP(ip net.IP) bool {
+	if ip == nil {
+		return true
+	}
 	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
 		return true
 	}
-	// Cloud metadata 169.254.169.254 is link-local already.
+	// CGNAT / shared address space (RFC 6598) — not IsPrivate in Go.
+	if ip4 := ip.To4(); ip4 != nil {
+		if ip4[0] == 100 && ip4[1] >= 64 && ip4[1] <= 127 {
+			return true
+		}
+		// Benchmark / documentation (RFC 5737, 2544)
+		if ip4[0] == 198 && (ip4[1] == 18 || ip4[1] == 19) {
+			return true
+		}
+		if ip4[0] == 198 && ip4[1] == 51 && ip4[2] == 100 {
+			return true
+		}
+		if ip4[0] == 203 && ip4[1] == 0 && ip4[2] == 113 {
+			return true
+		}
+	}
 	return false
 }
 
@@ -132,7 +168,8 @@ func safeHTTPClient(timeout time.Duration, allowLoopback, insecureTLS bool) *htt
 	}
 	dialer := &net.Dialer{Timeout: timeout}
 	transport := &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
+		// W79-01: never honor HTTP(S)_PROXY — dial-time SSRF checks would only see the proxy.
+		Proxy: nil,
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			host, port, err := net.SplitHostPort(addr)
 			if err != nil {

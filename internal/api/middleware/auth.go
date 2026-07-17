@@ -84,25 +84,45 @@ func Auth(svc *auth.Service) gin.HandlerFunc {
 
 // RequirePermission enforces RBAC for a resource/action pair.
 func RequirePermission(svc *auth.Service, resource, action string) gin.HandlerFunc {
+	return RequireAnyPermission(svc, resource, action)
+}
+
+// RequireAnyPermission allows if any resource/action pair is authorized (W79).
+// Pairs are resource, action alternating: "pki/ca", "write", "pki", "write".
+// Prefer specific resources first; fall back to coarse "pki" for legacy policies.
+func RequireAnyPermission(svc *auth.Service, resourceActionPairs ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if svc == nil {
 			_ = c.Error(common.New(common.ErrCodeUnavailable, "auth service not configured"))
 			c.Abort()
 			return
 		}
-
+		if len(resourceActionPairs) < 2 || len(resourceActionPairs)%2 != 0 {
+			_ = c.Error(common.New(common.ErrCodeInternal, "invalid permission middleware config"))
+			c.Abort()
+			return
+		}
 		principal, ok := auth.PrincipalFromContext(c.Request.Context())
 		if !ok {
 			_ = c.Error(common.New(common.ErrCodeUnauthorized, "unauthenticated"))
 			c.Abort()
 			return
 		}
-		if err := svc.Authorize(c.Request.Context(), principal, resource, action); err != nil {
-			_ = c.Error(err)
-			c.Abort()
-			return
+		var lastErr error
+		for i := 0; i+1 < len(resourceActionPairs); i += 2 {
+			err := svc.Authorize(c.Request.Context(), principal, resourceActionPairs[i], resourceActionPairs[i+1])
+			if err == nil {
+				c.Next()
+				return
+			}
+			lastErr = err
 		}
-		c.Next()
+		if lastErr != nil {
+			_ = c.Error(lastErr)
+		} else {
+			_ = c.Error(common.New(common.ErrCodeForbidden, "permission denied"))
+		}
+		c.Abort()
 	}
 }
 

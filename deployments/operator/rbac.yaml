@@ -26,12 +26,8 @@ rules:
       - knxvaultcertificaterequests
       - knxvaultcertificaterequests/status
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  # W78-06: Secrets are NOT cluster-wide by default. Grant namespaced Secret
-  # access via rbac-namespaced-example.yaml (or Role/RoleBinding) per app NS.
-  # Optional read-only cluster list for operator diagnostics (no create/update/delete).
-  - apiGroups: [""]
-    resources: ["secrets"]
-    verbs: ["get", "list", "watch"]
+  # W78-06 / W79-02: Secrets are NOT cluster-scoped (no get/list/watch/write).
+  # Grant namespaced Secret access via Role/RoleBinding (this file + rbac-namespaced-example.yaml).
   - apiGroups: ["networking.k8s.io"]
     resources: ["ingresses"]
     verbs: ["get", "list", "watch"]

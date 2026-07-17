@@ -21,6 +21,8 @@ Honest grades, known gaps (set-and-forget Medium, custody vs HSM, DIY footguns),
 
 **W78 full audit pack (2026-07-17):** CSR email/URI SAN deny; LDAP max token lifetime; ACME SSRF with SkipTLS; secure default PKI role; ban managed `sql_strict=false`; operator namespaced Secrets RBAC; production unseal CIDRs; OIDC issuer + JWKS SSRF; audit-forward SafeHTTPClient; PKI KeyUsage EKU; CSI fileName basename; ImportCA key match; AppRole salt; unseal CT compare. Report: [security-remediation-w78-2026-07-17.md](../audit/security-remediation-w78-2026-07-17.md).
 
+**W79 residual pack (2026-07-17):** Disable env proxy on SafeHTTP; operator Secret read not cluster-wide; fine-grained PKI permissions with legacy `pki` fallback; managed SQL privilege-attr deny; OIDC audience + HTTPS JWKS; CGNAT/metadata SSRF blocks; reject unseal `/0` CIDRs; AppRole salted-only; client-cert issue forces client EKU. Report: [security-remediation-w79-2026-07-17.md](../audit/security-remediation-w79-2026-07-17.md).
+
 ## Threat model
 
 | Threat | Impact | Mitigations |

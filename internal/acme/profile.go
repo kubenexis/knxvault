@@ -122,8 +122,9 @@ func (p *Profile) Validate() error {
 	if p.SkipTLSVerify && PublicLEHost(p.DirectoryURL) {
 		return fmt.Errorf("skip_tls_verify is not allowed for public Let's Encrypt directories")
 	}
-	if !p.SkipTLSVerify {
-		if err := ValidateDirectoryURL(p.DirectoryURL); err != nil {
+	// W79: align with Client.Issue — always SSRF-check; SkipTLS only allows loopback lab.
+	if err := ValidateDirectoryURL(p.DirectoryURL); err != nil {
+		if !p.SkipTLSVerify || !IsLoopbackDirectoryURL(p.DirectoryURL) {
 			return fmt.Errorf("directory_url: %w", err)
 		}
 	}

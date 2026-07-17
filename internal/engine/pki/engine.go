@@ -59,6 +59,8 @@ type IssueRequest struct {
 	TTL         string
 	KeyBits     int
 	AutoRenew   bool
+	// ForceKeyUsage overrides role KeyUsage when set (e.g. client for issue-client-cert).
+	ForceKeyUsage domainpki.RoleUsage
 }
 
 // CAResult is returned when creating a CA.
@@ -298,6 +300,9 @@ func (e *Engine) IssueCertificate(ctx context.Context, req IssueRequest) (*Issue
 	usage := domainpki.RoleUsageServer
 	if pkiRole != nil && pkiRole.KeyUsage != "" {
 		usage = pkiRole.KeyUsage
+	}
+	if req.ForceKeyUsage != "" {
+		usage = req.ForceKeyUsage
 	}
 	certPEM, keyPEM, err := e.backend.IssueCertificate(ctx, pkibackend.IssueRequest{
 		CACertPEM:   []byte(ca.CertPEM),
@@ -825,7 +830,7 @@ func (e *Engine) resolvePKIRole(ctx context.Context, roleName string) (caName st
 	}
 	r, err := e.roleRepo.Get(ctx, roleName)
 	if err != nil {
-		return "", nil, common.Wrap(common.ErrCodeNotFound, "pki role not found (create a role or use a CA name after CreateRoot which installs a default \"*\" role)", err)
+		return "", nil, common.Wrap(common.ErrCodeNotFound, "pki role not found (create a role via PUT /pki/roles/:name or pass allowed_domains on CreateRoot)", err)
 	}
 	return r.CAName, r, nil
 }

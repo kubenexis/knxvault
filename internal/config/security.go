@@ -5,6 +5,7 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"strings"
@@ -200,6 +201,10 @@ func validateProductionSecurity(cfg Config) error {
 	if len(cfg.UnsealAllowCIDRs) == 0 {
 		return fmt.Errorf("production profile: unseal allow CIDRs required (KNXVAULT_UNSEAL_ALLOW_CIDRS)")
 	}
+	// W79-07: reject world-open unseal allowlists.
+	if err := validateUnsealCIDRsNotWorldOpen(cfg.UnsealAllowCIDRs); err != nil {
+		return err
+	}
 	// W78-09: audit forward URL must pass SSRF checks when set.
 	if strings.TrimSpace(cfg.AuditForwardURL) != "" {
 		if err := acme.ValidateOutboundURL(cfg.AuditForwardURL); err != nil {
@@ -208,6 +213,29 @@ func validateProductionSecurity(cfg Config) error {
 	}
 	if !cfg.ManagedSQLStrict {
 		return fmt.Errorf("production profile: managed SQL strict mode must be enabled")
+	}
+	return nil
+}
+
+// validateUnsealCIDRsNotWorldOpen rejects 0.0.0.0/0 and ::/0 (and /0 masks).
+func validateUnsealCIDRsNotWorldOpen(cidrs []string) error {
+	for _, raw := range cidrs {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		_, n, err := net.ParseCIDR(raw)
+		if err != nil {
+			// ParseCIDRs already validated at lab/prod entry; skip soft parse here.
+			if raw == "0.0.0.0/0" || raw == "::/0" {
+				return fmt.Errorf("production profile: unseal allow CIDR %q is too broad", raw)
+			}
+			continue
+		}
+		ones, bits := n.Mask.Size()
+		if ones == 0 && bits > 0 {
+			return fmt.Errorf("production profile: unseal allow CIDR %q is too broad (must not be /0)", raw)
+		}
 	}
 	return nil
 }

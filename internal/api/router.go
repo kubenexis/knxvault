@@ -250,18 +250,37 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 		}
 		r.POST("/pki/ocsp/:id", ocspHandlers...)
 		if deps.AuthService != nil {
+			// W79-03: prefer fine-grained resources (pki/ca, pki/roles, pki/issue, pki/sign);
+			// fall back to coarse "pki" write for legacy policies.
 			pkiGroup := secured.Group("/pki")
-			pkiGroup.Use(middleware.RequirePermission(deps.AuthService, "pki", "write"))
 			{
-				pkiGroup.POST("/root", pkiHandler.CreateRoot)
-				pkiGroup.POST("/intermediate", pkiHandler.CreateIntermediate)
-				pkiGroup.PUT("/roles/:name", pkiHandler.PutRole)
-				pkiGroup.POST("/issue", pkiHandler.Issue)
-				pkiGroup.POST("/issue-client-cert", pkiHandler.IssueClientCert)
-				pkiGroup.POST("/sign", pkiHandler.SignCSR)
-				pkiGroup.POST("/renew", pkiHandler.Renew)
-				pkiGroup.POST("/revoke", pkiHandler.Revoke)
-				pkiGroup.POST("/ca/import", pkiHandler.ImportCA)
+				pkiGroup.POST("/root",
+					middleware.RequireAnyPermission(deps.AuthService, "pki/ca", "write", "pki", "write"),
+					pkiHandler.CreateRoot)
+				pkiGroup.POST("/intermediate",
+					middleware.RequireAnyPermission(deps.AuthService, "pki/ca", "write", "pki", "write"),
+					pkiHandler.CreateIntermediate)
+				pkiGroup.PUT("/roles/:name",
+					middleware.RequireAnyPermission(deps.AuthService, "pki/roles", "write", "pki", "write"),
+					pkiHandler.PutRole)
+				pkiGroup.POST("/issue",
+					middleware.RequireAnyPermission(deps.AuthService, "pki/issue", "write", "pki", "write"),
+					pkiHandler.Issue)
+				pkiGroup.POST("/issue-client-cert",
+					middleware.RequireAnyPermission(deps.AuthService, "pki/issue", "write", "pki", "write"),
+					pkiHandler.IssueClientCert)
+				pkiGroup.POST("/sign",
+					middleware.RequireAnyPermission(deps.AuthService, "pki/sign", "write", "pki", "write"),
+					pkiHandler.SignCSR)
+				pkiGroup.POST("/renew",
+					middleware.RequireAnyPermission(deps.AuthService, "pki/issue", "write", "pki", "write"),
+					pkiHandler.Renew)
+				pkiGroup.POST("/revoke",
+					middleware.RequireAnyPermission(deps.AuthService, "pki/revoke", "write", "pki", "write"),
+					pkiHandler.Revoke)
+				pkiGroup.POST("/ca/import",
+					middleware.RequireAnyPermission(deps.AuthService, "pki/ca", "write", "pki", "write"),
+					pkiHandler.ImportCA)
 				pkiGroup.POST("/ca/:id/rotate",
 					middleware.RequirePathCapability(deps.AuthService, "pki/ca", auth.CapWrite, "id", deps.AuthzAudit),
 					pkiHandler.RotateCA,

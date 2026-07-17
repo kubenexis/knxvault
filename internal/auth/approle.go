@@ -101,9 +101,8 @@ func (s *AppRoleStore) Authenticate(roleID, secretID string) (*AppRole, error) {
 		return nil, common.New(common.ErrCodeInternal, "approle corrupt")
 	}
 	got := sha256.Sum256([]byte(roleID + "\x00" + secretID))
-	// Legacy unsalted hashes (pre-W78) still accepted for migration.
-	legacy := sha256.Sum256([]byte(secretID))
-	if subtle.ConstantTimeCompare(want, got[:]) != 1 && subtle.ConstantTimeCompare(want, legacy[:]) != 1 {
+	// W79: salted hash only (re-register AppRoles created before W78).
+	if subtle.ConstantTimeCompare(want, got[:]) != 1 {
 		return nil, common.New(common.ErrCodeUnauthorized, "invalid role_id or secret_id")
 	}
 	copy := role
