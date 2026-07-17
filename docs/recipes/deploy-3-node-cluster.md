@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Recipe: Deploy a 3-node cluster
 
 Deploy a production-like highly available KNXVault cluster on Kubernetes using Dragonboat Raft.

@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Lab E2E — e2e-test01 (192.168.137.131) — historical core-only
 
 > **Superseded for the full gate.** Prefer **[lab-full-e2e.md](lab-full-e2e.md)** (`make lab-full-e2e`): **53/53 PASS**, including **Shamir multi-share unseal**, Vault product profile, operator CRDs, and multi-issuer.  

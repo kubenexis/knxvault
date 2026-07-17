@@ -1,3 +1,6 @@
+# Copyright The KNXVault Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # ACME ClusterIssuer example (Let's Encrypt staging).
 # Requires: public DNS for DNS-01 or HTTP-01 reachable on port 80.
 # Set KNXVAULT_ACME_HTTP01_ADDR=:8082 on the operator for embedded HTTP-01 solver.

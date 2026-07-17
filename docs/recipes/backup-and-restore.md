@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Recipe: Backup and restore
 
 Create encrypted portable backups and restore full vault state for disaster recovery or migration.

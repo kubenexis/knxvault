@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package dragonboat provides repository adapters over the vault Raft client.
 package dragonboat
 

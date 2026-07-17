@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Standalone knxvault: distroless server + host CLI (Day-0 and Day-2)
 
 One coherent guide for running **knxvault without Kubernetes**: a **distroless container** (or the same binary on the host) plus a **native admin CLI** on the workstation or jump host.

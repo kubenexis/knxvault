@@ -1,3 +1,6 @@
+# Copyright The KNXVault Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # syntax=docker/dockerfile:1
 # =============================================================================
 # KNXVault — production container image (only supported path)

@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package vault implements the HashiCorp Vault product profile used by
 // cert-manager's built-in Vault issuer.
 //

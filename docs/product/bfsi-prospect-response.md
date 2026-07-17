@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # BFSI prospect evaluation response (W43-08)
 
 | Criterion | Status | Backlog | POC waiver |

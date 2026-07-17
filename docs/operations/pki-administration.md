@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # PKI Administration Guide
 
 Day-2 operations guide for KNXVault PKI: building a CA hierarchy, issuing certificates, renewal, revocation, and trust distribution.

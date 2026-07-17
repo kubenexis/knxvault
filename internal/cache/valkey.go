@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package cache provides optional Valkey read-through caching (W33-01–02).
 package cache
 

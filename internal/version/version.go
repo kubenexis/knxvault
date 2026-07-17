@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package version holds KNXVault release and build metadata.
 package version
 

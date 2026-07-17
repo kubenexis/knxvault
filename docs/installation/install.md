@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Installation Guide
 
 Install KNXVault as a local binary, container, or 3-node Kubernetes Raft cluster.

@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Configuration Reference
 
 KNXVault accepts a YAML v3 base configuration file for daemon mode. By default, `knxvault serve` loads `/etc/knxvault.conf` when that file exists. Override the path with `-c` / `--config` on the root command (e.g. `knxvault -c /path/to/knxvault.conf serve`). Environment variables override file values — use the file for static settings and env/Secrets for credentials and per-pod overrides.

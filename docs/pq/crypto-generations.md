@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Crypto generations (g1 / g2 / g3)
 
 Platform **contracts** for classical vs PQ-ready crypto. Generations hide algorithm churn from applications while supporting dual-stack.

@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Recipe: Master key rotation without data loss
 
 Rotate the envelope master key and re-encrypt existing data in place — secrets remain readable throughout.

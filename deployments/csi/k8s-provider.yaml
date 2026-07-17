@@ -1,3 +1,6 @@
+# Copyright The KNXVault Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # KNXVault Secrets Store CSI provider (W39).
 # Requires the Secrets Store CSI Driver: https://secrets-store-csi-driver.sigs.k8s.io/
 apiVersion: apps/v1

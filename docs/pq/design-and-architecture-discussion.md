@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Design and architecture discussion — post-quantum readiness
 
 Narrative record of the architecture discussion that led to the PQ docs set, dual crypto planes, crypto generations, and the [PQ backlog](backlog.md). This is a **design discussion**, not a completed implementation.

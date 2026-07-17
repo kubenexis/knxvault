@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package engine defines secret and PKI engine interfaces (LLD §4).
 package engine
 

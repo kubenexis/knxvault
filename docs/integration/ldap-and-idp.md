@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # LDAP and IdP authentication (W70)
 
 ## Preferred: directory → IdP → OIDC

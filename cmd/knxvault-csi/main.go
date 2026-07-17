@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // knxvault-csi is the Secrets Store CSI Driver provider for KNXVault.
 package main
 

@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package autounseal decrypts the operational unseal key using an external KEK (W63 / P3).
 // Provider "aes-kek" uses AES-256-GCM: ciphertext is nonce||ciphertext produced with the KEK.
 // Cloud KMS material is injected as KEK via CSI/Secrets Manager; knxvault does not embed cloud SDKs.

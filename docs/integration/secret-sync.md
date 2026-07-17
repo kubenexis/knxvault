@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Secret sync decision matrix (M-SYNC-1)
 
 How secrets leave knxvault into workloads and external stores.

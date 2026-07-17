@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Recipe: Rolling upgrade without downtime
 
 Upgrade the KNXVault container image across a 3-node StatefulSet while maintaining quorum.

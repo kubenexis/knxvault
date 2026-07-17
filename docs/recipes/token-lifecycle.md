@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Recipe: Token lifecycle
 
 Create, renew, and revoke scoped client tokens for applications and operators.

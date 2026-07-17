@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Tier 0 production features (W37 / W38-14 / W39-05)
 
 This document describes production-hardening features shipped in v0.4.4+.

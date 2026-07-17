@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Lab full E2E — e2e-test01 (192.168.137.131)
 
 | Field | Value |

@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # System Architecture Diagrams
 
 Visual reference for KNXVault components and data flows. Diagrams use [Mermaid](https://mermaid.js.org/) syntax.

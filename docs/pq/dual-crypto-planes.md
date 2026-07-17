@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Dual crypto planes — classical and PQ-capable coexistence
 
 How KNXVault can serve **legacy applications** (Harbor, older clients) and **PQ-capable applications** on one platform without a single breaking cutover.

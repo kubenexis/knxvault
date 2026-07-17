@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Backup & Restore
 
 KNXVault exports an encrypted JSON archive containing CAs, secrets, RBAC configuration, client token hashes, leases, issued certificate metadata, and revocations. Optional audit history is included when `include_audit` is true.

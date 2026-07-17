@@ -1,3 +1,6 @@
+# Copyright The KNXVault Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # =============================================================================
 # KNXVault — Production GNU Makefile
 # Go quality pipeline, SBOM generation, and security scanning.
@@ -117,13 +120,14 @@ endef
 
 .PHONY: all quality
 # Pre-merge quality gate (no container image build, no integration suite).
-quality: ## Pre-merge gate: fmt vet lint docs-lint gosec licenses scan test test-coverage
+quality: ## Pre-merge gate: fmt vet lint docs-lint gosec licenses license-headers-check scan test test-coverage
 	$(MAKE) --no-print-directory fmt
 	$(MAKE) --no-print-directory vet
 	$(MAKE) --no-print-directory lint
 	$(MAKE) --no-print-directory docs-lint
 	$(MAKE) --no-print-directory gosec
 	$(MAKE) --no-print-directory licenses
+	$(MAKE) --no-print-directory license-headers-check
 	$(MAKE) --no-print-directory scan
 	$(MAKE) --no-print-directory test
 	$(MAKE) --no-print-directory test-coverage
@@ -142,7 +146,7 @@ all: ## quality + test-integration + build + build-cli + sbom
 # Go quality
 # =============================================================================
 
-.PHONY: fmt vet lint docs-lint gosec semgrep licenses test test-integration test-coverage build build-cli build-csi build-webhook build-eso build-operator generate-clients test-clients check-client-drift sbom scan tidy install-tools container-build k8s-operator-build container-build-all container-export k8s-operator-export container-export-all docker-build docker-build-operator docker-build-all clean
+.PHONY: fmt vet lint docs-lint gosec semgrep licenses license-headers license-headers-check test test-integration test-coverage build build-cli build-csi build-webhook build-eso build-operator generate-clients test-clients check-client-drift sbom scan tidy install-tools container-build k8s-operator-build container-build-all container-export k8s-operator-export container-export-all docker-build docker-build-operator docker-build-all clean
 
 fmt: ## Check Go formatting (gofmt)
 	$(call log,Checking gofmt)
@@ -191,6 +195,16 @@ licenses: ## Enforce permissive dependency licenses (LLD §1.5)
 	$(call log,Checking dependency licenses)
 	$(call require_cmd,bash)
 	@bash scripts/check-licenses.sh
+
+license-headers: ## Add missing SPDX license headers (Apache-2.0 code / CC-BY-4.0 docs)
+	$(call log,Ensuring SPDX license headers)
+	$(call require_cmd,bash)
+	@bash scripts/ensure-license-headers.sh
+
+license-headers-check: ## Fail if SPDX license headers are missing (CNCF Charter §11)
+	$(call log,Checking SPDX license headers)
+	$(call require_cmd,bash)
+	@bash scripts/ensure-license-headers.sh --check
 
 test: ## Run unit tests
 	$(call log,Running go test)

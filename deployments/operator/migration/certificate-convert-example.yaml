@@ -1,3 +1,6 @@
+# Copyright The KNXVault Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # Before (cert-manager) — conceptual:
 # kind: Certificate
 # spec:

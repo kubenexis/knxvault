@@ -1,3 +1,6 @@
+# Copyright The KNXVault Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # Production overlay for knxvault (W75-02 / CIS hardening P0).
 # Apply: kubectl apply -k deployments/k8s/production
 apiVersion: kustomize.config.k8s.io/v1beta1

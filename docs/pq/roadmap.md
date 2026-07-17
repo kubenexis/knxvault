@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # PQ readiness — roadmap and way forward
 
 Suggested path from discussion (2026-07). Complements the standalone [PQ backlog](backlog.md).

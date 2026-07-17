@@ -1,3 +1,6 @@
+# Copyright The KNXVault Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # ACME profile for standalone / host CLI (Let's Encrypt staging).
 # Usage:
 #   knxvault-cli acme doctor --config examples/acme/edge-staging.yaml

@@ -1,6 +1,24 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # KNXVault
 
 Lightweight, production-grade secrets management and PKI built in Go.
+
+## License
+
+KNXVault follows the [CNCF Charter](https://github.com/cncf/foundation/blob/main/charter.md) §11 default IP policy:
+
+| Content | License | SPDX | Texts |
+| ------- | ------- | ---- | ----- |
+| **Source code** and software artifacts | [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0) | `Apache-2.0` | [`LICENSE`](LICENSE), [`LICENSES/Apache-2.0.txt`](LICENSES/Apache-2.0.txt) |
+| **Documentation** | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | `CC-BY-4.0` | [`docs/LICENSE`](docs/LICENSE), [`LICENSES/CC-BY-4.0.txt`](LICENSES/CC-BY-4.0.txt) |
+
+Copyright is retained by contributors and expressed as **Copyright The KNXVault Authors.** (see [`NOTICE`](NOTICE)). File-level `SPDX-License-Identifier` headers and [`REUSE.toml`](REUSE.toml) annotations are used per [CNCF license notice guidance](https://github.com/cncf/foundation/blob/main/license-notices.md). Full policy: [docs/licensing.md](docs/licensing.md).
+
+Contributions require a [Developer Certificate of Origin](https://developercertificate.org/) sign-off (`git commit -s`).
 
 ## Requirements
 

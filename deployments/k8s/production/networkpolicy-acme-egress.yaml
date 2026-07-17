@@ -1,3 +1,6 @@
+# Copyright The KNXVault Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # Optional egress for ACME HTTP-01 / DNS-01 webhook (W75-05 / P3).
 # Customize destination namespaces or use an egress gateway.
 # This policy is additive; base production NetworkPolicy already restricts egress.

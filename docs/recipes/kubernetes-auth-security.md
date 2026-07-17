@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Recipe: Kubernetes auth security model
 
 Understand how ServiceAccount authentication protects KNXVault and workloads.

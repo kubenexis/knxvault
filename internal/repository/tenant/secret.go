@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package tenantrepo wraps repositories with tenant path isolation (W32-03).
 package tenantrepo
 

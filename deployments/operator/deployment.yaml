@@ -1,3 +1,6 @@
+# Copyright The KNXVault Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # Host-path style Deployment for lab when image registry is unavailable.
 # Prefer: load image knxvault-operator:0.5.1 or run binary via DaemonSet/host process.
 apiVersion: apps/v1

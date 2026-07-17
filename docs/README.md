@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # KNXVault Documentation
 
 Version-controlled documentation for architects, operators, developers, and integrators. The [Low-Level Design (LLD)](lld.md) remains the authoritative technical specification; this index organizes companion guides by audience.
@@ -96,7 +101,8 @@ Version-controlled documentation for architects, operators, developers, and inte
 | [Lab full E2E](engineering/lab-full-e2e.md) | QA / SRE | **Complete** suite on 131: multi-share unseal + vaultcompat + operator (**53/53 PASS**) |
 | [Lab E2E e2e-test01](engineering/lab-e2e-test01.md) | QA / SRE | Core-only **historical** smoke (20/20; superseded by lab-full-e2e) |
 | [Seal and unseal recipe](recipes/seal-and-unseal.md) | Operators | Single-key + Shamir multi-share ceremony + automated coverage |
-| [Contributing](engineering/contributing.md) | Contributors | PR workflow, licenses, code standards |
+| [Contributing](engineering/contributing.md) | Contributors | PR workflow, DCO, licenses, code standards |
+| [Licensing policy](licensing.md) | Everyone | Apache-2.0 code, CC-BY-4.0 docs (CNCF Charter §11) |
 | [Licensing policy](licensing.md) | Contributors | SPDX allow-list and exceptions |
 | [Backlog](backlog.md) | Maintainers | Phased work items; W30 operator + Vault profile **shipped** |
 | [PQ backlog](pq/backlog.md) | Maintainers | Post-quantum readiness work items (**PQ-*** IDs) |

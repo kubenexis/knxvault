@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # CLI Reference
 
 The `knxvault-cli` binary provides Day-0 and Day-2 operations against the KNXVault REST API.

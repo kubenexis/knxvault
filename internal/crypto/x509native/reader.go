@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package x509native provides Go-native X.509 parsing and verification.
 package x509native
 

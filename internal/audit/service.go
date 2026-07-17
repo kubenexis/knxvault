@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package audit provides append-only audit logging (LLD §4.D).
 package audit
 

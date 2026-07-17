@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Post-quantum (PQ) readiness — documentation index
 
 This section captures the **assessment**, **discussion**, and **planned way forward** for post-quantum readiness in KNXVault. It is design and backlog guidance — **KNXVault is not PQ-ready today**.

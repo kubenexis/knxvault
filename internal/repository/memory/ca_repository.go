@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package memory provides in-memory repository implementations for unit tests.
 package memory
 

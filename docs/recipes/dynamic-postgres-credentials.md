@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Recipe: Dynamic PostgreSQL credentials
 
 Generate ephemeral database users with automatic lease expiry for PostgreSQL and CloudNativePG (CNPG).

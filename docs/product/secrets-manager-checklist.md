@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Secrets Manager Readiness Checklist (W37-09)
 
 Use this checklist before promoting KNXVault to production secrets management workloads.

@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package app bootstraps and runs the KNXVault HTTP server.
 package app
 

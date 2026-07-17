@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Recipe: Secrets Store CSI driver integration
 
 Mount KNXVault KV secrets as files in pods — no static vault tokens in workloads.

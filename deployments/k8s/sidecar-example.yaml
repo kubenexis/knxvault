@@ -1,3 +1,6 @@
+# Copyright The KNXVault Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # Example sidecar injection pattern (W18 / W52).
 # Prefer a short-lived scoped token (or K8s auth), NEVER the bootstrap root token.
 apiVersion: v1

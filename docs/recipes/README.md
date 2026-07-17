@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # KNXVault Recipes
 
 Step-by-step guides for common tasks. Each recipe is self-contained: prerequisites, concepts, commands, verification, and troubleshooting.

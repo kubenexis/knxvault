@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Architecture Decision Records (ADRs)
 
 ADRs document significant architectural decisions with context, options considered, and consequences.

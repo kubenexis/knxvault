@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Enterprise identity federation (W44-04)
 
 KNXVault does not implement native SAML/LDAP. Use an **OIDC broker**:

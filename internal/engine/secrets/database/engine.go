@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package database implements the dynamic database credentials engine (LLD §4.B, Phase 2).
 package database
 

@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Envelope Encryption
 
 Technical reference for how KNXVault encrypts secrets, CA private keys, and backup archives at rest. Implementation lives in `internal/crypto/`; engines call `crypto.Service` **before** data is proposed to Raft (see [ADR-0004](../adr/0004-encrypt-before-replication.md)).

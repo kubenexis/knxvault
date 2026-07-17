@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Recipe: OIDC authentication
 
 Authenticate human users and machine workloads using JWTs from a corporate identity provider.

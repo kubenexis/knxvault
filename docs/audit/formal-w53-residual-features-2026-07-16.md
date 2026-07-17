@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # W53 — Residual security features (2026-07-16)
 
 Implements the five residual items from the complete security audit that were previously deferred.

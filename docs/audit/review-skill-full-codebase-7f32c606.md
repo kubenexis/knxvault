@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # KNXVault full-codebase security, correctness, reliability, and K8s operational audit
 
 | Field | Value |

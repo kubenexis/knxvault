@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # API Reference
 
 KNXVault exposes a REST API on port **8200** (configurable via `KNXVAULT_HTTP_ADDR` or `http_addr` in the config file).

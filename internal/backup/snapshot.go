@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package backup exports and restores encrypted KNXVault state snapshots.
 package backup
 

@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package webhook implements Kubernetes admission hooks for KNXVault.
 package webhook
 

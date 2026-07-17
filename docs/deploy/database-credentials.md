@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Dynamic Database Credentials
 
 KNXVault's database secrets engine generates **ephemeral credentials** and **SQL statements**. In the default **client** execution mode, KNXVault does **not** connect to your database or execute SQL.

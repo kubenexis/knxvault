@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package doctor runs deployment health and configuration diagnostics for KNXVault.
 package doctor
 

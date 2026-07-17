@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Observability — Prometheus Metrics
 
 KNXVault exposes Prometheus metrics at **`GET /metrics`**. By default the endpoint is unauthenticated; **restrict at the network layer in production** (NetworkPolicy) or set **`KNXVAULT_METRICS_BEARER_TOKEN`** so scrapes must send `Authorization: Bearer <token>` (W50-19).

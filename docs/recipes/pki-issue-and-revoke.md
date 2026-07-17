@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Recipe: PKI issue and revoke certificates
 
 Create a root CA, issue leaf certificates, and revoke them with CRL publication.

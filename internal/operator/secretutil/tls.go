@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package secretutil builds kubernetes.io/tls Secrets for the operator.
 package secretutil
 

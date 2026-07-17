@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # ADR-0003: Envelope Encryption with Master Key
 
 **Status:** Accepted  

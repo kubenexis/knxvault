@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Data Models
 
 Domain entities and how they persist in the Dragonboat Raft state machine. Go structs live under `internal/domain/`; Raft commands are documented in [Dragonboat storage](../storage/dragonboat.md).

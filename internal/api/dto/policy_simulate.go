@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package dto
 
 // PolicySimulateRequest inputs for POST /sys/policy/simulate (W41-04).

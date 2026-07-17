@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Design: ACME DNS-01 providers and webhooks (learn from cert-manager)
 
 | Field | Value |

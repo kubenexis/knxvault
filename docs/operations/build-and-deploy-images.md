@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Build images and deploy (containerd standalone + Kubernetes)
 
 How to **build** knxvault container images, **which images** each topology needs, and **deployment steps**. Standalone steps assume **containerd + nerdctl** (not Docker Engine). Kubernetes steps assume a registry and `kubectl`.

@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Multi-tenant operations
 
 ## Product stance (W64-00 / ADR-0011)

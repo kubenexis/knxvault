@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Certificate automation support matrix
 
 What KNXVault covers **without cert-manager**, and what remains external.

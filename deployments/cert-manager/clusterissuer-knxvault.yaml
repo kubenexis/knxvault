@@ -1,3 +1,6 @@
+# Copyright The KNXVault Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # cert-manager ClusterIssuer targeting KNXVault PKI via Vault product profile (W40-02).
 # KNXVault exposes GET /v1/sys/health, POST /v1/auth/kubernetes/login (or approle/token),
 # and POST /v1/<mount>/sign/<role> for cert-manager's built-in Vault issuer.

@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Lease management (M-LEASE-1)
 
 Unified lease lifecycle for dynamic secrets (database, SSH, and future engines).

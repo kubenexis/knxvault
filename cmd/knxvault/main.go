@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // KNXVault is a lightweight secrets management and PKI system.
 package main
 

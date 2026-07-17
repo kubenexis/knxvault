@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # ADR-0010: ACME state storage (file-first; optional vault later)
 
 **Status:** Accepted  

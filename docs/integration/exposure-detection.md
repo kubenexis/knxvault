@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Secret exposure detection integration
 
 KNXVault accepts signed exposure reports from external scanners (Gitleaks, TruffleHog, GitGuardian, etc.) and can auto-remediate when configured.

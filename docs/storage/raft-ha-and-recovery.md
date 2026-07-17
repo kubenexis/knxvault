@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Raft HA, Snapshots, and Recovery
 
 Technical reference for how KNXVault uses [Dragonboat](https://github.com/lni/dragonboat) for quorum, snapshots, membership, bootstrap, and disaster recovery. Operational runbooks live in [Raft failover](../operations/runbooks/raft-failover.md) and [Scaling](../operations/runbooks/scaling.md).

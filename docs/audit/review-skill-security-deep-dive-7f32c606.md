@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 ## Summary
 
 Read-only security deep dive of knxvault at `/home/build01/repos/knxvault`, focused on auth, middleware, seal/unseal, crypto/OpenSSL, operator secrets/RBAC/ACME SSRF, Raft encrypt-before-replicate claims, and deployment YAML.

@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package certlogic holds pure certificate decision helpers (no k8s client).
 package certlogic
 

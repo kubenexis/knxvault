@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Phase 4–5 — Ecosystem Design
 
 Design outline for ecosystem integration, hardware security, and operational maturity.

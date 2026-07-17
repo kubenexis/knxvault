@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Security audit remediation — W52 (2026-07-16)
 
 Implements fixes for findings from the complete security audit (report-only pass that identified Critical/High/Medium issues and edge cases).

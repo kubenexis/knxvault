@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # ADR-0002: OpenSSL CLI as Cryptographic Backend
 
 **Status:** Superseded / removed  

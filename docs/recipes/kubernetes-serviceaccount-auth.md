@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Recipe: Kubernetes ServiceAccount authentication
 
 Create a ServiceAccount, bind it to a KNXVault role, and authenticate from a pod without long-lived vault tokens.

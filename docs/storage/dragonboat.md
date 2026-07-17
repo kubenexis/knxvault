@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Dragonboat Raft Storage
 
 KNXVault persists all vault state in a single Dragonboat Raft cluster (cluster ID `1`). Repository interfaces delegate to a replicated state machine backed by in-memory stores snapshotted as portable JSON.

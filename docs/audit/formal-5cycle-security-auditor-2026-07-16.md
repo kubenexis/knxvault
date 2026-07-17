@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Formal 5-cycle security audit — KNXVault
 
 **Date:** 2026-07-16  

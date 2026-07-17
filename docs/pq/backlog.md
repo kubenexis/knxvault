@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # PQ readiness backlog
 
 Standalone backlog for post-quantum readiness. **IDs use `PQ-*`** so they do not collide with the main [docs/backlog.md](../backlog.md) `W*` items.

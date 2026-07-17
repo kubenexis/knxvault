@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Design: Multi-issuer ACME & full cert-manager replacement scope
 
 | Field | Value |

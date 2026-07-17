@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Secrets injection
 
 KNXVault delivers secrets to Kubernetes workloads through several patterns. **Use the Secrets Store CSI Driver integration first** — it is the primary, Kubernetes-native path. Sidecar and init-container patterns remain available as fallbacks.

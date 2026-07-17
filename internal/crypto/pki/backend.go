@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package pki provides pluggable PKI certificate issuance backends.
 package pki
 

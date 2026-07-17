@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package ssh implements dynamic OpenSSH user certificate credentials (signed-key mode).
 package ssh
 

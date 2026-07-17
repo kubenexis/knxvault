@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // knxvault-eso is an External Secrets Operator webhook adapter for KNXVault.
 package main
 

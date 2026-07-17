@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # ADR-0004: Encrypt Before Replication
 
 **Status:** Accepted  

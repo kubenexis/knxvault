@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Extensibility guide — engines, façades, and “plugins”
 
 How KNXVault is built to be extended, and how to add new capability **without** HashiCorp Vault–style loadable plugins.

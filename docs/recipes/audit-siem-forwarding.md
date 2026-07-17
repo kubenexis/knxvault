@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Recipe: Audit SIEM forwarding
 
 Stream audit events to Splunk, Elastic, Loki, or any HTTP collector in real time.

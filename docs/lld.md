@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # KNXVault — Low-Level Design (LLD)
 
 **Section 1: Introduction & Design Goals**

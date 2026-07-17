@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Recipe: Seal and unseal
 
 Emergency operator control to block mutating (and, when seal-guarded, secret-bearing) API access while keeping health probes alive.

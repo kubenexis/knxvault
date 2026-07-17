@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Recipe: Mutating webhook CSI injection
 
 Inject Secrets Store CSI volumes into pods using annotations — no hand-written volume blocks.

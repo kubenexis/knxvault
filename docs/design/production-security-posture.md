@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Design: Production security posture (set-and-forget, custody, safer defaults)
 
 | Field | Value |

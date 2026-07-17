@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Formal 10-Cycle Code Review — Entire KNXVault Codebase
 
 | Field | Value |

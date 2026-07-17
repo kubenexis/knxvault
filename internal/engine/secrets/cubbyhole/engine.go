@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package cubbyhole implements per-token private KV storage (M-WRAP-1 / W74).
 package cubbyhole
 

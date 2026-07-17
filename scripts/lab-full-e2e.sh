@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright The KNXVault Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # Complete lab E2E for knxvault on a single node (default 192.168.137.131).
 # Covers: host Raft serve, CLI/API smoke, Vault product profile (cert-manager),
 # and knxvault-operator CRD path.

@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # PQ readiness — current cryptographic state
 
 Assessment of KNXVault as implemented (2026-07). Implementation references: `internal/crypto/`, `internal/crypto/x509native/`, `internal/crypto/tlsconfig/`, [envelope encryption](../architecture/envelope-encryption.md).

@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package cmcompat maps cert-manager-shaped Certificate/Issuer fields onto
 // KNXVault CRDs for migration (drop-in YAML conversion without running cert-manager).
 package cmcompat

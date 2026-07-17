@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Day-2 Operations
 
 Ongoing operational tasks for running KNXVault in production.

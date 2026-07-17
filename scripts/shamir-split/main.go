@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Offline Shamir split helper for lab / ops ceremonies.
 // Usage: go run ./scripts/shamir-split -key <base64-secret> -n 3 -t 2
 // Prints base64 shares, one per line (suitable for /sys/unseal {"share":"..."}).

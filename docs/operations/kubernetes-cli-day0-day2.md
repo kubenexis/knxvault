@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Kubernetes knxvault: host CLI Day-0 and Day-2
 
 One coherent guide for **administering knxvault in Kubernetes with `knxvault-cli`**. The server runs as **distroless pods**; the CLI runs on an **admin workstation or jump host** and talks only to the HTTP API (via port-forward or an internal Service/Ingress URL).

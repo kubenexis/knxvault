@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # LLD ↔ implementation traceability
 
 Maps [`docs/lld.md`](../lld.md) sections to code paths and backlog status. Updated 2026-06.

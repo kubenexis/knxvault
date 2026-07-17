@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Recipe: cert-manager TLS integration
 
 Automate TLS certificate issuance from KNXVault PKI using **cert-manager's built-in Vault issuer**.

@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # PKI: native only (OpenSSL CLI backend removed)
 
 KNXVault issues X.509 material with **in-process Go `crypto/x509` only**.

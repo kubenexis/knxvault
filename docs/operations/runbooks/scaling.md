@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Raft Cluster Scaling Runbook
 
 This runbook covers adding and removing voting members in a running KNXVault Dragonboat cluster (W36-23).

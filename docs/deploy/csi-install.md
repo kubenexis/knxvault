@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # CSI provider installation (production)
 
 KNXVault delivers secrets to workloads through the [Secrets Store CSI Driver](https://secrets-store-csi-driver.sigs.k8s.io/). This guide covers production install of the upstream driver and the `knxvault-csi` provider.

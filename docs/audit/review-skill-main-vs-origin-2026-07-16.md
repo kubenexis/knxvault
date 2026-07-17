@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 ## Summary
 
 This change set ships a substantial multi-issuer operator (Vault / ACME / SelfSigned), Vault product-profile routes (health, AppRole, custom-mount sign), and docs claiming cert-manager replacement readiness. Core Vault-mode issuance/renew and pure-logic packages look real; ACME HTTP-01, account-key persistence, Gateway RBAC, ClusterIssuer secret resolution, and CertificateRequest multi-issuer support are incomplete or broken relative to the docs/samples. Treat ACME and Gateway as non-production until the issues below are fixed.

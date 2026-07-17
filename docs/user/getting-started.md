@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Getting Started
 
 A hands-on introduction to KNXVault secrets, PKI, access control, **Transit**, **wrapping**, and **leases**.

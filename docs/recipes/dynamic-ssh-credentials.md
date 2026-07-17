@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Recipe: Dynamic SSH credentials
 
 Issue short-lived OpenSSH user certificates signed by a CA key stored in KNXVault KV.

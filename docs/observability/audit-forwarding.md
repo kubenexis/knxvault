@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Audit log forwarding
 
 KNXVault can stream audit entries to an external HTTP sink for SIEM ingestion (Loki, Splunk HEC, custom collectors).

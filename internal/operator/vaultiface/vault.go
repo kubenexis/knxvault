@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package vaultiface abstracts KNXVault API calls used by the operator.
 package vaultiface
 

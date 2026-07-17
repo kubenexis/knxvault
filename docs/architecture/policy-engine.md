@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Policy engine (W41-07)
 
 KNXVault RBAC uses **default deny** with path-aware capabilities aligned to Vault/OpenBao semantics.

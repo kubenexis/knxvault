@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Low-Level Design (LLD)
 
 The canonical Low-Level Design document lives at [`../lld.md`](../lld.md).

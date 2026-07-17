@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # High-Level Design (HLD)
 
 KNXVault is a lightweight, self-hosted secrets management and PKI system written in Go. It targets teams that want Vault-class capabilities with a smaller operational footprint and strong Kubernetes integration.

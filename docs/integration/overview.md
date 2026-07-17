@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Integration Overview
 
 How to connect applications, Kubernetes workloads, and CI/CD pipelines to KNXVault.

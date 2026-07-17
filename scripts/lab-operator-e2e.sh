@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright The KNXVault Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # Lab e2e: knxvault + operator CRDs without cert-manager.
 # Usage: bash scripts/lab-operator-e2e.sh [host]
 # Default: 192.168.137.131  (192.168.137.37 often has no SSH)

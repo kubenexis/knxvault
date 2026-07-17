@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # E2E and lab test map
 
 Canonical map of automated and lab end-to-end coverage for KNXVault (as of **2026-07-16**). Use this when adding features, running pre-release gates, or explaining what “E2E green” means.

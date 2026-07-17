@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package operator is the KNXVault Kubernetes operator runtime.
 //
 // Entry point: Run() in manager.go (cmd/operator). Controllers reconcile

@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Recipe: Transit Encryption-as-a-Service (M-TRANSIT-1)
 
 Encrypt application data without storing plaintext in knxvault KV.

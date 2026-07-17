@@ -1,0 +1,58 @@
+# REUSE Software specification annotations for KNXVault.
+# https://reuse.software/spec/
+# Aligns with CNCF Charter §11: code Apache-2.0, documentation CC-BY-4.0.
+version = 1
+
+[[annotations]]
+path = [
+  "cmd/**",
+  "internal/**",
+  "pkg/**",
+  "api/**",
+  "scripts/**",
+  "test/**",
+  "clients/**",
+  "examples/**",
+  "deployments/**",
+  "config/**",
+  "Dockerfile",
+  "Dockerfile.operator",
+  "Makefile",
+  ".golangci.yml",
+  ".gosec.json",
+  ".dockerignore",
+  ".gitignore",
+  ".trivyignore",
+  "go.mod",
+  "go.sum",
+  "**/*.json",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Copyright The KNXVault Authors."
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = [
+  "docs/**",
+  "README.md",
+  "CHANGELOG.md",
+  "SECURITY.md",
+  "CODE_OF_CONDUCT.md",
+  "CONTRIBUTING.md",
+  "GOVERNANCE.md",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Copyright The KNXVault Authors."
+SPDX-License-Identifier = "CC-BY-4.0"
+
+[[annotations]]
+path = [
+  "LICENSE",
+  "LICENSES/**",
+  "NOTICE",
+  "REUSE.toml",
+  "DCO",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Copyright The KNXVault Authors."
+SPDX-License-Identifier = "Apache-2.0"

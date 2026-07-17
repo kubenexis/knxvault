@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Recipe: External Secrets Operator sync
 
 Sync KNXVault KV secrets into native Kubernetes `Secret` objects for `envFrom` and legacy charts.

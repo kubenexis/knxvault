@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright The KNXVault Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # W35-01: DR failover drill — restore latest backup on standby cluster.
 set -euo pipefail
 ADDR="${KNXVAULT_ADDR:-http://localhost:8200}"

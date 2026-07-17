@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package controllers
 
 import "github.com/kubenexis/knxvault/internal/acme"

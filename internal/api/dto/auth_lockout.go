@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package dto
 
 // LockoutClearRequest clears a login lockout (W43-04).

@@ -1,3 +1,6 @@
+# Copyright The KNXVault Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # Production NetworkPolicy (W75-02): default-deny ingress, explicit allows only.
 # Unseal shares the API port — do NOT expose Service type LoadBalancer/NodePort to the internet.
 # Prefer ClusterIP + Ingress for API; keep unseal off public paths via ingress rules.

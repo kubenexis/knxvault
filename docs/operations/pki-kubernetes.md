@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # PKI Kubernetes Integration Guide
 
 How to use KNXVault PKI with Kubernetes workloads: authentication, certificate delivery patterns, **operator CRDs (preferred)**, cert-manager (optional legacy), Ingress TLS, and mTLS.

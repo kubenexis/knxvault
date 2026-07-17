@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package hostidentity resolves pod hostname and StatefulSet ordinal node IDs.
 package hostidentity
 

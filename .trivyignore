@@ -1,3 +1,6 @@
+# Copyright The KNXVault Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # Transitive golang.org/x/crypto/ssh and golang.org/x/net/html advisories.
 # KNXVault does not import or use SSH or HTML parsing from these modules.
 # Upstream fixes require Go 1.25+ (golang.org/x/crypto >= 0.52, x/net >= 0.53).

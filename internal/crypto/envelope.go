@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package crypto provides envelope encryption and OpenSSL integration (LLD §4).
 package crypto
 

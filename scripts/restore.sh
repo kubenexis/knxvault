@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright The KNXVault Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 set -euo pipefail
 
 ADDR="${KNXVAULT_ADDR:-http://localhost:8200}"

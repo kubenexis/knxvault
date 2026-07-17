@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Recipe: Response wrapping and cubbyhole (M-WRAP-1)
 
 Securely bootstrap a secret to another party without leaving it in chat logs or CI output for long.

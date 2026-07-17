@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Security Model
 
 Threat assumptions, cryptographic controls, and operational security guidance for KNXVault.

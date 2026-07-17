@@ -1,3 +1,6 @@
+# Copyright The KNXVault Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # Self-signed multi-issuer example (no vault CA, no cert-manager).
 apiVersion: knxvault.kubenexis.dev/v1alpha1
 kind: KNXVaultClusterIssuer

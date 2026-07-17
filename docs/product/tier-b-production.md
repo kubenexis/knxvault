@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Tier B Production Features (v0.5.1+)
 
 This document covers Raft correctness, master key rotation, managed database credentials, dynamic membership, and seal/unseal shipped in the W36 Tier B–E backlog.

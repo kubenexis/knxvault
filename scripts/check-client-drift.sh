@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright The KNXVault Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

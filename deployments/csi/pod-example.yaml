@@ -1,3 +1,6 @@
+# Copyright The KNXVault Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # Example pod mounting KNXVault secrets via Secrets Store CSI Driver (W39-03).
 apiVersion: v1
 kind: Pod

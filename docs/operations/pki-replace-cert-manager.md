@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Replacing cert-manager with KNXVault
 
 **Status:** Complete (W30 + multi-issuer ACME/SelfSigned).  

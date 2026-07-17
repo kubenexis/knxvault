@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package statusutil helps set Ready/Issuing conditions.
 package statusutil
 

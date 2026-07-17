@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # KNXVault for Infrastructure & Kubernetes Engineers
 
 A plain-language guide to what KNXVault is, which problems it solves in real Kubernetes environments, and how it compares to doing the same work without a dedicated secrets platform.

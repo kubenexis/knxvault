@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package metrics exports Prometheus metrics for the operator.
 package metrics
 

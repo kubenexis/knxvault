@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Recipe: Audit export
 
 Export the tamper-evident audit log and verify hash chain integrity for compliance reviews.

@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // knxvault-webhook is a mutating admission webhook that injects CSI volumes for annotated pods.
 package main
 

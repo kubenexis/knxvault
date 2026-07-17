@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package renew computes certificate renewal timing for the operator.
 // Timing semantics align with internal/acme.NeedsRenew / DefaultRenewBefore (M-ACME-1 W60-13):
 // renew when now >= notAfter - renewBefore. ACME CLI uses the same 720h default.

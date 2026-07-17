@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Recipe: KV secrets lifecycle
 
 Store, update, version, retrieve, list, and delete secrets using the KVv2 secrets engine.

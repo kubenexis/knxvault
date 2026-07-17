@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package leader provides HA leader election abstractions (LLD §6.2).
 package leader
 

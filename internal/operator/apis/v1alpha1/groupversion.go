@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package v1alpha1 defines KNXVault operator CRD API types.
 package v1alpha1
 

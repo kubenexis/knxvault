@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Recipe: Orchestrated rotation
 
 Run leader-coordinated rotation across KV, database, and PKI targets in one job.

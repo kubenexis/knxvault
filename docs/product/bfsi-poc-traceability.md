@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # BFSI POC Traceability Matrix
 
 Formal mapping of **BFSI POC must-have requirements** to KNXVault implementation evidence, backlog items, and compensating controls.

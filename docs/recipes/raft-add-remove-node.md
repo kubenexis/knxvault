@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Recipe: Add and remove Raft nodes
 
 Change cluster membership on a running Dragonboat cluster without data loss.

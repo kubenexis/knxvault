@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Operator Security Guidance
 
 Production checklist for KNXVault operators. Complements the [security model](../architecture/security-model.md).

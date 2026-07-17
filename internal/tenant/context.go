@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package tenant provides multi-tenancy context propagation (W32-01–05).
 package tenant
 

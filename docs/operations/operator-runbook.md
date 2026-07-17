@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # KNXVault operator runbook (Day-0 + Day-2)
 
 A single end-to-end guide for **Kubernetes platform** installs: **what KNXVault is**, how to **bring it up the first time (Day-0)**, and how to **keep it healthy (Day-2)**.

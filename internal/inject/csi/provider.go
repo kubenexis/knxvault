@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package csi defines the Secrets Store CSI provider contract.
 // First-class K8s integration — gRPC server in cmd/knxvault-csi (backlog W39-01).
 package csi

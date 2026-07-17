@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Kubernetes-native integrations
 
 KNXVault is designed as a **Kubernetes-native** secrets and PKI platform. These integrations are first-class product surfaces — not optional add-ons.

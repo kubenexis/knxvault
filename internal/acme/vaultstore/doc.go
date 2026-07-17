@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package vaultstore is a placeholder for optional ACME state in knxvault (M-ACME-2 / W60-16).
 //
 // ADR-0010: M-ACME-1 uses filesystem (CLI) and Kubernetes Secrets (operator) only.

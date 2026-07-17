@@ -1,3 +1,6 @@
+# Copyright The KNXVault Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # Example: restrict Secret write to a single app namespace (multi-tenant / least privilege).
 # Apply ClusterRole for CRDs + this Role/RoleBinding for Secrets in the app namespace.
 apiVersion: rbac.authorization.k8s.io/v1

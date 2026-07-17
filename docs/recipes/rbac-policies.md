@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Recipe: RBAC policies and roles
 
 Define least-privilege access with policies and bind them to tokens, ServiceAccounts, or OIDC users.

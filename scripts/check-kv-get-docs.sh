@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright The KNXVault Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # Fail when Markdown documents a bare `kv get` without nearby redaction / --show-secrets context.
 # Prevents tutorials from implying that default CLI output shows secret plaintext.
 #

@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package version
 
 // HandleArgs reports whether args request version output (-version / --version).

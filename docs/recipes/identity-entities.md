@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Recipe: Identity entities and groups (M-IDENT-1)
 
 Map multiple auth methods to one logical identity and attach group policies.

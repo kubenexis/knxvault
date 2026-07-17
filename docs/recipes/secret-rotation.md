@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Recipe: Secret rotation
 
 Rotate KV secrets on a schedule and deliver updated values to running pods without restart.

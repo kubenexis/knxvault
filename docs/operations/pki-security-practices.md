@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # PKI Security Best Practices
 
 Secure operations guide for KNXVault PKI — trust hierarchy, key handling, access control, revocation, and compliance-oriented practices.

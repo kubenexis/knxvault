@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Recipe: Local dev single-node
 
 Run KNXVault on your laptop for development without Kubernetes.

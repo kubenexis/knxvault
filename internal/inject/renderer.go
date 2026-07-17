@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package inject renders secrets for sidecar, init-container, and CSI injection (W18).
 package inject
 

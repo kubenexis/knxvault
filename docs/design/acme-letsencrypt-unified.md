@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Design: Unified Let's Encrypt / ACME automation (Kubernetes + standalone + CLI)
 
 | Field | Value |

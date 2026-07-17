@@ -1,3 +1,6 @@
+// Copyright The KNXVault Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 // KNXVault Kubernetes operator (W30-01–W30-10).
 // Reconciles CA, Issuer, Certificate, CertificateRequest CRDs and optional Ingress shim
 // so clusters can use KNXVault PKI without cert-manager.

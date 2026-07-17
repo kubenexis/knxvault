@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Review Summary — Full KNXVault Codebase
 
 - **Mode**: full-codebase multi-pass (not diff-only)

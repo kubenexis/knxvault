@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Testing Guide
 
 KNXVault uses a layered test strategy: unit tests alongside packages, integration tests (including local daemon E2E and multi-node Raft), and bare-metal lab E2E on `e2e-test01`.

@@ -1,3 +1,8 @@
+<!--
+Copyright The KNXVault Authors.
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Security remediation W74 (2026-07-17)
 
 Closes findings from the full-codebase security audit (comment-only report, same date).
