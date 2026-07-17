@@ -82,7 +82,7 @@ Details: [Installation Option 2](../installation/install.md#option-2-docker-dist
 | Requirement | Notes |
 |-------------|--------|
 | Build host | Go 1.26+ (via Makefile `GOTOOLCHAIN`), repo checkout |
-| Runtime | Docker **or** nerdctl + containerd (`make docker-build` accepts either) |
+| Runtime | Docker **or** nerdctl + containerd (`make container-build` accepts either) |
 | Admin host tools | Built `knxvault-cli`; optional `curl`/`jq`; optional `openssl` **only** for `openssl rand` key generation (not for server PKI) |
 | Storage | Durable path or named volume if using Raft |
 | Network | Ability to publish **host port 8200** (or equivalent) to container `:8200` |
@@ -125,7 +125,7 @@ mkdir -p ~/knxvault-day0 && chmod 700 ~/knxvault-day0
 
 ```bash
 cd /path/to/knxvault
-make docker-build          # knxvault:<version>  (distroless/static-debian13)
+make container-build          # knxvault:<version>  (distroless/static-debian13)
 make build-cli             # bin/knxvault-cli on this host
 ```
 
@@ -266,7 +266,7 @@ Policy patterns: [policy engine](../architecture/policy-engine.md), K8s-oriented
 
 ## A8. Day-0 acceptance checklist
 
-- [ ] Image is distroless-based build (`make docker-build`); no plan to shell into the container for admin  
+- [ ] Image is distroless-based build (`make container-build`); no plan to shell into the container for admin  
 - [ ] Port **8200** published (or documented reverse proxy URL)  
 - [ ] Host `knxvault-cli` built; `KNXVAULT_ADDR` / token set (or `~/.knxvault/config.yaml`)  
 - [ ] Master / unseal / root stored **out of band** (not only inside the container env)  
@@ -409,7 +409,7 @@ Configuration errors for removed OpenSSL knobs: [configuration.md](../installati
 
 ```bash
 # --- Admin host ---
-make docker-build && make build-cli
+make container-build && make build-cli
 MASTER=$(openssl rand -base64 32); UNSEAL=$(openssl rand -base64 32); ROOT=$(openssl rand -base64 24)
 # save MASTER UNSEAL ROOT offline
 

@@ -119,7 +119,7 @@ Store offline; put values into the Kubernetes Secret via your sealed-secrets / e
 
 ```bash
 cd /path/to/knxvault
-make docker-build    # distroless knxvault:<version>
+make container-build    # distroless knxvault:<version>
 make build-cli       # bin/knxvault-cli on admin host
 # push image to registry; set image: in StatefulSet
 ```
@@ -398,7 +398,7 @@ Design: [acme-letsencrypt-unified.md](../design/acme-letsencrypt-unified.md).
 
 ```bash
 # --- keys offline; fill Secret; push image ---
-make docker-build && make build-cli
+make container-build && make build-cli
 # kubectl apply … (manifests + secret) …
 
 kubectl -n knxvault port-forward svc/knxvault 8200:8200 &

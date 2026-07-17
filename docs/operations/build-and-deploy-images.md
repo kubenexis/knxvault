@@ -17,16 +17,16 @@ How to **build** knxvault container images, **which images** each topology needs
 
 | Image (default tag) | Dockerfile | Makefile | Binaries inside | Used for |
 |---------------------|------------|----------|-----------------|----------|
-| **`knxvault:0.4.5`** | `Dockerfile` | `make docker-build` | `knxvault`, `knxvault-csi`, `knxvault-webhook`, `knxvault-eso` | Server (always); CSI / webhook / ESO adapters by **command override** |
-| **`knxvault-operator:0.4.5`** | `Dockerfile.operator` | `make docker-build-operator` | `knxvault-operator` | Kubernetes certificate operator only |
+| **`knxvault:0.4.5`** | `Dockerfile` | `make container-build` | `knxvault`, `knxvault-csi`, `knxvault-webhook`, `knxvault-eso` | Server (always); CSI / webhook / ESO adapters by **command override** |
+| **`knxvault-operator:0.4.5`** | `Dockerfile.operator` | `make k8s-operator-build` | `knxvault-operator` | Kubernetes certificate operator only |
 
 Version comes from Makefile `VERSION` (default `0.4.5`). Override:
 
 ```bash
-make docker-build IMAGE=registry.example.com/knxvault:0.4.5
-make docker-build-operator OPERATOR_IMAGE=registry.example.com/knxvault-operator:0.4.5
+make container-build IMAGE=registry.example.com/knxvault:0.4.5
+make k8s-operator-build OPERATOR_IMAGE=registry.example.com/knxvault-operator:0.4.5
 # or both:
-make docker-build-all VERSION=0.4.5
+make container-build-all VERSION=0.4.5
 ```
 
 Default entrypoint of `knxvault:…` is **`/usr/local/bin/knxvault`** with `CMD ["serve"]`. Other binaries share the same image:
@@ -50,7 +50,7 @@ Default entrypoint of `knxvault:…` is **`/usr/local/bin/knxvault`** with `CMD 
 
 | Image | When needed |
 |-------|-------------|
-| `gcr.io/distroless/static-debian13:nonroot` | **Build-time** base (pulled during `docker-build`) |
+| `gcr.io/distroless/static-debian13:nonroot` | **Build-time** base (pulled during `container-build`) |
 | `golang:1.26-bookworm` | **Build-time** builder stage |
 | Secrets Store CSI Driver images | Only if you install CSI (upstream driver) |
 | `busybox`, `curlimages/curl` | Example/sidecar manifests only — not required for core vault |
@@ -93,7 +93,7 @@ command -v nerdctl || command -v docker
 # Prefer nerdctl when the runtime is containerd
 ```
 
-**Container CLI selection (`make docker-build`):**
+**Container CLI selection (`make container-build`):**
 
 | Order | Backend | When |
 |-------|---------|------|
@@ -104,7 +104,7 @@ command -v nerdctl || command -v docker
 If you see `rootless containerd not running`, either start rootless containerd or force rootful:
 
 ```bash
-make docker-build-all DOCKER='sudo nerdctl'
+make container-build-all DOCKER='sudo nerdctl'
 # or permanently: export DOCKER='sudo nerdctl'
 ```
 
@@ -120,16 +120,16 @@ sudo nerdctl pull gcr.io/distroless/static-debian13:nonroot
 
 ```bash
 cd /path/to/knxvault
-make docker-build
+make container-build
 # → knxvault:0.4.5  (or IMAGE=…)
 ```
 
-`make docker-build` auto-picks a **working** `docker` / `nerdctl` / `sudo nerdctl` (see above).
+`make container-build` auto-picks a **working** `docker` / `nerdctl` / `sudo nerdctl` (see above).
 
 ### 3.3 Build operator image (Kubernetes TLS automation)
 
 ```bash
-make docker-build-operator
+make k8s-operator-build
 # → knxvault-operator:0.4.5
 ```
 
@@ -176,7 +176,7 @@ End-to-end ops narrative: [standalone-distroless-day0-day2.md](standalone-distro
 
 ```bash
 # build or load knxvault:0.4.5 into this host's containerd
-make docker-build    # or nerdctl load -i knxvault-0.4.5.tar
+make container-build    # or nerdctl load -i knxvault-0.4.5.tar
 make build-cli
 
 mkdir -p /var/lib/knxvault/raft
@@ -262,7 +262,7 @@ Full Day-0/Day-2: [kubernetes-cli-day0-day2.md](kubernetes-cli-day0-day2.md), [o
 **Images**
 
 1. `knxvault:<version>` (STS)  
-2. `knxvault-operator:<version>` (`make docker-build-operator`, push, set `deployments/operator/deployment.yaml`)  
+2. `knxvault-operator:<version>` (`make k8s-operator-build`, push, set `deployments/operator/deployment.yaml`)  
 
 Then CRDs + operator RBAC + Deployment + sample Certificate CRDs.
 
@@ -322,8 +322,8 @@ Expect non-root user, entrypoint `knxvault`, no shell.
 
 ```bash
 # Build everything you need for both topologies
-make docker-build              # knxvault:VERSION  (standalone + K8s server/CSI/webhook/ESO)
-make docker-build-operator     # knxvault-operator:VERSION  (K8s operator only)
+make container-build              # knxvault:VERSION  (standalone + K8s server/CSI/webhook/ESO)
+make k8s-operator-build     # knxvault-operator:VERSION  (K8s operator only)
 make build-cli                 # host admin binary
 
 # Standalone (containerd)

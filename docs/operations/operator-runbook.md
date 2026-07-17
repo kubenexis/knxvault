@@ -201,7 +201,7 @@ Details: [Operator security §5](operator-security.md#5-master-key-and-unseal-ke
 
 ```bash
 cd /path/to/knxvault
-make docker-build
+make container-build
 # docker tag / push to your registry
 # set image: in deployments/k8s/statefulset.yaml
 ```

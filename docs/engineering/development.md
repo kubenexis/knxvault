@@ -87,7 +87,7 @@ See [LLD §3.1](../lld.md) for the full directory specification.
 | `make gosec` | Security static analysis |
 | `make licenses` | SPDX allow-list check |
 | `make scan` | Trivy vulnerability scan |
-| `make docker-build` | Container image |
+| `make container-build` | Container image |
 
 ## Adding a feature
 

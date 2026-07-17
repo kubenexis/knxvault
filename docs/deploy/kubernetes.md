@@ -13,8 +13,8 @@ KNXVault ships **raw Kubernetes manifests** in [`deployments/k8s/`](../../deploy
 Catalog, matrix, and containerd/`nerdctl` steps: **[Build and deploy images](../operations/build-and-deploy-images.md)**.
 
 ```bash
-make docker-build              # knxvault:VERSION (server + CSI/webhook/ESO binaries)
-make docker-build-operator     # knxvault-operator:VERSION (optional cert automation)
+make container-build              # knxvault:VERSION (server + CSI/webhook/ESO binaries)
+make k8s-operator-build     # knxvault-operator:VERSION (optional cert automation)
 # tag/push to registry; set image: on StatefulSet and operator Deployment
 ```
 

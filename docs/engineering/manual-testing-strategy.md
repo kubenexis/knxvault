@@ -114,7 +114,7 @@ Deploy a production-like 3-node KNXVault Raft cluster and confirm quorum health.
 
 ```bash
 # Build and push image (adjust registry/tag)
-make docker-build
+make container-build
 # Update deployments/k8s/statefulset.yaml image:
 
 kubectl apply -f deployments/k8s/namespace.yaml

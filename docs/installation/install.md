@@ -9,7 +9,7 @@ Install KNXVault as a local binary, container, or 3-node Kubernetes Raft cluster
 | Go | 1.26+ | For building from source (`GOTOOLCHAIN=go1.26.4`) |
 | OpenSSL | — | **Not used by the server.** Optional on admin hosts for `openssl rand` key generation only. |
 | Kubernetes | 1.28+ | For production HA deployment (**3 nodes** for Raft quorum) |
-| Docker or nerdctl | for packaging | `make docker-build` → distroless `static-debian13` server image; see [Build and deploy images](../operations/build-and-deploy-images.md) |
+| Docker or nerdctl | for packaging | `make container-build` → distroless `static-debian13` server image; see [Build and deploy images](../operations/build-and-deploy-images.md) |
 
 ## Option 1: Local binary (development)
 
@@ -77,7 +77,7 @@ PKI is always native Go `crypto/x509` (OpenSSL CLI backend removed). See [PKI na
 In-memory (or default) container:
 
 ```bash
-make docker-build   # uses docker or nerdctl → knxvault:0.4.5
+make container-build   # uses docker or nerdctl → knxvault:0.4.5
 
 docker run --rm -p 8200:8200 \
   -e KNXVAULT_MASTER_KEY="$(openssl rand -base64 32)" \
@@ -118,7 +118,7 @@ Production deployments use a **3-replica StatefulSet** with Dragonboat Raft. A s
 [Kubernetes CLI Day-0 / Day-2](../operations/kubernetes-cli-day0-day2.md). Full platform narrative: [operator runbook](../operations/operator-runbook.md).
 
 ```bash
-make docker-build
+make container-build
 # Push image to your registry and update statefulset.yaml
 
 kubectl apply -f deployments/k8s/namespace.yaml

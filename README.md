@@ -7,7 +7,7 @@ Lightweight, production-grade secrets management and PKI built in Go.
 - Go 1.26+ (auto-downloaded via `GOTOOLCHAIN=go1.26.4` in the Makefile)
 - `golangci-lint` v2, `gosec`, `trivy` (install: `make install-tools`)
 - Dragonboat Raft storage (`KNXVAULT_RAFT_ENABLED=true`) for production; in-memory repos used when unset
-- Docker or nerdctl (for `make docker-build` — **required** production packaging path)
+- Docker or nerdctl (for `make container-build` — **required** production packaging path)
 - Optional: `openssl` CLI on admin machines only for generating random keys (`openssl rand`); **not** used by the server
 
 ## Quick start
@@ -70,12 +70,12 @@ curl -s http://localhost:8200/secrets/kv/app/db \
 (Debian 13 / Trixie). PKI is **always** in-process Go `crypto/x509` — there is no OpenSSL CLI backend and no openssl binary in the image.
 
 ```bash
-make docker-build          # builds knxvault:0.4.5 (distroless/static-debian13)
+make container-build          # builds knxvault:0.4.5 (distroless/static-debian13)
 docker run --rm -p 8200:8200 \
   -e KNXVAULT_MASTER_KEY="$(openssl rand -base64 32)" \
   -e KNXVAULT_ROOT_TOKEN=dev-root-token \
   knxvault:0.4.5 serve
-# (nerdctl works the same: make docker-build uses docker or nerdctl)
+# (nerdctl works the same: make container-build uses docker or nerdctl)
 ```
 
 For containerized **Raft**, also pass `KNXVAULT_UNSEAL_KEY` (≠ master) and the `KNXVAULT_RAFT_*` variables — see [Installation](docs/installation/install.md#option-2-docker).
@@ -171,7 +171,7 @@ make all                   # fmt, vet, lint, gosec, licenses, scan, test, test-i
 make test                  # unit tests only
 make test-integration      # API + 3-node Raft integration tests
 make gosec                 # security static analysis
-make docker-build          # container image
+make container-build          # container image
 ```
 
 Observability: [`docs/metrics.md`](docs/metrics.md)

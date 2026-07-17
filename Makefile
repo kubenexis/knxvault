@@ -21,7 +21,7 @@ GOLANGCI_LINT   ?= $(GOPATH_BIN)/golangci-lint
 GOSEC           ?= $(GOPATH_BIN)/gosec
 TRIVY           := $(firstword $(shell command -v trivy 2>/dev/null) $(LOCAL_BIN)/trivy)
 # Container CLI: first working backend (docker, rootless nerdctl, or rootful sudo nerdctl).
-# Override: make docker-build DOCKER='sudo nerdctl'
+# Override: make container-build DOCKER='sudo nerdctl'
 DOCKER ?= $(shell \
 	if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then \
 		command -v docker; \
@@ -119,7 +119,7 @@ all: ## Run fmt, vet, lint, docs-lint, gosec, licenses, scan, test, test-integra
 # Go quality
 # =============================================================================
 
-.PHONY: fmt vet lint docs-lint gosec semgrep licenses test test-integration test-coverage build build-cli build-csi build-webhook build-eso build-operator generate-clients test-clients check-client-drift sbom scan tidy install-tools docker-build docker-build-operator docker-build-all clean
+.PHONY: fmt vet lint docs-lint gosec semgrep licenses test test-integration test-coverage build build-cli build-csi build-webhook build-eso build-operator generate-clients test-clients check-client-drift sbom scan tidy install-tools container-build k8s-operator-build container-build-all docker-build docker-build-operator docker-build-all clean
 
 fmt: ## Check Go formatting (gofmt)
 	$(call log,Checking gofmt)
@@ -212,12 +212,12 @@ define require_container_cli
 		printf "  fix one of:\n" >&2; \
 		printf "    - start Docker daemon, or\n" >&2; \
 		printf "    - rootless: containerd-rootless-setuptool.sh install, or\n" >&2; \
-		printf "    - rootful containerd: make docker-build DOCKER='sudo nerdctl'\n" >&2; \
+		printf "    - rootful containerd: make container-build DOCKER='sudo nerdctl'\n" >&2; \
 		exit 1; \
 	fi
 endef
 
-docker-build: ## Build distroless server image ($(IMAGE)) via docker or nerdctl
+container-build: ## Build distroless server image ($(IMAGE)) via docker or nerdctl
 	$(call log,Building distroless Debian 13 image $(IMAGE) with $(DOCKER))
 	$(call require_container_cli)
 	$(DOCKER) build \
@@ -227,7 +227,7 @@ docker-build: ## Build distroless server image ($(IMAGE)) via docker or nerdctl
 		--build-arg BUILD_ID=$(BUILD_ID) \
 		-t $(IMAGE) .
 
-docker-build-operator: ## Build distroless operator image ($(OPERATOR_IMAGE))
+k8s-operator-build: ## Build distroless knxvault-operator image ($(OPERATOR_IMAGE))
 	$(call log,Building distroless operator image $(OPERATOR_IMAGE) with $(DOCKER))
 	$(call require_container_cli)
 	$(DOCKER) build \
@@ -237,7 +237,12 @@ docker-build-operator: ## Build distroless operator image ($(OPERATOR_IMAGE))
 		--build-arg BUILD_ID=$(BUILD_ID) \
 		-t $(OPERATOR_IMAGE) .
 
-docker-build-all: docker-build docker-build-operator ## Build server + operator distroless images
+container-build-all: container-build k8s-operator-build ## Build server + operator distroless images
+
+# Deprecated aliases (prefer container-build / k8s-operator-build / container-build-all).
+docker-build: container-build
+docker-build-operator: k8s-operator-build
+docker-build-all: container-build-all
 
 build: ## Build statically linked release binary to bin/knxvault
 	$(call log,Building static binary $(BINARY))
