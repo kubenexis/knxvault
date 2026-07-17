@@ -35,6 +35,8 @@ Honest grades, known gaps (set-and-forget Medium, custody vs HSM, DIY footguns),
 
 **W86 open security backlog (2026-07-17):** Full re-audit after W85 — operator custody Secret isolation (**Critical**), ESO TLS/auth, Raft mTLS overlay, NetPol/unseal plane, SQL allowlist holes, ImportCA IsCA, etc. Work items **W86-01…** in [`docs/backlog.md`](../backlog.md); mapping [security-audit-w86-backlog-2026-07-17.md](../audit/security-audit-w86-backlog-2026-07-17.md).
 
+**Distributed Trust Platform (proposed):** **Base = Core + Kubernetes**; public OIDC, public ACME/LE, CSI, ESO, webhook = **optional add-on services**; multi-instance by use case. Design [distributed-trust-platform.md](../design/distributed-trust-platform.md); backlog **W90-*** / branch `knxvault-distributed-trust-platform`.
+
 ## Threat model
 
 | Threat | Impact | Mitigations |

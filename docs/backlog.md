@@ -7,7 +7,7 @@ SPDX-License-Identifier: CC-BY-4.0
 
 Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topologically sorted by dependency** — implement in listed order within each phase.
 
-**Current focus (2026-07-17):** **P0 W86 security backlog** (custody isolation, ESO edge, production deploy plane) after W78–W85 engine packs. Prefer KNXVault PKI + operator for vault-issued TLS (**no cert-manager**). Remaining Phase 5: tenant depth (W32), HSM (W31-02 / M-CUSTODY-1).
+**Current focus (2026-07-17):** **P0 M-DTP** (base = Core+K8s; add-ons opt-in) + **W86** base custody (W86-01/02/06/07). Branch `knxvault-distributed-trust-platform`. Prefer private PKI + operator over cert-manager. Remaining Phase 5: tenant depth (W32), HSM (W31-02 / M-CUSTODY-1).
 
 **Milestone M-ACME-1 (P1):** Unified **Let's Encrypt / ACME** for **standalone + Kubernetes + `knxvault-cli acme`** — design [`docs/design/acme-letsencrypt-unified.md`](design/acme-letsencrypt-unified.md), backlog **W60-01…** below. K8s operator ACME already shipped; gap is CLI + standalone.
 
@@ -32,6 +32,8 @@ Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topological
 **W82–W85 residual cycles (2026-07-17):** SQL normalize/membership + ImportCA RSA (W82); bare GRANT role + wrap CAS (W83); OCSP body cap / wrap GC (W84); KVv2 reserved internal paths (W85). Cycle reports under [`docs/audit/`](audit/).
 
 **W86 security backlog (2026-07-17, open):** Full re-audit after W85 — **Critical/High** on K8s custody + ESO edge; **Medium** on SQL allowlist, ImportCA IsCA, unseal plane, ABAC headers, deploy completeness. Mapping: [security-audit-w86-backlog-2026-07-17.md](audit/security-audit-w86-backlog-2026-07-17.md). Work items **W86-01…** below.
+
+**M-DTP Distributed Trust Platform (2026-07-17, planning):** **Base = Core + K8s**; LE/OIDC/CSI/ESO/webhook = **add-on services**; multi-instance by use case. Design: [distributed-trust-platform.md](design/distributed-trust-platform.md). Branch: `knxvault-distributed-trust-platform`. Backlog **W90-*** below.
 
 **W75 CIS hardening (network + defaults + multi-tenant stance):** design [`docs/design/cis-hardening-improvements.md`](design/cis-hardening-improvements.md). **P0 done:** multi-node Raft forces production profile (**W75-01**); `deployments/k8s/production/` (**W75-02**).
 
@@ -723,11 +725,79 @@ Report: `docs/audit/formal-w53-residual-features-2026-07-16.md`.
 
 ---
 
+## Milestone family M-DTP — Distributed Trust Platform (W90)
+
+**Status:** **Not started** (design proposed 2026-07-17).  
+**Branch:** `knxvault-distributed-trust-platform`  
+**Design:** [`docs/design/distributed-trust-platform.md`](design/distributed-trust-platform.md)  
+**Doctrine:** Base = **Core + Kubernetes**. Public OIDC, public ACME/LE, CSI, ESO, webhook = **optional add-on services**. Prefer **multiple instances** by use case over one mega-vault for critical material.
+
+| Milestone | Phase | Goal |
+|-----------|-------|------|
+| **M-DTP-0** | 0 | Doctrine accepted; docs language |
+| **M-DTP-1** | 1 | Kustomize base vs components; default = base only |
+| **M-DTP-2** | 2 | Feature gates fail-closed for non-base auth/ACME/etc. |
+| **M-DTP-3** | 3 | Instance roles + airgap checklist |
+| **M-DTP-4** | 4 | Base custody hardening (W86 P0 subset) |
+
+### M-DTP-0 — Doctrine (W90-0x)
+
+| ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
+|----|----------|--------|--------|------|------------|-------|-------------|---------------------|
+| **W90-01** | P0 | **Partial** | S | docs | — | DTP design doc | [distributed-trust-platform.md](design/distributed-trust-platform.md) | Design on branch; status → Accepted when reviewed |
+| **W90-02** | P0 | Not started | S | docs | W90-01 | Security-model + README base vs add-ons | Product blurb: base Core+K8s; extras opt-in | Docs merged; no “everything is core” language |
+| **W90-03** | P0 | Not started | S | docs | W90-01 | Tag W86 items base vs addon | Annotate W86-01… with base/addon scope | Mapping table in W86 audit or backlog |
+
+### M-DTP-1 — Compose (W90-1x)
+
+| ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
+|----|----------|--------|--------|------|------------|-------|-------------|---------------------|
+| **W90-10** | P0 | Not started | M | k8s | W90-01 | Kustomize base layout | `deployments/k8s/base` + production without CSI/ESO/webhook/ACME | `kubectl apply -k` base starts vault only |
+| **W90-11** | P0 | Not started | M | k8s | W90-10 | Components for add-ons | components: operator, csi, webhook, eso, acme-egress | Each component documented; not in base |
+| **W90-12** | P0 | Not started | S | k8s | W90-11 | Overlays airgap-core + platform-edge | Example instance roles | Two overlays; airgap has no ACME/OIDC/CSI |
+| **W90-13** | P1 | Not started | S | docs | W90-10 | Install matrix base vs add-ons | Update kubernetes.md + build-and-deploy-images | Matrix table complete |
+| **W90-14** | P1 | Not started | S | ci | W90-10 | CI guard default surface | Fail if production base refs csi/eso/acme by mistake | CI check or kustomize test |
+
+### M-DTP-2 — Feature gates (W90-2x)
+
+| ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
+|----|----------|--------|--------|------|------------|-------|-------------|---------------------|
+| **W90-20** | P0 | Not started | M | config | W90-01 | Auth method enable flags | `KNXVAULT_AUTH_OIDC_ENABLED`, `LDAP_ENABLED` (default off in airgap overlay) | Routes absent when false; unit tests |
+| **W90-21** | P1 | Not started | S | config | W90-20 | Audit forward enable flag | Explicit enable or ignore URL | Production/airgap safe default |
+| **W90-22** | P1 | Not started | M | k8s | W90-11 | Operator ACME enable flag | Private-only operator rejects ACME issuer types when off | Unit/controller test |
+| **W90-23** | P1 | Not started | S | config | W90-20 | Production/airgap ConfigMap gates | production + airgap overlays set gates | Manifests + config docs |
+| **W90-24** | P2 | Not started | S | cli | W90-20 | Doctor reports feature gate posture | doctor --profile production lists disabled methods | doctor test |
+
+### M-DTP-3 — Instances + airgap (W90-3x)
+
+| ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
+|----|----------|--------|--------|------|------------|-------|-------------|---------------------|
+| **W90-30** | P0 | Not started | M | docs | W90-01 | Instance role runbook | Core vs platform-edge vs public-TLS-edge | Ops doc published |
+| **W90-31** | P0 | Not started | M | docs | W90-10 | Airgap checklist | Transfer list, load, base apply, gates, no LE/OIDC | `docs/operations/airgap-checklist.md` |
+| **W90-32** | P1 | Not started | S | docs | W90-31 | Offline image matrix | Server / operator / upstream CSI-ESO | Table in airgap or build-and-deploy |
+| **W90-33** | P1 | Not started | S | docs | W90-30 | Cross-instance trust pattern | Edge instance as client of core; scoped policies | Recipe or runbook section |
+
+### M-DTP-4 — Base hardening (W90-4x + W86 P0)
+
+| ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
+|----|----------|--------|--------|------|------------|-------|-------------|---------------------|
+| **W90-40** | P0 | Not started | S | docs | W86-01 | Track base Critical path | W86-01/02/06/07 as M-DTP-4 blockers | Exit criteria doc |
+| **W86-01** | P0 | Not started | M | k8s | — | Isolate vault custody Secrets | (see W86 table) | Base Critical closed |
+| **W86-02** | P0 | Not started | S | k8s | W86-01 | Remove root from operator sample | (see W86 table) | Base only |
+| **W86-06** | P0 | Not started | M | k8s | — | Raft mTLS overlay | (see W86 table) | Base HA |
+| **W86-07** | P0 | Not started | S | k8s | — | Metrics-only NetPol | (see W86 table) | Base network |
+| **W90-41** | P1 | Not started | S | security | W90-01 | Audit taxonomy base vs addon | Process: tag findings in future audits | Process note in security-model |
+
+> **Sequencing:** **W90-01 → W90-10 → W90-11 → W90-12** for compose. **W90-20** after or parallel with compose. **W86-01** anytime as highest custody fix. Add-on W86 (ESO **W86-04/05**) not required for base airgap GA.
+
+---
+
 ## Milestone W86 — Full re-audit residual backlog (2026-07-17)
 
 **Status:** **Not started** (open after W78–W85 engine packs).  
 **Priority:** **P0** for Critical/High (custody + ESO); **P1** for Medium engines/deploy; **P2** Low.  
 **Audit report / ID map:** [`docs/audit/security-audit-w86-backlog-2026-07-17.md`](audit/security-audit-w86-backlog-2026-07-17.md)  
+**DTP scope:** Base blockers **W86-01,02,06,07** → M-DTP-4; add-on ESO/webhook items enable with components, not default base.  
 **Context:** Core seal/crypto/PKI/KV isolation is strong; residual risk is primarily **default Kubernetes custody co-location**, **ESO edge**, and **allowlist/deploy completeness**.
 
 | ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
