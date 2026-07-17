@@ -2,8 +2,8 @@
 
 | Field | Value |
 |-------|-------|
-| **Status** | Implemented (W50 foundation) |
-| **Date** | 2026-07-16 |
+| **Status** | Implemented for **Kubernetes operator** (W50 foundation); extended by **[acme-letsencrypt-unified.md](acme-letsencrypt-unified.md)** (standalone + CLI — milestone M-ACME-1) |
+| **Date** | 2026-07-16 (operator); 2026-07-17 (unified design) |
 | **Code** | `internal/acme`, operator multi-issuer CRDs, `cmcompat` |
 
 ## Goal

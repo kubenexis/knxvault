@@ -21,9 +21,10 @@ You do **not** need the cert-manager controller for:
 | CSR sign | Yes | `KNXVaultCertificateRequest` + `POST /pki/sign` |
 | Renew before expiry | Yes | Operator `renewBefore` (vault renew when caId set) |
 | Self-signed | Yes | `spec.selfSigned` on Issuer |
-| ACME HTTP-01 | Yes | `spec.acme.http01: true` + reachable solver |
-| ACME DNS-01 Cloudflare | Yes | `spec.acme.dns01.provider: cloudflare` |
-| ACME DNS-01 custom DNS | Yes | `provider: webhook` |
+| ACME HTTP-01 (Kubernetes) | Yes | Operator `spec.acme.http01: true` + reachable solver |
+| ACME DNS-01 Cloudflare (Kubernetes) | Yes | Operator `spec.acme.dns01.provider: cloudflare` |
+| ACME DNS-01 custom DNS (Kubernetes) | Yes | Operator `provider: webhook` |
+| ACME / Let's Encrypt (standalone + CLI) | **Planned (M-ACME-1)** | Host `knxvault-cli acme` + `internal/acme` — [unified ACME design](../design/acme-letsencrypt-unified.md) |
 | Ingress annotation | Yes | `knxvault.kubenexis.dev/issuer` + ingress shim env |
 | Gateway API annotation | Yes | Same annotation + gateway shim env |
 | cert-manager YAML migration | Yes | `cmcompat` conversion helpers / dual-run map |
