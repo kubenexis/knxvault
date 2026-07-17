@@ -80,6 +80,9 @@ docker run --rm -p 8200:8200 \
 
 For containerized **Raft**, also pass `KNXVAULT_UNSEAL_KEY` (≠ master) and the `KNXVAULT_RAFT_*` variables — see [Installation](docs/installation/install.md#option-2-docker).
 
+**Standalone Day-0 / Day-2** (distroless image + host `knxvault-cli`, no Kubernetes):  
+[docs/operations/standalone-distroless-day0-day2.md](docs/operations/standalone-distroless-day0-day2.md).
+
 ## Kubernetes
 
 Raw manifests (no Helm): [`deployments/k8s/`](deployments/k8s/) — see [`docs/deploy/kubernetes.md`](docs/deploy/kubernetes.md).  

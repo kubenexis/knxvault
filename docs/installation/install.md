@@ -101,7 +101,11 @@ docker run --rm -p 8200:8200 \
   knxvault:0.4.5 serve
 ```
 
-For full **Day-0** (first install through acceptance) and **Day-2** operations, see the [operator runbook](../operations/operator-runbook.md).
+For a **full standalone Day-0 + Day-2 story** (distroless container + host `knxvault-cli`, no Kubernetes), see:
+
+**[Standalone distroless + host CLI (Day-0 / Day-2)](../operations/standalone-distroless-day0-day2.md)**
+
+Kubernetes platform Day-0/Day-2: [operator runbook](../operations/operator-runbook.md).
 
 ## Option 3: Kubernetes (production HA)
 

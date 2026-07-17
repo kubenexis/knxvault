@@ -1,6 +1,6 @@
 # KNXVault operator runbook (Day-0 + Day-2)
 
-A single end-to-end guide: **what KNXVault is**, how to **bring it up the first time (Day-0)**, and how to **keep it healthy (Day-2)**.
+A single end-to-end guide for **Kubernetes platform** installs: **what KNXVault is**, how to **bring it up the first time (Day-0)**, and how to **keep it healthy (Day-2)**.
 
 | Field | Value |
 |-------|-------|
@@ -8,6 +8,7 @@ A single end-to-end guide: **what KNXVault is**, how to **bring it up the first 
 | **Day-0** | Plan → generate keys → install → unseal → bootstrap policies → operator + first CA/cert → first secret → accept the platform |
 | **Day-2** | Health, unseal after restart, backup, upgrades, seal incidents, scale |
 | **Not required** | Deep cryptography, HashiCorp Vault expertise, or Let’s Encrypt |
+| **Not this guide** | Single-host / containerd-only (no K8s) — use [Standalone distroless + host CLI](standalone-distroless-day0-day2.md) |
 
 ```text
 Day-0  =  empty cluster  →  knxvault serving secrets & certs for apps
@@ -24,6 +25,7 @@ Day-2  =  everything after acceptance (restarts, backups, upgrades, incidents)
 | K8s manifests detail | [Kubernetes deployment](../deploy/kubernetes.md) |
 | TLS without cert-manager | [Replace cert-manager](pki-replace-cert-manager.md) |
 | Day-2 tables | [Day-2 operations](day2.md) |
+| **Standalone (no K8s)** distroless + host CLI | [Standalone Day-0 / Day-2](standalone-distroless-day0-day2.md) |
 | Lab proof | [E2E and lab tests](../engineering/e2e-and-lab-tests.md) |
 | Post-quantum (future) | [docs/pq/](../pq/README.md) — dual planes, g1/g2; Harbor stays classical (**g1**) |
 

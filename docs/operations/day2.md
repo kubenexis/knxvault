@@ -2,7 +2,9 @@
 
 Ongoing operational tasks for running KNXVault in production.
 
-> **New operators:** start with the [operator runbook](operator-runbook.md) — **Day-0** (install through first cert/secret) and **Day-2** (this page’s ongoing tasks).  
+> **New operators:**  
+> - **Kubernetes:** [operator runbook](operator-runbook.md) — Day-0 through first cert/secret; this page for ongoing tables.  
+> - **Standalone (distroless + host CLI, no K8s):** [Standalone Day-0 / Day-2](standalone-distroless-day0-day2.md).  
 > Security checklist: [Operator security guidance](operator-security.md) — credential placement, audit discipline, and cleartext metadata expectations.
 
 ## Health monitoring
