@@ -80,12 +80,17 @@ docker run --rm -p 8200:8200 \
 
 For containerized **Raft**, also pass `KNXVAULT_UNSEAL_KEY` (≠ master) and the `KNXVAULT_RAFT_*` variables — see [Installation](docs/installation/install.md#option-2-docker).
 
-**Standalone Day-0 / Day-2** (distroless image + host `knxvault-cli`, no Kubernetes):  
-[docs/operations/standalone-distroless-day0-day2.md](docs/operations/standalone-distroless-day0-day2.md).
+**Day-0 / Day-2 guides (host `knxvault-cli`):**
+
+| Topology | Document |
+|----------|----------|
+| Standalone (no K8s) | [docs/operations/standalone-distroless-day0-day2.md](docs/operations/standalone-distroless-day0-day2.md) |
+| Kubernetes | [docs/operations/kubernetes-cli-day0-day2.md](docs/operations/kubernetes-cli-day0-day2.md) |
 
 ## Kubernetes
 
 Raw manifests (no Helm): [`deployments/k8s/`](deployments/k8s/) — see [`docs/deploy/kubernetes.md`](docs/deploy/kubernetes.md).  
+Full platform Day-0/Day-2: [`docs/operations/operator-runbook.md`](docs/operations/operator-runbook.md).  
 Secrets injection: [`docs/deploy/secrets-injection.md`](docs/deploy/secrets-injection.md) and [`deployments/k8s/sidecar-example.yaml`](deployments/k8s/sidecar-example.yaml).
 
 ## API endpoints

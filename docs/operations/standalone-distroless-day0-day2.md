@@ -68,10 +68,10 @@ Details: [Installation Option 2](../installation/install.md#option-2-docker-dist
 
 ### When to use this vs Kubernetes
 
-| Use this guide | Use [operator runbook](operator-runbook.md) |
-|----------------|-----------------------------------------------|
-| Lab / single host containerd | Production 3-node Raft in-cluster |
-| Air-gap smoke of image + CLI | Operator CRDs, CSI, K8s auth Day-0 |
+| Use this guide | Use Kubernetes guides |
+|----------------|------------------------|
+| Lab / single host containerd | Production 3-node Raft in-cluster — [operator runbook](operator-runbook.md) |
+| Air-gap smoke of image + CLI | Operator CRDs, CSI, K8s auth — [Kubernetes CLI Day-0/Day-2](kubernetes-cli-day0-day2.md) |
 | Edge / appliance-style single vault | Platform TLS factory for many namespaces |
 
 ---

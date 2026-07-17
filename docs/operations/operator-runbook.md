@@ -9,6 +9,7 @@ A single end-to-end guide for **Kubernetes platform** installs: **what KNXVault 
 | **Day-2** | Health, unseal after restart, backup, upgrades, seal incidents, scale |
 | **Not required** | Deep cryptography, HashiCorp Vault expertise, or Let’s Encrypt |
 | **Not this guide** | Single-host / containerd-only (no K8s) — use [Standalone distroless + host CLI](standalone-distroless-day0-day2.md) |
+| **CLI-first K8s path** | Same cluster story with emphasis on `knxvault-cli` — [Kubernetes CLI Day-0 / Day-2](kubernetes-cli-day0-day2.md) |
 
 ```text
 Day-0  =  empty cluster  →  knxvault serving secrets & certs for apps
@@ -26,6 +27,7 @@ Day-2  =  everything after acceptance (restarts, backups, upgrades, incidents)
 | TLS without cert-manager | [Replace cert-manager](pki-replace-cert-manager.md) |
 | Day-2 tables | [Day-2 operations](day2.md) |
 | **Standalone (no K8s)** distroless + host CLI | [Standalone Day-0 / Day-2](standalone-distroless-day0-day2.md) |
+| **Kubernetes + host CLI** (CLI-first Day-0/Day-2) | [Kubernetes CLI Day-0 / Day-2](kubernetes-cli-day0-day2.md) |
 | Lab proof | [E2E and lab tests](../engineering/e2e-and-lab-tests.md) |
 | Post-quantum (future) | [docs/pq/](../pq/README.md) — dual planes, g1/g2; Harbor stays classical (**g1**) |
 

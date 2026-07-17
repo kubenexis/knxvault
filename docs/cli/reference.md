@@ -2,7 +2,12 @@
 
 The `knxvault-cli` binary provides Day-0 and Day-2 operations against the KNXVault REST API.
 
-It is a **host/native HTTP client**. It does **not** discover Docker/containerd instances; set `--addr` / `KNXVAULT_ADDR` (default `http://localhost:8200`) to the published API. End-to-end standalone story: [Standalone distroless + host CLI](../operations/standalone-distroless-day0-day2.md).
+It is a **host/native HTTP client**. It does **not** discover Docker/containerd or Kubernetes pods; set `--addr` / `KNXVAULT_ADDR` (default `http://localhost:8200`) to a reachable API (published port, port-forward, or Service URL).
+
+| Topology | Guide |
+|----------|--------|
+| Standalone distroless + CLI | [Standalone Day-0 / Day-2](../operations/standalone-distroless-day0-day2.md) |
+| Kubernetes + CLI | [Kubernetes CLI Day-0 / Day-2](../operations/kubernetes-cli-day0-day2.md) |
 
 ## Installation
 

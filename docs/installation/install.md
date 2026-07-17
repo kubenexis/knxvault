@@ -111,6 +111,9 @@ Kubernetes platform Day-0/Day-2: [operator runbook](../operations/operator-runbo
 
 Production deployments use a **3-replica StatefulSet** with Dragonboat Raft. A single lab node is **not** sufficient for production HA smoke (three peers need scheduling capacity and PVCs). For single-host validation use Option 1 single-node Raft or the [lab E2E](../engineering/lab-e2e-test01.md).
 
+**Day-0 / Day-2 with host CLI** (port-forward or Service URL, unseal, doctor, KV/PKI):  
+[Kubernetes CLI Day-0 / Day-2](../operations/kubernetes-cli-day0-day2.md). Full platform narrative: [operator runbook](../operations/operator-runbook.md).
+
 ```bash
 make docker-build
 # Push image to your registry and update statefulset.yaml
