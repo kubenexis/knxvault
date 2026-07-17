@@ -11,17 +11,26 @@ import (
 	"github.com/kubenexis/knxvault/internal/api/dto"
 	"github.com/kubenexis/knxvault/internal/auth"
 	domainauth "github.com/kubenexis/knxvault/internal/domain/auth"
+	"github.com/kubenexis/knxvault/internal/domain/common"
 	"github.com/kubenexis/knxvault/internal/service"
 )
 
 // PolicyHandler serves RBAC policy and role endpoints.
 type PolicyHandler struct {
-	svc *service.PolicyService
+	svc         *service.PolicyService
+	oidcEnabled bool // M-DTP-2: reject OIDC role config when auth method disabled
 }
 
 // NewPolicyHandler constructs a PolicyHandler.
 func NewPolicyHandler(svc *service.PolicyService) *PolicyHandler {
-	return &PolicyHandler{svc: svc}
+	return &PolicyHandler{svc: svc, oidcEnabled: true}
+}
+
+// SetOIDCEnabled controls whether role OIDC config is accepted (M-DTP-2).
+func (h *PolicyHandler) SetOIDCEnabled(enabled bool) {
+	if h != nil {
+		h.oidcEnabled = enabled
+	}
 }
 
 // PutPolicy handles PUT /sys/policies/:name.
@@ -114,6 +123,10 @@ func (h *PolicyHandler) PutRole(c *gin.Context) {
 		RequireMFA:                    req.RequireMFA,
 	}
 	if req.OIDC != nil {
+		if !h.oidcEnabled {
+			_ = c.Error(common.New(common.ErrCodeForbidden, "OIDC authentication is disabled (KNXVAULT_AUTH_OIDC_ENABLED=false)"))
+			return
+		}
 		role.OIDC = &domainauth.OIDCConfig{
 			Issuer:   req.OIDC.Issuer,
 			Audience: req.OIDC.Audience,

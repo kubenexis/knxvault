@@ -1,0 +1,14 @@
+# Copyright Kubenexis Systems Private Limited.
+# SPDX-License-Identifier: Apache-2.0
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: knxvault
+  namespace: knxvault
+data:
+  # Edge may enable federation methods intentionally
+  KNXVAULT_AUTH_OIDC_ENABLED: "true"
+  KNXVAULT_AUTH_LDAP_ENABLED: "false"
+  KNXVAULT_AUDIT_FORWARD_ENABLED: "false"
+  KNXVAULT_ACME_RELATED_ENABLED: "false"

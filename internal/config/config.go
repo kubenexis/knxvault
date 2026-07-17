@@ -153,6 +153,17 @@ type Config struct {
 	LDAPDefaultPolicies    []string
 	LDAPInsecureSkipVerify bool
 
+	// Feature gates (M-DTP-2 / W90-20…W90-21). Lab defaults keep routes on for compat;
+	// production/airgap overlays set false for fail-closed base.
+	// Env: KNXVAULT_AUTH_OIDC_ENABLED, KNXVAULT_AUTH_LDAP_ENABLED,
+	// KNXVAULT_AUDIT_FORWARD_ENABLED, KNXVAULT_ACME_RELATED_ENABLED.
+	AuthOIDCEnabled     bool
+	AuthLDAPEnabled     bool
+	AuditForwardEnabled bool
+	// ACMERelatedEnabled gates server-side public ACME related config (if any).
+	// Operator uses KNXVAULT_OPERATOR_ACME_ENABLED separately.
+	ACMERelatedEnabled bool
+
 	Raft RaftConfig
 }
 

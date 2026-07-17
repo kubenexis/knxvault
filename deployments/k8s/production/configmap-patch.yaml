@@ -25,3 +25,12 @@ data:
   KNXVAULT_K8S_TOKEN_AUDIENCES: "knxvault"
   # Soft multi-tenant off by default (ADR-0011 single trust domain)
   KNXVAULT_TENANT_MODE: "false"
+  # M-DTP-2 / W90-23: fail-closed feature gates on production base
+  KNXVAULT_AUTH_OIDC_ENABLED: "false"
+  KNXVAULT_AUTH_LDAP_ENABLED: "false"
+  KNXVAULT_AUDIT_FORWARD_ENABLED: "false"
+  KNXVAULT_ACME_RELATED_ENABLED: "false"
+  # W86-06: Raft peer mTLS paths (mounted from knxvault-raft-tls Secret)
+  KNXVAULT_RAFT_MTLS_CERT: "/etc/knxvault/raft-tls/tls.crt"
+  KNXVAULT_RAFT_MTLS_KEY: "/etc/knxvault/raft-tls/tls.key"
+  KNXVAULT_RAFT_MTLS_CA: "/etc/knxvault/raft-tls/ca.crt"

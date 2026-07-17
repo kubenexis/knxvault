@@ -19,6 +19,7 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: knxvault-operator
+        knxvault.kubenexis.dev/api-client: "true"
     spec:
       serviceAccountName: knxvault-operator
       containers:
@@ -29,13 +30,7 @@ spec:
           env:
             - name: KNXVAULT_ADDR
               value: https://knxvault.knxvault.svc.cluster.local:8200
-            # Prefer SA login (KNXVAULT_K8S_ROLE); optional bootstrap token:
-            - name: KNXVAULT_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: knxvault
-                  key: KNXVAULT_ROOT_TOKEN
-                  optional: true
+            # W86-02: SA login only — never bind vault root token from custody Secret.
             - name: KNXVAULT_K8S_ROLE
               value: knxvault-operator
             - name: KNXVAULT_OPERATOR_INGRESS_SHIM
@@ -48,6 +43,9 @@ spec:
               value: ":8080"
             - name: KNXVAULT_OPERATOR_PROBE_ADDR
               value: ":8081"
+            # M-DTP-2 / W90-22: private-only by default; set true for public LE edge.
+            - name: KNXVAULT_OPERATOR_ACME_ENABLED
+              value: "false"
           ports:
             - name: metrics
               containerPort: 8080

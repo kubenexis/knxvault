@@ -28,3 +28,15 @@ spec:
             - name: raft
               containerPort: 63001
               protocol: TCP
+          volumeMounts:
+            - name: raft-data
+              mountPath: /var/lib/knxvault/raft
+            # W86-06: Raft peer mTLS materials
+            - name: raft-tls
+              mountPath: /etc/knxvault/raft-tls
+              readOnly: true
+      volumes:
+        - name: raft-tls
+          secret:
+            secretName: knxvault-raft-tls
+            defaultMode: 0400

@@ -18,6 +18,10 @@ import (
 var doctorJSON bool
 var doctorProfile string
 var doctorMetricsAddr string
+var doctorOIDC string
+var doctorLDAP string
+var doctorAuditForward string
+var doctorACME string
 
 var doctorCmd = &cobra.Command{
 	Use:   "doctor",
@@ -30,18 +34,28 @@ var doctorCmd = &cobra.Command{
   - Metrics endpoint availability
   - Client token validity (when configured)
   - Production profile gate (--profile production): TLS scheme, token, metrics plane notes
+  - Feature gate posture (M-DTP-2): OIDC/LDAP/audit-forward/ACME expected values
 
 Exit code is 1 when any check fails; warnings do not fail the command
 (except production profile: fails still set exit 1).`,
 	RunE: func(cmd *cobra.Command, _ []string) error {
+		// Prefer explicit flags; fall back to process env (same names as server ConfigMap).
+		oidc := firstNonEmpty(doctorOIDC, os.Getenv("KNXVAULT_AUTH_OIDC_ENABLED"))
+		ldap := firstNonEmpty(doctorLDAP, os.Getenv("KNXVAULT_AUTH_LDAP_ENABLED"))
+		auditFwd := firstNonEmpty(doctorAuditForward, os.Getenv("KNXVAULT_AUDIT_FORWARD_ENABLED"))
+		acme := firstNonEmpty(doctorACME, os.Getenv("KNXVAULT_ACME_RELATED_ENABLED"))
 		report := (&doctor.Runner{
 			Client: apiClient(),
 			Config: doctor.Config{
-				Addr:        addr,
-				Token:       token,
-				ConfigFile:  viper.ConfigFileUsed(),
-				Profile:     doctorProfile,
-				MetricsAddr: doctorMetricsAddr,
+				Addr:                addr,
+				Token:               token,
+				ConfigFile:          viper.ConfigFileUsed(),
+				Profile:             doctorProfile,
+				MetricsAddr:         doctorMetricsAddr,
+				AuthOIDCEnabled:     oidc,
+				AuthLDAPEnabled:     ldap,
+				AuditForwardEnabled: auditFwd,
+				ACMERelatedEnabled:  acme,
 			},
 		}).Run(cmd.Context())
 
@@ -54,6 +68,15 @@ Exit code is 1 when any check fails; warnings do not fail the command
 		}
 		return nil
 	},
+}
+
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
 }
 
 func printDoctorReport(w io.Writer, report *doctor.Report) {
@@ -88,5 +111,9 @@ func init() {
 	doctorCmd.Flags().BoolVar(&doctorJSON, "json", false, "Emit report as JSON")
 	doctorCmd.Flags().StringVar(&doctorProfile, "profile", "lab", "Doctor profile: lab|production (production enables fail-closed Day-0 checks)")
 	doctorCmd.Flags().StringVar(&doctorMetricsAddr, "metrics-addr", "", "Dedicated metrics scrape address (production network split)")
+	doctorCmd.Flags().StringVar(&doctorOIDC, "feature-oidc", "", "Expected KNXVAULT_AUTH_OIDC_ENABLED (true|false); default from env")
+	doctorCmd.Flags().StringVar(&doctorLDAP, "feature-ldap", "", "Expected KNXVAULT_AUTH_LDAP_ENABLED (true|false); default from env")
+	doctorCmd.Flags().StringVar(&doctorAuditForward, "feature-audit-forward", "", "Expected KNXVAULT_AUDIT_FORWARD_ENABLED; default from env")
+	doctorCmd.Flags().StringVar(&doctorACME, "feature-acme", "", "Expected KNXVAULT_ACME_RELATED_ENABLED; default from env")
 	rootCmd.AddCommand(doctorCmd)
 }

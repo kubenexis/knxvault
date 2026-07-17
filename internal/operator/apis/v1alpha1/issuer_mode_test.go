@@ -47,3 +47,15 @@ func TestResolveIssuerConflicts(t *testing.T) {
 		t.Fatal("expected empty error")
 	}
 }
+
+func TestRejectACMEIfDisabled(t *testing.T) {
+	if err := v1.RejectACMEIfDisabled(v1.IssuerModeACME, false); err == nil {
+		t.Fatal("expected ErrACMEDisabled")
+	}
+	if err := v1.RejectACMEIfDisabled(v1.IssuerModeACME, true); err != nil {
+		t.Fatalf("enabled should allow ACME: %v", err)
+	}
+	if err := v1.RejectACMEIfDisabled(v1.IssuerModeVault, false); err != nil {
+		t.Fatalf("vault mode should ignore ACME gate: %v", err)
+	}
+}

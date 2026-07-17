@@ -265,13 +265,16 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 			deps.AuditService.SetSigningKey([]byte(cfg.AuditSigningKey))
 			log.Info("audit signing key configured")
 		}
-		if cfg.AuditForwardURL != "" {
+		// M-DTP-2 / W90-21: only forward when explicitly enabled.
+		if cfg.AuditForwardEnabled && cfg.AuditForwardURL != "" {
 			// Lab may still set a forward URL; production profile validates SSRF at ValidateSecurity.
 			if err := notify.ValidateURL(cfg.AuditForwardURL); err != nil {
 				return nil, fmt.Errorf("audit forward URL: %w", err)
 			}
 			deps.AuditService.SetForwardURL(cfg.AuditForwardURL)
 			log.Info("audit forward URL configured", zap.String("url", cfg.AuditForwardURL))
+		} else if cfg.AuditForwardURL != "" && !cfg.AuditForwardEnabled {
+			log.Info("audit forward URL ignored (KNXVAULT_AUDIT_FORWARD_ENABLED=false)")
 		}
 	}
 
@@ -396,13 +399,16 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 		deps.AuthService.SetTokenCleaner(deps.CubbyholeService)
 	}
 	deps.AuthService.SetIdentityResolver(deps.IdentityService)
-	if url := cfg.LDAPURL; url != "" {
-		deps.AuthService.SetLDAPDefaults(&auth.LDAPConfig{
-			URL:                url,
-			UserDNTemplate:     cfg.LDAPUserDNTemplate,
-			DefaultPolicies:    cfg.LDAPDefaultPolicies,
-			InsecureSkipVerify: cfg.LDAPInsecureSkipVerify,
-		})
+	// M-DTP-2: LDAP defaults only when method is enabled.
+	if cfg.AuthLDAPEnabled {
+		if url := cfg.LDAPURL; url != "" {
+			deps.AuthService.SetLDAPDefaults(&auth.LDAPConfig{
+				URL:                url,
+				UserDNTemplate:     cfg.LDAPUserDNTemplate,
+				DefaultPolicies:    cfg.LDAPDefaultPolicies,
+				InsecureSkipVerify: cfg.LDAPInsecureSkipVerify,
+			})
+		}
 	}
 	approleStore := deps.AuthService.EnsureAppRoleStore()
 	if cfg.Raft.DataDir != "" {
@@ -415,7 +421,10 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 	deps.AuthService.SetRBACSyncer(deps.PolicyService)
 	deps.AuthService.SetRBACSyncFailClosed(cfg.RBACSyncFailClosed)
 	deps.AuthService.SetRoleResolver(auth.NewRepositoryRoleResolver(deps.RoleRepo))
-	deps.AuthService.SetOIDCValidator(auth.NewOIDCValidator(), cfg.OIDCDefaultTTL)
+	// M-DTP-2: OIDC validator only when method is enabled.
+	if cfg.AuthOIDCEnabled {
+		deps.AuthService.SetOIDCValidator(auth.NewOIDCValidator(), cfg.OIDCDefaultTTL)
+	}
 	deps.AuthService.SetMachineIdentityRecorder(deps.MachineIdentityService)
 	deps.AuthService.SetAuditRecorder(deps.AuditService)
 	// Cluster-shared lockout via Valkey when configured (falls back to in-process).

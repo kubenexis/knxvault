@@ -27,14 +27,16 @@ spec:
       ports:
         - protocol: TCP
           port: 8200
-    # Optional: allow in-cluster Prometheus to scrape /metrics (prefer bearer token too).
+    # W86-07: monitoring must NOT reach API :8200 (unseal co-resides).
+    # Prefer dedicated metrics plane :8201 + bearer (production overlay enforces this).
+    # Lab base allows metrics port only when MetricsAddr is configured.
     - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: monitoring
       ports:
         - protocol: TCP
-          port: 8200
+          port: 8201
     - from:
         - podSelector:
             matchLabels:

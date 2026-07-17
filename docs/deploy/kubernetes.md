@@ -5,7 +5,22 @@ SPDX-License-Identifier: CC-BY-4.0
 
 # Kubernetes Deployment (raw manifests)
 
-KNXVault ships **raw Kubernetes manifests** in [`deployments/k8s/`](../../deployments/k8s/). Helm is deferred to long-term future (see [`docs/backlog.md`](../backlog.md)).
+KNXVault ships **raw Kubernetes manifests** and **kustomize** layouts in [`deployments/k8s/`](../../deployments/k8s/). Helm is deferred to long-term future (see [`docs/backlog.md`](../backlog.md)).
+
+## Install matrix (base vs add-ons) — M-DTP-1
+
+| Surface | Path | Includes |
+|---------|------|----------|
+| **Base only** | `kubectl apply -k deployments/k8s/base` | Namespace, vault STS, Raft, lab NetPol, custody Secret |
+| **Production base** | `kubectl apply -k deployments/k8s/production` | Base + production profile, metrics :8201, Raft mTLS Secret mount, fail-closed feature gates |
+| **Airgap core** | `kubectl apply -k deployments/k8s/overlays/airgap-core` | Production base + gates forced off |
+| **Platform edge** | `kubectl apply -k deployments/k8s/overlays/platform-edge` | Production + CSI + webhook + ESO components |
+| **Operator (private PKI)** | `components/operator` or `deployments/operator/` | CRDs + operator (ACME off by default) |
+| **ACME egress** | `components/acme-egress` | NetPol HTTPS egress for LE (not in default production) |
+
+**Default install = base only.** Do not enable CSI/ESO/webhook/public OIDC/LE on the plane that holds master/unseal keys unless policy explicitly allows it. See [instance-roles.md](../operations/instance-roles.md) and [airgap-checklist.md](../operations/airgap-checklist.md).
+
+CI guard: `make dtp-surface` (W90-14).
 
 ## Prerequisites
 

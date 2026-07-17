@@ -38,6 +38,11 @@ func defaults() Config {
 		RootTokenTTL:        72 * time.Hour,
 		RequireHTTPSClients: true, // W52-06: CSI/ESO/operator prefer HTTPS
 		SecurityProfile:     SecurityProfileLab,
+		// M-DTP-2: lab keeps OIDC/LDAP routes available; production/airgap ConfigMaps disable.
+		AuthOIDCEnabled:     true,
+		AuthLDAPEnabled:     true,
+		AuditForwardEnabled: false, // explicit enable required (W90-21)
+		ACMERelatedEnabled:  true,  // server-side; airgap overlays set false
 		Raft:                defaultRaft(),
 	}
 }

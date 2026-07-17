@@ -225,7 +225,8 @@ func validateProductionSecurity(cfg Config) error {
 		return fmt.Errorf("production profile: KNXVAULT_K8S_TOKEN_AUDIENCES required when raft is enabled (e.g. knxvault)")
 	}
 	// W78-09: audit forward URL must pass SSRF checks when set.
-	if strings.TrimSpace(cfg.AuditForwardURL) != "" {
+	// M-DTP-2: only validate audit forward URL when forwarding is enabled.
+	if cfg.AuditForwardEnabled && strings.TrimSpace(cfg.AuditForwardURL) != "" {
 		if err := acme.ValidateOutboundURL(cfg.AuditForwardURL); err != nil {
 			return fmt.Errorf("production profile: audit forward URL: %w", err)
 		}

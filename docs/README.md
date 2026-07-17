@@ -18,7 +18,7 @@ Version-controlled documentation for architects, operators, developers, and inte
 | [Security model](architecture/security-model.md) | Security / SRE | Threat model, crypto, auth (incl. AppRole), audit |
 | [**Security posture assessment**](architecture/security-posture-assessment.md) | Architects / Security | Honest baseline grades; gaps vs set-and-forget / Vault Ent / DIY |
 | [**Production security posture design**](design/production-security-posture.md) | Engineers | M-PRODSEC-1 / M-CUSTODY-1 programs A–C; W62–W64 |
-| [**Distributed Trust Platform (DTP)**](design/distributed-trust-platform.md) | Architects / SRE | Base Core+K8s; add-ons opt-in; multi-instance; **M-DTP / W90-*** |
+| [**Distributed Trust Platform (DTP)**](design/distributed-trust-platform.md) | Architects / SRE | **Accepted:** Base Core+K8s; add-ons opt-in; multi-instance; **M-DTP-0…4** |
 | [**Vault-class capability plan**](design/vault-class-capability-plan.md) | Architects / Engineers | Transit, wrap, cubbyhole, leases, identity, dyn engines, DR; W65–W73; deferred cloud/KMIP/plugins |
 | [**CIS hardening improvements**](design/cis-hardening-improvements.md) | Architects / SRE | Network segmentation, secure defaults, multi-tenant stance; **W75** |
 | [Secret sync matrix](integration/secret-sync.md) | Operators | CSI vs ESO vs wrap (M-SYNC-1) |
@@ -62,6 +62,9 @@ Version-controlled documentation for architects, operators, developers, and inte
 | [Multi-issuer ACME design](design/multi-issuer-acme.md) | Engineers | ACME + multi-issuer architecture |
 | [PKI security best practices](operations/pki-security-practices.md) | Security / SRE | Trust hierarchy, key handling, access control |
 | [Operator security](operations/operator-security.md) | Operators | Credential placement, master/unseal custody, audit rules |
+| [**Instance roles (DTP)**](operations/instance-roles.md) | Operators / SRE | Core vs platform-edge vs public TLS edge |
+| [**Airgap checklist**](operations/airgap-checklist.md) | Operators | Offline images, base apply, feature gates |
+| [**Cross-instance trust**](operations/cross-instance-trust.md) | Architects / Operators | Edge as client of core; scoped policies |
 | [Runbook: CA compromise](operations/runbooks/ca-compromise.md) | SRE | CA key compromise recovery |
 | [Runbook: Raft failover](operations/runbooks/raft-failover.md) | SRE | Leader loss, quorum loss, recovery |
 | [Runbook: Scaling](operations/runbooks/scaling.md) | SRE | Horizontal scaling and capacity |

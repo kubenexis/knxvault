@@ -1,0 +1,10 @@
+# Copyright Kubenexis Systems Private Limited.
+# SPDX-License-Identifier: Apache-2.0
+
+# Optional private PKI operator (add-on). ACME remains off unless OPERATOR_ACME_ENABLED.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - ../../../operator/crds/knxvault.kubenexis.dev_all.yaml
+  - ../../../operator/rbac.yaml
+  - ../../../operator/deployment.yaml

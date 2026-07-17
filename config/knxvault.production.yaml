@@ -53,6 +53,8 @@ audit:
   # Required in production — set via env preferred:
   # signing_key: ""   # use KNXVAULT_AUDIT_SIGNING_KEY
   # forward_url: https://siem.example.com/ingest
+  # M-DTP-2: must enable explicitly; default false ignores forward_url
+  forward_enabled: false
 
 security:
   profile: production
@@ -67,6 +69,10 @@ security:
   rate_limit_rpm: 300
   request_signing_required: false
   cors_allowed_origins: []
+  # M-DTP-2 fail-closed feature gates (base)
+  auth_oidc_enabled: false
+  auth_ldap_enabled: false
+  acme_related_enabled: false
   # Restrict unseal plane (required). Override for your admin network.
   unseal_allow_cidrs:
     - 10.0.0.0/16
@@ -82,8 +88,8 @@ raft:
   # address: "knxvault-0.knxvault:63001"
   data_dir: /var/lib/knxvault/raft
   # initial_members: "1=knxvault-0.knxvault:63001,2=knxvault-1.knxvault:63001,3=knxvault-2.knxvault:63001"
-  # Multi-node production requires mTLS:
-  # mtls_cert: /etc/knxvault/raft/tls.crt
-  # mtls_key: /etc/knxvault/raft/tls.key
-  # mtls_ca: /etc/knxvault/raft/ca.crt
+  # Multi-node production requires mTLS (W86-06):
+  mtls_cert: /etc/knxvault/raft-tls/tls.crt
+  mtls_key: /etc/knxvault/raft-tls/tls.key
+  mtls_ca: /etc/knxvault/raft-tls/ca.crt
 # KNXVAULT_K8S_TOKEN_AUDIENCES=knxvault

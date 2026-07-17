@@ -1,0 +1,9 @@
+# Copyright Kubenexis Systems Private Limited.
+# SPDX-License-Identifier: Apache-2.0
+
+# CSI secrets provider (add-on). Requires upstream CSI Driver images for airgap.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - ../../../csi/rbac.yaml
+  - ../../../csi/k8s-provider.yaml

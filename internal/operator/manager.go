@@ -46,6 +46,9 @@ type Config struct {
 	LeaderElect    bool
 	LeaderElectID  string
 	LeaderElectNS  string
+	// ACMEEnabled when false rejects ACME issuer types (M-DTP-2 / W90-22).
+	// Env: KNXVAULT_OPERATOR_ACME_ENABLED (default false — private-only).
+	ACMEEnabled bool
 }
 
 // ConfigFromEnv loads configuration from environment.
@@ -63,6 +66,8 @@ func ConfigFromEnv() Config {
 		LeaderElect:    !strings.EqualFold(os.Getenv("KNXVAULT_OPERATOR_LEADER_ELECT"), "false"),
 		LeaderElectID:  envOr("KNXVAULT_OPERATOR_LEADER_ELECT_ID", "knxvault-operator"),
 		LeaderElectNS:  envOr("KNXVAULT_OPERATOR_LEADER_ELECT_NAMESPACE", "knxvault"),
+		// Default false: private PKI only unless explicitly enabled for LE edge.
+		ACMEEnabled: strings.EqualFold(os.Getenv("KNXVAULT_OPERATOR_ACME_ENABLED"), "true"),
 	}
 }
 
@@ -129,14 +134,16 @@ func Run() error {
 		return fmt.Errorf("certificate controller: %w", err)
 	}
 	if err := (&controllers.IssuerReconciler{
-		Client: mgr.GetClient(),
-		Vault:  vault,
+		Client:      mgr.GetClient(),
+		Vault:       vault,
+		ACMEEnabled: cfg.ACMEEnabled,
 	}).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("issuer controller: %w", err)
 	}
 	if err := (&controllers.ClusterIssuerReconciler{
-		Client: mgr.GetClient(),
-		Vault:  vault,
+		Client:      mgr.GetClient(),
+		Vault:       vault,
+		ACMEEnabled: cfg.ACMEEnabled,
 	}).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("clusterissuer controller: %w", err)
 	}

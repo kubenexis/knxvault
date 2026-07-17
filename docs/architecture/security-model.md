@@ -33,9 +33,25 @@ Honest grades, known gaps (set-and-forget Medium, custody vs HSM, DIY footguns),
 
 **W84–W85 residual cycles (2026-07-17):** OCSP body cap + wrap GC mutex (W84); KVv2 reserved internal engine paths (W85).
 
-**W86 open security backlog (2026-07-17):** Full re-audit after W85 — operator custody Secret isolation (**Critical**), ESO TLS/auth, Raft mTLS overlay, NetPol/unseal plane, SQL allowlist holes, ImportCA IsCA, etc. Work items **W86-01…** in [`docs/backlog.md`](../backlog.md); mapping [security-audit-w86-backlog-2026-07-17.md](../audit/security-audit-w86-backlog-2026-07-17.md).
+**W86 security backlog (2026-07-17):** Full re-audit after W85. **Base P0 closed under M-DTP-4:** W86-01, W86-02, W86-06, W86-07. Remaining open items (ESO edge, engines, etc.) are **add-on or Medium** — see [security-audit-w86-backlog-2026-07-17.md](../audit/security-audit-w86-backlog-2026-07-17.md) and [`docs/backlog.md`](../backlog.md).
 
-**Distributed Trust Platform (proposed):** **Base = Core + Kubernetes**; public OIDC, public ACME/LE, CSI, ESO, webhook = **optional add-on services**; multi-instance by use case. Design [distributed-trust-platform.md](../design/distributed-trust-platform.md); backlog **W90-*** / branch `knxvault-distributed-trust-platform`.
+**Distributed Trust Platform (Accepted, M-DTP):** **Base = Core + Kubernetes**. Public OIDC, public ACME/LE, CSI, ESO, and the mutating webhook are **optional add-on services** (compose only when needed). Prefer **multiple instances** by use case over one mega-vault for critical material. Design [distributed-trust-platform.md](../design/distributed-trust-platform.md); ops [instance-roles.md](../operations/instance-roles.md); backlog **W90-***.
+
+### Audit taxonomy: base vs add-on (W90-41)
+
+Tag security findings in future audits:
+
+| Tag | Scope |
+|-----|--------|
+| `base` | Raft, seal/unseal, envelope crypto, KV, private PKI, policies, audit store, production k8s of the vault server, TokenReview |
+| `addon:operator` | Certificate operator, CRDs, operator RBAC/Secrets |
+| `addon:csi` | CSI provider + node hostPath |
+| `addon:eso` | ESO adapter TLS/auth |
+| `addon:webhook` | Mutating webhook |
+| `addon:oidc` / `addon:ldap` | Public directory / IdP auth methods |
+| `addon:acme` | Public ACME/LE |
+
+**Base Critical path (M-DTP-4):** W86-01 (custody Secret isolation), W86-02 (no root on operator sample), W86-06 (Raft mTLS overlay), W86-07 (metrics-only NetPol).
 
 ## Threat model
 

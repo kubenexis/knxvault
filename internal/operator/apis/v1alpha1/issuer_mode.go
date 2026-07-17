@@ -62,3 +62,14 @@ func resolveMulti(legacyCA string, legacyRef *IssuerRef, vault *VaultIssuerSpec,
 		return ResolvedIssuer{Mode: IssuerModeSelfSigned, SelfSigned: self}, nil
 	}
 }
+
+// ErrACMEDisabled is returned when ACME issuer types are rejected by feature gate.
+var ErrACMEDisabled = fmt.Errorf("ACME issuers disabled (KNXVAULT_OPERATOR_ACME_ENABLED=false)")
+
+// RejectACMEIfDisabled returns ErrACMEDisabled when mode is ACME and enabled is false.
+func RejectACMEIfDisabled(mode string, enabled bool) error {
+	if mode == IssuerModeACME && !enabled {
+		return ErrACMEDisabled
+	}
+	return nil
+}

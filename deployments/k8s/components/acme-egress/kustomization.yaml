@@ -1,0 +1,8 @@
+# Copyright Kubenexis Systems Private Limited.
+# SPDX-License-Identifier: Apache-2.0
+
+# M-DTP-1 / W90-11: optional ACME/LE egress (not in base or default production).
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - ../../production/networkpolicy-acme-egress.yaml

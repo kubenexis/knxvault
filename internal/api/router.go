@@ -86,10 +86,15 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 		}
 		{
 			authGroup.POST("/kubernetes", authHandler.LoginKubernetes)
-			authGroup.POST("/oidc/:role", authHandler.LoginOIDC)
+			// M-DTP-2: OIDC and LDAP are opt-in add-on auth surfaces.
+			if deps.AuthOIDCEnabled {
+				authGroup.POST("/oidc/:role", authHandler.LoginOIDC)
+			}
 			authGroup.POST("/token", authHandler.LoginToken)
 			authGroup.POST("/cert", authHandler.LoginCert) // mTLS client cert → token
-			authGroup.POST("/ldap", authHandler.LoginLDAP) // W70 native LDAP
+			if deps.AuthLDAPEnabled {
+				authGroup.POST("/ldap", authHandler.LoginLDAP) // W70 native LDAP
+			}
 		}
 		securedAuth := authGroup.Group("/")
 		securedAuth.Use(middleware.Auth(deps.AuthService))
@@ -364,6 +369,7 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 
 	if deps.PolicyService != nil && deps.AuthService != nil {
 		policyHandler := handlers.NewPolicyHandler(deps.PolicyService)
+		policyHandler.SetOIDCEnabled(deps.AuthOIDCEnabled)
 		policyGroup := secured.Group("/sys")
 		policyGroup.Use(middleware.RequirePermission(deps.AuthService, "sys/policies", "write"))
 		{

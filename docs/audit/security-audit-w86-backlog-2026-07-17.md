@@ -27,22 +27,35 @@ SPDX-License-Identifier: CC-BY-4.0
 | Medium | 15 | W86-08 … W86-22 |
 | Low / Info | design residuals | W86-L\* / existing M-CUSTODY / ADR-0005 / PQ |
 
+## DTP scope (base vs add-on)
+
+| Backlog | DTP scope | Tag |
+|---------|-----------|-----|
+| **W86-01** | **base** (M-DTP-4) | `base` |
+| **W86-02** | **base** (M-DTP-4) | `base` / `addon:operator` sample |
+| **W86-03** | addon:operator | `addon:operator` |
+| **W86-04** | addon:eso | `addon:eso` |
+| **W86-05** | addon:eso | `addon:eso` |
+| **W86-06** | **base** (M-DTP-4) | `base` |
+| **W86-07** | **base** (M-DTP-4) | `base` |
+| **W86-08…** | mixed engines/deploy | tag per finding |
+
 ## Critical → backlog
 
-| Audit ID | Severity | Finding | Backlog | Area |
-|----------|----------|---------|---------|------|
-| C1 | Critical | Operator SA can `get` all Secrets in `knxvault` NS, including master/unseal/root Secret | **W86-01** | k8s |
+| Audit ID | Severity | Finding | Backlog | Area | DTP | Status |
+|----------|----------|---------|--------|------|-----|--------|
+| C1 | Critical | Operator SA can `get` all Secrets in `knxvault` NS, including master/unseal/root Secret | **W86-01** | k8s | **base** | **Complete** — no blanket Secret get; resourceNames exclude custody Secret `knxvault` |
 
 ## High → backlog
 
-| Audit ID | Severity | Finding | Backlog | Area |
-|----------|----------|---------|---------|------|
-| H1 | High | Operator Deployment optional-binds vault root token | **W86-02** | k8s |
-| H2 | High | Certificate Secret ownership accepts spoofable label (weakens W81-12) | **W86-03** | k8s |
-| H3 | High | ESO adapter cleartext HTTP vs HTTPS ClusterSecretStore | **W86-04** | k8s |
-| H4 | High | ESO `TokenFile` → unauthenticated shared vault proxy | **W86-05** | security |
-| H5 | High | Production multi-node Raft mTLS required in code, not provisioned in overlays | **W86-06** | k8s |
-| H6 | High | Lab base NetPol: monitoring → full API :8200 (unseal co-resides) | **W86-07** | k8s |
+| Audit ID | Severity | Finding | Backlog | Area | DTP | Status |
+|----------|----------|---------|--------|------|-----|--------|
+| H1 | High | Operator Deployment optional-binds vault root token | **W86-02** | k8s | **base** | **Complete** — SA login only |
+| H2 | High | Certificate Secret ownership accepts spoofable label (weakens W81-12) | **W86-03** | k8s | addon:operator | Open |
+| H3 | High | ESO adapter cleartext HTTP vs HTTPS ClusterSecretStore | **W86-04** | k8s | addon:eso | Open |
+| H4 | High | ESO `TokenFile` → unauthenticated shared vault proxy | **W86-05** | security | addon:eso | Open |
+| H5 | High | Production multi-node Raft mTLS required in code, not provisioned in overlays | **W86-06** | k8s | **base** | **Complete** — `knxvault-raft-tls` + STS mounts |
+| H6 | High | Lab base NetPol: monitoring → full API :8200 (unseal co-resides) | **W86-07** | k8s | **base** | **Complete** — monitoring → :8201 only |
 
 ## Medium → backlog
 

@@ -1,0 +1,25 @@
+# Copyright Kubenexis Systems Private Limited.
+# SPDX-License-Identifier: Apache-2.0
+
+# M-DTP-1 / W90-10: default install surface = Core + Kubernetes only.
+# Apply: kubectl apply -k deployments/k8s/base
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: knxvault
+resources:
+  - ../namespace.yaml
+  - ../serviceaccount.yaml
+  - ../configmap.yaml
+  - ../secret.yaml
+  - ../role.yaml
+  - ../rolebinding.yaml
+  - ../clusterrole-tokenreview.yaml
+  - ../service.yaml
+  - ../service-raft.yaml
+  - ../pdb.yaml
+  - ../statefulset.yaml
+  - ../networkpolicy.yaml
+labels:
+  - pairs:
+      knxvault.kubenexis.dev/deploy-surface: base
+    includeSelectors: false

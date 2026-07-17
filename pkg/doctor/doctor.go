@@ -52,6 +52,12 @@ type Config struct {
 	Profile string
 	// MetricsAddr optional dedicated metrics URL for production checks.
 	MetricsAddr string
+	// Feature gate expectations (M-DTP-2 / W90-24). Empty strings skip checks.
+	// Values: "true"/"false" (or "enabled"/"disabled") for OIDC, LDAP, audit forward, ACME.
+	AuthOIDCEnabled     string
+	AuthLDAPEnabled     string
+	AuditForwardEnabled string
+	ACMERelatedEnabled  string
 }
 
 // Runner executes doctor checks against a KNXVault deployment.
@@ -147,6 +153,85 @@ func (r *Runner) checkProductionProfile(report *Report) {
 		Message: "Production profile doctor gate executed",
 		Detail:  "Ensure vault process uses KNXVAULT_SECURITY_PROFILE=production and required secrets",
 	})
+	r.checkFeatureGates(report)
+}
+
+// checkFeatureGates reports M-DTP-2 feature gate posture (W90-24).
+// When Profile is production and gate values are unset, warn that base should disable OIDC/LDAP/ACME/audit-forward.
+func (r *Runner) checkFeatureGates(report *Report) {
+	profile := strings.ToLower(strings.TrimSpace(r.Config.Profile))
+	gates := []struct {
+		id    string
+		label string
+		val   string
+	}{
+		{"feature.oidc", "OIDC auth", r.Config.AuthOIDCEnabled},
+		{"feature.ldap", "LDAP auth", r.Config.AuthLDAPEnabled},
+		{"feature.audit_forward", "audit forward", r.Config.AuditForwardEnabled},
+		{"feature.acme", "ACME related", r.Config.ACMERelatedEnabled},
+	}
+	anySet := false
+	for _, g := range gates {
+		if strings.TrimSpace(g.val) != "" {
+			anySet = true
+			break
+		}
+	}
+	if !anySet {
+		if profile == "production" || profile == "prod" {
+			report.add(Check{
+				ID:      "feature.gates",
+				Status:  StatusWarn,
+				Message: "Feature gate posture not provided to doctor",
+				Detail:  "For base/airgap production set KNXVAULT_AUTH_OIDC_ENABLED=false, AUTH_LDAP_ENABLED=false, AUDIT_FORWARD_ENABLED=false, ACME_RELATED_ENABLED=false (or pass matching --feature-* flags)",
+			})
+		}
+		return
+	}
+	for _, g := range gates {
+		v := strings.ToLower(strings.TrimSpace(g.val))
+		if v == "" {
+			continue
+		}
+		enabled := v == "true" || v == "1" || v == "enabled" || v == "on"
+		disabled := v == "false" || v == "0" || v == "disabled" || v == "off"
+		if !enabled && !disabled {
+			report.add(Check{
+				ID:      g.id,
+				Status:  StatusWarn,
+				Message: g.label + " gate value not recognized",
+				Detail:  g.val,
+			})
+			continue
+		}
+		if profile == "production" || profile == "prod" {
+			if enabled {
+				report.add(Check{
+					ID:      g.id,
+					Status:  StatusWarn,
+					Message: g.label + " is enabled (add-on surface on production profile)",
+					Detail:  "Base airgap core should disable add-on auth/ACME/forward; enable only on platform-edge instances",
+				})
+			} else {
+				report.add(Check{
+					ID:      g.id,
+					Status:  StatusOK,
+					Message: g.label + " disabled (base fail-closed)",
+				})
+			}
+			continue
+		}
+		// Lab / unspecified profile: report posture as OK info.
+		state := "disabled"
+		if enabled {
+			state = "enabled"
+		}
+		report.add(Check{
+			ID:      g.id,
+			Status:  StatusOK,
+			Message: g.label + " " + state,
+		})
+	}
 }
 
 func (r *Runner) checkCLIConfig(report *Report) {

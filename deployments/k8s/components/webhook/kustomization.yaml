@@ -1,0 +1,9 @@
+# Copyright Kubenexis Systems Private Limited.
+# SPDX-License-Identifier: Apache-2.0
+
+# Mutating webhook for CSI injection (add-on).
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - ../../webhook/deployment.yaml
+  - ../../webhook/mutating-webhook.yaml

@@ -53,6 +53,8 @@ type JobsFile struct {
 type AuditFile struct {
 	SigningKey string `yaml:"signing_key,omitempty"`
 	ForwardURL string `yaml:"forward_url,omitempty"`
+	// ForwardEnabled when false ignores ForwardURL (M-DTP-2 / W90-21).
+	ForwardEnabled *bool `yaml:"forward_enabled,omitempty"`
 }
 
 // SecurityFile configures rate limiting, signing, CORS, TLS, and security profile.
@@ -80,6 +82,10 @@ type SecurityFile struct {
 	RotationWebhookURL     string   `yaml:"rotation_webhook_url,omitempty"`
 	// AllowCoarsePKIWrite enables legacy "pki" write fallback (lab only; production forces off).
 	AllowCoarsePKIWrite *bool `yaml:"allow_coarse_pki_write,omitempty"`
+	// Feature gates (M-DTP-2).
+	AuthOIDCEnabled    *bool `yaml:"auth_oidc_enabled,omitempty"`
+	AuthLDAPEnabled    *bool `yaml:"auth_ldap_enabled,omitempty"`
+	ACMERelatedEnabled *bool `yaml:"acme_related_enabled,omitempty"`
 }
 
 // TracingFile configures OpenTelemetry export.
@@ -242,6 +248,9 @@ func applyFile(cfg Config, file File) (Config, error) {
 		if v := strings.TrimSpace(file.Audit.ForwardURL); v != "" {
 			cfg.AuditForwardURL = v
 		}
+		if file.Audit.ForwardEnabled != nil {
+			cfg.AuditForwardEnabled = *file.Audit.ForwardEnabled
+		}
 	}
 	if file.Security != nil {
 		if v := strings.TrimSpace(file.Security.Profile); v != "" {
@@ -297,6 +306,15 @@ func applyFile(cfg Config, file File) (Config, error) {
 		}
 		if file.Security.AllowCoarsePKIWrite != nil {
 			cfg.AllowCoarsePKIWrite = *file.Security.AllowCoarsePKIWrite
+		}
+		if file.Security.AuthOIDCEnabled != nil {
+			cfg.AuthOIDCEnabled = *file.Security.AuthOIDCEnabled
+		}
+		if file.Security.AuthLDAPEnabled != nil {
+			cfg.AuthLDAPEnabled = *file.Security.AuthLDAPEnabled
+		}
+		if file.Security.ACMERelatedEnabled != nil {
+			cfg.ACMERelatedEnabled = *file.Security.ACMERelatedEnabled
 		}
 	}
 	if file.Tracing != nil {

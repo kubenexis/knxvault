@@ -69,4 +69,8 @@ type RouterDeps struct {
 	// ExposureReplayStore when set enables shared HA replay protection for exposure reports (W80-06).
 	// Prefer Valkey/IncrStore; falls back to process-local map inside ExposureSigning.
 	ExposureReplayStore middleware.ExposureReplayStore
+	// AuthOIDCEnabled registers POST /auth/oidc/:role when true (M-DTP-2).
+	AuthOIDCEnabled bool
+	// AuthLDAPEnabled registers POST /auth/ldap when true (M-DTP-2).
+	AuthLDAPEnabled bool
 }

@@ -128,11 +128,12 @@ endef
 
 .PHONY: all quality
 # Pre-merge quality gate (no container image build, no integration suite).
-quality: ## Pre-merge gate: fmt vet lint docs-lint gosec licenses license-headers-check scan test test-coverage
+quality: ## Pre-merge gate: fmt vet lint docs-lint dtp-surface gosec licenses license-headers-check scan test test-coverage
 	@$(MAKE) --no-print-directory fmt
 	@$(MAKE) --no-print-directory vet
 	@$(MAKE) --no-print-directory lint
 	@$(MAKE) --no-print-directory docs-lint
+	@$(MAKE) --no-print-directory dtp-surface
 	@$(MAKE) --no-print-directory gosec
 	@$(MAKE) --no-print-directory licenses
 	@$(MAKE) --no-print-directory license-headers-check
@@ -154,7 +155,7 @@ all: ## quality + test-integration + build + build-cli + sbom
 # Go quality
 # =============================================================================
 
-.PHONY: fmt vet lint docs-lint gosec semgrep licenses license-headers license-headers-check test test-integration test-coverage build build-cli build-csi build-webhook build-eso build-operator generate-clients test-clients check-client-drift sbom scan tidy install-tools container-build k8s-operator-build container-build-all container-export k8s-operator-export container-export-all docker-build docker-build-operator docker-build-all clean
+.PHONY: fmt vet lint docs-lint dtp-surface gosec semgrep licenses license-headers license-headers-check test test-integration test-coverage build build-cli build-csi build-webhook build-eso build-operator generate-clients test-clients check-client-drift sbom scan tidy install-tools container-build k8s-operator-build container-build-all container-export k8s-operator-export container-export-all docker-build docker-build-operator docker-build-all clean
 
 fmt: ## Check Go formatting (gofmt)
 	$(call log,Checking gofmt)
@@ -184,6 +185,11 @@ docs-lint: ## Fail bare `kv get` docs without redaction/--show-secrets context
 	$(call log,Checking kv get documentation)
 	$(call require_cmd,bash)
 	@bash scripts/check-kv-get-docs.sh
+
+dtp-surface: ## W90-14: base/production kustomize must not include CSI/ESO/webhook/ACME
+	$(call log,Checking DTP base deploy surface)
+	$(call require_cmd,bash)
+	@bash scripts/check-dtp-surface.sh
 
 gosec: ## Run gosec security scanner (W11-02)
 	$(call log,Running gosec)

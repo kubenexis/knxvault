@@ -41,6 +41,23 @@ See [`config/knxvault.example.yaml`](../../config/knxvault.example.yaml) for the
 | `KNXVAULT_JWT_SECRET` | — | Dev K8s auth | HS256 secret for local ServiceAccount JWT login (dev only; not used when TokenReview is available) |
 | `KNXVAULT_K8S_AUTH_INSECURE` | `false` | Dev only | When `KNXVAULT_RAFT_ENABLED=false`, parse JWT structure without signature verification (still requires a valid `sub` service-account claim; never enable in production) |
 | `KNXVAULT_TOKEN_TTL` | `24h` | No | Issued client token lifetime |
+| `KNXVAULT_AUTH_OIDC_ENABLED` | `true` (lab) | No | **M-DTP-2:** register `POST /auth/oidc/:role`. Production/airgap base sets `false` |
+| `KNXVAULT_AUTH_LDAP_ENABLED` | `true` (lab) | No | **M-DTP-2:** register `POST /auth/ldap`. Production/airgap base sets `false` |
+| `KNXVAULT_OIDC_DEFAULT_TTL` | `1h` | No | Default OIDC-issued token TTL when OIDC enabled |
+| `KNXVAULT_LDAP_URL` | — | No | LDAP/LDAPS URL when LDAP enabled |
+| `KNXVAULT_LDAP_USER_DN_TEMPLATE` | — | No | DN template with `%s` for username |
+| `KNXVAULT_LDAP_DEFAULT_POLICIES` | — | No | CSV default policies for LDAP logins |
+| `KNXVAULT_LDAP_INSECURE_SKIP_VERIFY` | `false` | Lab only | Rejected in production profile |
+
+## Feature gates (Distributed Trust Platform)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `KNXVAULT_AUDIT_FORWARD_ENABLED` | `false` | When `false`, ignore `KNXVAULT_AUDIT_FORWARD_URL` (W90-21) |
+| `KNXVAULT_ACME_RELATED_ENABLED` | `true` (lab) | Server-side ACME-related surface; airgap/production base sets `false` |
+| `KNXVAULT_OPERATOR_ACME_ENABLED` | `false` | Operator only: allow ACME issuer types when `true` (W90-22) |
+
+YAML: `security.auth_oidc_enabled`, `security.auth_ldap_enabled`, `security.acme_related_enabled`, `audit.forward_enabled`.
 
 ## Dragonboat Raft (production storage)
 

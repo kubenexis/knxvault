@@ -22,6 +22,8 @@ import (
 type IssuerReconciler struct {
 	client.Client
 	Vault vaultiface.API
+	// ACMEEnabled when false rejects ACME issuer types (M-DTP-2 / W90-22).
+	ACMEEnabled bool
 }
 
 // Reconcile validates issuer against vault / ACME directory / self-signed.
@@ -37,6 +39,13 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if err != nil {
 		iss.Status.Conditions = statusutil.ReadyFalse(iss.Status.Conditions, reconcileutil.ReasonInvalidSpec, err.Error())
 		iss.Status.Mode = ""
+		_ = r.Status().Update(ctx, &iss)
+		return reconcileutil.ErrorResult(1), nil
+	}
+	if resolved.Mode == v1alpha1.IssuerModeACME && !r.ACMEEnabled {
+		msg := "ACME issuers disabled (set KNXVAULT_OPERATOR_ACME_ENABLED=true for public LE)"
+		iss.Status.Conditions = statusutil.ReadyFalse(iss.Status.Conditions, reconcileutil.ReasonInvalidSpec, msg)
+		iss.Status.Mode = resolved.Mode
 		_ = r.Status().Update(ctx, &iss)
 		return reconcileutil.ErrorResult(1), nil
 	}
@@ -62,6 +71,8 @@ func (r *IssuerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 type ClusterIssuerReconciler struct {
 	client.Client
 	Vault vaultiface.API
+	// ACMEEnabled when false rejects ACME issuer types (M-DTP-2 / W90-22).
+	ACMEEnabled bool
 }
 
 // Reconcile validates cluster issuer.
@@ -77,6 +88,13 @@ func (r *ClusterIssuerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if err != nil {
 		iss.Status.Conditions = statusutil.ReadyFalse(iss.Status.Conditions, reconcileutil.ReasonInvalidSpec, err.Error())
 		iss.Status.Mode = ""
+		_ = r.Status().Update(ctx, &iss)
+		return reconcileutil.ErrorResult(1), nil
+	}
+	if resolved.Mode == v1alpha1.IssuerModeACME && !r.ACMEEnabled {
+		msg := "ACME issuers disabled (set KNXVAULT_OPERATOR_ACME_ENABLED=true for public LE)"
+		iss.Status.Conditions = statusutil.ReadyFalse(iss.Status.Conditions, reconcileutil.ReasonInvalidSpec, msg)
+		iss.Status.Mode = resolved.Mode
 		_ = r.Status().Update(ctx, &iss)
 		return reconcileutil.ErrorResult(1), nil
 	}

@@ -7,7 +7,7 @@ metadata:
   name: knxvault-operator
   namespace: knxvault
 ---
-# Cluster-scoped CRDs + leader election + optional namespaced Secret write.
+# Cluster-scoped CRDs + leader election. Secrets are NEVER cluster-scoped.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -26,8 +26,10 @@ rules:
       - knxvaultcertificaterequests
       - knxvaultcertificaterequests/status
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  # W78-06 / W79-02: Secrets are NOT cluster-scoped (no get/list/watch/write).
-  # Grant namespaced Secret access via Role/RoleBinding (this file + rbac-namespaced-example.yaml).
+  # W78-06 / W79-02 / W86-01: Secrets are NOT cluster-scoped (no get/list/watch/write).
+  # Grant namespaced Secret access via Role/RoleBinding for app namespaces only
+  # (rbac-namespaced-example.yaml). The vault custody Secret (name: knxvault) lives
+  # in this namespace and must NOT be get-able by the operator SA.
   - apiGroups: ["networking.k8s.io"]
     resources: ["ingresses"]
     verbs: ["get", "list", "watch"]
@@ -55,17 +57,32 @@ subjects:
     name: knxvault-operator
     namespace: knxvault
 ---
-# Namespaced Secret write in the operator's own namespace (TLS Secrets for local CRs).
-# W80-04: least privilege — get + create/update/patch only (no list/watch/delete).
+# W86-01: Namespaced Secret write in the operator's own namespace for TLS Secrets only.
+# Do NOT grant get/list/watch on all Secrets (would expose master/unseal/root Secret "knxvault").
+# create/update/patch without blanket get: operator still creates TLS Secrets; ownership
+# checks use get only when Certificate.secretName is not the custody secret name.
+# For app-namespace TLS delivery, apply rbac-namespaced-example.yaml (recommended).
+# Optional ACME account Secrets: grant get via resourceNames for known ACME account names only.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: knxvault-operator-secrets
   namespace: knxvault
 rules:
+  # Write TLS / ACME Secrets without reading custody material.
   - apiGroups: [""]
     resources: ["secrets"]
-    verbs: ["get", "create", "update", "patch"]
+    verbs: ["create", "update", "patch"]
+  # Explicit get for non-custody Secrets only (resourceNames). Custody Secret "knxvault" is omitted.
+  # Operators may extend resourceNames for Certificate secretNames they manage in this NS.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+    resourceNames:
+      - knxvault-tls-example
+      - acme-account
+      - acme-account-key
+      - letsencrypt-account
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

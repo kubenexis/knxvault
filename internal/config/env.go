@@ -233,6 +233,35 @@ func overlayEnv(cfg Config) (Config, error) {
 		}
 		cfg.OIDCDefaultTTL = d
 	}
+	// M-DTP-2 feature gates
+	if v := os.Getenv("KNXVAULT_AUTH_OIDC_ENABLED"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_AUTH_OIDC_ENABLED: %w", err)
+		}
+		cfg.AuthOIDCEnabled = b
+	}
+	if v := os.Getenv("KNXVAULT_AUTH_LDAP_ENABLED"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_AUTH_LDAP_ENABLED: %w", err)
+		}
+		cfg.AuthLDAPEnabled = b
+	}
+	if v := os.Getenv("KNXVAULT_AUDIT_FORWARD_ENABLED"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_AUDIT_FORWARD_ENABLED: %w", err)
+		}
+		cfg.AuditForwardEnabled = b
+	}
+	if v := os.Getenv("KNXVAULT_ACME_RELATED_ENABLED"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_ACME_RELATED_ENABLED: %w", err)
+		}
+		cfg.ACMERelatedEnabled = b
+	}
 	if v := os.Getenv("KNXVAULT_K8S_AUTH_INSECURE"); v != "" {
 		insecure, err := strconv.ParseBool(v)
 		if err != nil {

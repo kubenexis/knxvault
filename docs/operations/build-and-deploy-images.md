@@ -84,16 +84,28 @@ Default entrypoint of `ghcr.io/kubenexis/knxvault:…` is **`/usr/local/bin/knxv
 
 **Not required:** operator image, CSI, webhook, ESO, Kubernetes.
 
-### B. Kubernetes — **minimum HA vault**
+### B. Kubernetes — **minimum HA vault (base)**
 
 | Required | Optional (same server image, different command) | Separate image |
 |----------|--------------------------------------------------|----------------|
-| **`ghcr.io/kubenexis/knxvault:<version>`** for StatefulSet | CSI provider DaemonSet | **`ghcr.io/kubenexis/knxvault-operator:<version>`** for cert CRDs |
-| Registry pull (or preloaded nodes) | Mutating webhook | — |
-| Host **`knxvault-cli`** for admin | ESO adapter | — |
-| StorageClass + Secret + RBAC | Example sidecars (`busybox` / `curl`) | — |
+| **`ghcr.io/kubenexis/knxvault:<version>`** for StatefulSet | CSI provider DaemonSet (**add-on**) | **`ghcr.io/kubenexis/knxvault-operator:<version>`** for cert CRDs (**add-on**) |
+| Registry pull (or preloaded nodes) | Mutating webhook (**add-on**) | — |
+| Host **`knxvault-cli`** for admin | ESO adapter (**add-on**) | — |
+| StorageClass + custody Secret + RBAC | Example sidecars (`busybox` / `curl`) | — |
+| Raft mTLS Secret `knxvault-raft-tls` (production multi-node) | ACME egress NetPol (**add-on**) | — |
 
 Manifests set `image: ghcr.io/kubenexis/knxvault:0.5.1` / `ghcr.io/kubenexis/knxvault-operator:0.5.1` with `imagePullPolicy: IfNotPresent`. For private GHCR packages, configure an `imagePullSecret`; for air-gap, load tarballs and keep the same refs.
+
+### C. Offline / airgap image matrix (W90-32)
+
+| Topology | Tarballs / artifacts | Notes |
+|----------|----------------------|-------|
+| **Airgap core** | `knxvault` image + host `knxvault-cli` | `kubectl apply -k deployments/k8s/overlays/airgap-core` |
+| **Core + private operator** | + `knxvault-operator` image | `components/operator`; ACME off |
+| **Platform edge** | `knxvault` image (csi/webhook/eso commands) + upstream CSI Driver / ESO images | `overlays/platform-edge` |
+| **Public TLS edge** | operator image + ACME egress component | `KNXVAULT_OPERATOR_ACME_ENABLED=true` |
+
+See [airgap-checklist.md](airgap-checklist.md).
 
 ---
 

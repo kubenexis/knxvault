@@ -1,0 +1,9 @@
+# Copyright Kubenexis Systems Private Limited.
+# SPDX-License-Identifier: Apache-2.0
+
+# External Secrets Operator adapter (add-on). Requires upstream ESO.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - ../../../external-secrets/knxvault-eso-deployment.yaml
+  - ../../../external-secrets/clustersecretstore-webhook.yaml

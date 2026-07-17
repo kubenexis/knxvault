@@ -110,6 +110,9 @@ func New(ctx context.Context, cfg config.Config, log *zap.Logger) (*App, error) 
 		AllowCoarsePKIWrite:  cfg.AllowCoarsePKIWrite,
 		// W80-06: share exposure replay with Valkey when configured (HA-safe).
 		ExposureReplayStore: middleware.NewCacheExposureReplayStore(deps.CacheStore),
+		// M-DTP-2 feature gates
+		AuthOIDCEnabled: cfg.AuthOIDCEnabled,
+		AuthLDAPEnabled: cfg.AuthLDAPEnabled,
 	})
 
 	server := &http.Server{

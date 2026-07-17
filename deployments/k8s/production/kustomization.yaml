@@ -1,29 +1,21 @@
 # Copyright Kubenexis Systems Private Limited.
 # SPDX-License-Identifier: Apache-2.0
 
-# Production overlay for knxvault (W75-02 / CIS hardening P0).
+# Production overlay (W75-02 / M-DTP-1): base vault + production security profile.
+# Does NOT include CSI, ESO, webhook, or ACME egress — compose via components.
 # Apply: kubectl apply -k deployments/k8s/production
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: knxvault
 resources:
-  - ../namespace.yaml
-  - ../serviceaccount.yaml
-  - ../configmap.yaml
-  - ../secret.yaml
-  - ../role.yaml
-  - ../rolebinding.yaml
-  - ../clusterrole-tokenreview.yaml
-  - ../service.yaml
-  - ../service-raft.yaml
-  - ../pdb.yaml
-  - ../statefulset.yaml
-  - networkpolicy.yaml
+  - ../base
   - service-metrics.yaml
-  - networkpolicy-acme-egress.yaml
+  - raft-mtls/secret.yaml
 patches:
   - path: configmap-patch.yaml
   - path: statefulset-patch.yaml
+  # Replace lab NetworkPolicy with production rules (same name).
+  - path: networkpolicy-patch.yaml
 labels:
   - pairs:
       knxvault.kubenexis.dev/security-profile: production

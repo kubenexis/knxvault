@@ -7,7 +7,7 @@ SPDX-License-Identifier: CC-BY-4.0
 
 | Field | Value |
 |-------|-------|
-| **Status** | **Proposed** (planning branch) |
+| **Status** | **Accepted** (implemented on branch) |
 | **Date** | 2026-07-17 |
 | **Branch** | `knxvault-distributed-trust-platform` |
 | **Milestone family** | **M-DTP-1 … M-DTP-4** (backlog **W90-***) |
@@ -268,9 +268,14 @@ Canonical table: [`docs/backlog.md`](../backlog.md) § **Milestone M-DTP / W90**
 
 ---
 
-## 10. Next steps
+## 10. Implementation status (M-DTP-0…4)
 
-1. Review/accept this design on branch `knxvault-distributed-trust-platform`.  
-2. Implement **W90-01…** (Phase 0–1) without waiting for full W86.  
-3. Parallel **W86-01/02/06/07** for base custody.  
-4. Merge to `main` when M-DTP-0/1 docs+compose land; keep branch for ongoing DTP work if preferred.
+| Milestone | Status | Notes |
+|-----------|--------|-------|
+| **M-DTP-0** | **Complete** | Design Accepted; security-model + README base vs add-ons; W86 base/addon tags |
+| **M-DTP-1** | **Complete** | `deployments/k8s/base`, `components/*`, overlays `airgap-core` / `platform-edge`; CI `make dtp-surface` |
+| **M-DTP-2** | **Complete** | Auth OIDC/LDAP, audit forward, ACME related + operator ACME gates; doctor posture |
+| **M-DTP-3** | **Complete** | Instance roles, airgap checklist, image matrix, cross-instance trust |
+| **M-DTP-4** | **Complete** | W86-01/02/06/07 base custody path |
+
+Canonical backlog: [`docs/backlog.md`](../backlog.md) § M-DTP / W90.

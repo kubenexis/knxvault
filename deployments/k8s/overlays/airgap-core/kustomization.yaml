@@ -1,0 +1,16 @@
+# Copyright Kubenexis Systems Private Limited.
+# SPDX-License-Identifier: Apache-2.0
+
+# M-DTP-1 / W90-12: high-assurance airgap core instance — base only, gates off.
+# Apply: kubectl apply -k deployments/k8s/overlays/airgap-core
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: knxvault
+resources:
+  - ../../production
+patches:
+  - path: configmap-patch.yaml
+labels:
+  - pairs:
+      knxvault.kubenexis.dev/instance-role: airgap-core
+    includeSelectors: false
