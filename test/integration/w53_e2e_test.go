@@ -28,6 +28,7 @@ import (
 	"github.com/kubenexis/knxvault/internal/auth"
 	"github.com/kubenexis/knxvault/internal/config"
 	"github.com/kubenexis/knxvault/internal/crypto/shamir"
+	domainauth "github.com/kubenexis/knxvault/internal/domain/auth"
 )
 
 // TestE2EMultiShareUnsealHTTP covers Shamir split + share submit (W53).
@@ -208,10 +209,14 @@ func TestE2ECertLoginHTTP(t *testing.T) {
 		raw, _ := base64.StdEncoding.DecodeString(testMasterKey())
 		_ = deps.Seal.Unseal(raw)
 	}
-	// Register role matching client cert CN.
-	if deps.AuthService != nil {
-		// Role "e2e-client" policies via default PoliciesForRole if present.
-		_ = deps.AuthService // RoleResolver from repo may be empty; cert login falls back to identity policy name.
+	// W77: cert login requires a *persisted* role matching the cert CN (no built-in CN→policy map).
+	if deps.RoleRepo != nil {
+		if err := deps.RoleRepo.Save(context.Background(), &domainauth.Role{
+			Name:     "e2e-client",
+			Policies: []string{"secrets-reader"},
+		}); err != nil {
+			t.Fatalf("save cert role: %v", err)
+		}
 	}
 
 	router := api.NewRouter(zap.NewNop(), cfg.Version, false, api.RouterDeps{
