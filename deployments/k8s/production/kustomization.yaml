@@ -1,0 +1,27 @@
+# Production overlay for knxvault (W75-02 / CIS hardening P0).
+# Apply: kubectl apply -k deployments/k8s/production
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: knxvault
+resources:
+  - ../namespace.yaml
+  - ../serviceaccount.yaml
+  - ../configmap.yaml
+  - ../secret.yaml
+  - ../role.yaml
+  - ../rolebinding.yaml
+  - ../clusterrole-tokenreview.yaml
+  - ../service.yaml
+  - ../service-raft.yaml
+  - ../pdb.yaml
+  - ../statefulset.yaml
+  - networkpolicy.yaml
+  - service-metrics.yaml
+  - networkpolicy-acme-egress.yaml
+patches:
+  - path: configmap-patch.yaml
+  - path: statefulset-patch.yaml
+labels:
+  - pairs:
+      knxvault.kubenexis.dev/security-profile: production
+    includeSelectors: false

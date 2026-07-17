@@ -13,6 +13,7 @@ import (
 	"github.com/kubenexis/knxvault/internal/api/handlers"
 	"github.com/kubenexis/knxvault/internal/api/middleware"
 	"github.com/kubenexis/knxvault/internal/app"
+	"github.com/kubenexis/knxvault/internal/netutil"
 )
 
 func TestSysHandlerSealAndUnseal(t *testing.T) {
@@ -79,5 +80,53 @@ func TestSysHandlerUnsealRejectsInvalidKey(t *testing.T) {
 	}
 	if !seal.Sealed() {
 		t.Fatal("expected still sealed after bad unseal")
+	}
+}
+
+func TestSysHandlerUnsealSourceAllowlist(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	key := make([]byte, 32)
+	for i := range key {
+		key[i] = byte(i + 3)
+	}
+	seal := app.NewSealState(key)
+	seal.Seal()
+	handler := handlers.NewSysHandler(testAuthService("admin"), nil, nil, nil, nil, nil, seal, nil, nil, false, nil)
+	nets, err := netutil.ParseCIDRs([]string{"10.0.0.0/8"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler.SetUnsealAllowNets(nets)
+
+	r := gin.New()
+	r.Use(middleware.ErrorHandler())
+	r.POST("/sys/unseal", handler.Unseal)
+
+	body, _ := json.Marshal(map[string]string{"key": base64.StdEncoding.EncodeToString(key)})
+
+	// Denied: client outside allowlist (default test remote is 192.0.2.1 / ::1 depending on gin).
+	req := httptest.NewRequest(http.MethodPost, "/sys/unseal", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "203.0.113.10:1234"
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code == http.StatusOK {
+		t.Fatalf("expected deny from public IP, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !seal.Sealed() {
+		t.Fatal("expected still sealed after denied unseal")
+	}
+
+	// Allowed: private range in allowlist.
+	req2 := httptest.NewRequest(http.MethodPost, "/sys/unseal", bytes.NewReader(body))
+	req2.Header.Set("Content-Type", "application/json")
+	req2.RemoteAddr = "10.1.2.3:9999"
+	rec2 := httptest.NewRecorder()
+	r.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("expected allow from 10.0.0.0/8, got %d body=%s", rec2.Code, rec2.Body.String())
+	}
+	if seal.Sealed() {
+		t.Fatal("expected unsealed after allowed source")
 	}
 }

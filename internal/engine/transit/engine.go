@@ -106,9 +106,7 @@ func (e *Engine) CreateKey(ctx context.Context, name string) (*KeyMeta, error) {
 
 // ReadKey returns metadata without key material.
 func (e *Engine) ReadKey(ctx context.Context, name string) (*KeyMeta, error) {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	rec, err := e.loadLocked(ctx, name)
+	rec, err := e.getRecord(ctx, name)
 	if err != nil {
 		return nil, err
 	}
@@ -141,10 +139,9 @@ func (e *Engine) RotateKey(ctx context.Context, name string) (*KeyMeta, error) {
 }
 
 // Encrypt encrypts plaintext with the latest (or specified) key version.
+// Ciphertext is bound to key name + version (W74-09).
 func (e *Engine) Encrypt(ctx context.Context, name string, plaintext []byte, keyVersion int) (string, error) {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	rec, err := e.loadLocked(ctx, name)
+	rec, err := e.getRecord(ctx, name)
 	if err != nil {
 		return "", err
 	}
@@ -152,12 +149,15 @@ func (e *Engine) Encrypt(ctx context.Context, name string, plaintext []byte, key
 	if keyVersion > 0 {
 		ver = keyVersion
 	}
+	e.mu.RLock()
 	dek, err := e.dekFor(rec, ver)
+	e.mu.RUnlock()
 	if err != nil {
 		return "", err
 	}
 	defer memzero.Bytes(dek)
-	ct, err := e.crypto.EncryptWithDEK(dek, plaintext)
+	bound := bindPlaintext(name, ver, plaintext)
+	ct, err := e.crypto.EncryptWithDEK(dek, bound)
 	if err != nil {
 		return "", err
 	}
@@ -166,9 +166,7 @@ func (e *Engine) Encrypt(ctx context.Context, name string, plaintext []byte, key
 
 // Decrypt decrypts a transit ciphertext string.
 func (e *Engine) Decrypt(ctx context.Context, name, ciphertext string) ([]byte, error) {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	rec, err := e.loadLocked(ctx, name)
+	rec, err := e.getRecord(ctx, name)
 	if err != nil {
 		return nil, err
 	}
@@ -179,12 +177,18 @@ func (e *Engine) Decrypt(ctx context.Context, name, ciphertext string) ([]byte, 
 	if ver < rec.MinDecryptVer {
 		return nil, common.New(common.ErrCodeForbidden, "key version below minimum")
 	}
+	e.mu.RLock()
 	dek, err := e.dekFor(rec, ver)
+	e.mu.RUnlock()
 	if err != nil {
 		return nil, err
 	}
 	defer memzero.Bytes(dek)
-	return e.crypto.DecryptWithDEK(dek, raw)
+	opened, err := e.crypto.DecryptWithDEK(dek, raw)
+	if err != nil {
+		return nil, err
+	}
+	return unbindPlaintext(name, ver, opened)
 }
 
 // Rewrap decrypts with source version and re-encrypts with latest.
@@ -196,11 +200,9 @@ func (e *Engine) Rewrap(ctx context.Context, name, ciphertext string) (string, e
 	return e.Encrypt(ctx, name, pt, 0)
 }
 
-// HMAC computes HMAC-SHA256 with the transit key material.
+// HMAC computes HMAC-SHA256 with the transit key material (not asymmetric signing).
 func (e *Engine) HMAC(ctx context.Context, name string, input []byte, keyVersion int) (string, error) {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	rec, err := e.loadLocked(ctx, name)
+	rec, err := e.getRecord(ctx, name)
 	if err != nil {
 		return "", err
 	}
@@ -208,24 +210,28 @@ func (e *Engine) HMAC(ctx context.Context, name string, input []byte, keyVersion
 	if keyVersion > 0 {
 		ver = keyVersion
 	}
+	e.mu.RLock()
 	dek, err := e.dekFor(rec, ver)
+	e.mu.RUnlock()
 	if err != nil {
 		return "", err
 	}
 	defer memzero.Bytes(dek)
 	mac := hmac.New(sha256.New, dek)
+	// Bind key name into MAC input.
+	_, _ = mac.Write([]byte(name))
+	_, _ = mac.Write([]byte{0})
 	_, _ = mac.Write(input)
 	return "hmac:v" + strconv.Itoa(ver) + ":" + base64.RawStdEncoding.EncodeToString(mac.Sum(nil)), nil
 }
 
-// Sign produces an HMAC-based signature (symmetric transit keys).
+// Sign is an alias for HMAC (symmetric keys only — not digital signatures; W74-08).
 func (e *Engine) Sign(ctx context.Context, name string, input []byte, keyVersion int) (string, error) {
 	return e.HMAC(ctx, name, input, keyVersion)
 }
 
-// Verify checks an HMAC signature.
+// Verify checks an HMAC (symmetric) tag.
 func (e *Engine) Verify(ctx context.Context, name string, input []byte, signature string) (bool, error) {
-	// Parse version from signature if present.
 	ver := 0
 	if strings.HasPrefix(signature, "hmac:v") {
 		rest := strings.TrimPrefix(signature, "hmac:v")
@@ -238,6 +244,22 @@ func (e *Engine) Verify(ctx context.Context, name string, input []byte, signatur
 		return false, err
 	}
 	return hmac.Equal([]byte(got), []byte(signature)), nil
+}
+
+func bindPlaintext(name string, ver int, pt []byte) []byte {
+	h := fmt.Sprintf("knxtransit|%s|%d|", name, ver)
+	out := make([]byte, 0, len(h)+len(pt))
+	out = append(out, h...)
+	out = append(out, pt...)
+	return out
+}
+
+func unbindPlaintext(name string, ver int, raw []byte) ([]byte, error) {
+	h := fmt.Sprintf("knxtransit|%s|%d|", name, ver)
+	if !strings.HasPrefix(string(raw), h) {
+		return nil, common.New(common.ErrCodeForbidden, "ciphertext not bound to this key")
+	}
+	return raw[len(h):], nil
 }
 
 func (e *Engine) dekFor(rec *keyRecord, ver int) ([]byte, error) {
@@ -280,15 +302,33 @@ func metaOf(rec *keyRecord) *KeyMeta {
 		MinDecryptVer:   rec.MinDecryptVer,
 		CreatedAt:       rec.CreatedAt,
 		SupportsEncrypt: true,
-		SupportsSign:    true,
+		// SupportsSign is true for HMAC-based integrity (not asymmetric signatures).
+		SupportsSign: true,
 	}
 }
 
+// getRecord loads a key under exclusive lock when populating the cache (W74-12 race fix).
+func (e *Engine) getRecord(ctx context.Context, name string) (*keyRecord, error) {
+	e.mu.RLock()
+	if rec, ok := e.mem[name]; ok {
+		e.mu.RUnlock()
+		return rec, nil
+	}
+	e.mu.RUnlock()
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if rec, ok := e.mem[name]; ok {
+		return rec, nil
+	}
+	return e.loadLocked(ctx, name)
+}
+
+// loadLocked requires e.mu write lock (or exclusive ownership) when caching.
 func (e *Engine) loadLocked(ctx context.Context, name string) (*keyRecord, error) {
 	if e.repo != nil {
 		sv, err := e.repo.GetLatest(ctx, keysPrefix+name)
 		if err != nil {
-			// fallback mem
 			if rec, ok := e.mem[name]; ok {
 				return rec, nil
 			}

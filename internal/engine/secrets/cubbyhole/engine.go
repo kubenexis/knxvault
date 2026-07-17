@@ -1,10 +1,10 @@
-// Package cubbyhole implements per-token private KV storage (M-WRAP-1).
+// Package cubbyhole implements per-token private KV storage (M-WRAP-1 / W74).
 package cubbyhole
 
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"path"
 	"strings"
 	"time"
 
@@ -33,21 +33,46 @@ func NewEngine(repo repository.SecretRepository, cryptoSvc *crypto.Service) *Eng
 // Name returns the engine name.
 func (e *Engine) Name() string { return engineName }
 
-func storagePath(tokenID, path string) string {
-	path = strings.TrimPrefix(strings.TrimSpace(path), "/")
-	return pathPrefix + tokenID + "/" + path
+// NormalizePath cleans and validates a relative cubbyhole path.
+func NormalizePath(p string) (string, error) {
+	p = strings.TrimSpace(p)
+	p = strings.TrimPrefix(p, "/")
+	if p == "" {
+		return "", common.New(common.ErrCodeValidation, "invalid cubbyhole path")
+	}
+	// Reject any ".." segment before clean so traversal cannot be normalized away.
+	for _, seg := range strings.Split(p, "/") {
+		if seg == ".." || seg == "." {
+			return "", common.New(common.ErrCodeValidation, "invalid cubbyhole path")
+		}
+	}
+	cleaned := path.Clean("/" + p)
+	cleaned = strings.TrimPrefix(cleaned, "/")
+	if cleaned == "" || cleaned == "." {
+		return "", common.New(common.ErrCodeValidation, "invalid cubbyhole path")
+	}
+	return cleaned, nil
+}
+
+func storagePath(tokenID, p string) (string, error) {
+	np, err := NormalizePath(p)
+	if err != nil {
+		return "", err
+	}
+	return pathPrefix + tokenID + "/" + np, nil
 }
 
 // Put stores data under the token-private path.
-func (e *Engine) Put(ctx context.Context, tokenID, path string, data map[string]any) error {
+func (e *Engine) Put(ctx context.Context, tokenID, p string, data map[string]any) error {
 	if e == nil || e.repo == nil || e.crypto == nil {
 		return common.New(common.ErrCodeInternal, "cubbyhole not configured")
 	}
 	if tokenID == "" {
 		return common.New(common.ErrCodeUnauthorized, "token id required")
 	}
-	if path == "" || strings.Contains(path, "..") {
-		return common.New(common.ErrCodeValidation, "invalid cubbyhole path")
+	sp, err := storagePath(tokenID, p)
+	if err != nil {
+		return err
 	}
 	if len(data) == 0 {
 		return common.New(common.ErrCodeValidation, "data required")
@@ -62,7 +87,7 @@ func (e *Engine) Put(ctx context.Context, tokenID, path string, data map[string]
 	}
 	sv := &domainsecrets.SecretVersion{
 		ID:        uuid.New(),
-		Path:      storagePath(tokenID, path),
+		Path:      sp,
 		DataEnc:   dataEnc,
 		DEKEnc:    dekEnc,
 		CreatedAt: time.Now().UTC(),
@@ -73,14 +98,18 @@ func (e *Engine) Put(ctx context.Context, tokenID, path string, data map[string]
 }
 
 // Get returns data for a token-private path.
-func (e *Engine) Get(ctx context.Context, tokenID, path string) (map[string]any, error) {
+func (e *Engine) Get(ctx context.Context, tokenID, p string) (map[string]any, error) {
 	if e == nil || e.repo == nil || e.crypto == nil {
 		return nil, common.New(common.ErrCodeInternal, "cubbyhole not configured")
 	}
 	if tokenID == "" {
 		return nil, common.New(common.ErrCodeUnauthorized, "token id required")
 	}
-	sv, err := e.repo.GetLatest(ctx, storagePath(tokenID, path))
+	sp, err := storagePath(tokenID, p)
+	if err != nil {
+		return nil, err
+	}
+	sv, err := e.repo.GetLatest(ctx, sp)
 	if err != nil {
 		return nil, err
 	}
@@ -95,19 +124,19 @@ func (e *Engine) Get(ctx context.Context, tokenID, path string) (map[string]any,
 	return data, nil
 }
 
-// Delete removes a cubbyhole entry.
-func (e *Engine) Delete(ctx context.Context, tokenID, path string) error {
+// Delete removes a cubbyhole entry (all versions for that path).
+func (e *Engine) Delete(ctx context.Context, tokenID, p string) error {
 	if e == nil || e.repo == nil {
 		return common.New(common.ErrCodeInternal, "cubbyhole not configured")
 	}
-	sv, err := e.repo.GetLatest(ctx, storagePath(tokenID, path))
+	sp, err := storagePath(tokenID, p)
 	if err != nil {
 		return err
 	}
-	return e.repo.DestroyVersion(ctx, sv.Path, sv.Version)
+	return destroyAllVersions(ctx, e.repo, sp)
 }
 
-// WipeToken deletes all cubbyhole entries for a token (best-effort list prefix).
+// WipeToken deletes all cubbyhole entries for a token (all versions).
 func (e *Engine) WipeToken(ctx context.Context, tokenID string) error {
 	if e == nil || e.repo == nil || tokenID == "" {
 		return nil
@@ -117,44 +146,60 @@ func (e *Engine) WipeToken(ctx context.Context, tokenID string) error {
 	if err != nil {
 		return err
 	}
-	seen := map[string]int{}
+	// Destroy every version of every path under the token prefix.
+	var first error
+	seen := map[string]map[int]struct{}{}
 	for _, sv := range list {
 		if sv == nil {
 			continue
 		}
-		// Keep highest version per path for destroy
-		if v, ok := seen[sv.Path]; !ok || sv.Version > v {
-			seen[sv.Path] = sv.Version
+		if seen[sv.Path] == nil {
+			seen[sv.Path] = map[int]struct{}{}
 		}
-	}
-	var first error
-	for path, ver := range seen {
-		if err := e.repo.DestroyVersion(ctx, path, ver); err != nil && first == nil {
+		if _, ok := seen[sv.Path][sv.Version]; ok {
+			continue
+		}
+		seen[sv.Path][sv.Version] = struct{}{}
+		if err := e.repo.DestroyVersion(ctx, sv.Path, sv.Version); err != nil && first == nil {
 			first = err
 		}
 	}
 	return first
 }
 
-// PutWrap stores a one-shot wrapping payload under a synthetic token id (wrapping token hash).
-func (e *Engine) PutWrap(ctx context.Context, wrapTokenID, path string, data map[string]any, ttl time.Duration) error {
-	if err := e.Put(ctx, wrapTokenID, path, data); err != nil {
-		return err
+func destroyAllVersions(ctx context.Context, repo repository.SecretRepository, sp string) error {
+	list, err := repo.ListByPath(ctx, sp)
+	if err != nil {
+		// Fallback: destroy latest only
+		sv, gerr := repo.GetLatest(ctx, sp)
+		if gerr != nil {
+			return gerr
+		}
+		return repo.DestroyVersion(ctx, sv.Path, sv.Version)
 	}
-	// TTL is enforced by wrapping service via wrap record expiry, not storage TTL.
-	_ = ttl
-	return nil
+	var first error
+	for _, sv := range list {
+		if sv == nil || sv.Path != sp {
+			continue
+		}
+		if err := repo.DestroyVersion(ctx, sv.Path, sv.Version); err != nil && first == nil {
+			first = err
+		}
+	}
+	return first
 }
 
 // FullPath exposes storage path for tests.
-func FullPath(tokenID, path string) string {
-	return storagePath(tokenID, path)
+func FullPath(tokenID, p string) string {
+	sp, err := storagePath(tokenID, p)
+	if err != nil {
+		return ""
+	}
+	return sp
 }
 
-// Ensure path helper used by tests.
-func ValidatePath(path string) error {
-	if path == "" || strings.Contains(path, "..") {
-		return fmt.Errorf("invalid path")
-	}
-	return nil
+// ValidatePath is an alias for NormalizePath for tests.
+func ValidatePath(p string) error {
+	_, err := NormalizePath(p)
+	return err
 }

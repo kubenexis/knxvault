@@ -6,6 +6,7 @@ import (
 	"time"
 
 	auditsvc "github.com/kubenexis/knxvault/internal/audit"
+	"github.com/kubenexis/knxvault/internal/auth"
 	domainsecrets "github.com/kubenexis/knxvault/internal/domain/secrets"
 	"github.com/kubenexis/knxvault/internal/repository/memory"
 	"github.com/kubenexis/knxvault/internal/service"
@@ -92,6 +93,14 @@ func TestLeaseServiceBulkRevokeWithoutEngineHook(t *testing.T) {
 	}
 }
 
+func TestLeaseServiceBulkRevokeRequiresSelector(t *testing.T) {
+	leases := memory.NewLeaseRepository()
+	svc := service.NewLeaseService(leases, nil, nil, auditsvc.NewService(memory.NewAuditRepository()))
+	if _, err := svc.BulkRevoke(context.Background(), service.BulkRevokeRequest{}); err == nil {
+		t.Fatal("expected empty bulk revoke to fail")
+	}
+}
+
 func TestLeaseServiceRenewAndCascade(t *testing.T) {
 	leases := memory.NewLeaseRepository()
 	now := time.Now().UTC()
@@ -111,5 +120,48 @@ func TestLeaseServiceRenewAndCascade(t *testing.T) {
 	n, err := svc.RevokeByTokenID(context.Background(), "tokhash")
 	if err != nil || n != 1 {
 		t.Fatalf("cascade: %v %d", err, n)
+	}
+}
+
+func TestLeaseServiceTenantModeCrossTenantDenied(t *testing.T) {
+	leases := memory.NewLeaseRepository()
+	now := time.Now().UTC()
+	for _, id := range []string{"ns-a/lease1", "ns-b/lease2"} {
+		lease := &domainsecrets.Lease{
+			ID: id, Engine: "database", RoleName: "role", Path: "database/creds/" + id,
+			TTLSeconds: 3600, CreatedAt: now, ExpiresAt: now.Add(time.Hour), Renewable: true,
+		}
+		if err := leases.Save(context.Background(), lease); err != nil {
+			t.Fatal(err)
+		}
+	}
+	svc := service.NewLeaseService(leases, nil, nil, auditsvc.NewService(memory.NewAuditRepository()))
+	svc.SetTenantMode(true)
+
+	ctxA := auth.WithRequestContext(context.Background(), auth.RequestContext{Namespace: "ns-a"})
+	if _, err := svc.Get(ctxA, "ns-b/lease2"); err == nil {
+		t.Fatal("expected cross-tenant Get denied")
+	}
+	if _, err := svc.Renew(ctxA, "ns-b/lease2", 60); err == nil {
+		t.Fatal("expected cross-tenant Renew denied")
+	}
+	list, err := svc.List(ctxA, service.LeaseListFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 || list[0].ID != "ns-a/lease1" {
+		t.Fatalf("list should be tenant-scoped, got %+v", list)
+	}
+
+	// Register prefixes lease ID with tenant namespace.
+	reg := &domainsecrets.Lease{
+		ID: "newlease", Engine: "database", RoleName: "role", Path: "database/creds/x",
+		TTLSeconds: 60, CreatedAt: now, ExpiresAt: now.Add(time.Minute), Renewable: true,
+	}
+	if err := svc.Register(ctxA, reg); err != nil {
+		t.Fatal(err)
+	}
+	if reg.ID != "ns-a/newlease" {
+		t.Fatalf("Register should scope lease ID, got %s", reg.ID)
 	}
 }

@@ -42,3 +42,25 @@ func ValidateAccess(tenant, path string, enabled bool) bool {
 	path = strings.TrimPrefix(path, "/")
 	return strings.HasPrefix(path, tenant+"/") || path == tenant
 }
+
+// ScopeLeaseID prefixes lease IDs with tenant (W64-01).
+func ScopeLeaseID(tenant, leaseID string, enabled bool) string {
+	leaseID = strings.TrimSpace(leaseID)
+	if !enabled || tenant == "" || leaseID == "" {
+		return leaseID
+	}
+	prefix := tenant + "/"
+	if strings.HasPrefix(leaseID, prefix) {
+		return leaseID
+	}
+	return prefix + leaseID
+}
+
+// ValidateLeaseIDAccess rejects cross-tenant lease ID use.
+func ValidateLeaseIDAccess(tenant, leaseID string, enabled bool) bool {
+	if !enabled || tenant == "" {
+		return true
+	}
+	leaseID = strings.TrimSpace(leaseID)
+	return strings.HasPrefix(leaseID, tenant+"/")
+}

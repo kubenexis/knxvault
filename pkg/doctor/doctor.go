@@ -45,6 +45,10 @@ type Config struct {
 	Addr       string
 	Token      string
 	ConfigFile string
+	// Profile is "lab" (default) or "production" (W62-03 / W75).
+	Profile string
+	// MetricsAddr optional dedicated metrics URL for production checks.
+	MetricsAddr string
 }
 
 // Runner executes doctor checks against a KNXVault deployment.
@@ -59,8 +63,76 @@ func (r *Runner) Run(ctx context.Context) *Report {
 	r.checkCLIConfig(report)
 	r.checkServer(ctx, report)
 	r.checkAuth(ctx, report)
+	r.checkProductionProfile(report)
 	r.finalize(report)
 	return report
+}
+
+func (r *Runner) checkProductionProfile(report *Report) {
+	profile := strings.ToLower(strings.TrimSpace(r.Config.Profile))
+	if profile != "production" && profile != "prod" {
+		report.add(Check{
+			ID:      "profile.mode",
+			Status:  StatusSkip,
+			Message: "Production profile checks skipped",
+			Detail:  "Pass --profile production for fail-closed Day-0 gate",
+		})
+		return
+	}
+	// Production: HTTP is a hard fail (unless operator documents ingress TLS separately —
+	// we still require https client URL for production doctor).
+	addr := strings.TrimSpace(r.Config.Addr)
+	if u, err := url.Parse(addr); err == nil && strings.EqualFold(u.Scheme, "http") {
+		report.add(Check{
+			ID:      "profile.production.tls",
+			Status:  StatusFail,
+			Message: "Production profile requires https:// API address",
+			Detail:  "Use TLS to knxvault or https through ingress; lab may use http",
+		})
+	} else {
+		report.add(Check{
+			ID:      "profile.production.tls",
+			Status:  StatusOK,
+			Message: "Production API address uses TLS scheme",
+		})
+	}
+	if strings.TrimSpace(r.Config.Token) == "" {
+		report.add(Check{
+			ID:      "profile.production.token",
+			Status:  StatusFail,
+			Message: "Production profile requires a client token for doctor",
+		})
+	} else {
+		report.add(Check{
+			ID:      "profile.production.token",
+			Status:  StatusOK,
+			Message: "Client token present for production checks",
+		})
+	}
+	// Metrics: when dedicated addr set, note it; anonymous metrics without bearer cannot be verified from CLI alone.
+	if strings.TrimSpace(r.Config.MetricsAddr) != "" {
+		report.add(Check{
+			ID:      "profile.production.metrics_addr",
+			Status:  StatusOK,
+			Message: "Dedicated metrics address configured for scrape plane",
+			Detail:  r.Config.MetricsAddr,
+		})
+	} else {
+		report.add(Check{
+			ID:      "profile.production.metrics_addr",
+			Status:  StatusWarn,
+			Message: "No dedicated metrics address (metrics may share API port)",
+			Detail:  "Set KNXVAULT_METRICS_ADDR / --metrics-addr for CIS network split",
+		})
+	}
+	// Fail if any prior server.sealed failed / sealed true is already handled.
+	// Production gate: any fail already makes Healthy false; add explicit profile marker.
+	report.add(Check{
+		ID:      "profile.production.gate",
+		Status:  StatusOK,
+		Message: "Production profile doctor gate executed",
+		Detail:  "Ensure vault process uses KNXVAULT_SECURITY_PROFILE=production and required secrets",
+	})
 }
 
 func (r *Runner) checkCLIConfig(report *Report) {

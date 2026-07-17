@@ -26,7 +26,12 @@ func NewAuthHandler(svc *auth.Service, ttl time.Duration) *AuthHandler {
 }
 
 // LoginLDAP handles POST /auth/ldap (W70 native LDAP bind).
+// Server-side LDAP config only (W74-01) — client headers never configure the directory.
 func (h *AuthHandler) LoginLDAP(c *gin.Context) {
+	if h.auth == nil || !h.auth.LDAPConfigured() {
+		_ = c.Error(common.New(common.ErrCodeUnavailable, "ldap authentication is not configured"))
+		return
+	}
 	var req struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
@@ -35,19 +40,9 @@ func (h *AuthHandler) LoginLDAP(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
-	cfg := auth.LDAPConfig{
-		URL:                c.GetHeader("X-KNX-LDAP-URL"),
-		UserDNTemplate:     c.GetHeader("X-KNX-LDAP-UserDN-Template"),
-		DefaultPolicies:    []string{"default"},
-		InsecureSkipVerify: c.GetHeader("X-KNX-LDAP-Insecure") == "true",
-	}
-	// Prefer body-driven config when server has LDAPDefaults on service via headers for lab;
-	// production should set server-side defaults via env (applied in deps).
-	if h.auth != nil && h.auth.LDAPDefaults() != nil {
-		cfg = *h.auth.LDAPDefaults()
-	}
 	ctx := auth.WithLoginAuditContext(c.Request.Context(), c.ClientIP(), c.GetHeader("X-Request-ID"))
-	token, record, err := h.auth.LoginLDAP(ctx, req.Username, req.Password, cfg)
+	// Empty cfg: LoginLDAP always uses server LDAPDefaults.
+	token, record, err := h.auth.LoginLDAP(ctx, req.Username, req.Password, auth.LDAPConfig{})
 	if err != nil {
 		_ = c.Error(err)
 		return

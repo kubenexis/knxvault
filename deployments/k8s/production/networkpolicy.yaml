@@ -1,0 +1,88 @@
+# Production NetworkPolicy (W75-02): default-deny ingress, explicit allows only.
+# Unseal shares the API port — do NOT expose Service type LoadBalancer/NodePort to the internet.
+# Prefer ClusterIP + Ingress for API; keep unseal off public paths via ingress rules.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: knxvault-production
+  namespace: knxvault
+  labels:
+    app.kubernetes.io/name: knxvault
+    knxvault.kubenexis.dev/security-profile: production
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: knxvault
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # API clients via ingress controller (path-route carefully; avoid exposing /sys/unseal publicly).
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8200
+    # Optional in-cluster API consumers (operator, CSI, ESO) in knxvault or labeled ns.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              knxvault.kubenexis.dev/api-client: "true"
+      ports:
+        - protocol: TCP
+          port: 8200
+    # Prometheus scrape on dedicated metrics port (KNXVAULT_METRICS_ADDR=:8201 + bearer).
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 8201
+    # Admin / break-glass unseal from a dedicated jump namespace (label your admin ns).
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              knxvault.kubenexis.dev/unseal-client: "true"
+      ports:
+        - protocol: TCP
+          port: 8200
+    # Raft peers only
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: knxvault
+      ports:
+        - protocol: TCP
+          port: 63001
+  egress:
+    # Raft to peers
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: knxvault
+      ports:
+        - protocol: TCP
+          port: 63001
+    # Cluster DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Kubernetes API (TokenReview) — adjust CIDR/Service for your cluster if needed.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: default
+      ports:
+        - protocol: TCP
+          port: 443
+    # NOTE: ACME / DNS webhooks / audit forward require additional egress allow rules
+    # for your environment (or an egress proxy). Do not open 0.0.0.0/0 in production.

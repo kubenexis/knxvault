@@ -13,6 +13,8 @@ import (
 )
 
 var doctorJSON bool
+var doctorProfile string
+var doctorMetricsAddr string
 
 var doctorCmd = &cobra.Command{
 	Use:   "doctor",
@@ -24,15 +26,19 @@ var doctorCmd = &cobra.Command{
   - Seal, Raft, and HA leadership status
   - Metrics endpoint availability
   - Client token validity (when configured)
+  - Production profile gate (--profile production): TLS scheme, token, metrics plane notes
 
-Exit code is 1 when any check fails; warnings do not fail the command.`,
+Exit code is 1 when any check fails; warnings do not fail the command
+(except production profile: fails still set exit 1).`,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		report := (&doctor.Runner{
 			Client: apiClient(),
 			Config: doctor.Config{
-				Addr:       addr,
-				Token:      token,
-				ConfigFile: viper.ConfigFileUsed(),
+				Addr:        addr,
+				Token:       token,
+				ConfigFile:  viper.ConfigFileUsed(),
+				Profile:     doctorProfile,
+				MetricsAddr: doctorMetricsAddr,
 			},
 		}).Run(cmd.Context())
 
@@ -77,5 +83,7 @@ func statusLabel(status doctor.Status) string {
 
 func init() {
 	doctorCmd.Flags().BoolVar(&doctorJSON, "json", false, "Emit report as JSON")
+	doctorCmd.Flags().StringVar(&doctorProfile, "profile", "lab", "Doctor profile: lab|production (production enables fail-closed Day-0 checks)")
+	doctorCmd.Flags().StringVar(&doctorMetricsAddr, "metrics-addr", "", "Dedicated metrics scrape address (production network split)")
 	rootCmd.AddCommand(doctorCmd)
 }

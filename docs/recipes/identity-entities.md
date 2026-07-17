@@ -41,5 +41,6 @@ curl -sS -X POST -H "Authorization: Bearer $ADMIN" -H 'Content-Type: application
 
 ## Notes
 
-- Store is process-local (in-memory) in this release; plan Raft-backed identity store for multi-node HA of identity objects.  
-- Wire OIDC/K8s login to call `ResolveLogin` when aliases exist (LDAP already hooks the resolver).
+- Identity snapshot is **sealed in storage** at `sys/internal/identity` (W74-05) when crypto+secret repo are available (Raft-backed in production).  
+- Policy names on entities/groups are validated against the policy repository when wired (unknown policy rejected).  
+- LDAP login already uses `ResolveLogin` for `mount=ldap` aliases.

@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: knxvault-metrics
+  namespace: knxvault
+  labels:
+    app.kubernetes.io/name: knxvault
+    knxvault.kubenexis.dev/plane: metrics
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: knxvault
+  ports:
+    - name: metrics
+      port: 8201
+      targetPort: 8201
+      protocol: TCP

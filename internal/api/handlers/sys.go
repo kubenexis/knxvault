@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -19,6 +20,7 @@ import (
 	"github.com/kubenexis/knxvault/internal/crypto/shamir"
 	"github.com/kubenexis/knxvault/internal/domain/common"
 	pkiengine "github.com/kubenexis/knxvault/internal/engine/pki"
+	"github.com/kubenexis/knxvault/internal/netutil"
 	"github.com/kubenexis/knxvault/internal/notify"
 	"github.com/kubenexis/knxvault/internal/service"
 	"github.com/kubenexis/knxvault/internal/sys"
@@ -58,6 +60,14 @@ type SysHandler struct {
 	masterKeyBytes  []byte
 	exposureAuto    bool
 	exposureWebhook *notify.Webhook
+	unsealAllowNets []*net.IPNet
+}
+
+// SetUnsealAllowNets configures source IP allowlist for unseal (W75-04).
+func (h *SysHandler) SetUnsealAllowNets(nets []*net.IPNet) {
+	if h != nil {
+		h.unsealAllowNets = nets
+	}
 }
 
 // NewSysHandler constructs a SysHandler.
@@ -232,6 +242,13 @@ func (h *SysHandler) Unseal(c *gin.Context) {
 	if h.seal == nil {
 		_ = c.Error(common.New(common.ErrCodeInternal, "seal not configured"))
 		return
+	}
+	// W75-04: optional source IP allowlist for unseal.
+	if len(h.unsealAllowNets) > 0 {
+		if !netutil.IPAllowed(c.ClientIP(), h.unsealAllowNets) {
+			_ = c.Error(common.New(common.ErrCodeForbidden, "unseal not allowed from this source"))
+			return
+		}
 	}
 	var req dto.UnsealRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

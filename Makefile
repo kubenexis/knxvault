@@ -16,7 +16,7 @@ LOCAL_BIN       ?= $(HOME)/.local/bin
 GOPATH_BIN      ?= $(HOME)/go/bin
 export PATH     := $(GOPATH_BIN):$(LOCAL_BIN):$(PATH)
 GO              := $(firstword $(shell command -v go 2>/dev/null))
-GO_TOOLCHAIN    ?= go1.26.4
+GO_TOOLCHAIN    ?= go1.26.5
 GOLANGCI_LINT   ?= $(GOPATH_BIN)/golangci-lint
 GOSEC           ?= $(GOPATH_BIN)/gosec
 TRIVY           := $(firstword $(shell command -v trivy 2>/dev/null) $(LOCAL_BIN)/trivy)
@@ -396,6 +396,11 @@ scan: ## Trivy vulnerability scan (repo + binary if present)
 	$(TRIVY) fs --cache-dir $(TRIVY_CACHE_DIR) \
 		--ignorefile .trivyignore \
 		--severity $(TRIVY_SEVERITY) --exit-code 1 --scanners vuln .
+	@# Rebuild when binary is missing or linked against an older stdlib than GO_TOOLCHAIN (CVE gates).
+	@need_build=0; \
+	if [ ! -f $(BINARY) ]; then need_build=1; \
+	elif ! go version -m $(BINARY) 2>/dev/null | head -1 | grep -q "$$(echo $(GO_TOOLCHAIN) | sed 's/^go//')"; then need_build=1; fi; \
+	if [ "$$need_build" = 1 ]; then $(MAKE) --no-print-directory build; fi
 	@if [ -f $(BINARY) ]; then \
 		$(TRIVY) rootfs --cache-dir $(TRIVY_CACHE_DIR) \
 			--ignorefile .trivyignore \

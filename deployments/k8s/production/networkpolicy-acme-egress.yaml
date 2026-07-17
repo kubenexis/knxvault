@@ -1,0 +1,42 @@
+# Optional egress for ACME HTTP-01 / DNS-01 webhook (W75-05 / P3).
+# Customize destination namespaces or use an egress gateway.
+# This policy is additive; base production NetworkPolicy already restricts egress.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: knxvault-acme-egress
+  namespace: knxvault
+  labels:
+    app.kubernetes.io/name: knxvault
+    knxvault.kubenexis.dev/plane: acme
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: knxvault
+  policyTypes:
+    - Egress
+  egress:
+    # HTTPS to public ACME CAs and DNS provider APIs (requires CNI FQDN or open 443 carefully).
+    # Prefer an egress proxy/NetworkPolicy with known provider CIDRs for your cloud.
+    - ports:
+        - protocol: TCP
+          port: 443
+      to:
+        - ipBlock:
+            # Placeholder — REPLACE with your allowlist or remove and use a service mesh egress.
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+    # In-cluster DNS-01 webhook Service (label your webhook deployment).
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              knxvault.kubenexis.dev/dns-webhook: "true"
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 443

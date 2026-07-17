@@ -17,6 +17,7 @@ import (
 	"github.com/kubenexis/knxvault/internal/cache"
 	"github.com/kubenexis/knxvault/internal/config"
 	"github.com/kubenexis/knxvault/internal/crypto"
+	"github.com/kubenexis/knxvault/internal/crypto/autounseal"
 	"github.com/kubenexis/knxvault/internal/crypto/masterkey"
 	"github.com/kubenexis/knxvault/internal/engine"
 	pkiengine "github.com/kubenexis/knxvault/internal/engine/pki"
@@ -177,11 +178,25 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 
 	if deps.Crypto != nil {
 		deps.MasterKeyService = service.NewMasterKeyService(deps.Crypto, deps.CARepo, deps.SecretRepo)
-		if cfg.Raft.Enabled && cfg.UnsealKey == "" {
-			return nil, fmt.Errorf("KNXVAULT_UNSEAL_KEY is required when raft is enabled")
+		if cfg.Raft.Enabled && cfg.UnsealKey == "" && !cfg.AutoUnsealEnabled {
+			return nil, fmt.Errorf("KNXVAULT_UNSEAL_KEY is required when raft is enabled (or enable auto-unseal)")
 		}
-		unsealKey := resolveUnsealKey(cfg.UnsealKey, deps.MasterKey)
-		if cfg.UnsealKey != "" && bytes.Equal(unsealKey, deps.MasterKey) {
+		var unsealKey []byte
+		if cfg.AutoUnsealEnabled {
+			key, err := autounseal.DecryptUnsealKey(autounseal.Config{
+				Provider:   cfg.AutoUnsealProvider,
+				Ciphertext: cfg.AutoUnsealCiphertext,
+				KEK:        cfg.AutoUnsealKEK,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("auto-unseal: %w", err)
+			}
+			unsealKey = key
+		} else {
+			unsealKey = resolveUnsealKey(cfg.UnsealKey, deps.MasterKey)
+		}
+		// Reject only when an explicit unseal material path is configured (not lab fallback).
+		if (cfg.UnsealKey != "" || cfg.AutoUnsealEnabled) && bytes.Equal(unsealKey, deps.MasterKey) {
 			return nil, fmt.Errorf("unseal key must not equal master key")
 		}
 		deps.Seal = NewSealState(unsealKey)
@@ -191,6 +206,13 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 		if cfg.Raft.DataDir != "" {
 			deps.Seal.SetStateFile(filepath.Join(cfg.Raft.DataDir, "seal.state"))
 			sys.SetStatePath(filepath.Join(cfg.Raft.DataDir, "init.state"))
+		}
+		// Auto-unseal after seal file load (sticky seal must be cleared by cryptographic unseal).
+		if cfg.AutoUnsealEnabled {
+			if !deps.Seal.Unseal(unsealKey) {
+				return nil, fmt.Errorf("auto-unseal: decrypted key did not match seal")
+			}
+			log.Info("auto-unseal succeeded", zap.String("provider", cfg.AutoUnsealProvider))
 		}
 
 		deps.PKIEngine = pkiengine.NewEngine(deps.Crypto, deps.CARepo, deps.RevokeRepo)
@@ -300,20 +322,28 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 		cfg.RotationWebhookURL,
 	)
 	deps.LeaseService = service.NewLeaseService(deps.LeaseRepo, deps.DatabaseEngine, deps.SSHEngine, deps.AuditService)
+	deps.LeaseService.SetTenantMode(cfg.TenantMode)
 	deps.ExposureWebhook = notify.NewWebhook(cfg.ExposureWebhookURL)
 
 	if deps.SecretRepo != nil && deps.Crypto != nil {
 		deps.CubbyholeEngine = cubbyholeengine.NewEngine(deps.SecretRepo, deps.Crypto)
 		deps.CubbyholeService = service.NewCubbyholeService(deps.CubbyholeEngine, deps.AuditService)
 		deps.WrappingService = service.NewWrappingService(deps.CubbyholeEngine, deps.AuditService)
+		deps.WrappingService.AttachStorage(deps.SecretRepo, deps.Crypto)
 		deps.TransitEngine = transitengine.NewEngine(deps.SecretRepo, deps.Crypto)
 		deps.TransitService = service.NewTransitService(deps.TransitEngine, deps.AuditService)
-		if deps.EngineRegistry != nil {
-			// Transit is not a SecretEngine Put/Get adapter; registry remains KV/DB/SSH.
-			_ = deps.TransitEngine
-		}
 	}
 	deps.IdentityService = service.NewIdentityService(deps.AuditService)
+	if deps.SecretRepo != nil && deps.Crypto != nil {
+		deps.IdentityService.AttachStorage(deps.SecretRepo, deps.Crypto)
+	}
+	if deps.PolicyRepo != nil {
+		pr := deps.PolicyRepo
+		deps.IdentityService.SetPolicyExists(func(ctx context.Context, name string) bool {
+			_, err := pr.GetByName(ctx, name)
+			return err == nil
+		})
+	}
 
 	deps.AuthService = auth.NewService(tokenStore, rbac, cfg.JWTSecret)
 	deps.AuthService.SetLeaseCascade(deps.LeaseService)

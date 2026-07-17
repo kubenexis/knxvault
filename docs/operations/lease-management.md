@@ -16,7 +16,13 @@ Unified lease lifecycle for dynamic secrets (database, SSH, and future engines).
 
 ## Cascade revoke
 
-When a client token is revoked (`DELETE /auth/token/self` or admin revoke), knxvault **cascades** to all active leases with matching `token_id` (when engines stamp the issuing token hash on the lease).
+When a client token is revoked (`DELETE /auth/token/self` or admin revoke), knxvault **cascades** to all active leases with matching `token_id`.
+
+Database and SSH credential issuance **stamps** the caller token hash on the lease (W74-06).
+
+## Bulk revoke safety
+
+`PUT /sys/leases/revoke` and `POST /sys/leases/revoke-prefix` require a **non-empty selector** (`engine`, `role`, or `path_prefix`). Empty bodies are rejected to prevent accidental fleet-wide revoke.
 
 ## Engine hooks
 
@@ -31,7 +37,7 @@ New dynamic engines should call `RegisterRevoker` / `RegisterRenewer` and set `L
 
 - Monitor `knxvault_active_leases` (leader job).  
 - After mass compromise: bulk revoke by `path_prefix` or tidy + rotate roles.  
-- Tenant mode: prefer per-tenant path prefixes; lease ID tenant prefix is **W64-01** residual.
+- Tenant mode: per-tenant path prefixes and **lease ID prefixes** (`tenant.ScopeLeaseID` / W64-01); LeaseService denies cross-tenant renew/lookup.
 
 ## Related
 

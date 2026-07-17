@@ -1,10 +1,13 @@
 package acme
 
 import (
+	"context"
 	"fmt"
 	"net"
+	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 // ValidateOutboundURL rejects SSRF-prone destinations for webhooks (W50-07).
@@ -83,4 +86,54 @@ func PublicLEHost(raw string) bool {
 	}
 	h := strings.ToLower(u.Hostname())
 	return h == "letsencrypt.org" || strings.HasSuffix(h, ".letsencrypt.org")
+}
+
+// SafeHTTPClient returns an HTTP client that re-validates resolved IPs at dial time
+// (mitigates DNS rebinding for webhooks; W74 ACME SSRF).
+func SafeHTTPClient(timeout time.Duration) *http.Client {
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
+	dialer := &net.Dialer{Timeout: timeout}
+	transport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, err
+			}
+			ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+			if err != nil {
+				return nil, fmt.Errorf("resolve %s: %w", host, err)
+			}
+			var last error
+			for _, ipa := range ips {
+				if isBlockedIP(ipa.IP) {
+					last = fmt.Errorf("blocked address %s", ipa.IP)
+					continue
+				}
+				conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(ipa.IP.String(), port))
+				if err == nil {
+					return conn, nil
+				}
+				last = err
+			}
+			if last == nil {
+				last = fmt.Errorf("no allowed addresses for %s", host)
+			}
+			return nil, last
+		},
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          10,
+		IdleConnTimeout:       30 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+	return &http.Client{
+		Timeout:   timeout,
+		Transport: transport,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return fmt.Errorf("redirects not allowed")
+		},
+	}
 }

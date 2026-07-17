@@ -5,7 +5,7 @@
 | **Status** | **Partial** — **A1 production security profile shipped** (W62-01/02/04); A2–A6 / W62-03+ remaining |
 | **Date** | 2026-07-17 |
 | **Milestone** | **M-PRODSEC-1** — production profile + safe defaults (backlog **W62-***) |
-| **Follow-on** | **M-CUSTODY-1** (KMS/HSM — **W63-***); multi-tenant SaaS only if product goal (**W64-***) |
+| **Follow-on** | **M-CUSTODY-1** (KMS/HSM — **W63-***); multi-tenant SaaS only if product goal (**W64-***); CIS network/defaults **W75-*** ([cis-hardening-improvements.md](cis-hardening-improvements.md)) |
 | **Related** | [Security model](../architecture/security-model.md) · [Operator security](../operations/operator-security.md) · [Extensibility](../engineering/extensibility.md) · [DNS-01 design](dns01-providers-and-webhooks.md) · [HLD](../architecture/hld.md) |
 
 ---

@@ -6,15 +6,18 @@ import (
 	"github.com/kubenexis/knxvault/internal/tenant"
 )
 
-func TestScopePath(t *testing.T) {
-	got := tenant.ScopePath("team-a", "app/db", true)
-	if got != "team-a/app/db" {
-		t.Fatalf("ScopePath = %q", got)
+func TestScopeAndValidateLeaseID(t *testing.T) {
+	id := tenant.ScopeLeaseID("ns-a", "lease1", true)
+	if id != "ns-a/lease1" {
+		t.Fatalf("got %s", id)
 	}
-	if !tenant.ValidateAccess("team-a", "team-a/app/db", true) {
-		t.Fatal("expected tenant access")
+	if !tenant.ValidateLeaseIDAccess("ns-a", id, true) {
+		t.Fatal("same tenant")
 	}
-	if tenant.ValidateAccess("team-a", "team-b/app/db", true) {
-		t.Fatal("expected cross-tenant deny")
+	if tenant.ValidateLeaseIDAccess("ns-b", id, true) {
+		t.Fatal("cross tenant")
+	}
+	if tenant.ScopeLeaseID("ns-a", "lease1", false) != "lease1" {
+		t.Fatal("disabled")
 	}
 }

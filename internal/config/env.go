@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -276,6 +277,40 @@ func overlayEnv(cfg Config) (Config, error) {
 	}
 	if v := os.Getenv("KNXVAULT_METRICS_BEARER_TOKEN"); v != "" {
 		cfg.MetricsBearerToken = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("KNXVAULT_METRICS_ADDR"); v != "" {
+		cfg.MetricsAddr = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("KNXVAULT_UNSEAL_ALLOW_CIDRS"); v != "" {
+		cfg.UnsealAllowCIDRs = splitCSV(v)
+	}
+	if v := os.Getenv("KNXVAULT_AUTO_UNSEAL"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_AUTO_UNSEAL: %w", err)
+		}
+		cfg.AutoUnsealEnabled = b
+	}
+	if v := os.Getenv("KNXVAULT_AUTO_UNSEAL_PROVIDER"); v != "" {
+		cfg.AutoUnsealProvider = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("KNXVAULT_AUTO_UNSEAL_CIPHERTEXT"); v != "" {
+		cfg.AutoUnsealCiphertext = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("KNXVAULT_AUTO_UNSEAL_KEK"); v != "" {
+		cfg.AutoUnsealKEK = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("KNXVAULT_AUTO_UNSEAL_KEK_FILE"); v != "" {
+		// Operator-configured absolute path (CSI mount); not user-request path traversal.
+		path := filepath.Clean(strings.TrimSpace(v))
+		if !filepath.IsAbs(path) {
+			return Config{}, fmt.Errorf("KNXVAULT_AUTO_UNSEAL_KEK_FILE must be an absolute path")
+		}
+		b, err := os.ReadFile(path) // #nosec G703 -- absolute path from trusted env (KMS CSI)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_AUTO_UNSEAL_KEK_FILE: %w", err)
+		}
+		cfg.AutoUnsealKEK = strings.TrimSpace(string(b))
 	}
 	if v := os.Getenv("KNXVAULT_ROOT_TOKEN_TTL"); v != "" {
 		d, err := time.ParseDuration(v)

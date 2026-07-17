@@ -89,7 +89,9 @@ K8s template: [`deployments/k8s/secret.yaml`](../../deployments/k8s/secret.yaml)
 
 ## Bootstrap hardening checklist
 
-Manual checklist today. **Productization** (profile fail-closed, production kustomize, root revoke, doctor gate, KMS unseal) is tracked as **M-PRODSEC-1 / M-CUSTODY-1** — see [production security posture design](../design/production-security-posture.md) and [posture assessment](../architecture/security-posture-assessment.md).
+Manual checklist today. **Productization** (profile fail-closed, production kustomize, root revoke, doctor gate, KMS unseal) is tracked as **M-PRODSEC-1 / M-CUSTODY-1 / W75** — see [production security posture design](../design/production-security-posture.md), [CIS hardening](../design/cis-hardening-improvements.md), and [posture assessment](../architecture/security-posture-assessment.md).
+
+**Production K8s install (preferred):** `kubectl apply -k deployments/k8s/production` — sets `KNXVAULT_SECURITY_PROFILE=production` and a default-deny-style NetworkPolicy. Multi-node Raft **forces** production in the binary unless lab + `KNXVAULT_RAFT_ALLOW_INSECURE=true`.
 
 - [ ] Replace bootstrap root token with scoped policies and roles
 - [ ] Store `KNXVAULT_MASTER_KEY` in a sealed K8s Secret or external KMS

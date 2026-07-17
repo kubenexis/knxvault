@@ -10,27 +10,40 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+
 	auditsvc "github.com/kubenexis/knxvault/internal/audit"
+	"github.com/kubenexis/knxvault/internal/crypto"
 	"github.com/kubenexis/knxvault/internal/domain/common"
+	domainsecrets "github.com/kubenexis/knxvault/internal/domain/secrets"
 	"github.com/kubenexis/knxvault/internal/engine/secrets/cubbyhole"
+	"github.com/kubenexis/knxvault/internal/repository"
 	"github.com/kubenexis/knxvault/internal/service/audithelper"
 )
 
-const wrapPath = "response"
+const (
+	wrapPath       = "response"
+	wrapMetaPrefix = "sys/wrapping/meta/"
+)
 
-// WrappingService mints single-use wrapping tokens (M-WRAP-1).
+// WrappingService mints single-use wrapping tokens (M-WRAP-1 / W74-04).
+// Wrap metadata is persisted (sealed) when a SecretRepository is configured so
+// multi-node Raft shares single-use state.
 type WrappingService struct {
 	mu     sync.Mutex
 	cubby  *cubbyhole.Engine
+	repo   repository.SecretRepository
+	crypto *crypto.Service
 	audit  *auditsvc.Service
-	wraps  map[string]wrapMeta // hash(token) -> meta
+	// local cache for process-local meta when repo unavailable
+	wraps  map[string]wrapMeta
 	maxTTL time.Duration
 }
 
 type wrapMeta struct {
-	ExpiresAt time.Time
-	Used      bool
-	Creation  time.Time
+	ExpiresAt time.Time `json:"expires_at"`
+	Used      bool      `json:"used"`
+	Creation  time.Time `json:"creation_time"`
 }
 
 // NewWrappingService constructs a wrapping service.
@@ -41,6 +54,15 @@ func NewWrappingService(cubby *cubbyhole.Engine, audit *auditsvc.Service) *Wrapp
 		wraps:  make(map[string]wrapMeta),
 		maxTTL: time.Hour,
 	}
+}
+
+// AttachStorage enables Raft/secret-repo persistence of wrap metadata.
+func (s *WrappingService) AttachStorage(repo repository.SecretRepository, cryptoSvc *crypto.Service) {
+	if s == nil {
+		return
+	}
+	s.repo = repo
+	s.crypto = cryptoSvc
 }
 
 // WrapResult is returned to the client instead of the secret payload.
@@ -76,9 +98,12 @@ func (s *WrappingService) Wrap(ctx context.Context, payload map[string]any, ttl 
 	if err := s.cubby.Put(ctx, id, wrapPath, payload); err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	s.wraps[id] = wrapMeta{ExpiresAt: exp, Creation: now}
-	s.mu.Unlock()
+	meta := wrapMeta{ExpiresAt: exp, Creation: now}
+	if err := s.putMeta(ctx, id, meta); err != nil {
+		_ = s.cubby.Delete(ctx, id, wrapPath)
+		return nil, err
+	}
+	s.gcExpiredLocked(ctx)
 	audithelper.Record(s.audit, ctx, "wrapping.wrap", "sys/wrapping", nil, map[string]any{"ttl": int(ttl.Seconds())})
 	return &WrapResult{Token: token, TTL: int(ttl.Seconds()), Creation: now, ExpiresAt: exp}, nil
 }
@@ -90,10 +115,10 @@ func (s *WrappingService) Unwrap(ctx context.Context, token string) (map[string]
 	}
 	id := hashWrap(token)
 	s.mu.Lock()
-	meta, ok := s.wraps[id]
-	if !ok {
+	meta, err := s.getMetaLocked(ctx, id)
+	if err != nil {
 		s.mu.Unlock()
-		return nil, common.New(common.ErrCodeNotFound, "wrapping token not found")
+		return nil, err
 	}
 	if meta.Used {
 		s.mu.Unlock()
@@ -104,7 +129,10 @@ func (s *WrappingService) Unwrap(ctx context.Context, token string) (map[string]
 		return nil, common.New(common.ErrCodeForbidden, "wrapping token expired")
 	}
 	meta.Used = true
-	s.wraps[id] = meta
+	if err := s.putMetaLocked(ctx, id, meta); err != nil {
+		s.mu.Unlock()
+		return nil, err
+	}
 	s.mu.Unlock()
 
 	data, err := s.cubby.Get(ctx, id, wrapPath)
@@ -121,9 +149,12 @@ func (s *WrappingService) Unwrap(ctx context.Context, token string) (map[string]
 func (s *WrappingService) Lookup(ctx context.Context, token string) (*WrapResult, error) {
 	id := hashWrap(token)
 	s.mu.Lock()
-	meta, ok := s.wraps[id]
+	meta, err := s.getMetaLocked(ctx, id)
 	s.mu.Unlock()
-	if !ok || meta.Used {
+	if err != nil {
+		return nil, err
+	}
+	if meta.Used {
 		return nil, common.New(common.ErrCodeNotFound, "wrapping token not found")
 	}
 	if time.Now().UTC().After(meta.ExpiresAt) {
@@ -133,8 +164,76 @@ func (s *WrappingService) Lookup(ctx context.Context, token string) (*WrapResult
 	if ttl < 0 {
 		ttl = 0
 	}
-	_ = ctx
 	return &WrapResult{TTL: ttl, Creation: meta.Creation, ExpiresAt: meta.ExpiresAt}, nil
+}
+
+func (s *WrappingService) putMeta(ctx context.Context, id string, meta wrapMeta) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.putMetaLocked(ctx, id, meta)
+}
+
+func (s *WrappingService) putMetaLocked(ctx context.Context, id string, meta wrapMeta) error {
+	s.wraps[id] = meta
+	if s.repo == nil || s.crypto == nil {
+		return nil
+	}
+	raw, err := json.Marshal(meta)
+	if err != nil {
+		return err
+	}
+	dataEnc, dekEnc, err := s.crypto.Seal(raw)
+	if err != nil {
+		return err
+	}
+	sv := &domainsecrets.SecretVersion{
+		ID:        uuid.New(),
+		Path:      wrapMetaPrefix + id,
+		DataEnc:   dataEnc,
+		DEKEnc:    dekEnc,
+		CreatedAt: time.Now().UTC(),
+		Labels:    map[string]string{"engine": "wrapping"},
+	}
+	_, err = s.repo.PutAtomic(ctx, sv, nil, 1)
+	return err
+}
+
+func (s *WrappingService) getMetaLocked(ctx context.Context, id string) (wrapMeta, error) {
+	if meta, ok := s.wraps[id]; ok {
+		return meta, nil
+	}
+	if s.repo == nil || s.crypto == nil {
+		return wrapMeta{}, common.New(common.ErrCodeNotFound, "wrapping token not found")
+	}
+	sv, err := s.repo.GetLatest(ctx, wrapMetaPrefix+id)
+	if err != nil {
+		return wrapMeta{}, common.New(common.ErrCodeNotFound, "wrapping token not found")
+	}
+	plain, err := s.crypto.Open(sv.DataEnc, sv.DEKEnc)
+	if err != nil {
+		return wrapMeta{}, err
+	}
+	var meta wrapMeta
+	if err := json.Unmarshal(plain, &meta); err != nil {
+		return wrapMeta{}, err
+	}
+	s.wraps[id] = meta
+	return meta, nil
+}
+
+func (s *WrappingService) gcExpiredLocked(ctx context.Context) {
+	now := time.Now().UTC()
+	for id, meta := range s.wraps {
+		if meta.Used || now.After(meta.ExpiresAt) {
+			delete(s.wraps, id)
+			if s.repo != nil {
+				if sv, err := s.repo.GetLatest(ctx, wrapMetaPrefix+id); err == nil {
+					_ = s.repo.DestroyVersion(ctx, sv.Path, sv.Version)
+				}
+			}
+			_ = s.cubby.Delete(ctx, id, wrapPath)
+		}
+	}
 }
 
 // WrapJSON is a helper for arbitrary JSON-serializable payload.

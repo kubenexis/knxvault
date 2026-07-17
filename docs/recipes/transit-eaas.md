@@ -33,16 +33,20 @@ curl -sS -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application
   "$KNXVAULT_ADDR/transit/rewrap/app-data"
 ```
 
-## Sign / HMAC / verify
+## HMAC / verify (symmetric integrity — not asymmetric digital signatures)
+
+`/transit/sign` is an **alias for HMAC** over the AES key material (W74-08). Prefer `/transit/hmac` in new code.
 
 ```bash
 curl -sS -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d '{"input":"payload"}' "$KNXVAULT_ADDR/transit/sign/app-data"
+  -d '{"input":"payload"}' "$KNXVAULT_ADDR/transit/hmac/app-data"
 
 curl -sS -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"input":"payload","signature":"hmac:v1:..."}' \
   "$KNXVAULT_ADDR/transit/verify/app-data"
 ```
+
+Ciphertext is **bound to key name + version** (cannot decrypt under a different key name).
 
 ## RBAC paths
 

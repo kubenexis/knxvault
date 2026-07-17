@@ -81,6 +81,12 @@ Jobs run on the **Raft leader** when Raft is enabled.
 | `KNXVAULT_AUDIT_SIGNING_KEY` | — | HMAC key for audit export and per-entry signatures (**required** when profile=`production`) |
 | `KNXVAULT_AUDIT_FORWARD_URL` | — | HTTP sink for async audit entry forwarding |
 | `KNXVAULT_METRICS_BEARER_TOKEN` | — | Require `Authorization: Bearer` on `GET /metrics` (**required** when profile=`production`). YAML: `security.metrics_bearer_token`. |
+| `KNXVAULT_METRICS_ADDR` | — | Dedicated metrics listen address (e.g. `:8201`). When set, `/metrics` is **not** on the API listener (W75-03). |
+| `KNXVAULT_UNSEAL_ALLOW_CIDRS` | — | Comma-separated CIDRs/IPs allowed for `POST /sys/unseal` (W75-04). Empty = allow all (lab). |
+| `KNXVAULT_AUTO_UNSEAL` | `false` | Enable auto-unseal on start (W63/P3). |
+| `KNXVAULT_AUTO_UNSEAL_PROVIDER` | — | `aes-kek` (AES-256-GCM with injected KEK; cloud KMS supplies KEK via CSI). |
+| `KNXVAULT_AUTO_UNSEAL_CIPHERTEXT` | — | Base64 sealed unseal key. |
+| `KNXVAULT_AUTO_UNSEAL_KEK` / `_FILE` | — | Base64 32-byte KEK or file path. |
 | `KNXVAULT_CORS_ALLOWED_ORIGINS` | — | Comma-separated origins for CORS (e.g. `https://app.example.com`) |
 | `KNXVAULT_RATE_LIMIT_ENABLED` | `true` | Per-token/IP rate limiting (W52-05); **forced on** in production profile |
 | `KNXVAULT_RATE_LIMIT_RPM` | `300` | Requests per minute per client |

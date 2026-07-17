@@ -14,6 +14,10 @@ Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topological
 
 **Vault-class capability program (P0/P1):** **Partial shipped** (leases/wrap/transit/identity/LDAP/sync-docs) — master plan [`docs/design/vault-class-capability-plan.md`](design/vault-class-capability-plan.md) — leases **W67**, wrapping/cubbyhole **W66**, transit **W65**, JWT **W71**, identity **W68**, dyn engines **W69**, DR **W72**, sync **W73**. Cloud IAM (**LT-02**) and cloud auth (**LT-15**) **not near-term**. No plugin framework.
 
+**W74 security audit remediation (2026-07-17):** LDAP lock-down, wrap/identity persistence, lease cascade/bulk safety, transit race+AAD, webhook SafeHTTPClient — [security-remediation-w74-2026-07-17.md](audit/security-remediation-w74-2026-07-17.md).
+
+**W75 CIS hardening (network + defaults + multi-tenant stance):** design [`docs/design/cis-hardening-improvements.md`](design/cis-hardening-improvements.md). **P0 done:** multi-node Raft forces production profile (**W75-01**); `deployments/k8s/production/` (**W75-02**).
+
 **Post-quantum readiness** is tracked separately: **[`docs/pq/backlog.md`](pq/backlog.md)** (`PQ-*` IDs) with design under [`docs/pq/`](pq/README.md). Not a claim of PQ-ready product.
 
 **Legend**
@@ -686,13 +690,13 @@ Report: `docs/audit/formal-w53-residual-features-2026-07-16.md`.
 
 ## Milestone M-CUSTODY-1 — KMS / HSM custody
 
-**Status:** Not started.  
+**Status:** Partial — **W63-01 complete** (aes-kek auto-unseal; cloud KMS supplies KEK via CSI, no embedded cloud SDK).  
 **Design:** [`docs/design/production-security-posture.md`](design/production-security-posture.md) §6 / §8 Phase 1.  
 **Depends on:** M-PRODSEC-1 profile concepts helpful but not hard-blocked for design spikes.
 
 | ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
 |----|----------|--------|--------|------|------------|-------|-------------|---------------------|
-| **W63-01** | P1 | Not started | L | crypto | — | KMS auto-unseal (one provider) | Unwrap unseal key via cloud KMS (or equivalent) at start | Lab test with mock/localstack or documented cloud sandbox |
+| ~~**W63-01**~~ | P1 | **Complete** | L | crypto | — | KMS auto-unseal (aes-kek) | Unwrap unseal key via injected KEK (cloud KMS CSI) at start | Unit tests seal/decrypt; env `KNXVAULT_AUTO_UNSEAL_*` |
 | **W63-02** | P1 | Not started | L | crypto | W63-01 | KMS-wrapped master key | Master ciphertext at rest; unwrap for envelope crypto | Restart + decrypt secrets without plain master in Secret |
 | **W63-03** | P1 | Not started | M | docs | W63-01 | Custody + break-glass runbook | Ceremony, IAM split, recovery | `docs/operations/` runbook |
 | **W63-04** | P2 | Not started | XL | crypto | W63-02 | PKCS#11 CA keys | Optional offline root/intermediate | Design + PoC; license-safe PKCS#11 path |
@@ -702,15 +706,34 @@ Report: `docs/audit/formal-w53-residual-features-2026-07-16.md`.
 
 ---
 
-## Optional — Multi-tenant SaaS isolation (W64)
+## Milestone W75 — CIS hardening (network, defaults, multi-tenant stance)
 
-**Status:** Not started — **only if** multi-tenant SaaS is a product goal. Default: single trust domain.  
-**Design:** production-security-posture §6.2; residuals in [W53 report](audit/formal-w53-residual-features-2026-07-16.md). Full capability context: [vault-class-capability-plan.md](design/vault-class-capability-plan.md) §6.16.
+**Status:** **Complete** (P0–P3 / 2026-07-17).  
+**Design:** [`docs/design/cis-hardening-improvements.md`](design/cis-hardening-improvements.md)
 
 | ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
 |----|----------|--------|--------|------|------------|-------|-------------|---------------------|
-| **W64-00** | P2 | Not started | S | docs | — | Product decision record | Single-tenant platform vs SaaS multi-tenant | ADR or product note |
-| **W64-01** | P2 | Not started | M | auth | W64-00 SaaS | Tenant-prefix lease IDs | Close W53 cross-tenant renew residual | Tests deny cross-tenant lease |
+| ~~**W75-01**~~ | P0 | **Complete** | S | security | W62-01 | Multi-node Raft forces production profile | Auto-upgrade lab→production unless `RAFT_ALLOW_INSECURE` | Unit tests force + lab escape |
+| ~~**W75-02**~~ | P0 | **Complete** | M | k8s | W75-01 | Production kustomize overlay | NetPol ingress+egress sketch, profile ConfigMap, README | `kubectl apply -k deployments/k8s/production` documented |
+| ~~**W75-03**~~ | P1 | **Complete** | M | api | — | Metrics listen address split | `KNXVAULT_METRICS_ADDR`; dedicated Service :8201 | Config + production overlay |
+| ~~**W75-04**~~ | P1 | **Complete** | M | security | W75-02 | Unseal source CIDR allowlist | `KNXVAULT_UNSEAL_ALLOW_CIDRS` + NetPol unseal-client | Unit tests + handler check |
+| ~~**W75-05**~~ | P1 | **Complete** | M | k8s | W75-02 | ACME egress NetPol sample | `networkpolicy-acme-egress.yaml` | Overlay includes sample |
+| ~~**W62-03**~~ | P0 | **Complete** | M | cli | W62-02 | `doctor --profile production` | TLS scheme fail, token required, metrics plane note | doctor tests |
+| ~~**W75-06**~~ | P1 | **Complete** | S | docs | W75-02 | Day-0 docs prefer production kustomize | CIS design + production README + config ref | Docs updated |
+| ~~**W75-07**~~ | P2 | **Complete** | S | docs | W64-00 | Hard isolation runbook | multi-tenant.md + ADR-0011 | Ops doc |
+| ~~**W63-01**~~ | P1 | **Complete** | L | crypto | — | Auto-unseal aes-kek | `KNXVAULT_AUTO_UNSEAL_*` decrypt + unseal on start | Unit tests seal/decrypt |
+| ~~**W64-00**~~ | P2 | **Complete** | S | docs | — | Product decision single-tenant default | ADR-0011 | Accepted |
+| ~~**W64-01**~~ | P2 | **Complete** | M | auth | W64-00 | Tenant-prefix lease IDs | DB/SSH stamp + LeaseService check | Unit tests |
+
+## Optional — Multi-tenant SaaS isolation (W64)
+
+**Status:** **W64-00/01 complete** (single trust domain default + soft tenant lease IDs). Remaining rows only if multi-customer SaaS is a product goal.  
+**Design:** production-security-posture §6.2; [ADR-0011](adr/0011-multi-tenant-stance.md); [multi-tenant.md](operations/multi-tenant.md). Full capability context: [vault-class-capability-plan.md](design/vault-class-capability-plan.md) §6.16.
+
+| ID | Priority | Status | Effort | Area | Depends on | Title | Description | Acceptance criteria |
+|----|----------|--------|--------|------|------------|-------|-------------|---------------------|
+| ~~**W64-00**~~ | P2 | **Complete** | S | docs | — | Product decision record | Single-tenant platform default; soft mode optional | ADR-0011 accepted |
+| ~~**W64-01**~~ | P2 | **Complete** | M | auth | W64-00 | Tenant-prefix lease IDs | Close W53 cross-tenant renew residual | Tests deny cross-tenant lease |
 | **W64-02** | P2 | Not started | M | auth | W64-01 | Tenant quotas + rate limits | Per-tenant caps | Config + tests |
 | **W64-03** | P2 | Not started | L | storage | W64-00 SaaS | Optional per-tenant cluster mode | True isolation when ADR-0005 insufficient | Design + PoC doc |
 | **W64-04** | P2 | Not started | M | audit | W64-01 | Tenant-scoped audit export | Filter export by tenant | API + test |
@@ -733,7 +756,7 @@ Report: `docs/audit/formal-w53-residual-features-2026-07-16.md`.
 | **W67-02** | P0 | **Complete** | M | api | W67-01 | Sys lease list/lookup/renew/revoke/tidy | REST + OpenAPI | Handler tests |
 | **W67-03** | P0 | **Complete** | M | auth | W67-01 | Cascade revoke on token revoke | Leases owned by token revoked | Integration test |
 | **W67-04** | P1 | **Complete** | S | observability | W67-02 | Lease metrics + audit | active_leases accurate | Metrics + audit actions |
-| **W67-05** | P1 | Not started | M | auth | W67-01, W64-01 | Tenant-safe lease IDs | Align tenant mode | Cross-tenant renew denied |
+| ~~**W67-05**~~ | P1 | **Complete** | M | auth | W67-01, W64-01 | Tenant-safe lease IDs | Align tenant mode | Cross-tenant renew denied |
 
 ### M-WRAP-1 — Cubbyhole + response wrapping (W66)
 

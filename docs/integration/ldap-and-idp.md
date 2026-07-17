@@ -12,7 +12,7 @@ See [OIDC recipe](../recipes/oidc-authentication.md).
 
 ## Native LDAP bind (optional)
 
-When no IdP is available:
+When no IdP is available. **Server-side configuration only (W74-01)** — request headers **cannot** set LDAP URL, DN template, or TLS skip.
 
 ### Configure server
 
@@ -20,9 +20,11 @@ When no IdP is available:
 export KNXVAULT_LDAP_URL="ldaps://ldap.example.com:636"
 export KNXVAULT_LDAP_USER_DN_TEMPLATE="uid=%s,ou=people,dc=example,dc=com"
 export KNXVAULT_LDAP_DEFAULT_POLICIES="reader,dev"
-# Lab only:
+# Lab only (rejected when KNXVAULT_SECURITY_PROFILE=production):
 # export KNXVAULT_LDAP_INSECURE_SKIP_VERIFY=true
 ```
+
+If `KNXVAULT_LDAP_URL` is unset, `POST /auth/ldap` returns **unavailable** (method disabled).
 
 ### Login
 
@@ -34,13 +36,14 @@ curl -sS -X POST -H 'Content-Type: application/json' \
 
 ### Behavior
 
-- Simple Bind as the user DN (template with `%s` = username).  
-- Default policies from env; identity service can merge group/entity policies when aliases exist (`mount=ldap`).  
-- Login lockout and audit (`auth.login` / failed) apply.  
-- Binder is injectable for tests; production uses TCP/TLS Simple Bind.
+- Simple Bind as the user DN (template with exactly one `%s` = username).  
+- Usernames must match allowlist `[a-zA-Z0-9._@+-]{1,128}` (blocks DN/filter injection).  
+- BindResponse is parsed structurally (resultCode == success); not a byte-scan.  
+- Default policies from **env only**; identity service may merge entity/group policies (`mount=ldap`).  
+- Login lockout and audit apply.  
+- Production profile requires **`ldaps://`** and forbids insecure skip verify.
 
 ### Limits
 
-- No full LDAP group search/sync in this release (map policies via identity groups or default policies).  
-- Prefer ldaps://; insecure skip verify is lab-only.  
-- Production security profile still forbids other lab auth flags (JWT secret, k8s insecure).
+- No full LDAP group search/sync in this release (use identity groups or default policies).  
+- Prefer IdP → OIDC for production directories.

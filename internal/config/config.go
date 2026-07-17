@@ -108,6 +108,15 @@ type Config struct {
 	TrustedProxies []string
 	// MetricsBearerToken when set requires Authorization: Bearer on GET /metrics (W50-19).
 	MetricsBearerToken string
+	// MetricsAddr when set serves /metrics on a dedicated listener (W75-03); empty = same as HTTPAddr.
+	MetricsAddr string
+	// UnsealAllowCIDRs restricts POST /sys/unseal source IPs (W75-04). Empty = allow all (lab).
+	UnsealAllowCIDRs []string
+	// Auto-unseal (W63 / P3): decrypt unseal key with KEK and unseal on start.
+	AutoUnsealEnabled    bool
+	AutoUnsealProvider   string // "aes-kek" | ""
+	AutoUnsealCiphertext string // base64 sealed unseal key
+	AutoUnsealKEK        string // base64 32-byte KEK (from KMS CSI / external)
 	// RootTokenTTL overrides bootstrap root token lifetime (W50-26). Default 72h.
 	RootTokenTTL time.Duration
 	// RaftAllowInsecure skips multi-node Raft mTLS requirement (lab only, W50-20).

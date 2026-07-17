@@ -3,6 +3,7 @@ package acme_test
 import (
 	"net"
 	"testing"
+	"time"
 
 	"github.com/kubenexis/knxvault/internal/acme"
 )
@@ -76,5 +77,21 @@ func TestValidateDirectoryURLBlocksPrivateIPLiteral(t *testing.T) {
 	// Non-resolving hostname is OK for directory (static check only).
 	if err := acme.ValidateDirectoryURL("https://example.invalid/dir"); err != nil {
 		t.Fatalf("hostname directory: %v", err)
+	}
+}
+
+func TestSafeHTTPClientBlocksPrivateDial(t *testing.T) {
+	t.Parallel()
+	c := acme.SafeHTTPClient(2 * time.Second)
+	if c == nil || c.Transport == nil {
+		t.Fatal("nil client")
+	}
+	// Dial to loopback should fail validation in DialContext.
+	resp, err := c.Get("http://127.0.0.1:9/")
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if err == nil {
+		t.Fatal("expected error dialing blocked address")
 	}
 }

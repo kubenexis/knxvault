@@ -28,7 +28,8 @@ func IsProductionProfile(cfg Config) bool {
 }
 
 // ApplySecurityProfileDefaults mutates cfg for production posture before validation.
-// Lab profile is left unchanged. Call after file + env overlay, before ValidateSecurity.
+// Multi-node Raft forces production unless lab is explicit with RaftAllowInsecure (W75-01 / CIS defaults).
+// Call after file + env overlay, before ValidateSecurity.
 func ApplySecurityProfileDefaults(cfg *Config) error {
 	if cfg == nil {
 		return nil
@@ -38,7 +39,15 @@ func ApplySecurityProfileDefaults(cfg *Config) error {
 		return err
 	}
 	cfg.SecurityProfile = p
-	if p != SecurityProfileProduction {
+
+	// W75-01: multi-node Raft ≈ production. Lab requires explicit RAFT_ALLOW_INSECURE.
+	if cfg.Raft.Enabled && raftPeerCount(cfg.Raft) > 1 {
+		if cfg.SecurityProfile == SecurityProfileLab && !cfg.RaftAllowInsecure {
+			cfg.SecurityProfile = SecurityProfileProduction
+		}
+	}
+
+	if cfg.SecurityProfile != SecurityProfileProduction {
 		return nil
 	}
 	// Production: rate limit and fail-closed authz are non-optional.
@@ -151,6 +160,27 @@ func validateProductionSecurity(cfg Config) error {
 
 	if err := validateProductionValkeyURL(cfg.ValkeyCacheURL); err != nil {
 		return err
+	}
+	if cfg.MetricsAddr != "" && strings.TrimSpace(cfg.MetricsBearerToken) == "" {
+		return fmt.Errorf("production profile: metrics bearer token required when MetricsAddr is set")
+	}
+	if cfg.AutoUnsealEnabled {
+		if strings.ToLower(strings.TrimSpace(cfg.AutoUnsealProvider)) != "aes-kek" {
+			return fmt.Errorf("production profile: auto-unseal requires provider aes-kek")
+		}
+		if cfg.AutoUnsealCiphertext == "" || cfg.AutoUnsealKEK == "" {
+			return fmt.Errorf("production profile: auto-unseal requires ciphertext and KEK")
+		}
+	}
+	if cfg.LDAPInsecureSkipVerify {
+		return fmt.Errorf("production profile: LDAP insecure skip verify is not allowed")
+	}
+	if cfg.LDAPURL != "" {
+		u := strings.ToLower(strings.TrimSpace(cfg.LDAPURL))
+		if strings.HasPrefix(u, "ldap://") && !strings.HasPrefix(u, "ldaps://") {
+			// Allow ldap:// only for private lab; production requires ldaps.
+			return fmt.Errorf("production profile: LDAP URL must use ldaps://")
+		}
 	}
 	return nil
 }

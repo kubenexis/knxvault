@@ -8,12 +8,14 @@ import (
 	"time"
 
 	auditsvc "github.com/kubenexis/knxvault/internal/audit"
+	"github.com/kubenexis/knxvault/internal/auth"
 	"github.com/kubenexis/knxvault/internal/domain/common"
 	domainsecrets "github.com/kubenexis/knxvault/internal/domain/secrets"
 	databaseengine "github.com/kubenexis/knxvault/internal/engine/secrets/database"
 	sshengine "github.com/kubenexis/knxvault/internal/engine/secrets/ssh"
 	"github.com/kubenexis/knxvault/internal/repository"
 	"github.com/kubenexis/knxvault/internal/service/audithelper"
+	"github.com/kubenexis/knxvault/internal/tenant"
 )
 
 // LeaseRevoker is called when a lease is revoked (engine-specific cleanup).
@@ -33,9 +35,10 @@ type LeaseService struct {
 	ssh      *sshengine.Engine
 	audit    *auditsvc.Service
 
-	mu       sync.RWMutex
-	hooks    map[string]LeaseRevoker // engine name -> revoker
-	renewers map[string]LeaseRenewer
+	mu         sync.RWMutex
+	hooks      map[string]LeaseRevoker // engine name -> revoker
+	renewers   map[string]LeaseRenewer
+	tenantMode bool
 }
 
 // NewLeaseService constructs a lease service.
@@ -118,6 +121,11 @@ func (s *LeaseService) Register(ctx context.Context, lease *domainsecrets.Lease)
 	if lease == nil {
 		return common.New(common.ErrCodeValidation, "lease required")
 	}
+	if s.tenantMode {
+		if ns := tenantNamespaceFromCtx(ctx); ns != "" {
+			lease.ID = tenant.ScopeLeaseID(ns, lease.ID, true)
+		}
+	}
 	if err := lease.Validate(); err != nil {
 		return common.Wrap(common.ErrCodeValidation, "lease", err)
 	}
@@ -128,6 +136,9 @@ func (s *LeaseService) Register(ctx context.Context, lease *domainsecrets.Lease)
 func (s *LeaseService) Get(ctx context.Context, id string) (*LeaseView, error) {
 	if s == nil || s.leases == nil {
 		return nil, common.New(common.ErrCodeInternal, "lease repository not configured")
+	}
+	if err := s.checkTenantLease(ctx, id); err != nil {
+		return nil, err
 	}
 	lease, err := s.leases.Get(ctx, id)
 	if err != nil {
@@ -148,8 +159,15 @@ func (s *LeaseService) List(ctx context.Context, filter LeaseListFilter) ([]Leas
 		return nil, err
 	}
 	now := time.Now().UTC()
+	tenantNS := ""
+	if s.tenantMode {
+		tenantNS = tenantNamespaceFromCtx(ctx)
+	}
 	var out []LeaseView
 	for _, lease := range all {
+		if tenantNS != "" && !tenant.ValidateLeaseIDAccess(tenantNS, lease.ID, true) {
+			continue
+		}
 		if filter.Engine != "" && lease.Engine != filter.Engine {
 			continue
 		}
@@ -184,6 +202,9 @@ func (s *LeaseService) Renew(ctx context.Context, id string, ttlSeconds int) (*L
 	if s == nil || s.leases == nil {
 		return nil, common.New(common.ErrCodeInternal, "lease repository not configured")
 	}
+	if err := s.checkTenantLease(ctx, id); err != nil {
+		return nil, err
+	}
 	lease, err := s.leases.Get(ctx, id)
 	if err != nil {
 		return nil, err
@@ -206,6 +227,11 @@ func (s *LeaseService) Renew(ctx context.Context, id string, ttlSeconds int) (*L
 			return nil, err
 		}
 	} else {
+		// Cap generic renewals (engines enforce their own MaxTTL).
+		const maxGenericRenewTTL = 24 * 3600
+		if ttlSeconds > maxGenericRenewTTL {
+			ttlSeconds = maxGenericRenewTTL
+		}
 		lease.TTLSeconds = ttlSeconds
 		lease.ExpiresAt = time.Now().UTC().Add(time.Duration(ttlSeconds) * time.Second)
 		if err := s.leases.Save(ctx, lease); err != nil {
@@ -225,6 +251,9 @@ func (s *LeaseService) Revoke(ctx context.Context, id string) error {
 	if s == nil || s.leases == nil {
 		return common.New(common.ErrCodeInternal, "lease repository not configured")
 	}
+	if err := s.checkTenantLease(ctx, id); err != nil {
+		return err
+	}
 	lease, err := s.leases.Get(ctx, id)
 	if err != nil {
 		return err
@@ -234,6 +263,9 @@ func (s *LeaseService) Revoke(ctx context.Context, id string) error {
 
 // RevokePrefix revokes active leases under a path prefix.
 func (s *LeaseService) RevokePrefix(ctx context.Context, prefix string) (*BulkRevokeResult, error) {
+	if strings.TrimSpace(prefix) == "" {
+		return nil, common.New(common.ErrCodeValidation, "prefix is required")
+	}
 	return s.BulkRevoke(ctx, BulkRevokeRequest{PathPrefix: prefix})
 }
 
@@ -251,7 +283,11 @@ type BulkRevokeResult struct {
 }
 
 // BulkRevoke revokes active leases matching criteria.
+// W74-06: require at least one selector (engine, role, or path_prefix) to avoid mass revoke DoS.
 func (s *LeaseService) BulkRevoke(ctx context.Context, req BulkRevokeRequest) (*BulkRevokeResult, error) {
+	if strings.TrimSpace(req.Engine) == "" && strings.TrimSpace(req.Role) == "" && strings.TrimSpace(req.PathPrefix) == "" {
+		return nil, common.New(common.ErrCodeValidation, "bulk revoke requires engine, role, or path_prefix")
+	}
 	leases, err := s.List(ctx, LeaseListFilter{
 		Engine:     req.Engine,
 		Role:       req.Role,
@@ -322,6 +358,34 @@ func (s *LeaseService) RevokeByTokenID(ctx context.Context, tokenID string) (int
 		audithelper.Record(s.audit, ctx, "lease.cascade_revoke", "sys/leases", nil, map[string]any{"token_id": tokenID, "count": n})
 	}
 	return n, nil
+}
+
+// tenantMode / checkTenantLease optional via SetTenantMode.
+func (s *LeaseService) SetTenantMode(enabled bool) {
+	if s != nil {
+		s.tenantMode = enabled
+	}
+}
+
+func (s *LeaseService) checkTenantLease(ctx context.Context, id string) error {
+	if s == nil || !s.tenantMode {
+		return nil
+	}
+	ns := tenantNamespaceFromCtx(ctx)
+	if ns == "" {
+		return nil // non-SA callers without ns: no extra check
+	}
+	if !tenant.ValidateLeaseIDAccess(ns, id, true) {
+		return common.New(common.ErrCodeForbidden, "cross-tenant lease access denied")
+	}
+	return nil
+}
+
+func tenantNamespaceFromCtx(ctx context.Context) string {
+	if rc, ok := auth.RequestContextFromContext(ctx); ok {
+		return strings.TrimSpace(rc.Namespace)
+	}
+	return ""
 }
 
 func (s *LeaseService) revokeOne(ctx context.Context, id, engine string) error {

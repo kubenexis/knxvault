@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: knxvault
+  namespace: knxvault
+spec:
+  template:
+    metadata:
+      annotations:
+        # Scrape dedicated metrics plane (KNXVAULT_METRICS_ADDR=:8201) with bearer token.
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "8201"
+        knxvault.kubenexis.dev/security-profile: production
+    spec:
+      containers:
+        - name: knxvault
+          ports:
+            - name: http
+              containerPort: 8200
+              protocol: TCP
+            - name: metrics
+              containerPort: 8201
+              protocol: TCP
+            - name: raft
+              containerPort: 63001
+              protocol: TCP

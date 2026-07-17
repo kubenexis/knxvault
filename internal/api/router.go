@@ -2,6 +2,7 @@
 package api
 
 import (
+	"net"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -12,12 +13,21 @@ import (
 	"github.com/kubenexis/knxvault/internal/api/middleware"
 	"github.com/kubenexis/knxvault/internal/auth"
 	"github.com/kubenexis/knxvault/internal/infra/metrics"
+	"github.com/kubenexis/knxvault/internal/netutil"
 	buildinfo "github.com/kubenexis/knxvault/internal/version"
 )
 
 // NewRouter builds the Gin engine with all routes registered.
 func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps RouterDeps) *gin.Engine {
 	r := gin.New()
+	var unsealNets []*net.IPNet
+	if len(deps.UnsealAllowCIDRs) > 0 {
+		if nets, err := netutil.ParseCIDRs(deps.UnsealAllowCIDRs); err == nil {
+			unsealNets = nets
+		} else if log != nil {
+			log.Warn("invalid unseal allow CIDRs; unseal allowlist disabled", zap.Error(err))
+		}
+	}
 	// W50-18: do not trust X-Forwarded-For unless operators configure TrustedProxies.
 	if len(deps.TrustedProxies) > 0 {
 		_ = r.SetTrustedProxies(deps.TrustedProxies)
@@ -39,7 +49,10 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 
 	build := buildinfo.Get()
 	metrics.SetBuildInfo(build.Version, build.Commit, build.BuildID)
-	r.GET("/metrics", metrics.HandlerWithAuth(deps.MetricsBearerToken))
+	// W75-03: when MetricsOnMainRouter is false, metrics are served on a dedicated listener only.
+	if deps.MetricsOnMainRouter {
+		r.GET("/metrics", metrics.HandlerWithAuth(deps.MetricsBearerToken))
+	}
 
 	health := handlers.NewHealthHandler(version, deps.Ready, deps.HAStatus, deps.IsLeader)
 	r.GET("/health", health.Live)
@@ -270,6 +283,7 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 
 	if deps.DatabaseService != nil && deps.AuthService != nil {
 		dbHandler := handlers.NewDatabaseHandler(deps.DatabaseService)
+		dbHandler.SetTenantMode(deps.TenantMode)
 		dbGroup := secured.Group("/secrets/database")
 		dbGroup.Use(middleware.RequirePermission(deps.AuthService, "secrets/database", "write"))
 		{
@@ -286,6 +300,7 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 
 	if deps.SSHService != nil && deps.AuthService != nil {
 		sshHandler := handlers.NewSSHHandler(deps.SSHService)
+		sshHandler.SetTenantMode(deps.TenantMode)
 		sshGroup := secured.Group("/secrets/ssh")
 		sshGroup.Use(middleware.RequirePermission(deps.AuthService, "secrets/ssh", "write"))
 		{
@@ -403,8 +418,9 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 			middleware.RequirePermission(deps.AuthService, "sys/wrapping", "write"),
 			wh.Wrap,
 		)
+		// Unwrap requires only read + possession of wrap token (W74-07).
 		secured.POST("/sys/wrapping/unwrap",
-			middleware.RequirePermission(deps.AuthService, "sys/wrapping", "write"),
+			middleware.RequirePermission(deps.AuthService, "sys/wrapping", "read"),
 			wh.Unwrap,
 		)
 		secured.POST("/sys/wrapping/lookup",
@@ -534,6 +550,7 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 			deps.OrchestrationService, deps.MasterKeyService, deps.Seal, deps.RaftMembership, deps.MasterKey,
 			deps.ExposureAutoRevoke, deps.ExposureWebhook,
 		)
+		sysUnseal.SetUnsealAllowNets(unsealNets)
 		unsealLimiter := middleware.NewRateLimiter(10, true)
 		r.POST("/sys/unseal", unsealLimiter.Middleware(), sysUnseal.Unseal)
 	}

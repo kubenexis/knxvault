@@ -4,7 +4,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-export GOTOOLCHAIN="${GO_TOOLCHAIN:-go1.26.4}"
+export GOTOOLCHAIN="${GO_TOOLCHAIN:-go1.26.5}"
 
 cd "${ROOT}"
 echo "==> Checking dependency licenses (see config/licenses.allow)"

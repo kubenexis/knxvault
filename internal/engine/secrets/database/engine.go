@@ -16,6 +16,7 @@ import (
 	domainsecrets "github.com/kubenexis/knxvault/internal/domain/secrets"
 	"github.com/kubenexis/knxvault/internal/engine/secrets/leaseutil"
 	"github.com/kubenexis/knxvault/internal/repository"
+	"github.com/kubenexis/knxvault/internal/tenant"
 )
 
 const engineName = "database"
@@ -131,6 +132,12 @@ type CredsRequest struct {
 	Role      string
 	TTL       string
 	TTLSecond int
+	// TokenID is the hashed client token that issued the lease (cascade revoke).
+	TokenID string
+	// Tenant is optional namespace for lease ID scoping (W64-01).
+	Tenant string
+	// TenantMode enables lease ID prefixing.
+	TenantMode bool
 }
 
 // CredsResult contains generated credentials and lease metadata.
@@ -173,6 +180,9 @@ func (e *Engine) GenerateCredentials(ctx context.Context, req CredsRequest) (*Cr
 	if err != nil {
 		return nil, common.Wrap(common.ErrCodeInternal, "generate lease id", err)
 	}
+	if req.TenantMode {
+		leaseID = tenant.ScopeLeaseID(req.Tenant, leaseID, true)
+	}
 
 	username, err := e.generateUsername(role)
 	if err != nil {
@@ -196,6 +206,7 @@ func (e *Engine) GenerateCredentials(ctx context.Context, req CredsRequest) (*Cr
 		CreatedAt:  now,
 		ExpiresAt:  expiresAt,
 		Renewable:  tuning.Renewable,
+		TokenID:    req.TokenID,
 	}
 	data := map[string]any{
 		"username": username,

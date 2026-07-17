@@ -17,6 +17,7 @@ import (
 	domainsecrets "github.com/kubenexis/knxvault/internal/domain/secrets"
 	"github.com/kubenexis/knxvault/internal/engine/secrets/leaseutil"
 	"github.com/kubenexis/knxvault/internal/repository"
+	"github.com/kubenexis/knxvault/internal/tenant"
 	gossh "golang.org/x/crypto/ssh"
 )
 
@@ -113,6 +114,11 @@ type CredsRequest struct {
 	Role      string
 	Username  string
 	TTLSecond int
+	// TokenID is the hashed client token that issued the lease (cascade revoke).
+	TokenID string
+	// Tenant / TenantMode scope lease IDs (W64-01).
+	Tenant     string
+	TenantMode bool
 }
 
 // CredsResult contains generated SSH credentials and lease metadata.
@@ -193,6 +199,9 @@ func (e *Engine) GenerateCredentials(ctx context.Context, req CredsRequest) (*Cr
 	if err != nil {
 		return nil, common.Wrap(common.ErrCodeInternal, "generate lease id", err)
 	}
+	if req.TenantMode {
+		leaseID = tenant.ScopeLeaseID(req.Tenant, leaseID, true)
+	}
 	path := fmt.Sprintf("ssh/creds/%s/%s", req.Role, leaseID)
 
 	lease := &domainsecrets.Lease{
@@ -204,6 +213,7 @@ func (e *Engine) GenerateCredentials(ctx context.Context, req CredsRequest) (*Cr
 		CreatedAt:  now,
 		ExpiresAt:  expiresAt,
 		Renewable:  tuning.Renewable,
+		TokenID:    req.TokenID,
 	}
 	data := map[string]any{
 		"username":    username,

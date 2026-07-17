@@ -24,12 +24,7 @@ func postDNSWebhookOpts(ctx context.Context, client HTTPDoer, rawURL, action, do
 		}
 	}
 	if client == nil {
-		client = &http.Client{
-			Timeout: 30 * time.Second,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return fmt.Errorf("redirects not allowed")
-			},
-		}
+		client = SafeHTTPClient(30 * time.Second)
 	}
 	body, err := json.Marshal(dnsWebhookBody{
 		Action: action,

@@ -155,6 +155,8 @@ func TestProductionProfileRejectsLabEscapes(t *testing.T) {
 		{"no_audit", func(c *config.Config) { c.AuditSigningKey = "" }, "audit signing"},
 		{"no_metrics", func(c *config.Config) { c.MetricsBearerToken = "" }, "metrics bearer"},
 		{"valkey_plain", func(c *config.Config) { c.ValkeyCacheURL = "redis://cache:6379/0" }, "valkey"},
+		{"ldap_insecure", func(c *config.Config) { c.LDAPInsecureSkipVerify = true }, "LDAP"},
+		{"ldap_plain", func(c *config.Config) { c.LDAPURL = "ldap://ldap.example.com" }, "ldaps"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -295,5 +297,53 @@ func TestNormalizeSecurityProfile(t *testing.T) {
 	}
 	if _, err := config.NormalizeSecurityProfile("staging"); err == nil {
 		t.Fatal("expected invalid profile error")
+	}
+}
+
+func TestMultiNodeRaftForcesProductionProfile(t *testing.T) {
+	cfg := config.Config{
+		SecurityProfile:    config.SecurityProfileLab,
+		TLSCertFile:        "/c",
+		TLSKeyFile:         "/k",
+		AuditSigningKey:    "a",
+		MetricsBearerToken: "m",
+		UnsealKey:          "dGVzdA==",
+		Raft: config.RaftConfig{
+			Enabled:           true,
+			InitialMembersRaw: "1=a:1,2=b:1,3=c:1",
+			MTLSCertFile:      "c",
+			MTLSKeyFile:       "k",
+			MTLSCAFile:        "ca",
+		},
+	}
+	if err := config.ApplySecurityProfileDefaults(&cfg); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.SecurityProfile != config.SecurityProfileProduction {
+		t.Fatalf("profile=%q want production", cfg.SecurityProfile)
+	}
+	if err := config.ValidateSecurity(cfg, ""); err != nil {
+		t.Fatalf("validate: %v", err)
+	}
+}
+
+func TestMultiNodeRaftLabEscapeRequiresAllowInsecure(t *testing.T) {
+	cfg := config.Config{
+		SecurityProfile:   config.SecurityProfileLab,
+		RaftAllowInsecure: true,
+		UnsealKey:         "dGVzdA==",
+		Raft: config.RaftConfig{
+			Enabled:           true,
+			InitialMembersRaw: "1=a:1,2=b:1",
+		},
+	}
+	if err := config.ApplySecurityProfileDefaults(&cfg); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.SecurityProfile != config.SecurityProfileLab {
+		t.Fatalf("lab escape lost: %q", cfg.SecurityProfile)
+	}
+	if err := config.ValidateSecurity(cfg, ""); err != nil {
+		t.Fatalf("lab multi-node with allow insecure: %v", err)
 	}
 }

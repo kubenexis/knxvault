@@ -6,18 +6,28 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/kubenexis/knxvault/internal/api/dto"
+	"github.com/kubenexis/knxvault/internal/api/middleware"
+	"github.com/kubenexis/knxvault/internal/auth"
 	sshengine "github.com/kubenexis/knxvault/internal/engine/secrets/ssh"
 	"github.com/kubenexis/knxvault/internal/service"
 )
 
 // SSHHandler serves dynamic OpenSSH credential endpoints.
 type SSHHandler struct {
-	svc *service.SSHService
+	svc        *service.SSHService
+	tenantMode bool
 }
 
 // NewSSHHandler constructs an SSHHandler.
 func NewSSHHandler(svc *service.SSHService) *SSHHandler {
 	return &SSHHandler{svc: svc}
+}
+
+// SetTenantMode enables lease ID tenant scoping (W64-01).
+func (h *SSHHandler) SetTenantMode(enabled bool) {
+	if h != nil {
+		h.tenantMode = enabled
+	}
 }
 
 // PutRole handles PUT /secrets/ssh/roles/:name.
@@ -76,10 +86,17 @@ func (h *SSHHandler) GetRole(c *gin.Context) {
 func (h *SSHHandler) GenerateCreds(c *gin.Context) {
 	var req dto.SSHCredsRequest
 	_ = c.ShouldBindJSON(&req)
+	ns := ""
+	if rc, ok := auth.RequestContextFromContext(c.Request.Context()); ok {
+		ns = rc.Namespace
+	}
 	result, err := h.svc.GenerateCredentials(c.Request.Context(), sshengine.CredsRequest{
-		Role:      c.Param("role"),
-		Username:  req.Username,
-		TTLSecond: req.TTLSeconds,
+		Role:       c.Param("role"),
+		Username:   req.Username,
+		TTLSecond:  req.TTLSeconds,
+		TokenID:    middleware.TokenID(c),
+		Tenant:     ns,
+		TenantMode: h.tenantMode,
 	})
 	if err != nil {
 		_ = c.Error(err)

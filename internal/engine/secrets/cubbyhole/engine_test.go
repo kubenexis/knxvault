@@ -59,4 +59,7 @@ func TestCubbyholeRejectsBadPath(t *testing.T) {
 	if err := e.Put(context.Background(), "t", "../x", map[string]any{"a": 1}); err == nil {
 		t.Fatal("expected path error")
 	}
+	if err := cubbyhole.ValidatePath(".."); err == nil {
+		t.Fatal("expected clean path error for ..")
+	}
 }

@@ -58,6 +58,31 @@ func TestRunnerHealthyDeployment(t *testing.T) {
 	}
 }
 
+func TestRunnerProductionProfileFailsHTTP(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"status": "healthy", "version": "t", "sealed": false})
+	}))
+	defer srv.Close()
+	// httptest URL is http://
+	runner := &doctor.Runner{
+		Client: client.New(srv.URL, "tok"),
+		Config: doctor.Config{Addr: srv.URL, Token: "tok", Profile: "production"},
+	}
+	report := runner.Run(context.Background())
+	if report.Healthy {
+		t.Fatal("production profile should fail on http://")
+	}
+	found := false
+	for _, c := range report.Checks {
+		if c.ID == "profile.production.tls" && c.Status == doctor.StatusFail {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("missing production tls fail: %+v", report.Checks)
+	}
+}
+
 func TestRunnerUnreachableServer(t *testing.T) {
 	runner := &doctor.Runner{
 		Client: client.New("http://127.0.0.1:1", ""),

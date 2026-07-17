@@ -30,8 +30,8 @@ curl -sS -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application
   "$KNXVAULT_ADDR/sys/wrapping/wrap"
 # → {"token":"knxw_...","ttl_seconds":300,...}
 
-# Recipient unwraps once
-curl -sS -X POST -H "Authorization: Bearer $ANY_TOKEN" -H 'Content-Type: application/json' \
+# Recipient unwraps once (needs sys/wrapping *read* + wrap token possession)
+curl -sS -X POST -H "Authorization: Bearer $READER_TOKEN" -H 'Content-Type: application/json' \
   -d '{"token":"knxw_..."}' \
   "$KNXVAULT_ADDR/sys/wrapping/unwrap"
 # Second unwrap fails
@@ -42,6 +42,6 @@ curl -sS -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application
   "$KNXVAULT_ADDR/sys/wrapping/lookup"
 ```
 
-**Permissions:** `cubbyhole` read/write/delete; `sys/wrapping` read/write.
+**Permissions:** `cubbyhole` read/write/delete; wrap create needs `sys/wrapping` **write**; unwrap/lookup need `sys/wrapping` **read**.
 
-**Limits:** wrapping TTL max 1h; single-use; audit actions `wrapping.wrap` / `wrapping.unwrap`.
+**Limits:** wrapping TTL max 1h; single-use; wrap **metadata is sealed in storage** (`sys/wrapping/meta/*`) for multi-node HA (W74-04); audit `wrapping.wrap` / `wrapping.unwrap`.

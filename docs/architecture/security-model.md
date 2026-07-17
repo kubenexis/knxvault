@@ -10,7 +10,9 @@ Honest grades, known gaps (set-and-forget Medium, custody vs HSM, DIY footguns),
 - [Production security posture design](../design/production-security-posture.md) — M-PRODSEC-1 / M-CUSTODY-1  
 - Backlog **W62-***, **W63-***, optional **W64-*** in [`docs/backlog.md`](../backlog.md)
 
-**Shipped (A1):** set `KNXVAULT_SECURITY_PROFILE=production` (or `security.profile: production`) for fail-closed startup validation — requires audit signing key, metrics bearer, TLS or `TLS_TERMINATION=ingress`, rejects lab auth/Raft insecure flags, caps root TTL at 4h, requires multi-node Raft mTLS, and hardens Valkey URL shape. See `config/knxvault.production.yaml` and [configuration](../installation/configuration.md).
+**Shipped (A1):** set `KNXVAULT_SECURITY_PROFILE=production` (or `security.profile: production`) for fail-closed startup validation — requires audit signing key, metrics bearer, TLS or `TLS_TERMINATION=ingress`, rejects lab auth/Raft insecure flags, caps root TTL at 4h, requires multi-node Raft mTLS, hardens Valkey URL shape, and rejects plain `ldap://` / LDAP insecure skip. See `config/knxvault.production.yaml` and [configuration](../installation/configuration.md).
+
+**W74 audit remediations (2026-07-17):** LDAP server-side only; wrap/identity sealed persistence; lease TokenID cascade + bulk selector; transit race/AAD/HMAC docs; webhook dial-time SSRF client. Report: [security-remediation-w74-2026-07-17.md](../audit/security-remediation-w74-2026-07-17.md).
 
 ## Threat model
 
