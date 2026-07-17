@@ -59,12 +59,12 @@ export KNXVAULT_RAFT_ADDRESS=127.0.0.1:63001
 export KNXVAULT_RAFT_DATA_DIR=/var/lib/knxvault/raft-recovery
 export KNXVAULT_RAFT_INITIAL_MEMBERS=1=127.0.0.1:63001
 
-./bin/knxvault serve &
+./build/bin/knxvault serve &
 # wait for /ready: sealed:false, raft_ready:true
 export KNXVAULT_ADDR=http://127.0.0.1:8200
 export KNXVAULT_TOKEN="$KNXVAULT_ROOT_TOKEN"
-./bin/knxvault-cli doctor --json
-./bin/knxvault-cli backup restore -f knxvault-backup.json
+./build/bin/knxvault-cli doctor --json
+./build/bin/knxvault-cli backup restore -f knxvault-backup.json
 ```
 
 3. Re-expand to 3 nodes after state is verified on the recovery node
@@ -81,7 +81,7 @@ export KNXVAULT_TOKEN="$KNXVAULT_ROOT_TOKEN"
 4. Re-issue any certificates that were created after the backup timestamp
 
 ```bash
-./bin/knxvault-cli backup restore -f knxvault-latest.json
+./build/bin/knxvault-cli backup restore -f knxvault-latest.json
 curl -s http://knxvault:8200/ready
 ```
 

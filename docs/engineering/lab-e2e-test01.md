@@ -19,7 +19,7 @@
 
 The production manifests expect a **3-replica** Raft StatefulSet. A single lab node cannot schedule three Raft peers with distinct pod IDs and PVCs without multi-node capacity. This E2E validates the same core product surface the integration harness covers (`test/integration/e2e_daemon_test.go`), but with **Raft enabled** (production storage path) on one node:
 
-- SCP static binaries built on the build host (`make build` → `bin/knxvault`, `bin/knxvault-cli`)
+- SCP static binaries built on the build host (`make build` → `build/bin/knxvault`, `build/bin/knxvault-cli`)
 - Run `/opt/knxvault/knxvault serve` under root with env-based config
 - Exercise CLI + HTTP API for health, doctor, auth, KV, PKI, metrics
 
@@ -127,7 +127,7 @@ Error: unseal key is required when raft is enabled (set KNXVAULT_UNSEAL_KEY)
 ```bash
 # Build host
 cd /path/to/knxvault && make build
-scp bin/knxvault bin/knxvault-cli root@192.168.137.131:/opt/knxvault/
+scp build/bin/knxvault build/bin/knxvault-cli root@192.168.137.131:/opt/knxvault/
 
 # Lab node — clean raft dir, new keys, start, smoke (see Environment + Checks)
 ```

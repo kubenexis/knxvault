@@ -131,7 +131,7 @@ For structured HA, security stress, and PoC evaluation, see **[Manual testing st
 ```bash
 export KNXVAULT_MASTER_KEY=$(openssl rand -base64 32)
 export KNXVAULT_ROOT_TOKEN=dev-root-token
-./bin/knxvault serve &
+./build/bin/knxvault serve &
 # Process starts sealed (master-key fallback as unseal). Unseal before writes:
 curl -s -X POST "http://127.0.0.1:8200/sys/unseal" \
   -H 'Content-Type: application/json' \
@@ -139,11 +139,11 @@ curl -s -X POST "http://127.0.0.1:8200/sys/unseal" \
 
 export KNXVAULT_ADDR=http://localhost:8200
 export KNXVAULT_TOKEN=dev-root-token
-./bin/knxvault-cli health
-./bin/knxvault-cli doctor --json
-./bin/knxvault-cli kv put test/key value=hello
-./bin/knxvault-cli kv get test/key
-./bin/knxvault-cli kv get test/key --show-secrets
+./build/bin/knxvault-cli health
+./build/bin/knxvault-cli doctor --json
+./build/bin/knxvault-cli kv put test/key value=hello
+./build/bin/knxvault-cli kv get test/key
+./build/bin/knxvault-cli kv get test/key --show-secrets
 ```
 
 ### Single-node Raft manual test
@@ -158,7 +158,7 @@ export KNXVAULT_RAFT_NODE_ID=1
 export KNXVAULT_RAFT_ADDRESS=127.0.0.1:63001
 export KNXVAULT_RAFT_DATA_DIR=/tmp/knxvault-raft-test
 export KNXVAULT_RAFT_INITIAL_MEMBERS=1=127.0.0.1:63001
-./bin/knxvault serve
+./build/bin/knxvault serve
 # Then POST /sys/unseal with key or shares before data-plane use.
 ```
 

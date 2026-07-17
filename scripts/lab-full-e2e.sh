@@ -44,7 +44,7 @@ STOP
 
 echo "==> install binaries"
 scp -o StrictHostKeyChecking=no \
-  "$ROOT/bin/knxvault" "$ROOT/bin/knxvault-cli" "$ROOT/bin/knxvault-operator" \
+  "$ROOT/build/bin/knxvault" "$ROOT/build/bin/knxvault-cli" "$ROOT/build/bin/knxvault-operator" \
   "root@${HOST}:/opt/knxvault/"
 ssh "root@${HOST}" 'chmod +x /opt/knxvault/knxvault /opt/knxvault/knxvault-cli /opt/knxvault/knxvault-operator
 /opt/knxvault/knxvault -version 2>/dev/null || /opt/knxvault/knxvault version 2>/dev/null || true

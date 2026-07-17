@@ -29,7 +29,7 @@ rm -f /opt/knxvault/knxvault /opt/knxvault/knxvault-cli /opt/knxvault/knxvault-o
 STOP
 
 scp -o StrictHostKeyChecking=no \
-  "$ROOT/bin/knxvault" "$ROOT/bin/knxvault-cli" "$ROOT/bin/knxvault-operator" \
+  "$ROOT/build/bin/knxvault" "$ROOT/build/bin/knxvault-cli" "$ROOT/build/bin/knxvault-operator" \
   "root@${HOST}:/opt/knxvault/"
 ssh "root@${HOST}" 'chmod +x /opt/knxvault/knxvault /opt/knxvault/knxvault-cli /opt/knxvault/knxvault-operator'
 

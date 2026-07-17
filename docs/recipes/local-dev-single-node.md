@@ -18,7 +18,7 @@ export KNXVAULT_ROOT_TOKEN=dev-root-token
 export KNXVAULT_RAFT_ENABLED=false
 export KNXVAULT_LISTEN_ADDR=:8200
 
-./bin/knxvault serve
+./build/bin/knxvault serve
 ```
 
 In another terminal:
@@ -27,10 +27,10 @@ In another terminal:
 export KNXVAULT_ADDR=http://localhost:8200
 export KNXVAULT_TOKEN=dev-root-token
 
-./bin/knxvault-cli doctor --json   # healthy:true, fail:0
-./bin/knxvault-cli kv put dev/hello value=world
-./bin/knxvault-cli kv get dev/hello                 # [REDACTED]
-./bin/knxvault-cli kv get dev/hello --show-secrets  # plaintext
+./build/bin/knxvault-cli doctor --json   # healthy:true, fail:0
+./build/bin/knxvault-cli kv put dev/hello value=world
+./build/bin/knxvault-cli kv get dev/hello                 # [REDACTED]
+./build/bin/knxvault-cli kv get dev/hello --show-secrets  # plaintext
 ```
 
 ## Optional: single-node Raft
@@ -47,7 +47,7 @@ export KNXVAULT_RAFT_ADDRESS=127.0.0.1:63001
 export KNXVAULT_RAFT_INITIAL_MEMBERS=1=127.0.0.1:63001
 export KNXVAULT_RAFT_DATA_DIR=/tmp/knxvault-raft
 
-./bin/knxvault serve
+./build/bin/knxvault serve
 curl -s http://localhost:8200/ready | jq .
 # expect: ready, sealed:false, raft_enabled:true, raft_ready:true, leader:true
 ```

@@ -38,7 +38,7 @@ Unit/integration guide: [testing.md](testing.md).
 
 ## Integration suite (`test/integration/`)
 
-Run: `make test-integration` (builds `bin/knxvault` + `bin/knxvault-cli` first).
+Run: `make test-integration` (builds `build/bin/knxvault` + `build/bin/knxvault-cli` first).
 
 | File | Focus |
 |------|--------|
@@ -54,7 +54,7 @@ Run: `make test-integration` (builds `bin/knxvault` + `bin/knxvault-cli` first).
 
 ### Local daemon E2E behavior (`TestE2E*`)
 
-1. Build/reuse `bin/knxvault` and `bin/knxvault-cli`.
+1. Build/reuse `build/bin/knxvault` and `build/bin/knxvault-cli`.
 2. Start `knxvault serve` with master key, root token, Raft off (unless test overrides).
 3. Wait for `/health`.
 4. **Unseal** with master-key fallback (`unsealDaemon`) — crypto always installs a seal.

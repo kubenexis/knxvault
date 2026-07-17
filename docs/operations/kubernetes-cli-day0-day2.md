@@ -92,7 +92,7 @@ Production image is always multi-stage → **`gcr.io/distroless/static-debian13:
 | StorageClass | Raft PVCs |
 | Registry | Distroless knxvault (and operator) images |
 | `kubectl` | Create namespace, RBAC, STS, CRDs |
-| Host tools | `make build-cli` → `bin/knxvault-cli`; optional `curl`/`jq`; `openssl` **only** for key generation |
+| Host tools | `make build-cli` → `build/bin/knxvault-cli`; optional `curl`/`jq`; `openssl` **only** for key generation |
 | Offline custody | Place for master / unseal / root **outside** Git |
 
 ---
@@ -120,7 +120,7 @@ Store offline; put values into the Kubernetes Secret via your sealed-secrets / e
 ```bash
 cd /path/to/knxvault
 make container-build    # distroless knxvault:<version>
-make build-cli       # bin/knxvault-cli on admin host
+make build-cli       # build/bin/knxvault-cli on admin host
 # push image to registry; set image: in StatefulSet
 ```
 
@@ -180,12 +180,12 @@ export KNXVAULT_ADDR=http://127.0.0.1:8200   # or your URL
 export KNXVAULT_TOKEN='<root-or-admin-token>'
 
 # Prefer offline custody of the unseal value (not only the live Secret):
-./bin/knxvault-cli sys unseal "$KNXVAULT_UNSEAL_KEY"
+./build/bin/knxvault-cli sys unseal "$KNXVAULT_UNSEAL_KEY"
 
-./bin/knxvault-cli status
+./build/bin/knxvault-cli status
 # want sealed:false; Raft ready when HA is up
 
-./bin/knxvault-cli doctor --json
+./build/bin/knxvault-cli doctor --json
 # want healthy:true, fail:0  (HTTP may warn in lab)
 ```
 
@@ -196,12 +196,12 @@ Equivalent HTTP: [seal recipe](../recipes/seal-and-unseal.md). Multi-share: same
 ## A6. CLI smoke (secrets + native PKI)
 
 ```bash
-./bin/knxvault-cli health
-./bin/knxvault-cli kv put day0/smoke value=ok
-./bin/knxvault-cli kv get day0/smoke --show-secrets
+./build/bin/knxvault-cli health
+./build/bin/knxvault-cli kv put day0/smoke value=ok
+./build/bin/knxvault-cli kv get day0/smoke --show-secrets
 
-./bin/knxvault-cli pki root --name platform-root --common-name "Platform Root" --ttl 8760h
-./bin/knxvault-cli pki issue --role platform-root \
+./build/bin/knxvault-cli pki root --name platform-root --common-name "Platform Root" --ttl 8760h
+./build/bin/knxvault-cli pki issue --role platform-root \
   --common-name app.example.svc \
   --dns app.example.svc \
   --ttl 720h
@@ -277,9 +277,9 @@ Guide: [Replace cert-manager](pki-replace-cert-manager.md). If CA stays Pending 
 export KNXVAULT_ADDR=…   # port-forward or prod URL
 export KNXVAULT_TOKEN=…  # scoped admin
 
-./bin/knxvault-cli doctor --json
-./bin/knxvault-cli health
-./bin/knxvault-cli status
+./build/bin/knxvault-cli doctor --json
+./build/bin/knxvault-cli health
+./build/bin/knxvault-cli status
 ```
 
 | Signal | Action if bad |
@@ -297,8 +297,8 @@ STS rollout, drain, OOM → pods return **sealed**.
 
 ```bash
 # ensure API reachability (port-forward if needed)
-./bin/knxvault-cli sys unseal "$KNXVAULT_UNSEAL_KEY"
-./bin/knxvault-cli doctor --json
+./build/bin/knxvault-cli sys unseal "$KNXVAULT_UNSEAL_KEY"
+./build/bin/knxvault-cli doctor --json
 ```
 
 Operator and apps fail closed until unsealed.
@@ -306,7 +306,7 @@ Operator and apps fail closed until unsealed.
 ## B3. Backup
 
 ```bash
-./bin/knxvault-cli backup create -o "knxvault-$(date +%F).json"
+./build/bin/knxvault-cli backup create -o "knxvault-$(date +%F).json"
 ```
 
 Also keep platform PVC snapshots and Secret custody. Restore needs the **same master key**: [backup-restore](../deploy/backup-restore.md).
@@ -323,9 +323,9 @@ Also keep platform PVC snapshots and Secret custody. Restore needs the **same ma
 ## B5. Incident seal
 
 ```bash
-./bin/knxvault-cli sys seal
+./build/bin/knxvault-cli sys seal
 # … contain …
-./bin/knxvault-cli sys unseal "$KNXVAULT_UNSEAL_KEY"
+./build/bin/knxvault-cli sys unseal "$KNXVAULT_UNSEAL_KEY"
 ```
 
 CA compromise: [ca-compromise](runbooks/ca-compromise.md).
@@ -406,10 +406,10 @@ export KNXVAULT_ADDR=http://127.0.0.1:8200
 export KNXVAULT_TOKEN='<root>'
 export KNXVAULT_UNSEAL_KEY='<unseal>'
 
-./bin/knxvault-cli sys unseal "$KNXVAULT_UNSEAL_KEY"
-./bin/knxvault-cli doctor --json
-./bin/knxvault-cli kv put day0/ok v=1
-./bin/knxvault-cli pki root --name root --common-name "Lab Root" --ttl 8760h
+./build/bin/knxvault-cli sys unseal "$KNXVAULT_UNSEAL_KEY"
+./build/bin/knxvault-cli doctor --json
+./build/bin/knxvault-cli kv put day0/ok v=1
+./build/bin/knxvault-cli pki root --name root --common-name "Lab Root" --ttl 8760h
 ```
 
 **Story in one line:** Kubernetes runs distroless knxvault; **you** open a network path to `:8200` and run **host `knxvault-cli`** with `KNXVAULT_ADDR` / token — same client model as standalone, different way to publish the API.

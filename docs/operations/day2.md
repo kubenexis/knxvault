@@ -35,7 +35,7 @@ Run encrypted backups before upgrades and on a regular cadence (daily recommende
 # CLI
 export KNXVAULT_ADDR=https://knxvault.internal:8200
 export KNXVAULT_TOKEN=<admin-token>
-./bin/knxvault-cli backup create -o "knxvault-$(date +%F).json"
+./build/bin/knxvault-cli backup create -o "knxvault-$(date +%F).json"
 
 # Cron wrapper
 ./scripts/backup.sh

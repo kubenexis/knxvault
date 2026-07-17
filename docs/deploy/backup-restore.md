@@ -25,8 +25,8 @@ curl -sf -X POST http://localhost:8200/sys/restore \
 export KNXVAULT_ADDR=http://localhost:8200
 export KNXVAULT_TOKEN=dev-root-token
 
-./bin/knxvault-cli backup create -o knxvault-backup.json
-./bin/knxvault-cli backup restore -f knxvault-backup.json
+./build/bin/knxvault-cli backup create -o knxvault-backup.json
+./build/bin/knxvault-cli backup restore -f knxvault-backup.json
 ```
 
 ## Shell scripts

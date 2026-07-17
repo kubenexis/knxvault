@@ -42,7 +42,7 @@ export KNXVAULT_K8S_ROLE=knxvault-operator
 export KNXVAULT_TOKEN=<token>
 export KNXVAULT_OPERATOR_LEADER_ELECT=true   # false for single host-process lab
 export KNXVAULT_OPERATOR_INGRESS_SHIM=true
-./bin/knxvault-operator
+./build/bin/knxvault-operator
 ```
 
 Lab smoke: `bash scripts/lab-operator-e2e.sh 192.168.137.131`

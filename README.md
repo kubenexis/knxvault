@@ -18,7 +18,7 @@ Default quick start uses **in-memory** storage (`KNXVAULT_RAFT_ENABLED` unset). 
 make all
 export KNXVAULT_MASTER_KEY=$(openssl rand -base64 32)
 export KNXVAULT_ROOT_TOKEN=dev-root-token
-./bin/knxvault serve
+./build/bin/knxvault serve
 ```
 
 **Raft (production storage / single-node lab):** set `KNXVAULT_RAFT_ENABLED=true` **and** a dedicated `KNXVAULT_UNSEAL_KEY` (`openssl rand -base64 32`) that **must differ** from the master key. Startup fails without it. Full env: [Installation](docs/installation/install.md#single-node-raft-persistent-local--lab) · [Configuration](docs/installation/configuration.md).
@@ -31,7 +31,7 @@ Post-start check:
 ```bash
 export KNXVAULT_ADDR=http://localhost:8200
 export KNXVAULT_TOKEN=dev-root-token
-./bin/knxvault-cli doctor --json   # healthy:true, fail:0
+./build/bin/knxvault-cli doctor --json   # healthy:true, fail:0
 ```
 
 ### Example workflow
@@ -71,7 +71,7 @@ curl -s http://localhost:8200/secrets/kv/app/db \
 
 ```bash
 make container-build          # builds knxvault:0.4.5 (distroless/static-debian13)
-make container-export-all     # air-gap tarballs: dist/images/*.tar (server + operator)
+make container-export-all     # air-gap tarballs: build/images/*.tar (server + operator)
 docker run --rm -p 8200:8200 \
   -e KNXVAULT_MASTER_KEY="$(openssl rand -base64 32)" \
   -e KNXVAULT_ROOT_TOKEN=dev-root-token \
@@ -158,9 +158,9 @@ Complete reference: [`docs/installation/configuration.md`](docs/installation/con
 ```bash
 make build-cli
 export KNXVAULT_TOKEN=dev-root-token
-./bin/knxvault-cli health
-./bin/knxvault-cli kv put app/db password=s3cret
-./bin/knxvault-cli backup create -o backup.json
+./build/bin/knxvault-cli health
+./build/bin/knxvault-cli kv put app/db password=s3cret
+./build/bin/knxvault-cli backup create -o backup.json
 ```
 
 Reference: [`docs/cli/reference.md`](docs/cli/reference.md) · Backup: [`docs/deploy/backup-restore.md`](docs/deploy/backup-restore.md) · Tracing: [`docs/observability/tracing.md`](docs/observability/tracing.md)

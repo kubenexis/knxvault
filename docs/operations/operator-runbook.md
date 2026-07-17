@@ -274,7 +274,7 @@ curl -s "$KNXVAULT_ADDR/ready" | jq .
 
 ```bash
 # build CLI if needed: make build-cli
-./bin/knxvault-cli doctor --json
+./build/bin/knxvault-cli doctor --json
 # want: "healthy": true, "fail": 0
 # HTTP (not HTTPS) may warn in lab — fix TLS for production
 ```
@@ -282,9 +282,9 @@ curl -s "$KNXVAULT_ADDR/ready" | jq .
 ### Smoke the API as root (temporary)
 
 ```bash
-./bin/knxvault-cli health
-./bin/knxvault-cli kv put day0/smoke value=ok
-./bin/knxvault-cli kv get day0/smoke --show-secrets
+./build/bin/knxvault-cli health
+./build/bin/knxvault-cli kv put day0/smoke value=ok
+./build/bin/knxvault-cli kv get day0/smoke --show-secrets
 ```
 
 **Plan for restarts now:** document whether humans unseal after STS restarts or an **auto-unseal Job** will call the same API using the Secret. Start-sealed remains the security model either way.
@@ -429,8 +429,8 @@ As admin:
 
 ```bash
 export KNXVAULT_TOKEN='<platform-admin-or-root>'
-./bin/knxvault-cli kv put app/demo api_key=day0-example
-./bin/knxvault-cli kv get app/demo --show-secrets
+./build/bin/knxvault-cli kv put app/demo api_key=day0-example
+./build/bin/knxvault-cli kv get app/demo --show-secrets
 ```
 
 **Optional same day:** install CSI ([CSI install](../deploy/csi-install.md)) and mount `app/demo` into a test pod with SA `demo-app`. Can be Day-0.5 if TLS is the only Day-0 must-have.

@@ -31,8 +31,8 @@ Artifacts:
 
 | Output | Path |
 |--------|------|
-| Server binary | `bin/knxvault` |
-| CLI binary | `bin/knxvault-cli` |
+| Server binary | `build/bin/knxvault` |
+| CLI binary | `build/bin/knxvault-cli` |
 | SBOM | `sbom.json`, `sbom-binary.json` |
 
 ## Run locally
@@ -40,7 +40,7 @@ Artifacts:
 ```bash
 export KNXVAULT_MASTER_KEY=$(openssl rand -base64 32)
 export KNXVAULT_ROOT_TOKEN=dev-root-token
-./bin/knxvault serve
+./build/bin/knxvault serve
 ```
 
 Swagger: http://localhost:8200/swagger

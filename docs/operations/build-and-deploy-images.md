@@ -43,8 +43,8 @@ Default entrypoint of `knxvault:…` is **`/usr/local/bin/knxvault`** with `CMD 
 
 | Artifact | Build | Deploy |
 |----------|-------|--------|
-| **`knxvault-cli`** | `make build-cli` → `bin/knxvault-cli` | Copy to admin host / package as `.deb` later; never baked into distroless server |
-| Host server binary (optional) | `make build` → `bin/knxvault` | Bare-metal only; **not** the supported production packaging path |
+| **`knxvault-cli`** | `make build-cli` → `build/bin/knxvault-cli` | Copy to admin host / package as `.deb` later; never baked into distroless server |
+| Host server binary (optional) | `make build` → `build/bin/knxvault` | Bare-metal only; **not** the supported production packaging path |
 
 ### Third-party / platform images (not built here)
 
@@ -137,7 +137,7 @@ make k8s-operator-build
 
 ```bash
 make build-cli
-# → bin/knxvault-cli
+# → build/bin/knxvault-cli
 ```
 
 ### 3.5 Air-gap / export images as tarballs
@@ -148,8 +148,8 @@ After `make container-build-all` (or individual builds), export OCI/docker-compa
 # Build then export (recommended)
 make container-build-all
 make container-export-all
-# → dist/images/knxvault-0.4.5.tar
-# → dist/images/knxvault-operator-0.4.5.tar
+# → build/images/knxvault-0.4.5.tar
+# → build/images/knxvault-operator-0.4.5.tar
 
 # Individual targets
 make container-export          # server only (standalone needs this)
@@ -177,7 +177,7 @@ sudo nerdctl images | grep knxvault
 docker load -i knxvault-0.4.5.tar
 ```
 
-Also ship **host `knxvault-cli`** (`make build-cli` → copy `bin/knxvault-cli`) — not an image.
+Also ship **host `knxvault-cli`** (`make build-cli` → copy `build/bin/knxvault-cli`) — not an image.
 
 Kubernetes nodes: load into each node’s containerd **or** push to an internal registry and set `image:` on manifests.
 
@@ -247,9 +247,9 @@ nerdctl run -d --name knxvault -p 8200:8200 \
 export KNXVAULT_ADDR=http://127.0.0.1:8200
 export KNXVAULT_TOKEN="$ROOT"
 
-./bin/knxvault-cli sys unseal "$UNSEAL"   # Raft path
-./bin/knxvault-cli doctor --json
-./bin/knxvault-cli health
+./build/bin/knxvault-cli sys unseal "$UNSEAL"   # Raft path
+./build/bin/knxvault-cli doctor --json
+./build/bin/knxvault-cli health
 ```
 
 Do **not** `nerdctl exec` into the distroless image for administration.
@@ -323,7 +323,7 @@ Then CRDs + operator RBAC + Deployment + sample Certificate CRDs.
 nerdctl image inspect knxvault:0.4.5 --format '{{.Config.Entrypoint}} {{.Config.Cmd}} {{.Config.User}}'
 
 # Run one-shot (no serve): version
-nerdctl run --rm --entrypoint /usr/local/bin/knxvault knxvault:0.4.5 -version
+nerdctl run --rm --entrypoint /usr/local/build/bin/knxvault knxvault:0.4.5 -version
 ```
 
 Expect non-root user, entrypoint `knxvault`, no shell.
@@ -351,17 +351,17 @@ Expect non-root user, entrypoint `knxvault`, no shell.
 make container-build              # knxvault:VERSION  (standalone + K8s server/CSI/webhook/ESO)
 make k8s-operator-build           # knxvault-operator:VERSION  (K8s operator only)
 make container-build-all          # both images
-make container-export-all         # air-gap tarballs → dist/images/*.tar
+make container-export-all         # air-gap tarballs → build/images/*.tar
 make build-cli                    # host admin binary
 
 # Air-gap load (target host)
-sudo nerdctl load -i dist/images/knxvault-0.4.5.tar
-sudo nerdctl load -i dist/images/knxvault-operator-0.4.5.tar   # K8s operator
+sudo nerdctl load -i build/images/knxvault-0.4.5.tar
+sudo nerdctl load -i build/images/knxvault-operator-0.4.5.tar   # K8s operator
 
 # Standalone (containerd)
 nerdctl run -d --name knxvault -p 8200:8200 … knxvault:0.4.5 serve
 export KNXVAULT_ADDR=http://127.0.0.1:8200
-./bin/knxvault-cli sys unseal "$UNSEAL"
+./build/bin/knxvault-cli sys unseal "$UNSEAL"
 
 # Kubernetes
 # load or push images → set image: → kubectl apply → port-forward → knxvault-cli unseal/doctor

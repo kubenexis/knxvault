@@ -15,7 +15,7 @@ KNXVault supports OpenTelemetry HTTP tracing when enabled.
 ```bash
 export KNXVAULT_TRACING_ENABLED=true
 export KNXVAULT_OTLP_ENDPOINT=localhost:4318
-./bin/knxvault serve
+./build/bin/knxvault serve
 ```
 
 Gin requests are instrumented with service name `knxvault`. Propagate `traceparent` headers from upstream clients for correlated traces.

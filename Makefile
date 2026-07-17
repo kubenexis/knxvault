@@ -39,8 +39,10 @@ COMMIT          ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknow
 BUILD_ID        ?= $(shell date +%s)
 IMAGE           ?= knxvault:$(VERSION)
 OPERATOR_IMAGE  ?= knxvault-operator:$(VERSION)
-# Air-gap tarball export directory (OCI/docker save format).
-IMAGE_EXPORT_DIR ?= dist/images
+# All build artifacts live under BUILD_DIR (binaries, image tarballs, SBOM, coverage).
+BUILD_DIR       ?= build
+BIN_DIR         ?= $(BUILD_DIR)/bin
+IMAGE_EXPORT_DIR ?= $(BUILD_DIR)/images
 IMAGE_TAR       ?= $(IMAGE_EXPORT_DIR)/knxvault-$(VERSION).tar
 OPERATOR_TAR    ?= $(IMAGE_EXPORT_DIR)/knxvault-operator-$(VERSION).tar
 # Only supported runtime: multi-stage → gcr.io/distroless/static-debian13:nonroot
@@ -52,12 +54,12 @@ export GOTOOLCHAIN := $(GO_TOOLCHAIN)
 # Project artifacts
 # -----------------------------------------------------------------------------
 PROJECT         ?= knxvault
-BINARY          ?= bin/knxvault
-CLI_BINARY      ?= bin/knxvault-cli
-CSI_BINARY      ?= bin/knxvault-csi
-WEBHOOK_BINARY  ?= bin/knxvault-webhook
-ESO_BINARY      ?= bin/knxvault-eso
-OPERATOR_BINARY ?= bin/knxvault-operator
+BINARY          ?= $(BIN_DIR)/knxvault
+CLI_BINARY      ?= $(BIN_DIR)/knxvault-cli
+CSI_BINARY      ?= $(BIN_DIR)/knxvault-csi
+WEBHOOK_BINARY  ?= $(BIN_DIR)/knxvault-webhook
+ESO_BINARY      ?= $(BIN_DIR)/knxvault-eso
+OPERATOR_BINARY ?= $(BIN_DIR)/knxvault-operator
 MAIN_PKG        ?= ./cmd/knxvault
 CLI_PKG         ?= ./cmd/knxvault-cli
 CSI_PKG         ?= ./cmd/knxvault-csi
@@ -65,8 +67,12 @@ WEBHOOK_PKG     ?= ./cmd/knxvault-webhook
 ESO_PKG         ?= ./cmd/knxvault-eso
 OPERATOR_PKG    ?= ./cmd/operator
 COVERAGE_MIN    ?= 80
-SBOM_FILE       ?= sbom.json
+SBOM_FILE       ?= $(BUILD_DIR)/sbom.json
+SBOM_BINARY_FILE ?= $(BUILD_DIR)/sbom-binary.json
+COVERAGE_OPERATOR_OUT ?= $(BUILD_DIR)/coverage-operator.out
+COVERAGE_ACME_OUT     ?= $(BUILD_DIR)/coverage-acme.out
 TRIVY_CACHE_DIR ?= $(HOME)/.cache/trivy
+TRIVY_REPORT    ?= $(BUILD_DIR)/trivy-report.json
 LDFLAGS         ?= -s -w \
 	-X github.com/kubenexis/knxvault/internal/version.Version=$(VERSION) \
 	-X github.com/kubenexis/knxvault/internal/version.Commit=$(COMMIT) \
@@ -183,16 +189,17 @@ COVERAGE_ACME_MIN ?= 70
 test-coverage: ## Coverage gate ≥COVERAGE_MIN% operator pure-logic; ≥COVERAGE_ACME_MIN% acme
 	$(call log,Running coverage gate - operator min $(COVERAGE_MIN) pct acme min $(COVERAGE_ACME_MIN) pct)
 	$(call require_cmd,go)
+	@mkdir -p $(BUILD_DIR)
 	@$(GO) test ./internal/operator/renew ./internal/operator/secretutil ./internal/operator/statusutil \
 		./internal/operator/reconcileutil ./internal/operator/certlogic \
-		-count=1 -covermode=atomic -coverprofile=coverage-operator.out; \
+		-count=1 -covermode=atomic -coverprofile=$(COVERAGE_OPERATOR_OUT); \
 	$(GO) test ./internal/operator/cmcompat ./internal/operator/apis/v1alpha1 -count=1 -cover 2>&1 | tail -6; \
-	pct=$$($(GO) tool cover -func=coverage-operator.out | awk '/^total:/{gsub(/%/,"",$$3); print $$3}'); \
+	pct=$$($(GO) tool cover -func=$(COVERAGE_OPERATOR_OUT) | awk '/^total:/{gsub(/%/,"",$$3); print $$3}'); \
 	echo "operator pure-logic coverage: $${pct}% (min $(COVERAGE_MIN)%)"; \
 	awk -v p="$${pct}" -v m="$(COVERAGE_MIN)" 'BEGIN{ if ((p+0) < (m+0)) { print "coverage below gate" > "/dev/stderr"; exit 1 } }'; \
 	$(GO) test ./internal/acme ./internal/acme/filestore ./internal/acme/vaultstore \
-		-count=1 -covermode=atomic -coverprofile=coverage-acme.out; \
-	apct=$$($(GO) tool cover -func=coverage-acme.out | awk '/^total:/{gsub(/%/,"",$$3); print $$3}'); \
+		-count=1 -covermode=atomic -coverprofile=$(COVERAGE_ACME_OUT); \
+	apct=$$($(GO) tool cover -func=$(COVERAGE_ACME_OUT) | awk '/^total:/{gsub(/%/,"",$$3); print $$3}'); \
 	echo "acme package coverage: $${apct}% (min $(COVERAGE_ACME_MIN)%)"; \
 	awk -v p="$${apct}" -v m="$(COVERAGE_ACME_MIN)" 'BEGIN{ if ((p+0) < (m+0)) { print "acme coverage below gate" > "/dev/stderr"; exit 1 } }'; \
 	$(GO) test ./internal/operator/controllers ./internal/operator/vaultiface -count=1 -cover 2>&1 | tail -8
@@ -272,42 +279,42 @@ docker-build: container-build
 docker-build-operator: k8s-operator-build
 docker-build-all: container-build-all
 
-build: ## Build statically linked release binary to bin/knxvault
+build: ## Build statically linked release binary to $(BINARY)
 	$(call log,Building static binary $(BINARY))
 	$(call require_cmd,go)
-	@mkdir -p bin
+	@mkdir -p $(BIN_DIR)
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags="$(LDFLAGS)" -o $(BINARY) $(MAIN_PKG)
 	@file $(BINARY) | grep -q 'statically linked'
 	@(ldd $(BINARY) 2>&1 || true) | grep -q 'not a dynamic executable'
 
-build-cli: ## Build statically linked CLI binary to bin/knxvault-cli
+build-cli: ## Build statically linked CLI binary to $(CLI_BINARY)
 	$(call log,Building CLI binary $(CLI_BINARY))
 	$(call require_cmd,go)
-	@mkdir -p bin
+	@mkdir -p $(BIN_DIR)
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags="$(LDFLAGS)" -o $(CLI_BINARY) $(CLI_PKG)
 
 build-csi: ## Build Secrets Store CSI provider binary
 	$(call log,Building CSI provider $(CSI_BINARY))
 	$(call require_cmd,go)
-	@mkdir -p bin
+	@mkdir -p $(BIN_DIR)
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags="$(LDFLAGS)" -o $(CSI_BINARY) $(CSI_PKG)
 
 build-webhook: ## Build mutating admission webhook binary
 	$(call log,Building webhook $(WEBHOOK_BINARY))
 	$(call require_cmd,go)
-	@mkdir -p bin
+	@mkdir -p $(BIN_DIR)
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags="$(LDFLAGS)" -o $(WEBHOOK_BINARY) $(WEBHOOK_PKG)
 
 build-eso: ## Build External Secrets Operator webhook adapter
 	$(call log,Building ESO adapter $(ESO_BINARY))
 	$(call require_cmd,go)
-	@mkdir -p bin
+	@mkdir -p $(BIN_DIR)
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags="$(LDFLAGS)" -o $(ESO_BINARY) $(ESO_PKG)
 
 build-operator: ## Build knxvault-operator (cert-manager replacement CRDs)
 	$(call log,Building operator $(OPERATOR_BINARY))
 	$(call require_cmd,go)
-	@mkdir -p bin
+	@mkdir -p $(BIN_DIR)
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags="$(LDFLAGS)" -o $(OPERATOR_BINARY) $(OPERATOR_PKG)
 	@file $(OPERATOR_BINARY) | grep -q 'statically linked' || file $(OPERATOR_BINARY)
 
@@ -326,19 +333,21 @@ check-client-drift: ## Fail when OpenAPI changed without regenerating clients
 	$(call require_cmd,bash)
 	@bash scripts/check-client-drift.sh
 
-sbom: ## Generate CycloneDX SBOM (modules + release binary)
+sbom: ## Generate CycloneDX SBOM (modules + release binary) under $(BUILD_DIR)
 	@test -f $(BINARY) || $(MAKE) --no-print-directory build
+	@mkdir -p $(BUILD_DIR)
 	$(call log,Generating SBOM $(SBOM_FILE))
 	$(call require_cmd,trivy)
 	$(TRIVY) fs --cache-dir $(TRIVY_CACHE_DIR) \
 		--format cyclonedx --output $(SBOM_FILE) .
 	$(TRIVY) rootfs --cache-dir $(TRIVY_CACHE_DIR) \
-		--format cyclonedx --output sbom-binary.json $(BINARY)
+		--format cyclonedx --output $(SBOM_BINARY_FILE) $(BINARY)
 	@test -s $(SBOM_FILE)
 
 scan: ## Trivy vulnerability scan (repo + binary if present)
 	$(call log,Running Trivy filesystem scan)
 	$(call require_cmd,trivy)
+	@mkdir -p $(BUILD_DIR)
 	$(TRIVY) fs --cache-dir $(TRIVY_CACHE_DIR) \
 		--ignorefile .trivyignore \
 		--severity $(TRIVY_SEVERITY) --exit-code 1 --scanners vuln .
@@ -353,10 +362,9 @@ tidy: ## Run go mod tidy
 	$(call require_cmd,go)
 	$(GO) mod tidy
 
-clean: ## Remove built binaries and generated artifacts
-	$(call log,Cleaning build artifacts)
-	@rm -rf bin dist
-	@rm -f $(SBOM_FILE) sbom-binary.json coverage.out coverage-operator.out coverage-acme.out trivy-report.json trivy-results.sarif
+clean: ## Remove all build/ artifacts (binaries, images tarballs, SBOM, coverage)
+	$(call log,Cleaning build artifacts under $(BUILD_DIR))
+	@rm -rf $(BUILD_DIR) bin dist
 	@printf "$(COLOR_GREEN)Clean complete.$(COLOR_RESET)\n"
 
 install-tools: ## Install golangci-lint v2 and gosec (Go 1.26 toolchain)
@@ -378,7 +386,9 @@ help: ## Show available targets and descriptions
 		| sort -u \
 		| awk 'BEGIN {FS = ":.*## "}; {printf "  $(COLOR_GREEN)make %-18s$(COLOR_RESET) %s\n", $$1, $$2}'
 	@printf "\n$(COLOR_BOLD)Variables$(COLOR_RESET)\n\n"
+	@printf "  $(COLOR_CYAN)BUILD_DIR$(COLOR_RESET)        = $(BUILD_DIR)\n"
 	@printf "  $(COLOR_CYAN)BINARY$(COLOR_RESET)          = $(BINARY)\n"
+	@printf "  $(COLOR_CYAN)IMAGE_EXPORT_DIR$(COLOR_RESET)= $(IMAGE_EXPORT_DIR)\n"
 	@printf "  $(COLOR_CYAN)SBOM_FILE$(COLOR_RESET)       = $(SBOM_FILE)\n"
 	@printf "  $(COLOR_CYAN)TRIVY_SEVERITY$(COLOR_RESET)  = $(TRIVY_SEVERITY)\n"
 	@printf "  $(COLOR_CYAN)TRIVY_CACHE_DIR$(COLOR_RESET) = $(TRIVY_CACHE_DIR)\n"

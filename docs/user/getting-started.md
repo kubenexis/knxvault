@@ -16,9 +16,9 @@ export KNXVAULT_TOKEN=dev-root-token   # bootstrap token
 Before writing secrets, confirm the server is healthy. Prefer `doctor` as the single gate used in lab and production smoke tests.
 
 ```bash
-./bin/knxvault-cli health          # liveness → status healthy
-./bin/knxvault-cli status          # readiness → status ready
-./bin/knxvault-cli doctor --json   # full report
+./build/bin/knxvault-cli health          # liveness → status healthy
+./build/bin/knxvault-cli status          # readiness → status ready
+./build/bin/knxvault-cli doctor --json   # full report
 ```
 
 Expect `"healthy": true` and `"fail": 0`. Common checks:
@@ -61,7 +61,7 @@ curl -s -X POST $KNXVAULT_ADDR/auth/token \
 Or:
 
 ```bash
-./bin/knxvault-cli auth login --token "$KNXVAULT_TOKEN"
+./build/bin/knxvault-cli auth login --token "$KNXVAULT_TOKEN"
 ```
 
 Kubernetes workloads use `POST /auth/kubernetes` with a ServiceAccount JWT. In-cluster **TokenReview** is used automatically in production. `KNXVAULT_JWT_SECRET` is for local dev only.
@@ -71,15 +71,15 @@ Kubernetes workloads use `POST /auth/kubernetes` with a ServiceAccount JWT. In-c
 **CLI:**
 
 ```bash
-./bin/knxvault-cli kv put app/db password=s3cret host=db.internal
+./build/bin/knxvault-cli kv put app/db password=s3cret host=db.internal
 
 # Default: secret values are redacted (safe for terminals and logs)
-./bin/knxvault-cli kv get app/db
+./build/bin/knxvault-cli kv get app/db
 # stdout → "password": "[REDACTED]"
 # stderr → note: secret values redacted; use --show-secrets to reveal
 
 # Reveal plaintext only when you need it
-./bin/knxvault-cli kv get app/db --show-secrets
+./build/bin/knxvault-cli kv get app/db --show-secrets
 # → "password": "s3cret"
 ```
 
@@ -130,8 +130,8 @@ curl -s -X POST $KNXVAULT_ADDR/pki/issue \
 CLI equivalent:
 
 ```bash
-./bin/knxvault-cli pki root --name dev-root --common-name "KNXVault Root CA" --ttl 8760h
-./bin/knxvault-cli pki issue --role dev-root --common-name api.example.com --dns api.example.com --ttl 720h
+./build/bin/knxvault-cli pki root --name dev-root --common-name "KNXVault Root CA" --ttl 8760h
+./build/bin/knxvault-cli pki issue --role dev-root --common-name api.example.com --dns api.example.com --ttl 720h
 ```
 
 ### Production-shaped: root → intermediate → leaf

@@ -1,7 +1,8 @@
 *~
 /bin/
 /dist/
-# Build artifacts
+/build/
+# Legacy / accidental local artifacts
 coverage-controllers.out
 coverage-operator.out
 coverage-acme.out

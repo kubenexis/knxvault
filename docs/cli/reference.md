@@ -15,7 +15,7 @@ It is a **host/native HTTP client**. It does **not** discover Docker/containerd 
 make build-cli
 ```
 
-Binary: `bin/knxvault-cli`
+Binary: `build/bin/knxvault-cli`
 
 ## Configuration
 

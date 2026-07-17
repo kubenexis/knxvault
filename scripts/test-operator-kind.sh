@@ -13,7 +13,7 @@ if ! pgrep -f knxvault-operator >/dev/null 2>&1; then
   make -C "$ROOT" build-operator
   KNXVAULT_ADDR="$KNXVAULT_ADDR" KNXVAULT_TOKEN="$KNXVAULT_TOKEN" \
     KNXVAULT_OPERATOR_INGRESS_SHIM=true \
-    nohup "$ROOT/bin/knxvault-operator" >/tmp/knxvault-operator.log 2>&1 &
+    nohup "$ROOT/build/bin/knxvault-operator" >/tmp/knxvault-operator.log 2>&1 &
   sleep 3
 fi
 

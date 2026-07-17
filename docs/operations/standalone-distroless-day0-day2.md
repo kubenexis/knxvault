@@ -126,11 +126,11 @@ mkdir -p ~/knxvault-day0 && chmod 700 ~/knxvault-day0
 ```bash
 cd /path/to/knxvault
 make container-build          # knxvault:<version>  (distroless/static-debian13)
-make container-export         # air-gap: dist/images/knxvault-$(VERSION).tar
-make build-cli                # bin/knxvault-cli on this host
+make container-export         # air-gap: build/images/knxvault-$(VERSION).tar
+make build-cli                # build/bin/knxvault-cli on this host
 ```
 
-Image tag defaults to `knxvault:0.4.5` (see Makefile `VERSION` / `IMAGE`). Air-gap: `make container-export` then on the target `sudo nerdctl load -i dist/images/knxvault-0.4.5.tar` (see [build-and-deploy-images.md](build-and-deploy-images.md)).
+Image tag defaults to `knxvault:0.4.5` (see Makefile `VERSION` / `IMAGE`). Air-gap: `make container-export` then on the target `sudo nerdctl load -i build/images/knxvault-0.4.5.tar` (see [build-and-deploy-images.md](build-and-deploy-images.md)).
 
 ## A3. Run the server (publish the API)
 
@@ -215,14 +215,14 @@ chmod 600 ~/.knxvault/config.yaml
 Optional check:
 
 ```bash
-./bin/knxvault-cli doctor
+./build/bin/knxvault-cli doctor
 # doctor checks CLI config + API reachability; sealed state may still fail readiness checks until unseal
 ```
 
 ## A5. Unseal (Raft path — required for writes)
 
 ```bash
-./bin/knxvault-cli sys unseal "$(cat ~/knxvault-day0/unseal.key)"
+./build/bin/knxvault-cli sys unseal "$(cat ~/knxvault-day0/unseal.key)"
 # or:
 # curl -s -X POST "$KNXVAULT_ADDR/sys/unseal" \
 #   -H 'Content-Type: application/json' \
@@ -237,17 +237,17 @@ Multi-share unseal: [seal and unseal recipe](../recipes/seal-and-unseal.md).
 ## A6. Day-0 smoke (secrets + PKI)
 
 ```bash
-./bin/knxvault-cli doctor --json    # healthy:true, fail:0 after unseal
-./bin/knxvault-cli health
-./bin/knxvault-cli status
+./build/bin/knxvault-cli doctor --json    # healthy:true, fail:0 after unseal
+./build/bin/knxvault-cli health
+./build/bin/knxvault-cli status
 
 # First secret (values redacted by default on get)
-./bin/knxvault-cli kv put day0/smoke value=ok
-./bin/knxvault-cli kv get day0/smoke --show-secrets
+./build/bin/knxvault-cli kv put day0/smoke value=ok
+./build/bin/knxvault-cli kv get day0/smoke --show-secrets
 
 # First root CA + leaf (native PKI — no openssl in the container)
-./bin/knxvault-cli pki root --name platform-root --common-name "Standalone Root" --ttl 8760h
-./bin/knxvault-cli pki issue --role platform-root \
+./build/bin/knxvault-cli pki root --name platform-root --common-name "Standalone Root" --ttl 8760h
+./build/bin/knxvault-cli pki issue --role platform-root \
   --common-name app.example.local \
   --dns app.example.local \
   --ttl 720h
@@ -428,10 +428,10 @@ nerdctl run -d --name knxvault -p 8200:8200 \
 
 export KNXVAULT_ADDR=http://127.0.0.1:8200
 export KNXVAULT_TOKEN="$ROOT"
-./bin/knxvault-cli sys unseal "$UNSEAL"
-./bin/knxvault-cli doctor --json
-./bin/knxvault-cli kv put day0/ok v=1
-./bin/knxvault-cli pki root --name root --common-name "Lab Root" --ttl 8760h
+./build/bin/knxvault-cli sys unseal "$UNSEAL"
+./build/bin/knxvault-cli doctor --json
+./build/bin/knxvault-cli kv put day0/ok v=1
+./build/bin/knxvault-cli pki root --name root --common-name "Lab Root" --ttl 8760h
 ```
 
 That is the entire standalone story: **distroless server on a published port; host CLI pointed at that URL; unseal then administer.**

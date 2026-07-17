@@ -211,7 +211,7 @@ Prerequisites:
 # CLI
 export KNXVAULT_ADDR=http://leader:8200
 export KNXVAULT_TOKEN=<admin-token>
-./bin/knxvault-cli backup restore -f knxvault-backup.json
+./build/bin/knxvault-cli backup restore -f knxvault-backup.json
 ```
 
 Raft path (`internal/service/backup.go`):

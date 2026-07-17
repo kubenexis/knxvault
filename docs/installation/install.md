@@ -22,7 +22,7 @@ make build build-cli
 
 export KNXVAULT_MASTER_KEY=$(openssl rand -base64 32)
 export KNXVAULT_ROOT_TOKEN=dev-root-token
-./bin/knxvault serve
+./build/bin/knxvault serve
 ```
 
 Without `KNXVAULT_RAFT_ENABLED`, the server uses **in-memory** repositories. Data is lost on restart.
@@ -49,7 +49,7 @@ export KNXVAULT_RAFT_ADDRESS=127.0.0.1:63001
 export KNXVAULT_RAFT_DATA_DIR=/tmp/knxvault-raft   # or a durable path such as /var/lib/knxvault/raft
 export KNXVAULT_RAFT_INITIAL_MEMBERS=1=127.0.0.1:63001
 
-./bin/knxvault serve
+./build/bin/knxvault serve
 ```
 
 Bare-metal lab smoke (host binary, single-node Raft):
@@ -160,7 +160,7 @@ curl -s "$KNXVAULT_ADDR/ready"
 # with Raft: "raft_enabled":true, "raft_ready":true, "leader":true (on the leader)
 
 # 3. Full operator/CLI gate (recommended)
-./bin/knxvault-cli doctor --json
+./build/bin/knxvault-cli doctor --json
 # expect: "healthy": true, "fail": 0
 # lab-only warn: API traffic over http (use https in production)
 ```
@@ -214,10 +214,10 @@ Or use the CLI:
 ```bash
 export KNXVAULT_ADDR=$ADDR
 export KNXVAULT_TOKEN=$TOKEN
-./bin/knxvault-cli health
-./bin/knxvault-cli doctor
-./bin/knxvault-cli kv put app/demo key=value
-./bin/knxvault-cli kv get app/demo --show-secrets
+./build/bin/knxvault-cli health
+./build/bin/knxvault-cli doctor
+./build/bin/knxvault-cli kv put app/demo key=value
+./build/bin/knxvault-cli kv get app/demo --show-secrets
 ```
 
 See [Getting started](../user/getting-started.md) for PKI and dynamic secrets workflows.
