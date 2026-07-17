@@ -21,6 +21,7 @@ import (
 	"github.com/kubenexis/knxvault/internal/api/handlers"
 	"github.com/kubenexis/knxvault/internal/api/middleware"
 	"github.com/kubenexis/knxvault/internal/app"
+	domainpki "github.com/kubenexis/knxvault/internal/domain/pki"
 	pkiengine "github.com/kubenexis/knxvault/internal/engine/pki"
 	"github.com/kubenexis/knxvault/internal/repository/memory"
 	"github.com/kubenexis/knxvault/internal/service"
@@ -115,7 +116,7 @@ func TestVaultCompatSysHealth(t *testing.T) {
 func TestVaultCompatAppRoleLogin(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	authSvc := testAuthService("admin")
-	if err := authSvc.RegisterAppRole("cm-role", "cm-secret", "cert-manager", []string{"pki-admin"}); err != nil {
+	if err := authSvc.RegisterAppRole("cm-role", "cm-secret-longok", "cert-manager", []string{"pki-admin"}); err != nil {
 		t.Fatalf("RegisterAppRole: %v", err)
 	}
 	handler := handlers.NewVaultCompatHandler(authSvc, nil, time.Hour)
@@ -127,7 +128,7 @@ func TestVaultCompatAppRoleLogin(t *testing.T) {
 
 	body, _ := json.Marshal(map[string]string{
 		"role_id":   "cm-role",
-		"secret_id": "cm-secret",
+		"secret_id": "cm-secret-longok",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/v1/auth/approle/login", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -151,7 +152,7 @@ func TestVaultCompatAppRoleLogin(t *testing.T) {
 	// Custom mount path via LoginMount
 	body2, _ := json.Marshal(map[string]string{
 		"role_id":   "cm-role",
-		"secret_id": "cm-secret",
+		"secret_id": "cm-secret-longok",
 	})
 	req2 := httptest.NewRequest(http.MethodPost, "/v1/auth/my-approle/login", bytes.NewReader(body2))
 	req2.Header.Set("Content-Type", "application/json")
@@ -177,7 +178,7 @@ func TestVaultCompatRegisterAppRole(t *testing.T) {
 
 	body, _ := json.Marshal(map[string]any{
 		"role_id":   "r1",
-		"secret_id": "s1",
+		"secret_id": "s1-long-enough-ok",
 		"policies":  []string{"pki-admin"},
 		"subject":   "cm",
 	})
@@ -195,7 +196,7 @@ func TestVaultCompatRegisterAppRole(t *testing.T) {
 	r2 := gin.New()
 	r2.Use(middleware.ErrorHandler())
 	r2.POST("/v1/auth/approle/login", loginH.LoginAppRole)
-	loginBody, _ := json.Marshal(map[string]string{"role_id": "r1", "secret_id": "s1"})
+	loginBody, _ := json.Marshal(map[string]string{"role_id": "r1", "secret_id": "s1-long-enough-ok"})
 	req2 := httptest.NewRequest(http.MethodPost, "/v1/auth/approle/login", bytes.NewReader(loginBody))
 	req2.Header.Set("Content-Type", "application/json")
 	rec2 := httptest.NewRecorder()
@@ -230,6 +231,12 @@ func TestVaultCompatSignPKIFullResponse(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("CreateRoot: %v", err)
 	}
+	// W78: override deny-default auto role for issuance tests.
+	roleRepo := memory.NewPKIRoleRepository()
+	_ = roleRepo.Save(ctx, &domainpki.Role{
+		Name: "web-server", CAName: "web-server", AllowedDomains: []string{"*"}, KeyUsage: domainpki.RoleUsageServer,
+	})
+	engine.SetPKIRoleRepository(roleRepo)
 
 	r := gin.New()
 	r.Use(middleware.ErrorHandler())

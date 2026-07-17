@@ -500,13 +500,29 @@ func (e *Engine) destroySecret(ctx context.Context, path string) error {
 
 func (e *Engine) generateUsername(role *domainsecrets.DatabaseRole) (string, error) {
 	if role.DefaultUsername != "" {
+		if !safePostgresUsername(role.DefaultUsername) {
+			return "", fmt.Errorf("default_username must be a safe SQL identifier")
+		}
 		return role.DefaultUsername, nil
 	}
 	suffix, err := randomToken(8)
 	if err != nil {
 		return "", err
 	}
-	return role.UsernamePrefix + role.Name + "-" + suffix, nil
+	// Use underscore-safe alphabet only (base64url may include - which we allow mid-string).
+	name := role.UsernamePrefix + role.Name + "-" + suffix
+	if !safePostgresUsername(name) {
+		// Fallback: strip to alnum/underscore.
+		clean := make([]byte, 0, len(name))
+		for i := 0; i < len(name); i++ {
+			c := name[i]
+			if c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_' || c == '-' {
+				clean = append(clean, c)
+			}
+		}
+		name = string(clean)
+	}
+	return name, nil
 }
 
 func newLeaseID() (string, error) {

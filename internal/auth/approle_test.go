@@ -16,11 +16,12 @@ func TestAppRoleRegisterAndLogin(t *testing.T) {
 	svc := auth.NewService(store, auth.NewRBAC(), "")
 	ctx := context.Background()
 
-	if err := svc.RegisterAppRole("role-cm", "secret-cm", "cert-manager", []string{"pki-admin"}); err != nil {
+	const secret = "secret-cm-long-ok"
+	if err := svc.RegisterAppRole("role-cm", secret, "cert-manager", []string{"pki-admin"}); err != nil {
 		t.Fatalf("RegisterAppRole() = %v", err)
 	}
 
-	token, record, err := svc.LoginAppRole(ctx, "role-cm", "secret-cm")
+	token, record, err := svc.LoginAppRole(ctx, "role-cm", secret)
 	if err != nil {
 		t.Fatalf("LoginAppRole() = %v", err)
 	}
@@ -39,7 +40,7 @@ func TestAppRoleRegisterAndLogin(t *testing.T) {
 		t.Fatal("expected error for wrong secret_id")
 	}
 	// Unknown role
-	if _, _, err := svc.LoginAppRole(ctx, "nope", "secret-cm"); err == nil {
+	if _, _, err := svc.LoginAppRole(ctx, "nope", secret); err == nil {
 		t.Fatal("expected error for unknown role_id")
 	}
 }

@@ -10,7 +10,6 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -132,10 +131,11 @@ func (c *Client) Issue(ctx context.Context, req OrderRequest) (*Result, error) {
 	if c.cfg.SkipTLSVerify && PublicLEHost(c.cfg.DirectoryURL) {
 		return nil, fmt.Errorf("skipTLSVerify is not allowed for public Let's Encrypt directories")
 	}
-	// SSRF: block private IP literals and metadata hosts on directory URL.
-	// Lab SkipTLSVerify (Pebble on loopback) is allowed to use private hosts.
-	if !c.cfg.SkipTLSVerify {
-		if err := ValidateDirectoryURL(c.cfg.DirectoryURL); err != nil {
+	// W78-03: always apply SSRF checks. SkipTLSVerify only allows loopback lab dirs (Pebble),
+	// not arbitrary private/metadata hosts.
+	if err := ValidateDirectoryURL(c.cfg.DirectoryURL); err != nil {
+		// Lab SkipTLS + loopback is the only escape from public SSRF rules.
+		if !c.cfg.SkipTLSVerify || !IsLoopbackDirectoryURL(c.cfg.DirectoryURL) {
 			return nil, fmt.Errorf("acme directory url: %w", err)
 		}
 	}
@@ -307,21 +307,11 @@ func (c *Client) cleanupChallenge(ctx context.Context, api ACMEAPI, authz *xacme
 }
 
 func (c *Client) httpClient() *http.Client {
-	// Production / non-lab: dial-time SSRF filter (W76 ACME directory residual).
-	// Lab SkipTLSVerify (Pebble loopback) keeps a permissive transport.
+	// W78-03: dial-time IP policy always on. SkipTLSVerify only weakens TLS for loopback lab.
 	if !c.cfg.SkipTLSVerify {
 		return SafeHTTPClient(60 * time.Second)
 	}
-	// Lab/staging ACME only — gated by explicit SkipTLSVerify config.
-	var tr http.RoundTripper
-	if base, ok := http.DefaultTransport.(*http.Transport); ok {
-		cloned := base.Clone()
-		cloned.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #nosec G402
-		tr = cloned
-	} else {
-		tr = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}} // #nosec G402
-	}
-	return &http.Client{Timeout: 60 * time.Second, Transport: tr}
+	return SafeHTTPClientAllowLoopbackInsecureTLS(60 * time.Second)
 }
 
 func contactURIs(email string) []string {

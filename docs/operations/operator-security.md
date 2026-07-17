@@ -9,6 +9,12 @@ Production checklist for KNXVault operators. Complements the [security model](..
 
 > **Day-0 + Day-2 narrative** (bring-up through first apps, then operate): [Operator runbook](operator-runbook.md).
 
+## 0. RBAC for TLS Secrets (W78-06)
+
+Default `deployments/operator/rbac.yaml` grants **cluster-wide Secrets get/list/watch only** (no create/update/delete). The operator SA can write Secrets in the **`knxvault` namespace** via a namespaced Role in the same file.
+
+For application namespaces, apply [`rbac-namespaced-example.yaml`](../../deployments/operator/rbac-namespaced-example.yaml) (Role + RoleBinding per app NS) so the operator can materialize `kubernetes.io/tls` Secrets without cluster-wide write.
+
 ## 1. Never put passwords in database role `config`
 
 Database roles store **SQL templates and tuning only**. Credential material belongs elsewhere.

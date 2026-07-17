@@ -47,6 +47,7 @@ func TestEngineCreateRootAndIssue(t *testing.T) {
 	if root.CertPEM == "" {
 		t.Fatal("expected cert pem")
 	}
+	allowCARole(t, engine, "test-root", "*")
 
 	leaf, err := engine.IssueCertificate(ctx, pkiengine.IssueRequest{
 		Role:       "test-root",
@@ -60,6 +61,23 @@ func TestEngineCreateRootAndIssue(t *testing.T) {
 	if leaf.CertPEM == "" || leaf.PrivateKeyPEM == "" {
 		t.Fatal("expected leaf cert and key")
 	}
+}
+
+func allowCARole(t *testing.T, engine *pkiengine.Engine, caName string, domains ...string) {
+	t.Helper()
+	ctx := context.Background()
+	if len(domains) == 0 {
+		domains = []string{"*"}
+	}
+	repo := memory.NewPKIRoleRepository()
+	if err := repo.Save(ctx, &domainpki.Role{
+		Name: caName, CAName: caName, AllowedDomains: domains, KeyUsage: domainpki.RoleUsageServer,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Preserve existing roles if any by merging: get current via Set after CreateRoot.
+	// For tests that already SetPKIRoleRepository, replace with explicit role for CA name.
+	engine.SetPKIRoleRepository(repo)
 }
 
 func testPKIEngine(t *testing.T) *pkiengine.Engine {
@@ -132,6 +150,7 @@ func TestEngineRevokeAndGenerateCRL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateRoot() = %v", err)
 	}
+	allowCARole(t, engine, "crl-root", "*")
 
 	leaf, err := engine.IssueCertificate(ctx, pkiengine.IssueRequest{
 		Role:       "crl-root",
@@ -224,6 +243,7 @@ func TestEngineGenerateCRLIncludesRevokedEntry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateRoot() = %v", err)
 	}
+	allowCARole(t, engine, "crl-entry-root", "*")
 	leaf, err := engine.IssueCertificate(ctx, pkiengine.IssueRequest{
 		Role:       "crl-entry-root",
 		CommonName: "leaf.example.com",

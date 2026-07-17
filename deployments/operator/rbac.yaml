@@ -26,9 +26,12 @@ rules:
       - knxvaultcertificaterequests
       - knxvaultcertificaterequests/status
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # W78-06: Secrets are NOT cluster-wide by default. Grant namespaced Secret
+  # access via rbac-namespaced-example.yaml (or Role/RoleBinding) per app NS.
+  # Optional read-only cluster list for operator diagnostics (no create/update/delete).
   - apiGroups: [""]
     resources: ["secrets"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    verbs: ["get", "list", "watch"]
   - apiGroups: ["networking.k8s.io"]
     resources: ["ingresses"]
     verbs: ["get", "list", "watch"]
@@ -42,8 +45,6 @@ rules:
   - apiGroups: ["coordination.k8s.io"]
     resources: ["leases"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  # NOTE (W50-09): cluster-wide secrets CRUD is powerful. Prefer
-  # rbac-namespaced-example.yaml per app namespace in multi-tenant installs.
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -53,6 +54,31 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: knxvault-operator
+subjects:
+  - kind: ServiceAccount
+    name: knxvault-operator
+    namespace: knxvault
+---
+# Namespaced Secret write in the operator's own namespace (TLS Secrets for local CRs).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: knxvault-operator-secrets
+  namespace: knxvault
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: knxvault-operator-secrets
+  namespace: knxvault
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: knxvault-operator-secrets
 subjects:
   - kind: ServiceAccount
     name: knxvault-operator

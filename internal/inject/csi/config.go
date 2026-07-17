@@ -71,8 +71,18 @@ func ParseMountConfig(attributesJSON, secretsJSON string) (MountConfig, error) {
 		if objects[i].Path == "" {
 			return MountConfig{}, fmt.Errorf("object path is required")
 		}
+		if strings.Contains(objects[i].Path, "..") {
+			return MountConfig{}, fmt.Errorf("object path must not contain parent segments")
+		}
 		if objects[i].FileName == "" {
 			objects[i].FileName = sanitizeFileName(objects[i].Path)
+		} else {
+			// W78-11: basename-only; reject traversal and separators.
+			fn, err := sanitizeMountFileName(objects[i].FileName)
+			if err != nil {
+				return MountConfig{}, err
+			}
+			objects[i].FileName = fn
 		}
 		if objects[i].ObjectType == "" {
 			objects[i].ObjectType = "secret"
@@ -110,8 +120,24 @@ func unmarshalJSONMap(raw string, out *map[string]string) error {
 func sanitizeFileName(p string) string {
 	p = strings.TrimPrefix(p, "/")
 	p = strings.ReplaceAll(p, "/", "_")
+	p = strings.ReplaceAll(p, "..", "_")
 	if p == "" {
 		return "secret"
 	}
 	return p
+}
+
+// sanitizeMountFileName requires a single path segment (no .., /, \\, or absolute paths).
+func sanitizeMountFileName(name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", fmt.Errorf("fileName is required")
+	}
+	if strings.Contains(name, "..") || strings.Contains(name, "/") || strings.Contains(name, "\\") {
+		return "", fmt.Errorf("fileName must be a basename without path separators or parent segments")
+	}
+	if name == "." {
+		return "", fmt.Errorf("invalid fileName")
+	}
+	return name, nil
 }

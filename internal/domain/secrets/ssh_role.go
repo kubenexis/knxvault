@@ -50,9 +50,9 @@ func NormalizeSSHRole(r *SSHRole) {
 		r.KeyType = SSHKeyTypeED25519
 	}
 	if r.Extensions == nil {
+		// W78: least privilege default — no port-forwarding unless operators opt in.
 		r.Extensions = map[string]string{
-			"permit-pty":             "",
-			"permit-port-forwarding": "",
+			"permit-pty": "",
 		}
 	}
 }

@@ -4,6 +4,7 @@
 package app
 
 import (
+	"crypto/sha256"
 	"crypto/subtle"
 	"os"
 	"path/filepath"
@@ -94,6 +95,8 @@ func (s *SealState) Sealed() bool {
 }
 
 // Seal blocks the data plane until unseal.
+// Note (W77/W78 residual): seal is an API/job fence only — master key material
+// remains in process memory until process exit or future barrier unload.
 func (s *SealState) Seal() {
 	if s == nil {
 		return
@@ -115,12 +118,19 @@ func (s *SealState) Unseal(key []byte) bool {
 	if wait := s.unsealBackoffLocked(time.Now()); wait > 0 {
 		return false
 	}
-	if len(key) != len(s.unsealKey) || subtle.ConstantTimeCompare(key, s.unsealKey) != 1 {
+	// W78: constant-time compare via fixed-length digests (no length oracle).
+	if !constantTimeKeyEqual(key, s.unsealKey) {
 		s.failCount++
 		s.lastFail = time.Now()
 		return false
 	}
 	return s.markUnsealedLocked()
+}
+
+func constantTimeKeyEqual(a, b []byte) bool {
+	ha := sha256.Sum256(a)
+	hb := sha256.Sum256(b)
+	return subtle.ConstantTimeCompare(ha[:], hb[:]) == 1
 }
 
 // UnsealProgress reports Shamir share progress (have, need).
@@ -196,7 +206,7 @@ func (s *SealState) SubmitShare(share []byte) (unsealed bool, have, need int, er
 		}
 		return false, have, need, "share combine failed"
 	}
-	if len(combined) != len(s.unsealKey) || subtle.ConstantTimeCompare(combined, s.unsealKey) != 1 {
+	if !constantTimeKeyEqual(combined, s.unsealKey) {
 		s.failCount++
 		s.lastFail = time.Now()
 		s.pending = make(map[byte][]byte)

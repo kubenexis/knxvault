@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	domainpki "github.com/kubenexis/knxvault/internal/domain/pki"
 	pkiengine "github.com/kubenexis/knxvault/internal/engine/pki"
 	"github.com/kubenexis/knxvault/internal/repository/memory"
 	"github.com/kubenexis/knxvault/internal/service"
@@ -36,6 +37,12 @@ func TestPKIServiceCreateIssueRevokeCRL(t *testing.T) {
 	if root.CertPEM == "" {
 		t.Fatal("expected root cert")
 	}
+	// W78: override deny-default auto role for issuance.
+	roleRepo := memory.NewPKIRoleRepository()
+	_ = roleRepo.Save(ctx, &domainpki.Role{
+		Name: "test-root", CAName: "test-root", AllowedDomains: []string{"*"}, KeyUsage: domainpki.RoleUsageServer,
+	})
+	engine.SetPKIRoleRepository(roleRepo)
 
 	leaf, err := svc.IssueCertificate(ctx, pkiengine.IssueRequest{
 		Role:       "test-root",

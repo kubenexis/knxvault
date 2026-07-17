@@ -274,7 +274,10 @@ func (s *Service) LoginLDAP(ctx context.Context, username, password string, cfg 
 			policies = pols
 		}
 	}
-	token, rec, err := s.tokens.Create(ctx, "ldap:"+username, policies, s.tokens.ttl, true, time.Time{})
+	// W78-02: hard max lifetime equals issue TTL (no infinite renew).
+	ttl := s.tokens.ttl
+	maxAt := time.Now().UTC().Add(ttl)
+	token, rec, err := s.tokens.Create(ctx, "ldap:"+username, policies, ttl, true, maxAt)
 	if err != nil {
 		return "", nil, err
 	}

@@ -288,6 +288,10 @@ func (e *Engine) IssueCertificate(ctx context.Context, req IssueRequest) (*Issue
 	}
 	defer memzero.Bytes(caKey)
 
+	usage := domainpki.RoleUsageServer
+	if pkiRole != nil && pkiRole.KeyUsage != "" {
+		usage = pkiRole.KeyUsage
+	}
 	certPEM, keyPEM, err := e.backend.IssueCertificate(ctx, pkibackend.IssueRequest{
 		CACertPEM:   []byte(ca.CertPEM),
 		CAKeyPEM:    caKey,
@@ -296,6 +300,7 @@ func (e *Engine) IssueCertificate(ctx context.Context, req IssueRequest) (*Issue
 		IPAddresses: req.IPAddresses,
 		TTL:         ttl,
 		KeyBits:     req.KeyBits,
+		KeyUsage:    string(usage),
 	})
 	if err != nil {
 		return nil, common.Wrap(common.ErrCodeInternal, "sign leaf certificate", err)
@@ -417,9 +422,10 @@ func (e *Engine) GenerateCRL(ctx context.Context, caID uuid.UUID) (string, error
 	}
 
 	now := time.Now().UTC()
+	// W78: monotonic CRL number (unix nanos) — avoid fixed "1" across updates.
 	tmpl := &x509.RevocationList{
 		RevokedCertificateEntries: make([]x509.RevocationListEntry, 0, len(revoked)),
-		Number:                    big.NewInt(1),
+		Number:                    big.NewInt(now.UnixNano()),
 		ThisUpdate:                now,
 		NextUpdate:                now.Add(24 * time.Hour),
 	}
@@ -485,6 +491,38 @@ func parseSigner(pemBytes []byte) (crypto.Signer, error) {
 	return rsaKey, nil
 }
 
+// verifyCertKeyMatch ensures the PEM private key corresponds to the certificate public key.
+func verifyCertKeyMatch(certPEM, keyPEM []byte) error {
+	cert, err := parseCertificate(certPEM)
+	if err != nil {
+		return err
+	}
+	signer, err := parseSigner(keyPEM)
+	if err != nil {
+		return err
+	}
+	switch pub := cert.PublicKey.(type) {
+	case interface{ Equal(crypto.PublicKey) bool }:
+		if !pub.Equal(signer.Public()) {
+			return fmt.Errorf("public key mismatch")
+		}
+	default:
+		// Fallback: compare SPKI DER encodings.
+		want, err := x509.MarshalPKIXPublicKey(cert.PublicKey)
+		if err != nil {
+			return err
+		}
+		got, err := x509.MarshalPKIXPublicKey(signer.Public())
+		if err != nil {
+			return err
+		}
+		if string(want) != string(got) {
+			return fmt.Errorf("public key mismatch")
+		}
+	}
+	return nil
+}
+
 // ImportCARequest imports a CA from PEM material.
 type ImportCARequest struct {
 	Name       string
@@ -515,6 +553,10 @@ func (e *Engine) ImportCA(ctx context.Context, req ImportCARequest) (*CAResult, 
 	serial, expiresAt, err := parseCertMetadata([]byte(req.CertPEM))
 	if err != nil {
 		return nil, common.Wrap(common.ErrCodeValidation, "invalid certificate", err)
+	}
+	// W78: prove private key matches certificate before sealing.
+	if err := verifyCertKeyMatch([]byte(req.CertPEM), []byte(req.KeyPEM)); err != nil {
+		return nil, common.Wrap(common.ErrCodeValidation, "certificate and private key do not match", err)
 	}
 	keyEnc, dekEnc, err := e.crypto.Seal([]byte(req.KeyPEM))
 	if err != nil {
@@ -683,11 +725,16 @@ func (e *Engine) SignCSR(ctx context.Context, req SignCSRRequest) (*SignCSRResul
 	}
 	defer memzero.Bytes(caKey)
 
+	usage := domainpki.RoleUsageServer
+	if pkiRole != nil && pkiRole.KeyUsage != "" {
+		usage = pkiRole.KeyUsage
+	}
 	certPEM, err := e.backend.SignCSR(ctx, pkibackend.SignCSRRequest{
 		CSRPEM:    []byte(req.CSRPEM),
 		CACertPEM: []byte(ca.CertPEM),
 		CAKeyPEM:  caKey,
 		TTL:       ttl,
+		KeyUsage:  string(usage),
 	})
 	if err != nil {
 		return nil, common.Wrap(common.ErrCodeInternal, "sign csr", err)
@@ -720,12 +767,12 @@ func (e *Engine) ensureDefaultRole(ctx context.Context, caName string) {
 	if _, err := e.roleRepo.Get(ctx, caName); err == nil {
 		return
 	}
-	// Wildcard role named after the CA enables vault-compat "role == CA name" with explicit "*".
-	// MaxTTLSeconds 0 = no max (default leaf TTL still applies when request omits TTL).
+	// W78-04: vault-compat "role == CA name" without unconstrained "*".
+	// Sentinel domain never matches real DNS (RFC 6761 .invalid) until admin updates allowed_domains.
 	_ = e.roleRepo.Save(ctx, &domainpki.Role{
 		Name:           caName,
 		CAName:         caName,
-		AllowedDomains: []string{"*"},
+		AllowedDomains: []string{"_unconfigured.invalid"},
 		KeyUsage:       domainpki.RoleUsageServer,
 		MaxTTLSeconds:  0,
 	})
@@ -772,6 +819,7 @@ func validateIssueAgainstRole(role *domainpki.Role, req IssueRequest) error {
 }
 
 // validateCSRAgainstRole enforces AllowedDomains and MaxTTL on CSR contents before signing.
+// W78: EmailAddresses and URIs are denied unless the role is unconstrained ("*").
 func validateCSRAgainstRole(role *domainpki.Role, csrPEM, ttl string) error {
 	if role == nil {
 		return nil
@@ -790,6 +838,13 @@ func validateCSRAgainstRole(role *domainpki.Role, csrPEM, ttl string) error {
 	// Collect names: CN + DNS SANs. IP SANs require AllowsAnyDomain (W51-05).
 	if len(csr.IPAddresses) > 0 && !role.AllowsAnyDomain() {
 		return common.New(common.ErrCodeValidation, "csr ip SANs are not allowed by role domain policy")
+	}
+	// W78-01: email/URI SANs must not bypass domain-restricted roles.
+	if len(csr.EmailAddresses) > 0 && !role.AllowsAnyDomain() {
+		return common.New(common.ErrCodeValidation, "csr email SANs are not allowed by role domain policy (use allowed_domains: [\"*\"] if required)")
+	}
+	if len(csr.URIs) > 0 && !role.AllowsAnyDomain() {
+		return common.New(common.ErrCodeValidation, "csr URI SANs are not allowed by role domain policy (use allowed_domains: [\"*\"] if required)")
 	}
 	names := make([]string, 0, 1+len(csr.DNSNames))
 	if cn := strings.TrimSpace(csr.Subject.CommonName); cn != "" {

@@ -5,6 +5,7 @@ package acme
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -91,9 +92,41 @@ func PublicLEHost(raw string) bool {
 	return h == "letsencrypt.org" || strings.HasSuffix(h, ".letsencrypt.org")
 }
 
+// IsLoopbackDirectoryURL reports whether the directory host is loopback (lab ACME / Pebble).
+func IsLoopbackDirectoryURL(raw string) bool {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	if host == "localhost" {
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback()
+	}
+	return false
+}
+
 // SafeHTTPClient returns an HTTP client that re-validates resolved IPs at dial time
 // (mitigates DNS rebinding for webhooks; W74 ACME SSRF).
 func SafeHTTPClient(timeout time.Duration) *http.Client {
+	return safeHTTPClient(timeout, false, false)
+}
+
+// SafeHTTPClientAllowLoopback allows 127.0.0.1/::1 for local agents (audit SIEM, lab)
+// but still blocks RFC1918 and link-local/metadata.
+func SafeHTTPClientAllowLoopback(timeout time.Duration) *http.Client {
+	return safeHTTPClient(timeout, true, false)
+}
+
+// SafeHTTPClientAllowLoopbackInsecureTLS is for lab ACME (Pebble) only: allows loopback
+// dial targets and skips TLS verification. Still blocks RFC1918/metadata/non-loopback private.
+func SafeHTTPClientAllowLoopbackInsecureTLS(timeout time.Duration) *http.Client {
+	return safeHTTPClient(timeout, true, true)
+}
+
+func safeHTTPClient(timeout time.Duration, allowLoopback, insecureTLS bool) *http.Client {
 	if timeout <= 0 {
 		timeout = 30 * time.Second
 	}
@@ -111,7 +144,9 @@ func SafeHTTPClient(timeout time.Duration) *http.Client {
 			}
 			var last error
 			for _, ipa := range ips {
-				if isBlockedIP(ipa.IP) {
+				if allowLoopback && ipa.IP.IsLoopback() {
+					// allowed for lab
+				} else if isBlockedIP(ipa.IP) {
 					last = fmt.Errorf("blocked address %s", ipa.IP)
 					continue
 				}
@@ -131,6 +166,9 @@ func SafeHTTPClient(timeout time.Duration) *http.Client {
 		IdleConnTimeout:       30 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
+	}
+	if insecureTLS {
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS12} // #nosec G402 — lab loopback only
 	}
 	return &http.Client{
 		Timeout:   timeout,

@@ -5,6 +5,7 @@ package handlers_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,7 @@ import (
 	"github.com/kubenexis/knxvault/internal/api/dto"
 	"github.com/kubenexis/knxvault/internal/api/handlers"
 	"github.com/kubenexis/knxvault/internal/api/middleware"
+	domainpki "github.com/kubenexis/knxvault/internal/domain/pki"
 	pkiengine "github.com/kubenexis/knxvault/internal/engine/pki"
 	"github.com/kubenexis/knxvault/internal/repository/memory"
 	"github.com/kubenexis/knxvault/internal/service"
@@ -64,6 +66,12 @@ func TestPKIHandlerCreateRootAndIssue(t *testing.T) {
 	if root.ID == "" {
 		t.Fatal("expected CA id")
 	}
+	// W78: CreateRoot installs deny-default role; tests that issue for real DNS install "*".
+	roleRepo := memory.NewPKIRoleRepository()
+	_ = roleRepo.Save(context.Background(), &domainpki.Role{
+		Name: "api-root", CAName: "api-root", AllowedDomains: []string{"*"}, KeyUsage: domainpki.RoleUsageServer,
+	})
+	engine.SetPKIRoleRepository(roleRepo)
 
 	issueBody, _ := json.Marshal(dto.IssueCertRequest{
 		Role:       "api-root",

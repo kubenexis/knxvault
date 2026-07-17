@@ -108,6 +108,8 @@ func productionBase() config.Config {
 		RBACSyncFailClosed:  true,
 		RequireHTTPSClients: true,
 		RootTokenTTL:        4 * time.Hour,
+		ManagedSQLStrict:    true,
+		UnsealAllowCIDRs:    []string{"10.0.0.0/8"},
 	}
 }
 
@@ -232,6 +234,7 @@ func TestLoadProductionProfileFromEnv(t *testing.T) {
 	t.Setenv("KNXVAULT_TLS_KEY", "/certs/tls.key")
 	t.Setenv("KNXVAULT_AUDIT_SIGNING_KEY", "sign")
 	t.Setenv("KNXVAULT_METRICS_BEARER_TOKEN", "m")
+	t.Setenv("KNXVAULT_UNSEAL_ALLOW_CIDRS", "10.0.0.0/8")
 	// clear lab-ish vars
 	t.Setenv("KNXVAULT_JWT_SECRET", "")
 	t.Setenv("KNXVAULT_K8S_AUTH_INSECURE", "")
@@ -273,6 +276,8 @@ security:
   profile: production
   tls_termination: ingress
   metrics_bearer_token: from-file
+  unseal_allow_cidrs:
+    - 10.0.0.0/8
 audit:
   signing_key: from-file-audit
 `
@@ -319,6 +324,8 @@ func TestMultiNodeRaftForcesProductionProfile(t *testing.T) {
 		AuditSigningKey:    "a",
 		MetricsBearerToken: "m",
 		UnsealKey:          "dGVzdA==",
+		UnsealAllowCIDRs:   []string{"10.0.0.0/8"},
+		ManagedSQLStrict:   true,
 		Raft: config.RaftConfig{
 			Enabled:           true,
 			InitialMembersRaw: "1=a:1,2=b:1,3=c:1",

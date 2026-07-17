@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/kubenexis/knxvault/internal/acme"
 	"github.com/kubenexis/knxvault/internal/domain/audit"
 	"github.com/kubenexis/knxvault/internal/infra/metrics"
 )
@@ -43,13 +44,12 @@ func initForwardSink(url string) {
 	if forward != nil && forwardURL == url {
 		return
 	}
+	// W78-09: SSRF-safe client (blocks private/metadata; loopback allowed for local SIEM).
 	// Replace sink when URL changes (tests / reconfigure).
 	sink := &forwardSink{
-		url: url,
-		client: &http.Client{
-			Timeout: 5 * time.Second,
-		},
-		queue: make(chan *audit.Entry, defaultForwardQueueSize),
+		url:    url,
+		client: acme.SafeHTTPClientAllowLoopback(5 * time.Second),
+		queue:  make(chan *audit.Entry, defaultForwardQueueSize),
 	}
 	go sink.worker()
 	// On URL change, previous worker keeps draining its channel until empty; ops reconfig is rare.

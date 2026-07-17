@@ -25,14 +25,15 @@ func TestAppRoleRaftBackendRoundTrip(t *testing.T) {
 
 	store := auth.NewAppRoleStore()
 	store.AttachRaftBackend(repo, cryptoSvc)
-	if err := store.Register("role-a", "secret-a-value", "sub-a", []string{"pol-a"}); err != nil {
+	const secret = "secret-a-value-ok"
+	if err := store.Register("role-a", secret, "sub-a", []string{"pol-a"}); err != nil {
 		t.Fatal(err)
 	}
 
 	// New store loads from Raft blob.
 	store2 := auth.NewAppRoleStore()
 	store2.AttachRaftBackend(repo, cryptoSvc)
-	role, err := store2.Authenticate("role-a", "secret-a-value")
+	role, err := store2.Authenticate("role-a", secret)
 	if err != nil {
 		t.Fatalf("authenticate after raft load: %v", err)
 	}

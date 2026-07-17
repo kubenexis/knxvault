@@ -35,6 +35,8 @@ type IssueRequest struct {
 	IPAddresses []string
 	TTL         time.Duration
 	KeyBits     int
+	// KeyUsage is domain role usage: server | client | code_signing (W78).
+	KeyUsage string
 }
 
 // SignCSRRequest configures signing an existing CSR with a CA.
@@ -43,6 +45,8 @@ type SignCSRRequest struct {
 	CACertPEM []byte
 	CAKeyPEM  []byte
 	TTL       time.Duration
+	// KeyUsage is domain role usage: server | client | code_signing (W78).
+	KeyUsage string
 }
 
 // Backend performs PKI certificate operations.

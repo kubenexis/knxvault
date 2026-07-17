@@ -62,7 +62,9 @@ type SecurityFile struct {
 	// TLSTermination is server (process TLS) or ingress (edge TLS).
 	TLSTermination string `yaml:"tls_termination,omitempty"`
 	// MetricsBearerToken requires Authorization: Bearer on GET /metrics (production required).
-	MetricsBearerToken     string   `yaml:"metrics_bearer_token,omitempty"`
+	MetricsBearerToken string `yaml:"metrics_bearer_token,omitempty"`
+	// UnsealAllowCIDRs restricts POST /sys/unseal (required in production).
+	UnsealAllowCIDRs       []string `yaml:"unseal_allow_cidrs,omitempty"`
 	RateLimitEnabled       *bool    `yaml:"rate_limit_enabled,omitempty"`
 	RateLimitRPM           *int     `yaml:"rate_limit_rpm,omitempty"`
 	RequestSigningKey      string   `yaml:"request_signing_key,omitempty"`
@@ -248,6 +250,9 @@ func applyFile(cfg Config, file File) (Config, error) {
 		}
 		if v := strings.TrimSpace(file.Security.MetricsBearerToken); v != "" {
 			cfg.MetricsBearerToken = v
+		}
+		if len(file.Security.UnsealAllowCIDRs) > 0 {
+			cfg.UnsealAllowCIDRs = append([]string(nil), file.Security.UnsealAllowCIDRs...)
 		}
 		if file.Security.RateLimitEnabled != nil {
 			cfg.RateLimitEnabled = *file.Security.RateLimitEnabled

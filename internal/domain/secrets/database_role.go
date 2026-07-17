@@ -56,27 +56,27 @@ func (r *DatabaseRole) Validate() error {
 		if len(r.CreationStatements) == 0 {
 			return fmt.Errorf("creation_statements are required for managed execution mode")
 		}
-		// W50-22: default strict SQL allow-list for managed statements.
-		// Callers that need custom SQL can set Config["sql_strict"]="false" only when explicitly allowed.
-		strict := true
+		// W50-22 / W78-05: managed SQL is always allow-listed (sql_strict=false is rejected).
 		if r.Config != nil {
 			if v, ok := r.Config["sql_strict"]; ok {
+				strict := true
 				switch t := v.(type) {
 				case bool:
 					strict = t
 				case string:
 					strict = t != "false" && t != "0"
 				}
+				if !strict {
+					return fmt.Errorf("sql_strict=false is not allowed; managed roles must use template-only SQL")
+				}
 			}
 		}
-		if strict {
-			if err := ValidateManagedSQLStatements(r.CreationStatements); err != nil {
-				return fmt.Errorf("creation_statements: %w", err)
-			}
-			if len(r.RevocationStatements) > 0 {
-				if err := ValidateManagedSQLStatements(r.RevocationStatements); err != nil {
-					return fmt.Errorf("revocation_statements: %w", err)
-				}
+		if err := ValidateManagedSQLStatements(r.CreationStatements); err != nil {
+			return fmt.Errorf("creation_statements: %w", err)
+		}
+		if len(r.RevocationStatements) > 0 {
+			if err := ValidateManagedSQLStatements(r.RevocationStatements); err != nil {
+				return fmt.Errorf("revocation_statements: %w", err)
 			}
 		}
 	}

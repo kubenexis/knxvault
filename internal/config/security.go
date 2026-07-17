@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kubenexis/knxvault/internal/acme"
 	"github.com/kubenexis/knxvault/internal/netutil"
 )
 
@@ -59,6 +60,7 @@ func ApplySecurityProfileDefaults(cfg *Config) error {
 	cfg.RateLimitEnabled = true
 	cfg.RBACSyncFailClosed = true
 	cfg.RequireHTTPSClients = true
+	cfg.ManagedSQLStrict = true
 	// Cap bootstrap root lifetime (bootstrap-complete / root death is W62-10).
 	if cfg.RootTokenTTL <= 0 || cfg.RootTokenTTL > MaxProductionRootTokenTTL {
 		cfg.RootTokenTTL = MaxProductionRootTokenTTL
@@ -193,6 +195,19 @@ func validateProductionSecurity(cfg Config) error {
 			// Allow ldap:// only for private lab; production requires ldaps.
 			return fmt.Errorf("production profile: LDAP URL must use ldaps://")
 		}
+	}
+	// W78-07: unseal plane must be network-scoped in production.
+	if len(cfg.UnsealAllowCIDRs) == 0 {
+		return fmt.Errorf("production profile: unseal allow CIDRs required (KNXVAULT_UNSEAL_ALLOW_CIDRS)")
+	}
+	// W78-09: audit forward URL must pass SSRF checks when set.
+	if strings.TrimSpace(cfg.AuditForwardURL) != "" {
+		if err := acme.ValidateOutboundURL(cfg.AuditForwardURL); err != nil {
+			return fmt.Errorf("production profile: audit forward URL: %w", err)
+		}
+	}
+	if !cfg.ManagedSQLStrict {
+		return fmt.Errorf("production profile: managed SQL strict mode must be enabled")
 	}
 	return nil
 }

@@ -260,6 +260,10 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 			log.Info("audit signing key configured")
 		}
 		if cfg.AuditForwardURL != "" {
+			// Lab may still set a forward URL; production profile validates SSRF at ValidateSecurity.
+			if err := notify.ValidateURL(cfg.AuditForwardURL); err != nil {
+				return nil, fmt.Errorf("audit forward URL: %w", err)
+			}
 			deps.AuditService.SetForwardURL(cfg.AuditForwardURL)
 			log.Info("audit forward URL configured", zap.String("url", cfg.AuditForwardURL))
 		}

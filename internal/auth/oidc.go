@@ -18,6 +18,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
+	"github.com/kubenexis/knxvault/internal/acme"
 	domainauth "github.com/kubenexis/knxvault/internal/domain/auth"
 	"github.com/kubenexis/knxvault/internal/domain/common"
 )
@@ -68,20 +69,28 @@ func (c *jwksCache) get(ctx context.Context, jwksURL string) (map[string]any, er
 	return keys, nil
 }
 
-var jwksHTTPClient = &http.Client{Timeout: 10 * time.Second}
-
 func (c *jwksCache) invalidate(jwksURL string) {
 	c.mu.Lock()
 	delete(c.entries, jwksURL)
 	c.mu.Unlock()
 }
 
-func fetchJWKS(ctx context.Context, url string) (map[string]any, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+func fetchJWKS(ctx context.Context, jwksURL string) (map[string]any, error) {
+	// W78-08: SSRF gate on JWKS URL (public destinations; loopback allowed for lab/tests).
+	if err := validateJWKSURL(jwksURL); err != nil {
+		return nil, fmt.Errorf("jwks url: %w", err)
+	}
+	var client *http.Client
+	if acme.IsLoopbackDirectoryURL(jwksURL) {
+		client = acme.SafeHTTPClientAllowLoopbackInsecureTLS(10 * time.Second)
+	} else {
+		client = acme.SafeHTTPClient(10 * time.Second)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, jwksURL, nil)
 	if err != nil {
 		return nil, err
 	}
-	resp, err := jwksHTTPClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch jwks: %w", err)
 	}
@@ -219,7 +228,11 @@ func (v *OIDCValidator) Validate(ctx context.Context, cfg *domainauth.OIDCConfig
 		return "", nil, common.New(common.ErrCodeUnauthorized, "invalid oidc jwt claims")
 	}
 	iss, _ := mapClaims["iss"].(string)
-	if cfg.Issuer != "" && iss != cfg.Issuer {
+	// W78-08: issuer is required (fail closed).
+	if strings.TrimSpace(cfg.Issuer) == "" {
+		return "", nil, common.New(common.ErrCodeUnauthorized, "oidc issuer is required")
+	}
+	if iss != cfg.Issuer {
 		return "", nil, common.New(common.ErrCodeUnauthorized, "issuer mismatch")
 	}
 	if cfg.Audience != "" && !audienceMatches(mapClaims["aud"], cfg.Audience) {
@@ -244,6 +257,20 @@ func audienceMatches(audClaim any, expected string) bool {
 		}
 	}
 	return false
+}
+
+// validateJWKSURL allows public https JWKS endpoints and loopback lab servers; blocks
+// private/metadata SSRF targets (W78-08).
+func validateJWKSURL(raw string) error {
+	if acme.IsLoopbackDirectoryURL(raw) {
+		// Lab/tests: loopback only; scheme still must be http(s).
+		if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(raw)), "http://") &&
+			!strings.HasPrefix(strings.ToLower(strings.TrimSpace(raw)), "https://") {
+			return fmt.Errorf("jwks url scheme must be http or https")
+		}
+		return nil
+	}
+	return acme.ValidateOutboundURL(raw)
 }
 
 // OIDCTTL returns token TTL capped by role max TTL.

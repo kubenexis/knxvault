@@ -148,6 +148,8 @@ func postgresRevocationStatements(privilege string) []string {
 }
 
 func buildStatementContext(role *domainsecrets.DatabaseRole, username, password string, expiresAt time.Time) statementContext {
+	// W78-05: username must be a safe identifier (templates wrap with "…").
+	// Reject quote/injection characters rather than double-quoting allow-list templates.
 	return statementContext{
 		Username:   username,
 		Password:   escapePostgresLiteral(password),
@@ -155,6 +157,23 @@ func buildStatementContext(role *domainsecrets.DatabaseRole, username, password 
 		Schema:     quotePostgresIdent(schemaFromConfig(role.Config)),
 		Expiration: expiresAt.UTC().Format("2006-01-02 15:04:05-07"),
 	}
+}
+
+// safePostgresUsername reports whether username is safe to embed in "{{username}}" templates.
+func safePostgresUsername(username string) bool {
+	if username == "" || len(username) > 63 {
+		return false
+	}
+	for i, r := range username {
+		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_' {
+			continue
+		}
+		if i > 0 && r == '-' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func renderStatementsForRole(templates []string, role *domainsecrets.DatabaseRole, username, password string, expiresAt time.Time) []string {

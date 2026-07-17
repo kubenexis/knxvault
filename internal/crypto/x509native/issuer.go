@@ -96,8 +96,13 @@ func CreateIntermediate(parentCertPEM, parentKeyPEM []byte, commonName string, t
 	return signCertificate(template, parentCert, &priv.PublicKey, parentKey, priv)
 }
 
-// IssueCertificate signs a leaf certificate with DNS SAN support.
+// IssueCertificate signs a leaf certificate with DNS SAN support (server EKU default).
 func IssueCertificate(caCertPEM, caKeyPEM []byte, commonName string, dnsNames, ipAddresses []string, ttl time.Duration, keyBits int) (certPEM, keyPEM []byte, err error) {
+	return IssueCertificateWithUsage(caCertPEM, caKeyPEM, commonName, dnsNames, ipAddresses, ttl, keyBits, "server")
+}
+
+// IssueCertificateWithUsage issues a leaf with role key usage (server|client|code_signing).
+func IssueCertificateWithUsage(caCertPEM, caKeyPEM []byte, commonName string, dnsNames, ipAddresses []string, ttl time.Duration, keyBits int, usage string) (certPEM, keyPEM []byte, err error) {
 	caCert, err := ParseCertificate(caCertPEM)
 	if err != nil {
 		return nil, nil, fmt.Errorf("parse ca certificate: %w", err)
@@ -120,6 +125,7 @@ func IssueCertificate(caCertPEM, caKeyPEM []byte, commonName string, dnsNames, i
 		return nil, nil, err
 	}
 
+	ku, eku := keyUsageForRole(usage)
 	now := time.Now().UTC()
 	template := &x509.Certificate{
 		SerialNumber: serial,
@@ -129,8 +135,8 @@ func IssueCertificate(caCertPEM, caKeyPEM []byte, commonName string, dnsNames, i
 		},
 		NotBefore:          now,
 		NotAfter:           now.Add(ttl),
-		KeyUsage:           x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
-		ExtKeyUsage:        []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+		KeyUsage:           ku,
+		ExtKeyUsage:        eku,
 		DNSNames:           append([]string(nil), dnsNames...),
 		IPAddresses:        parseIPAddresses(ipAddresses),
 		SignatureAlgorithm: x509.SHA256WithRSA,
@@ -141,6 +147,11 @@ func IssueCertificate(caCertPEM, caKeyPEM []byte, commonName string, dnsNames, i
 
 // SignCSR signs an existing PEM CSR with the given CA certificate and key.
 func SignCSR(csrPEM, caCertPEM, caKeyPEM []byte, ttl time.Duration) (certPEM []byte, err error) {
+	return SignCSRWithUsage(csrPEM, caCertPEM, caKeyPEM, ttl, "server")
+}
+
+// SignCSRWithUsage signs a CSR applying role key usage (W78).
+func SignCSRWithUsage(csrPEM, caCertPEM, caKeyPEM []byte, ttl time.Duration, usage string) (certPEM []byte, err error) {
 	csrBlock, _ := pem.Decode(csrPEM)
 	if csrBlock == nil {
 		return nil, fmt.Errorf("decode csr pem")
@@ -167,14 +178,15 @@ func SignCSR(csrPEM, caCertPEM, caKeyPEM []byte, ttl time.Duration) (certPEM []b
 		return nil, err
 	}
 
+	ku, eku := keyUsageForRole(usage)
 	now := time.Now().UTC()
 	template := &x509.Certificate{
 		SerialNumber:          serial,
 		Subject:               csr.Subject,
 		NotBefore:             now,
 		NotAfter:              now.Add(ttl),
-		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+		KeyUsage:              ku,
+		ExtKeyUsage:           eku,
 		DNSNames:              csr.DNSNames,
 		IPAddresses:           csr.IPAddresses,
 		EmailAddresses:        csr.EmailAddresses,
@@ -189,6 +201,18 @@ func SignCSR(csrPEM, caCertPEM, caKeyPEM []byte, ttl time.Duration) (certPEM []b
 		return nil, fmt.Errorf("sign csr: %w", err)
 	}
 	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), nil
+}
+
+func keyUsageForRole(usage string) (x509.KeyUsage, []x509.ExtKeyUsage) {
+	switch strings.ToLower(strings.TrimSpace(usage)) {
+	case "client":
+		return x509.KeyUsageDigitalSignature, []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}
+	case "code_signing":
+		return x509.KeyUsageDigitalSignature, []x509.ExtKeyUsage{x509.ExtKeyUsageCodeSigning}
+	default: // server (and empty)
+		return x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+			[]x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
+	}
 }
 
 func signCertificate(template, parent *x509.Certificate, pub crypto.PublicKey, signer crypto.Signer, keyOut *rsa.PrivateKey) (certPEM, keyPEM []byte, err error) {

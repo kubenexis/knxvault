@@ -46,12 +46,12 @@ func (b *NativeBackend) IssueCertificate(_ context.Context, req IssueRequest) (c
 	if err := ValidateCommonName(req.CommonName); err != nil {
 		return nil, nil, err
 	}
-	return x509native.IssueCertificate(req.CACertPEM, req.CAKeyPEM, req.CommonName, req.DNSNames, req.IPAddresses, req.TTL, req.KeyBits)
+	return x509native.IssueCertificateWithUsage(req.CACertPEM, req.CAKeyPEM, req.CommonName, req.DNSNames, req.IPAddresses, req.TTL, req.KeyBits, req.KeyUsage)
 }
 
 // SignCSR signs a PEM CSR with the given CA certificate and key.
 func (b *NativeBackend) SignCSR(ctx context.Context, req SignCSRRequest) (certPEM []byte, err error) {
-	return x509native.SignCSR(req.CSRPEM, req.CACertPEM, req.CAKeyPEM, req.TTL)
+	return x509native.SignCSRWithUsage(req.CSRPEM, req.CACertPEM, req.CAKeyPEM, req.TTL, req.KeyUsage)
 }
 
 // ParseCertificate decodes a PEM certificate.

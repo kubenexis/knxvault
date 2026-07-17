@@ -15,6 +15,8 @@
 #   - no k8s_auth_insecure, no jwt_secret, no raft_allow_insecure
 #   - rate limit on; HTTPS clients required
 #   - audit signing key + metrics bearer required
+#   - unseal_allow_cidrs required (or KNXVAULT_UNSEAL_ALLOW_CIDRS)
+#   - managed SQL strict mode on
 #   - server TLS (paths below) OR tls_termination: ingress
 #   - multi-node Raft requires peer mTLS
 #   - root token TTL capped at 4h
@@ -61,6 +63,10 @@ security:
   rate_limit_rpm: 300
   request_signing_required: false
   cors_allowed_origins: []
+  # Restrict unseal plane (required). Override for your admin network.
+  unseal_allow_cidrs:
+    - 10.0.0.0/8
+    - 192.168.0.0/16
   # metrics_bearer_token: ""  # use KNXVAULT_METRICS_BEARER_TOKEN
 
 raft:

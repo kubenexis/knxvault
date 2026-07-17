@@ -48,6 +48,9 @@ func (s *AppRoleStore) Register(roleID, secretID, subject string, policies []str
 	if roleID == "" || secretID == "" {
 		return common.New(common.ErrCodeValidation, "role_id and secret_id are required")
 	}
+	if len(secretID) < 16 {
+		return common.New(common.ErrCodeValidation, "secret_id must be at least 16 characters")
+	}
 	if len(policies) == 0 {
 		return common.New(common.ErrCodeValidation, "policies are required")
 	}
@@ -60,7 +63,7 @@ func (s *AppRoleStore) Register(roleID, secretID, subject string, policies []str
 		RoleID:     roleID,
 		Subject:    subject,
 		Policies:   append([]string(nil), policies...),
-		secretHash: hashSecretID(secretID),
+		secretHash: hashSecretID(roleID, secretID),
 	}
 	s.saveLocked()
 	return nil
@@ -97,16 +100,19 @@ func (s *AppRoleStore) Authenticate(roleID, secretID string) (*AppRole, error) {
 	if err != nil {
 		return nil, common.New(common.ErrCodeInternal, "approle corrupt")
 	}
-	got := sha256.Sum256([]byte(secretID))
-	if subtle.ConstantTimeCompare(want, got[:]) != 1 {
+	got := sha256.Sum256([]byte(roleID + "\x00" + secretID))
+	// Legacy unsalted hashes (pre-W78) still accepted for migration.
+	legacy := sha256.Sum256([]byte(secretID))
+	if subtle.ConstantTimeCompare(want, got[:]) != 1 && subtle.ConstantTimeCompare(want, legacy[:]) != 1 {
 		return nil, common.New(common.ErrCodeUnauthorized, "invalid role_id or secret_id")
 	}
 	copy := role
 	return &copy, nil
 }
 
-func hashSecretID(secretID string) string {
-	sum := sha256.Sum256([]byte(secretID))
+// hashSecretID returns salted SHA-256 hex (role_id as salt) — W78.
+func hashSecretID(roleID, secretID string) string {
+	sum := sha256.Sum256([]byte(roleID + "\x00" + secretID))
 	return hex.EncodeToString(sum[:])
 }
 
