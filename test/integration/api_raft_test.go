@@ -190,9 +190,11 @@ func TestIntegrationRaftHTTPPKIRoundTrip(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	rootBody, _ := json.Marshal(map[string]any{
-		"name":        "raft-http-root",
-		"common_name": "Raft HTTP Root",
-		"ttl":         "8760h",
+		"name":             "raft-http-root",
+		"common_name":      "Raft HTTP Root",
+		"ttl":              "8760h",
+		"allowed_domains":  []string{"example.com"},
+		"allow_subdomains": true,
 	})
 	rootReq, err := http.NewRequest(http.MethodPost, server.URL+"/pki/root", bytes.NewReader(rootBody))
 	if err != nil {

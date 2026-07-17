@@ -117,10 +117,12 @@ type KVReadResponse struct {
 
 // CreateRootCARequest is POST /pki/root.
 type CreateRootCARequest struct {
-	Name       string `json:"name"`
-	CommonName string `json:"common_name"`
-	TTL        string `json:"ttl"`
-	KeyBits    int    `json:"key_bits,omitempty"`
+	Name            string   `json:"name"`
+	CommonName      string   `json:"common_name"`
+	TTL             string   `json:"ttl"`
+	KeyBits         int      `json:"key_bits,omitempty"`
+	AllowedDomains  []string `json:"allowed_domains,omitempty"`
+	AllowSubdomains bool     `json:"allow_subdomains,omitempty"`
 }
 
 // CAResponse is returned for CA create operations.

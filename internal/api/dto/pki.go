@@ -10,6 +10,9 @@ type CreateRootCARequest struct {
 	TTL        string `json:"ttl" binding:"required"`
 	KeyType    string `json:"key_type"`
 	KeyBits    int    `json:"key_bits"`
+	// AllowedDomains for the auto-created role (same name as CA). Empty = deny-default (W78).
+	AllowedDomains  []string `json:"allowed_domains"`
+	AllowSubdomains bool     `json:"allow_subdomains"`
 }
 
 // CreateIntermediateCARequest is POST /pki/intermediate.
@@ -19,6 +22,18 @@ type CreateIntermediateCARequest struct {
 	CommonName string `json:"common_name" binding:"required"`
 	TTL        string `json:"ttl" binding:"required"`
 	KeyBits    int    `json:"key_bits"`
+	// AllowedDomains for the auto-created role (same name as CA). Empty = deny-default (W78).
+	AllowedDomains  []string `json:"allowed_domains"`
+	AllowSubdomains bool     `json:"allow_subdomains"`
+}
+
+// PutPKIRoleRequest is PUT /pki/roles/:name.
+type PutPKIRoleRequest struct {
+	CAName          string   `json:"ca_name" binding:"required"`
+	AllowedDomains  []string `json:"allowed_domains" binding:"required"`
+	AllowSubdomains bool     `json:"allow_subdomains"`
+	KeyUsage        string   `json:"key_usage"`
+	MaxTTLSeconds   int      `json:"max_ttl_seconds"`
 }
 
 // IssueClientCertRequest is POST /pki/issue-client-cert (W34-02).

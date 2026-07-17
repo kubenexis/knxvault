@@ -52,6 +52,8 @@ func TestE2EDaemonCLIWorkflow(t *testing.T) {
 		"--common-name", "KNXVault E2E Root CA",
 		"--ttl", "8760h",
 		"--key-bits", "2048",
+		"--allowed-domains", "example.com",
+		"--allow-subdomains",
 	), &rootCA)
 	if rootCA.ID == "" || rootCA.CertPEM == "" {
 		t.Fatalf("root CA response incomplete: %+v", rootCA)

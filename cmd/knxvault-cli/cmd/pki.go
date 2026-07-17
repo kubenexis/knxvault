@@ -24,12 +24,16 @@ var pkiRootCmd = &cobra.Command{
 		cn, _ := cmd.Flags().GetString("common-name")
 		ttl, _ := cmd.Flags().GetString("ttl")
 		keyBits, _ := cmd.Flags().GetInt("key-bits")
+		domains, _ := cmd.Flags().GetStringSlice("allowed-domains")
+		allowSub, _ := cmd.Flags().GetBool("allow-subdomains")
 
 		resp, err := apiClient().PKICreateRoot(cmd.Context(), client.CreateRootCARequest{
-			Name:       name,
-			CommonName: cn,
-			TTL:        ttl,
-			KeyBits:    keyBits,
+			Name:            name,
+			CommonName:      cn,
+			TTL:             ttl,
+			KeyBits:         keyBits,
+			AllowedDomains:  domains,
+			AllowSubdomains: allowSub,
 		})
 		if err != nil {
 			return err
@@ -101,6 +105,8 @@ func init() {
 	pkiRootCmd.Flags().String("common-name", "", "Certificate common name")
 	pkiRootCmd.Flags().String("ttl", "8760h", "CA TTL")
 	pkiRootCmd.Flags().Int("key-bits", 2048, "RSA key size")
+	pkiRootCmd.Flags().StringSlice("allowed-domains", nil, "DNS domains for auto role (empty = deny-default until configured)")
+	pkiRootCmd.Flags().Bool("allow-subdomains", false, "Allow subdomain matches under allowed-domains")
 	_ = pkiRootCmd.MarkFlagRequired("name")
 	_ = pkiRootCmd.MarkFlagRequired("common-name")
 	pkiIssueCmd.Flags().String("role", "", "Issuing CA role name")

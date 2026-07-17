@@ -255,6 +255,7 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 			{
 				pkiGroup.POST("/root", pkiHandler.CreateRoot)
 				pkiGroup.POST("/intermediate", pkiHandler.CreateIntermediate)
+				pkiGroup.PUT("/roles/:name", pkiHandler.PutRole)
 				pkiGroup.POST("/issue", pkiHandler.Issue)
 				pkiGroup.POST("/issue-client-cert", pkiHandler.IssueClientCert)
 				pkiGroup.POST("/sign", pkiHandler.SignCSR)

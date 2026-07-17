@@ -32,6 +32,10 @@ type CreateRootRequest struct {
 	CommonName string
 	TTL        string
 	KeyBits    int
+	// AllowedDomains for the auto-created PKI role named after the CA (W78).
+	// Empty keeps the deny-default role (_unconfigured.invalid) until operators update domains.
+	AllowedDomains  []string
+	AllowSubdomains bool
 }
 
 // CreateIntermediateRequest configures a new intermediate CA.
@@ -41,6 +45,9 @@ type CreateIntermediateRequest struct {
 	CommonName string
 	TTL        string
 	KeyBits    int
+	// AllowedDomains for the auto-created PKI role named after the CA (W78).
+	AllowedDomains  []string
+	AllowSubdomains bool
 }
 
 // IssueRequest configures leaf certificate issuance.
@@ -158,7 +165,7 @@ func (e *Engine) CreateRoot(ctx context.Context, req CreateRootRequest) (*CAResu
 	if err := e.caRepo.Save(ctx, ca); err != nil {
 		return nil, err
 	}
-	e.ensureDefaultRole(ctx, ca.Name)
+	e.ensureDefaultRole(ctx, ca.Name, req.AllowedDomains, req.AllowSubdomains)
 
 	return &CAResult{
 		ID:        ca.ID,
@@ -230,7 +237,7 @@ func (e *Engine) CreateIntermediate(ctx context.Context, req CreateIntermediateR
 	if err := e.caRepo.Save(ctx, ca); err != nil {
 		return nil, err
 	}
-	e.ensureDefaultRole(ctx, ca.Name)
+	e.ensureDefaultRole(ctx, ca.Name, req.AllowedDomains, req.AllowSubdomains)
 
 	return &CAResult{
 		ID:        ca.ID,
@@ -760,22 +767,52 @@ func (e *Engine) SignCSR(ctx context.Context, req SignCSRRequest) (*SignCSRResul
 	}, nil
 }
 
-func (e *Engine) ensureDefaultRole(ctx context.Context, caName string) {
+func (e *Engine) ensureDefaultRole(ctx context.Context, caName string, allowedDomains []string, allowSubdomains bool) {
 	if e == nil || e.roleRepo == nil || caName == "" {
 		return
 	}
 	if _, err := e.roleRepo.Get(ctx, caName); err == nil {
 		return
 	}
-	// W78-04: vault-compat "role == CA name" without unconstrained "*".
-	// Sentinel domain never matches real DNS (RFC 6761 .invalid) until admin updates allowed_domains.
+	// W78-04: vault-compat "role == CA name". Default deny until AllowedDomains is set
+	// (explicit "*" only when unconstrained issuance is intentional).
+	domains := normalizeDomains(allowedDomains)
+	if len(domains) == 0 {
+		domains = []string{"_unconfigured.invalid"}
+	}
 	_ = e.roleRepo.Save(ctx, &domainpki.Role{
-		Name:           caName,
-		CAName:         caName,
-		AllowedDomains: []string{"_unconfigured.invalid"},
-		KeyUsage:       domainpki.RoleUsageServer,
-		MaxTTLSeconds:  0,
+		Name:            caName,
+		CAName:          caName,
+		AllowedDomains:  domains,
+		AllowSubdomains: allowSubdomains,
+		KeyUsage:        domainpki.RoleUsageServer,
+		MaxTTLSeconds:   0,
 	})
+}
+
+func normalizeDomains(in []string) []string {
+	out := make([]string, 0, len(in))
+	for _, d := range in {
+		d = strings.TrimSpace(d)
+		if d != "" {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+// SaveRole persists or replaces a PKI issuance role (W78 ops path).
+func (e *Engine) SaveRole(ctx context.Context, role *domainpki.Role) error {
+	if e == nil || e.roleRepo == nil {
+		return common.New(common.ErrCodeInternal, "pki role repository not configured")
+	}
+	if role == nil {
+		return common.New(common.ErrCodeValidation, "role is required")
+	}
+	if err := role.Validate(); err != nil {
+		return common.Wrap(common.ErrCodeValidation, "invalid pki role", err)
+	}
+	return e.roleRepo.Save(ctx, role)
 }
 
 func (e *Engine) resolvePKIRole(ctx context.Context, roleName string) (caName string, role *domainpki.Role, err error) {

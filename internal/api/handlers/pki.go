@@ -5,12 +5,15 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
 	"github.com/kubenexis/knxvault/internal/api/dto"
+	"github.com/kubenexis/knxvault/internal/domain/common"
+	domainpki "github.com/kubenexis/knxvault/internal/domain/pki"
 	pkiengine "github.com/kubenexis/knxvault/internal/engine/pki"
 	"github.com/kubenexis/knxvault/internal/service"
 )
@@ -34,10 +37,12 @@ func (h *PKIHandler) CreateRoot(c *gin.Context) {
 	}
 
 	result, err := h.svc.CreateRoot(c.Request.Context(), pkiengine.CreateRootRequest{
-		Name:       req.Name,
-		CommonName: req.CommonName,
-		TTL:        req.TTL,
-		KeyBits:    req.KeyBits,
+		Name:            req.Name,
+		CommonName:      req.CommonName,
+		TTL:             req.TTL,
+		KeyBits:         req.KeyBits,
+		AllowedDomains:  req.AllowedDomains,
+		AllowSubdomains: req.AllowSubdomains,
 	})
 	if err != nil {
 		_ = c.Error(err)
@@ -56,11 +61,13 @@ func (h *PKIHandler) CreateIntermediate(c *gin.Context) {
 	}
 
 	result, err := h.svc.CreateIntermediate(c.Request.Context(), pkiengine.CreateIntermediateRequest{
-		ParentName: req.ParentName,
-		Name:       req.Name,
-		CommonName: req.CommonName,
-		TTL:        req.TTL,
-		KeyBits:    req.KeyBits,
+		ParentName:      req.ParentName,
+		Name:            req.Name,
+		CommonName:      req.CommonName,
+		TTL:             req.TTL,
+		KeyBits:         req.KeyBits,
+		AllowedDomains:  req.AllowedDomains,
+		AllowSubdomains: req.AllowSubdomains,
 	})
 	if err != nil {
 		_ = c.Error(err)
@@ -68,6 +75,33 @@ func (h *PKIHandler) CreateIntermediate(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, toCAResponse(result))
+}
+
+// PutRole handles PUT /pki/roles/:name (W78 — configure issuance policy after CA create).
+func (h *PKIHandler) PutRole(c *gin.Context) {
+	name := strings.TrimSpace(c.Param("name"))
+	if name == "" {
+		_ = c.Error(common.New(common.ErrCodeValidation, "role name is required"))
+		return
+	}
+	var req dto.PutPKIRoleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	role := &domainpki.Role{
+		Name:            name,
+		CAName:          req.CAName,
+		AllowedDomains:  req.AllowedDomains,
+		AllowSubdomains: req.AllowSubdomains,
+		KeyUsage:        domainpki.RoleUsage(req.KeyUsage),
+		MaxTTLSeconds:   req.MaxTTLSeconds,
+	}
+	if err := h.svc.SavePKIRole(c.Request.Context(), role); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"name": name, "ca_name": req.CAName, "allowed_domains": req.AllowedDomains})
 }
 
 // IssueClientCert handles POST /pki/issue-client-cert (W34-02).

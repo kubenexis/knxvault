@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	auditsvc "github.com/kubenexis/knxvault/internal/audit"
+	"github.com/kubenexis/knxvault/internal/domain/common"
 	domainpki "github.com/kubenexis/knxvault/internal/domain/pki"
 	pkiengine "github.com/kubenexis/knxvault/internal/engine/pki"
 	"github.com/kubenexis/knxvault/internal/service/audithelper"
@@ -33,6 +34,28 @@ func (s *PKIService) SetTenantMode(enabled bool) {
 	if s != nil {
 		s.tenantMode = enabled
 	}
+}
+
+// SavePKIRole persists a PKI issuance role (allowed_domains, key usage, TTL caps).
+func (s *PKIService) SavePKIRole(ctx context.Context, role *domainpki.Role) error {
+	if role == nil {
+		return common.New(common.ErrCodeValidation, "role is required")
+	}
+	name, err := scopeResourceName(ctx, s.tenantMode, role.Name)
+	if err != nil {
+		return err
+	}
+	role.Name = name
+	if role.CAName != "" {
+		ca, err := scopeResourceName(ctx, s.tenantMode, role.CAName)
+		if err != nil {
+			return err
+		}
+		role.CAName = ca
+	}
+	err = s.engine.SaveRole(ctx, role)
+	audithelper.Record(s.audit, ctx, "pki.role.save", "pki/roles/"+role.Name, err, nil)
+	return err
 }
 
 // CreateRoot creates a root CA.

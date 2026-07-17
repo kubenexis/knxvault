@@ -14,7 +14,7 @@ Remediation of findings from the full security audit (post-W77). Report-only aud
 | W78-01 | CSR Email/URI SANs bypassed domain-restricted roles | `validateCSRAgainstRole` rejects email/URI unless `allowed_domains: ["*"]` |
 | W78-02 | LDAP tokens renewable with empty `MaxExpiresAt` | LDAP login sets max lifetime = issue TTL |
 | W78-03 | ACME `SkipTLSVerify` skipped directory SSRF | Always validate directory URL; skipTLS only allows loopback + dial-time filter |
-| W78-04 | Auto PKI role used unconstrained `*` | Default role uses `_unconfigured.invalid` until admin sets domains |
+| W78-04 | Auto PKI role used unconstrained `*` | Default role uses `_unconfigured.invalid` until admin sets domains; CreateRoot accepts optional `allowed_domains`; `PUT /pki/roles/:name` + CLI `--allowed-domains` |
 | W78-05 | `sql_strict=false` + weak username | Reject `sql_strict=false`; safe-username check for managed DB |
 | W78-06 | Operator ClusterRole Secrets CRUD cluster-wide | ClusterRole secrets = get/list/watch only; namespaced Role for write in `knxvault` (+ example) |
 | W78-07 | Unauthenticated unseal with empty CIDRs | Production requires `KNXVAULT_UNSEAL_ALLOW_CIDRS` / `unseal_allow_cidrs` |

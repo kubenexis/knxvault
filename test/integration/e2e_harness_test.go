@@ -210,15 +210,9 @@ func e2eBins(t *testing.T) (serverBin, cliBin string) {
 			e2eBinsErr = err
 			return
 		}
-		// Prefer committed-style artifacts under module build/ (not /tmp — host tmpfs fills with GOCACHE).
-		serverPath := filepath.Join(modRoot, "build", "bin", "knxvault")
-		cliPath := filepath.Join(modRoot, "build", "bin", "knxvault-cli")
-		if fileExecutable(serverPath) && fileExecutable(cliPath) {
-			e2eServerBin = serverPath
-			e2eCLIBin = cliPath
-			return
-		}
-		// Stable caches under build/ so re-runs reuse compile results and cleanup is local to the repo.
+		// Always build into build/e2e-bins so e2e never reuses a stale make build/bin
+		// artifact after source changes (W78 allowed-domains flags, etc.).
+		// GOCACHE stays under the module tree (not /tmp).
 		cacheDir := filepath.Join(modRoot, "build", "e2e-gocache")
 		binDir := filepath.Join(modRoot, "build", "e2e-bins")
 		if err := os.MkdirAll(cacheDir, 0o755); err != nil {
@@ -265,14 +259,6 @@ func envContains(env []string, prefix string) bool {
 		}
 	}
 	return false
-}
-
-func fileExecutable(path string) bool {
-	info, err := os.Stat(path)
-	if err != nil {
-		return false
-	}
-	return info.Mode()&0o111 != 0
 }
 
 func buildBinary(modRoot, pkg, outPath string) error {
