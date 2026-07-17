@@ -6,6 +6,8 @@ Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topological
 
 **Milestone M-ACME-1 (P1):** Unified **Let's Encrypt / ACME** for **standalone + Kubernetes + `knxvault-cli acme`** — design [`docs/design/acme-letsencrypt-unified.md`](design/acme-letsencrypt-unified.md), backlog **W60-01…** below. K8s operator ACME already shipped; gap is CLI + standalone.
 
+**Milestone M-DNS01-1 (P1, after M-ACME-1):** cert-manager-class **DNS-01 providers + webhooks** — design [`docs/design/dns01-providers-and-webhooks.md`](design/dns01-providers-and-webhooks.md), backlog **W61-01…** below. Webhook-first extensibility; optional in-tree Route53/RFC2136.
+
 **Post-quantum readiness** is tracked separately: **[`docs/pq/backlog.md`](pq/backlog.md)** (`PQ-*` IDs) with design under [`docs/pq/`](pq/README.md). Not a claim of PQ-ready product.
 
 **Legend**

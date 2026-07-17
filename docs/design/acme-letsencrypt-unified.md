@@ -6,6 +6,7 @@
 | **Date** | 2026-07-17 |
 | **Authors** | knxvault engineering |
 | **Milestone** | **M-ACME-1** — Unified ACME / Let's Encrypt (see backlog **W60-***) |
+| **Follow-on** | **M-DNS01-1** — DNS-01 providers + webhooks (cert-manager parity) — [dns01-providers-and-webhooks.md](dns01-providers-and-webhooks.md) · backlog **W61-*** |
 | **Related** | [multi-issuer-acme.md](multi-issuer-acme.md) (K8s operator ACME — implemented) · [certificate-support-matrix.md](../operations/certificate-support-matrix.md) · [standalone Day-0/Day-2](../operations/standalone-distroless-day0-day2.md) · [K8s CLI Day-0/Day-2](../operations/kubernetes-cli-day0-day2.md) · [build-and-deploy-images.md](../operations/build-and-deploy-images.md) |
 
 ---

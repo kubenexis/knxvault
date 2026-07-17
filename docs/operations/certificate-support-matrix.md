@@ -23,7 +23,9 @@ You do **not** need the cert-manager controller for:
 | Self-signed | Yes | `spec.selfSigned` on Issuer |
 | ACME HTTP-01 (Kubernetes) | Yes | Operator `spec.acme.http01: true` + reachable solver |
 | ACME DNS-01 Cloudflare (Kubernetes) | Yes | Operator `spec.acme.dns01.provider: cloudflare` |
-| ACME DNS-01 custom DNS (Kubernetes) | Yes | Operator `provider: webhook` |
+| ACME DNS-01 custom DNS (Kubernetes) | Yes (basic webhook) | Operator `provider: webhook`; **expand under M-DNS01-1** |
+| ACME DNS-01 multi-solver / zone select | **Planned (M-DNS01-1)** | cert-manager-like `solvers[]` — [dns01-providers-and-webhooks.md](../design/dns01-providers-and-webhooks.md) |
+| ACME DNS-01 Route53 / RFC2136 / Azure / GCP | **Planned (webhook or optional in-tree)** | M-DNS01-1 W61-12–15 |
 | ACME / Let's Encrypt (standalone + CLI) | **Yes (M-ACME-1)** | Host `knxvault-cli acme` + `internal/acme` — [unified ACME design](../design/acme-letsencrypt-unified.md); profile examples under `examples/acme/` |
 | Ingress annotation | Yes | `knxvault.kubenexis.dev/issuer` + ingress shim env |
 | Gateway API annotation | Yes | Same annotation + gateway shim env |

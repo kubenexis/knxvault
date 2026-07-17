@@ -42,7 +42,7 @@ flowchart TB
 |--------|----------------|-------|
 | HTTP-01 | `MemoryHTTP01` + optional listen `KNXVAULT_ACME_HTTP01_ADDR` | Must be reachable from ACME CA |
 | DNS-01 Cloudflare | HTTPS API v4 | Token from Secret ref |
-| DNS-01 webhook | POST JSON present/cleanup | Custom DNS systems |
+| DNS-01 webhook | POST JSON present/cleanup | Custom DNS systems; expand under [M-DNS01-1](dns01-providers-and-webhooks.md) |
 | DNS-01 memory | Unit/lab only | Not for public CA |
 
 ### cert-manager migration
