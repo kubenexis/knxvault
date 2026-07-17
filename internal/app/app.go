@@ -1,4 +1,4 @@
-// Copyright The KNXVault Authors.
+// Copyright Kubenexis Systems Private Limited.
 // SPDX-License-Identifier: Apache-2.0
 
 // Package app bootstraps and runs the KNXVault HTTP server.
@@ -60,7 +60,8 @@ func New(ctx context.Context, cfg config.Config, log *zap.Logger) (*App, error) 
 	if deps.Raft != nil {
 		raftMembership = deps.Raft.Client
 	}
-	metricsOnMain := strings.TrimSpace(cfg.MetricsAddr) == ""
+	// Dedicated metrics listener when MetricsAddr is set (W75-03); otherwise /metrics on API.
+	metricsDedicated := strings.TrimSpace(cfg.MetricsAddr) != ""
 	router := api.NewRouter(log, cfg.Version, cfg.TracingEnabled, api.RouterDeps{
 		Ready:                deps,
 		Seal:                 deps.Seal,
@@ -102,7 +103,7 @@ func New(ctx context.Context, cfg config.Config, log *zap.Logger) (*App, error) 
 		RequestSigning:       deps.RequestSigning,
 		TrustedProxies:       cfg.TrustedProxies,
 		MetricsBearerToken:   cfg.MetricsBearerToken,
-		MetricsOnMainRouter:  metricsOnMain,
+		MetricsDedicatedOnly: metricsDedicated,
 		UnsealAllowCIDRs:     cfg.UnsealAllowCIDRs,
 	})
 
@@ -119,7 +120,7 @@ func New(ctx context.Context, cfg config.Config, log *zap.Logger) (*App, error) 
 	}
 
 	var metricsServer *http.Server
-	if !metricsOnMain {
+	if metricsDedicated {
 		mr := gin.New()
 		mr.Use(gin.Recovery())
 		mr.GET("/metrics", metrics.HandlerWithAuth(cfg.MetricsBearerToken))

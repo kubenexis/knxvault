@@ -1,5 +1,5 @@
 <!--
-Copyright The KNXVault Authors.
+Copyright Kubenexis Systems Private Limited.
 SPDX-License-Identifier: CC-BY-4.0
 -->
 
@@ -31,7 +31,7 @@ By signing off, you certify that you have the right to submit the work under the
 New or modified **source** files need:
 
 ```go
-// Copyright The KNXVault Authors.
+// Copyright Kubenexis Systems Private Limited.
 // SPDX-License-Identifier: Apache-2.0
 ```
 
@@ -39,7 +39,7 @@ New or modified **documentation** (Markdown under `docs/`, README):
 
 ```markdown
 <!--
-Copyright The KNXVault Authors.
+Copyright Kubenexis Systems Private Limited.
 SPDX-License-Identifier: CC-BY-4.0
 -->
 ```

@@ -1,4 +1,4 @@
-// Copyright The KNXVault Authors.
+// Copyright Kubenexis Systems Private Limited.
 // SPDX-License-Identifier: Apache-2.0
 
 // KNXVault is a lightweight secrets management and PKI system.

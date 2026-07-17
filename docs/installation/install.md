@@ -1,5 +1,5 @@
 <!--
-Copyright The KNXVault Authors.
+Copyright Kubenexis Systems Private Limited.
 SPDX-License-Identifier: CC-BY-4.0
 -->
 

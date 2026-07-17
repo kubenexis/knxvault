@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright The KNXVault Authors.
+# Copyright Kubenexis Systems Private Limited.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Ensure SPDX license headers on source and documentation (CNCF Charter §11).
@@ -14,7 +14,7 @@ cd "${ROOT}"
 CHECK_ONLY=0
 [[ "${1:-}" == "--check" ]] && CHECK_ONLY=1
 
-COPYRIGHT="Copyright The KNXVault Authors."
+COPYRIGHT="Copyright Kubenexis Systems Private Limited."
 missing=0
 updated=0
 

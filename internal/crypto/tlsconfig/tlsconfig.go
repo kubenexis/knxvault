@@ -1,4 +1,4 @@
-// Copyright The KNXVault Authors.
+// Copyright Kubenexis Systems Private Limited.
 // SPDX-License-Identifier: Apache-2.0
 
 // Package tlsconfig loads TLS certificate material for servers and clients.

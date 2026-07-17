@@ -1,4 +1,4 @@
-// Copyright The KNXVault Authors.
+// Copyright Kubenexis Systems Private Limited.
 // SPDX-License-Identifier: Apache-2.0
 
 // Package eso provides an External Secrets Operator webhook adapter for KNXVault.

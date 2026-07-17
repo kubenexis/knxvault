@@ -1,4 +1,4 @@
-# Copyright The KNXVault Authors.
+# Copyright Kubenexis Systems Private Limited.
 # SPDX-License-Identifier: Apache-2.0
 
 # Self-signed multi-issuer example (no vault CA, no cert-manager).

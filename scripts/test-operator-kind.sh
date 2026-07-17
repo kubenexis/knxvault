@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright The KNXVault Authors.
+# Copyright Kubenexis Systems Private Limited.
 # SPDX-License-Identifier: Apache-2.0
 
 # kind-oriented operator smoke (W30-07). Requires kubectl context and vault at KNXVAULT_ADDR.

@@ -1,4 +1,4 @@
-// Copyright The KNXVault Authors.
+// Copyright Kubenexis Systems Private Limited.
 // SPDX-License-Identifier: Apache-2.0
 
 // Package api wires the HTTP API layer.
@@ -52,8 +52,8 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 
 	build := buildinfo.Get()
 	metrics.SetBuildInfo(build.Version, build.Commit, build.BuildID)
-	// W75-03: when MetricsOnMainRouter is false, metrics are served on a dedicated listener only.
-	if deps.MetricsOnMainRouter {
+	// W75-03: omit /metrics on the API when a dedicated metrics listener is used.
+	if !deps.MetricsDedicatedOnly {
 		r.GET("/metrics", metrics.HandlerWithAuth(deps.MetricsBearerToken))
 	}
 

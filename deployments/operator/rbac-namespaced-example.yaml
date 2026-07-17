@@ -1,4 +1,4 @@
-# Copyright The KNXVault Authors.
+# Copyright Kubenexis Systems Private Limited.
 # SPDX-License-Identifier: Apache-2.0
 
 # Example: restrict Secret write to a single app namespace (multi-tenant / least privilege).

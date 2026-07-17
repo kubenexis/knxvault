@@ -1,6 +1,6 @@
 //go:build integration
 
-// Copyright The KNXVault Authors.
+// Copyright Kubenexis Systems Private Limited.
 // SPDX-License-Identifier: Apache-2.0
 
 package integration_test

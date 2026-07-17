@@ -1,5 +1,5 @@
 <!--
-Copyright The KNXVault Authors.
+Copyright Kubenexis Systems Private Limited.
 SPDX-License-Identifier: CC-BY-4.0
 -->
 
@@ -24,14 +24,14 @@ Under the [CNCF Charter](https://github.com/cncf/foundation/blob/main/charter.md
 - **Documentation** is received and made available under Creative Commons Attribution 4.0 International (CC-BY-4.0).
 - **Inbound contributions**: Developer Certificate of Origin (DCO) sign-off (`Signed-off-by`) on commits, and code contributions under Apache-2.0.
 - File-level notices follow [CNCF license notice guidance](https://github.com/cncf/foundation/blob/main/license-notices.md) (SPDX short-form identifiers and recommended copyright phrasing).
-- Copyright notices use the CNCF-recommended collective form: **Copyright The KNXVault Authors.** ([copyright notices guidance](https://github.com/cncf/foundation/blob/main/copyright-notices.md)).
+- Copyright notices use: **Copyright Kubenexis Systems Private Limited.** (CNCF permits project- or organization-specific notices; see [copyright notices guidance](https://github.com/cncf/foundation/blob/main/copyright-notices.md)).
 
 ### License notice format (required on files)
 
 **Go / source (Apache-2.0):**
 
 ```go
-// Copyright The KNXVault Authors.
+// Copyright Kubenexis Systems Private Limited.
 // SPDX-License-Identifier: Apache-2.0
 ```
 
@@ -39,7 +39,7 @@ Under the [CNCF Charter](https://github.com/cncf/foundation/blob/main/charter.md
 
 ```markdown
 <!--
-Copyright The KNXVault Authors.
+Copyright Kubenexis Systems Private Limited.
 SPDX-License-Identifier: CC-BY-4.0
 -->
 ```
@@ -47,7 +47,7 @@ SPDX-License-Identifier: CC-BY-4.0
 **Shell / Makefile / YAML (Apache-2.0):**
 
 ```
-# Copyright The KNXVault Authors.
+# Copyright Kubenexis Systems Private Limited.
 # SPDX-License-Identifier: Apache-2.0
 ```
 

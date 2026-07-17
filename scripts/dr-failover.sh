@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright The KNXVault Authors.
+# Copyright Kubenexis Systems Private Limited.
 # SPDX-License-Identifier: Apache-2.0
 
 # W35-01: DR failover drill — restore latest backup on standby cluster.

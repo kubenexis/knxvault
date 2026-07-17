@@ -1,4 +1,4 @@
-// Copyright The KNXVault Authors.
+// Copyright Kubenexis Systems Private Limited.
 // SPDX-License-Identifier: Apache-2.0
 
 package integration_test
@@ -210,24 +210,26 @@ func e2eBins(t *testing.T) (serverBin, cliBin string) {
 			e2eBinsErr = err
 			return
 		}
-		serverPath := filepath.Join(modRoot, "bin", "knxvault")
-		cliPath := filepath.Join(modRoot, "bin", "knxvault-cli")
+		// Prefer committed-style artifacts under module build/ (not /tmp — host tmpfs fills with GOCACHE).
+		serverPath := filepath.Join(modRoot, "build", "bin", "knxvault")
+		cliPath := filepath.Join(modRoot, "build", "bin", "knxvault-cli")
 		if fileExecutable(serverPath) && fileExecutable(cliPath) {
 			e2eServerBin = serverPath
 			e2eCLIBin = cliPath
 			return
 		}
-		cacheDir, err := os.MkdirTemp("", "knxvault-e2e-gocache-*")
-		if err != nil {
+		// Stable caches under build/ so re-runs reuse compile results and cleanup is local to the repo.
+		cacheDir := filepath.Join(modRoot, "build", "e2e-gocache")
+		binDir := filepath.Join(modRoot, "build", "e2e-bins")
+		if err := os.MkdirAll(cacheDir, 0o755); err != nil {
+			e2eBinsErr = err
+			return
+		}
+		if err := os.MkdirAll(binDir, 0o755); err != nil {
 			e2eBinsErr = err
 			return
 		}
 		e2eBuildCache = cacheDir
-		binDir, err := os.MkdirTemp("", "knxvault-e2e-bins-*")
-		if err != nil {
-			e2eBinsErr = err
-			return
-		}
 		e2eServerBin = filepath.Join(binDir, "knxvault")
 		e2eCLIBin = filepath.Join(binDir, "knxvault-cli")
 		if err := buildBinary(modRoot, "./cmd/knxvault", e2eServerBin); err != nil {

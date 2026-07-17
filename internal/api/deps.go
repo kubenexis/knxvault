@@ -1,4 +1,4 @@
-// Copyright The KNXVault Authors.
+// Copyright Kubenexis Systems Private Limited.
 // SPDX-License-Identifier: Apache-2.0
 
 package api
@@ -57,8 +57,9 @@ type RouterDeps struct {
 	TrustedProxies []string
 	// MetricsBearerToken when set authenticates GET /metrics (W50-19).
 	MetricsBearerToken string
-	// MetricsOnMainRouter when false, /metrics is not registered on the API router (dedicated listener).
-	MetricsOnMainRouter bool
+	// MetricsDedicatedOnly when true omits /metrics from the API router (W75-03 dedicated listener).
+	// Zero value (false) keeps the lab/test default: GET /metrics on the main HTTP listener.
+	MetricsDedicatedOnly bool
 	// UnsealAllowCIDRs restricts POST /sys/unseal clients (empty = allow all).
 	UnsealAllowCIDRs []string
 }

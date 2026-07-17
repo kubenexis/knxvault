@@ -1,5 +1,5 @@
 <!--
-Copyright The KNXVault Authors.
+Copyright Kubenexis Systems Private Limited.
 SPDX-License-Identifier: CC-BY-4.0
 -->
 
@@ -103,6 +103,7 @@ Version-controlled documentation for architects, operators, developers, and inte
 | [Seal and unseal recipe](recipes/seal-and-unseal.md) | Operators | Single-key + Shamir multi-share ceremony + automated coverage |
 | [Contributing](engineering/contributing.md) | Contributors | PR workflow, DCO, licenses, code standards |
 | [Licensing policy](licensing.md) | Everyone | Apache-2.0 code, CC-BY-4.0 docs (CNCF Charter §11) |
+| [Project sponsors](../SPONSORS.md) | Everyone | Development sponsor, website, and contact URL |
 | [Licensing policy](licensing.md) | Contributors | SPDX allow-list and exceptions |
 | [Backlog](backlog.md) | Maintainers | Phased work items; W30 operator + Vault profile **shipped** |
 | [PQ backlog](pq/backlog.md) | Maintainers | Post-quantum readiness work items (**PQ-*** IDs) |

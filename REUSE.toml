@@ -28,13 +28,14 @@ path = [
   "**/*.json",
 ]
 precedence = "aggregate"
-SPDX-FileCopyrightText = "Copyright The KNXVault Authors."
+SPDX-FileCopyrightText = "Copyright Kubenexis Systems Private Limited."
 SPDX-License-Identifier = "Apache-2.0"
 
 [[annotations]]
 path = [
   "docs/**",
   "README.md",
+  "SPONSORS.md",
   "CHANGELOG.md",
   "SECURITY.md",
   "CODE_OF_CONDUCT.md",
@@ -42,7 +43,7 @@ path = [
   "GOVERNANCE.md",
 ]
 precedence = "aggregate"
-SPDX-FileCopyrightText = "Copyright The KNXVault Authors."
+SPDX-FileCopyrightText = "Copyright Kubenexis Systems Private Limited."
 SPDX-License-Identifier = "CC-BY-4.0"
 
 [[annotations]]
@@ -54,5 +55,5 @@ path = [
   "DCO",
 ]
 precedence = "aggregate"
-SPDX-FileCopyrightText = "Copyright The KNXVault Authors."
+SPDX-FileCopyrightText = "Copyright Kubenexis Systems Private Limited."
 SPDX-License-Identifier = "Apache-2.0"

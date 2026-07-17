@@ -1,4 +1,4 @@
-# Copyright The KNXVault Authors.
+# Copyright Kubenexis Systems Private Limited.
 # SPDX-License-Identifier: Apache-2.0
 
 # Optional egress for ACME HTTP-01 / DNS-01 webhook (W75-05 / P3).
