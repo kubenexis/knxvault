@@ -309,12 +309,13 @@ func (c *Client) httpClient() *http.Client {
 	if base, ok := http.DefaultTransport.(*http.Transport); ok {
 		cloned := base.Clone()
 		if c.cfg.SkipTLSVerify {
-			cloned.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec // lab ACME only
+			// Lab/staging ACME only — gated by explicit SkipTLSVerify config.
+			cloned.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #nosec G402
 		}
 		tr = cloned
 	} else if c.cfg.SkipTLSVerify {
 		// Fallback transport when DefaultTransport is not *http.Transport.
-		tr = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}} //nolint:gosec
+		tr = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}} // #nosec G402
 	}
 	return &http.Client{Timeout: 60 * time.Second, Transport: tr}
 }
