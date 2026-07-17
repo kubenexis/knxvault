@@ -43,7 +43,7 @@ Deploy a production-like highly available KNXVault cluster on Kubernetes using D
 cd /path/to/knxvault
 make container-build
 # Or push to your registry:
-docker tag knxvault:0.5.1 registry.example.com/knxvault:0.5.1
+docker tag ghcr.io/kubenexis/knxvault:0.5.1 registry.example.com/knxvault:0.5.1
 docker push registry.example.com/knxvault:0.5.1
 ```
 

@@ -152,7 +152,7 @@ nerdctl run -d --name knxvault \
   -e KNXVAULT_MASTER_KEY="$MASTER" \
   -e KNXVAULT_ROOT_TOKEN="$ROOT" \
   -e KNXVAULT_LOG_LEVEL=info \
-  knxvault:0.5.1 serve
+  ghcr.io/kubenexis/knxvault:0.5.1 serve
 ```
 
 Without Raft, the process typically does **not** require unseal for basic lab smoke. Prefer Raft for anything you care about keeping.
@@ -180,7 +180,7 @@ nerdctl run -d --name knxvault \
   -e KNXVAULT_RAFT_ADDRESS=127.0.0.1:63001 \
   -e KNXVAULT_RAFT_DATA_DIR=/var/lib/knxvault/raft \
   -e KNXVAULT_RAFT_INITIAL_MEMBERS=1=127.0.0.1:63001 \
-  knxvault:0.5.1 serve
+  ghcr.io/kubenexis/knxvault:0.5.1 serve
 ```
 
 Notes:
@@ -429,7 +429,7 @@ nerdctl run -d --name knxvault -p 8200:8200 \
   -e KNXVAULT_RAFT_ADDRESS=127.0.0.1:63001 \
   -e KNXVAULT_RAFT_DATA_DIR=/var/lib/knxvault/raft \
   -e KNXVAULT_RAFT_INITIAL_MEMBERS=1=127.0.0.1:63001 \
-  knxvault:0.5.1 serve
+  ghcr.io/kubenexis/knxvault:0.5.1 serve
 
 export KNXVAULT_ADDR=http://127.0.0.1:8200
 export KNXVAULT_TOKEN="$ROOT"

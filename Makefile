@@ -40,13 +40,21 @@ DOCKER ?= $(shell \
 VERSION         ?= 0.5.1
 COMMIT          ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 BUILD_ID        ?= $(shell date +%s)
+# GHCR image names: ghcr.io/<org>/<repository>:<tag>
+# Override IMAGE_ORG for forks; override IMAGE/OPERATOR_IMAGE for full custom refs.
+IMAGE_REGISTRY  ?= ghcr.io
+IMAGE_ORG       ?= kubenexis
+IMAGE_NAME      ?= knxvault
+OPERATOR_IMAGE_NAME ?= knxvault-operator
+IMAGE_REPOSITORY          ?= $(IMAGE_REGISTRY)/$(IMAGE_ORG)/$(IMAGE_NAME)
+OPERATOR_IMAGE_REPOSITORY ?= $(IMAGE_REGISTRY)/$(IMAGE_ORG)/$(OPERATOR_IMAGE_NAME)
 # Image/tarball identity: version + short commit (e.g. 0.5.1-a1b2c3d).
 IMAGE_TAG       ?= $(VERSION)-$(COMMIT)
-IMAGE           ?= knxvault:$(IMAGE_TAG)
-OPERATOR_IMAGE  ?= knxvault-operator:$(IMAGE_TAG)
-# Floating tags without commit (convenient for local manifests); always also tagged after build.
-IMAGE_VERSION   ?= knxvault:$(VERSION)
-OPERATOR_IMAGE_VERSION ?= knxvault-operator:$(VERSION)
+IMAGE           ?= $(IMAGE_REPOSITORY):$(IMAGE_TAG)
+OPERATOR_IMAGE  ?= $(OPERATOR_IMAGE_REPOSITORY):$(IMAGE_TAG)
+# Floating tags without commit (local manifests / "latest semver"); always also tagged after build.
+IMAGE_VERSION   ?= $(IMAGE_REPOSITORY):$(VERSION)
+OPERATOR_IMAGE_VERSION ?= $(OPERATOR_IMAGE_REPOSITORY):$(VERSION)
 # All build artifacts live under BUILD_DIR (binaries, image tarballs, SBOM, coverage).
 BUILD_DIR       ?= build
 BIN_DIR         ?= $(BUILD_DIR)/bin
@@ -255,18 +263,16 @@ define require_container_cli
 	fi
 endef
 
-# Ensure a just-built image is visible to $(DOCKER) (nerdctl may use docker.io/library/ prefix).
+# Ensure a just-built image is visible to $(DOCKER).
 define ensure_image
 	@ref="$(1)"; \
 	if $(DOCKER) image inspect "$$ref" >/dev/null 2>&1; then \
 		: ; \
-	elif $(DOCKER) image inspect "docker.io/library/$$ref" >/dev/null 2>&1; then \
-		$(DOCKER) tag "docker.io/library/$$ref" "$$ref" >/dev/null 2>&1 || true; \
 	else \
 		printf "$(COLOR_RED)error: image $$ref not found after build$(COLOR_RESET)\n" >&2; \
 		printf "  DOCKER=$(DOCKER)\n" >&2; \
-		printf "  Looking for tag $(IMAGE_TAG). Images matching 'knxvault':\n" >&2; \
-		$(DOCKER) images 2>/dev/null | grep -E 'knxvault|REPOSITORY' | head -20 >&2 || true; \
+		printf "  Looking for tag $(IMAGE_TAG). Images matching 'knxvault|$(IMAGE_ORG)':\n" >&2; \
+		$(DOCKER) images 2>/dev/null | grep -E 'knxvault|$(IMAGE_ORG)|REPOSITORY' | head -20 >&2 || true; \
 		printf "  Hint: rebuild with: make container-build DOCKER='$(DOCKER)'\n" >&2; \
 		exit 1; \
 	fi
@@ -275,12 +281,7 @@ endef
 define save_image
 	@mkdir -p $(IMAGE_EXPORT_DIR)
 	$(call ensure_image,$(1))
-	@# Prefer short name; fall back to fully-qualified if needed.
-	@ref="$(1)"; \
-	if ! $(DOCKER) image inspect "$$ref" >/dev/null 2>&1; then \
-		ref="docker.io/library/$(1)"; \
-	fi; \
-	$(DOCKER) save -o $(2) "$$ref"; \
+	@$(DOCKER) save -o $(2) "$(1)"; \
 	test -s $(2); \
 	ls -lh $(2); \
 	printf "$(COLOR_GREEN)Load on target: $(DOCKER) load -i $(2)$(COLOR_RESET)\n"
@@ -296,10 +297,9 @@ container-build: ## Build distroless server image ($(IMAGE)); also tags $(IMAGE_
 		--build-arg BUILD_ID=$(BUILD_ID) \
 		-t $(IMAGE) \
 		-t $(IMAGE_VERSION) \
-		-t docker.io/library/$(IMAGE) \
 		.
 	$(call ensure_image,$(IMAGE))
-	@printf "$(COLOR_GREEN)Built $(IMAGE)$(COLOR_RESET)\n"
+	@printf "$(COLOR_GREEN)Built $(IMAGE) (alias $(IMAGE_VERSION))$(COLOR_RESET)\n"
 
 k8s-operator-build: ## Build distroless operator image ($(OPERATOR_IMAGE)); also tags $(OPERATOR_IMAGE_VERSION)
 	$(call log,Building distroless operator image $(OPERATOR_IMAGE) with $(DOCKER))
@@ -311,10 +311,9 @@ k8s-operator-build: ## Build distroless operator image ($(OPERATOR_IMAGE)); also
 		--build-arg BUILD_ID=$(BUILD_ID) \
 		-t $(OPERATOR_IMAGE) \
 		-t $(OPERATOR_IMAGE_VERSION) \
-		-t docker.io/library/$(OPERATOR_IMAGE) \
 		.
 	$(call ensure_image,$(OPERATOR_IMAGE))
-	@printf "$(COLOR_GREEN)Built $(OPERATOR_IMAGE)$(COLOR_RESET)\n"
+	@printf "$(COLOR_GREEN)Built $(OPERATOR_IMAGE) (alias $(OPERATOR_IMAGE_VERSION))$(COLOR_RESET)\n"
 
 container-build-all: container-build k8s-operator-build ## Build server + operator distroless images
 
@@ -337,6 +336,10 @@ define write_image_build_info
 		"commit=$(COMMIT)" \
 		"build_id=$(BUILD_ID)" \
 		"image_tag=$(IMAGE_TAG)" \
+		"image_registry=$(IMAGE_REGISTRY)" \
+		"image_org=$(IMAGE_ORG)" \
+		"server_repository=$(IMAGE_REPOSITORY)" \
+		"operator_repository=$(OPERATOR_IMAGE_REPOSITORY)" \
 		"server_image=$(IMAGE)" \
 		"server_image_version_alias=$(IMAGE_VERSION)" \
 		"operator_image=$(OPERATOR_IMAGE)" \
@@ -477,7 +480,9 @@ help: ## Show available targets and descriptions
 	@printf "  $(COLOR_CYAN)VERSION$(COLOR_RESET)         = $(VERSION)\n"
 	@printf "  $(COLOR_CYAN)COMMIT$(COLOR_RESET)          = $(COMMIT)\n"
 	@printf "  $(COLOR_CYAN)IMAGE_TAG$(COLOR_RESET)       = $(IMAGE_TAG)\n"
+	@printf "  $(COLOR_CYAN)IMAGE_REPOSITORY$(COLOR_RESET)= $(IMAGE_REPOSITORY)\n"
 	@printf "  $(COLOR_CYAN)IMAGE$(COLOR_RESET)           = $(IMAGE)\n"
+	@printf "  $(COLOR_CYAN)OPERATOR_IMAGE$(COLOR_RESET)  = $(OPERATOR_IMAGE)\n"
 	@printf "  $(COLOR_CYAN)BINARY$(COLOR_RESET)          = $(BINARY)\n"
 	@printf "  $(COLOR_CYAN)IMAGE_EXPORT_DIR$(COLOR_RESET)= $(IMAGE_EXPORT_DIR)\n"
 	@printf "  $(COLOR_CYAN)IMAGE_TAR$(COLOR_RESET)       = $(IMAGE_TAR)\n"

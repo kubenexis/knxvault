@@ -82,12 +82,12 @@ PKI is always native Go `crypto/x509` (OpenSSL CLI backend removed). See [PKI na
 In-memory (or default) container:
 
 ```bash
-make container-build   # uses docker or nerdctl → knxvault:0.5.1
+make container-build   # uses docker or nerdctl → ghcr.io/kubenexis/knxvault:0.5.1
 
 docker run --rm -p 8200:8200 \
   -e KNXVAULT_MASTER_KEY="$(openssl rand -base64 32)" \
   -e KNXVAULT_ROOT_TOKEN=dev-root-token \
-  knxvault:0.5.1 serve
+  ghcr.io/kubenexis/knxvault:0.5.1 serve
 ```
 
 For **persistent single-node Raft**, mount a data volume and set unseal + Raft env (unseal must differ from master):
@@ -106,7 +106,7 @@ docker run --rm -p 8200:8200 \
   -e KNXVAULT_RAFT_ADDRESS=127.0.0.1:63001 \
   -e KNXVAULT_RAFT_DATA_DIR=/var/lib/knxvault/raft \
   -e KNXVAULT_RAFT_INITIAL_MEMBERS=1=127.0.0.1:63001 \
-  knxvault:0.5.1 serve
+  ghcr.io/kubenexis/knxvault:0.5.1 serve
 ```
 
 For a **full standalone Day-0 + Day-2 story** (distroless container + host `knxvault-cli`, no Kubernetes), see:

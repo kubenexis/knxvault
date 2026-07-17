@@ -22,7 +22,7 @@ spec:
       serviceAccountName: knxvault-csi-provider
       containers:
         - name: provider
-          image: knxvault:0.5.1
+          image: ghcr.io/kubenexis/knxvault:0.5.1
           imagePullPolicy: IfNotPresent
           command: ["/usr/local/bin/knxvault-csi"]
           env:

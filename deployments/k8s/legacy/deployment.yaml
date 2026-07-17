@@ -30,7 +30,7 @@ spec:
         fsGroup: 65532
       containers:
         - name: knxvault
-          image: knxvault:0.5.1
+          image: ghcr.io/kubenexis/knxvault:0.5.1
           command: ["/usr/local/bin/knxvault", "serve"]
           imagePullPolicy: IfNotPresent
           ports:

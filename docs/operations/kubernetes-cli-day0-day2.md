@@ -124,7 +124,7 @@ Store offline; put values into the Kubernetes Secret via your sealed-secrets / e
 
 ```bash
 cd /path/to/knxvault
-make container-build    # distroless knxvault:<version>
+make container-build    # distroless ghcr.io/kubenexis/knxvault:<version>
 make build-cli       # build/bin/knxvault-cli on admin host
 # push image to registry; set image: in StatefulSet
 ```

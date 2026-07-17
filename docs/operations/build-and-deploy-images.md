@@ -20,26 +20,31 @@ How to **build** knxvault container images, **which images** each topology needs
 
 ### Images you build from this repo
 
-| Image (default tag) | Dockerfile | Makefile | Binaries inside | Used for |
+| Image (default ref) | Dockerfile | Makefile | Binaries inside | Used for |
 |---------------------|------------|----------|-----------------|----------|
-| **`knxvault:$(VERSION)-$(COMMIT)`** (e.g. `knxvault:0.5.1-a1b2c3d`) | `Dockerfile` | `make container-build` | `knxvault`, `knxvault-csi`, `knxvault-webhook`, `knxvault-eso` | Server (always); CSI / webhook / ESO adapters by **command override** |
-| **`knxvault-operator:$(VERSION)-$(COMMIT)`** | `Dockerfile.operator` | `make k8s-operator-build` | `knxvault-operator` | Kubernetes certificate operator only |
+| **`ghcr.io/kubenexis/knxvault:$(VERSION)-$(COMMIT)`** (e.g. `…/knxvault:0.5.1-a1b2c3d`) | `Dockerfile` | `make container-build` | `knxvault`, `knxvault-csi`, `knxvault-webhook`, `knxvault-eso` | Server (always); CSI / webhook / ESO adapters by **command override** |
+| **`ghcr.io/kubenexis/knxvault-operator:$(VERSION)-$(COMMIT)`** | `Dockerfile.operator` | `make k8s-operator-build` | `knxvault-operator` | Kubernetes certificate operator only |
 
-**Identity:** image tags and export tarball names use **`IMAGE_TAG = VERSION-COMMIT`** (short git SHA) so each build is unique. Builds also apply a floating alias **`knxvault:VERSION`** / **`knxvault-operator:VERSION`** for local manifests that pin only the semver.
+**Naming:** images are always **`ghcr.io/<org>/<repository>:<tag>`** (GitHub Container Registry). Defaults: `IMAGE_REGISTRY=ghcr.io`, `IMAGE_ORG=kubenexis`, repositories `knxvault` and `knxvault-operator`. Override `IMAGE_ORG` for forks, or set `IMAGE` / `OPERATOR_IMAGE` for a full custom ref.
+
+**Identity:** image tags and export tarball names use **`IMAGE_TAG = VERSION-COMMIT`** (short git SHA) so each build is unique. Builds also apply a floating alias **`…:VERSION`** for manifests that pin only the semver.
 
 ```bash
-# Default: knxvault:0.5.1-<shortsha>  (+ alias knxvault:0.5.1)
+# Default: ghcr.io/kubenexis/knxvault:0.5.1-<shortsha>  (+ alias :0.5.1)
 make container-build
 make k8s-operator-build
 make container-build-all
 
-# Registry with commit identity
-make container-build IMAGE=registry.example.com/knxvault:0.5.1-$(git rev-parse --short HEAD)
+# Fork / other GHCR org
+make container-build IMAGE_ORG=my-org
+
+# Private registry (full override)
+make container-build IMAGE=registry.example.com/knx/knxvault:0.5.1-$(git rev-parse --short HEAD)
 # or both with explicit version:
 make container-build-all VERSION=0.5.1
 ```
 
-Default entrypoint of `knxvault:…` is **`/usr/local/bin/knxvault`** with `CMD ["serve"]`. Other binaries share the same image:
+Default entrypoint of `ghcr.io/kubenexis/knxvault:…` is **`/usr/local/bin/knxvault`** with `CMD ["serve"]`. Other binaries share the same image:
 
 | Workload | Manifest | Command / entrypoint |
 |----------|----------|----------------------|
@@ -47,7 +52,7 @@ Default entrypoint of `knxvault:…` is **`/usr/local/bin/knxvault`** with `CMD 
 | CSI provider | `deployments/csi/k8s-provider.yaml` | `command: ["/usr/local/bin/knxvault-csi"]` |
 | Mutating webhook | `deployments/k8s/webhook/deployment.yaml` | `command: ["/usr/local/bin/knxvault-webhook"]` |
 | ESO adapter | `deployments/external-secrets/knxvault-eso-deployment.yaml` | `command: ["/usr/local/bin/knxvault-eso"]` |
-| Operator | `deployments/operator/deployment.yaml` | **separate** image `knxvault-operator:…` |
+| Operator | `deployments/operator/deployment.yaml` | **separate** image `ghcr.io/kubenexis/knxvault-operator:…` |
 
 ### Not container images
 
@@ -73,22 +78,22 @@ Default entrypoint of `knxvault:…` is **`/usr/local/bin/knxvault`** with `CMD 
 
 | Required | Optional |
 |----------|----------|
-| Image **`knxvault:<version>`** loaded into containerd | — |
+| Image **`ghcr.io/kubenexis/knxvault:<version>`** loaded into containerd | — |
 | Host **`knxvault-cli`** | HTTPS reverse proxy in front of `:8200` |
 | Host paths / volume for Raft data | Multi-node Raft peers (advanced) |
 
-**Not required:** `knxvault-operator`, CSI, webhook, ESO, Kubernetes.
+**Not required:** operator image, CSI, webhook, ESO, Kubernetes.
 
 ### B. Kubernetes — **minimum HA vault**
 
-| Required | Optional (same `knxvault` image, different command) | Separate image |
-|----------|------------------------------------------------------|----------------|
-| **`knxvault:<version>`** for StatefulSet | CSI provider DaemonSet | **`knxvault-operator:<version>`** for cert CRDs |
+| Required | Optional (same server image, different command) | Separate image |
+|----------|--------------------------------------------------|----------------|
+| **`ghcr.io/kubenexis/knxvault:<version>`** for StatefulSet | CSI provider DaemonSet | **`ghcr.io/kubenexis/knxvault-operator:<version>`** for cert CRDs |
 | Registry pull (or preloaded nodes) | Mutating webhook | — |
 | Host **`knxvault-cli`** for admin | ESO adapter | — |
 | StorageClass + Secret + RBAC | Example sidecars (`busybox` / `curl`) | — |
 
-Manifests set `image: knxvault:0.5.1` / `knxvault-operator:0.5.1` with `imagePullPolicy: IfNotPresent` in several places — retag to your registry for real clusters.
+Manifests set `image: ghcr.io/kubenexis/knxvault:0.5.1` / `ghcr.io/kubenexis/knxvault-operator:0.5.1` with `imagePullPolicy: IfNotPresent`. For private GHCR packages, configure an `imagePullSecret`; for air-gap, load tarballs and keep the same refs.
 
 ---
 
@@ -131,7 +136,7 @@ sudo nerdctl pull gcr.io/distroless/static-debian13:nonroot
 ```bash
 cd /path/to/knxvault
 make container-build
-# → knxvault:0.5.1  (or IMAGE=…)
+# → ghcr.io/kubenexis/knxvault:0.5.1-<sha>  (+ :0.5.1)
 ```
 
 `make container-build` auto-picks a **working** `docker` / `nerdctl` / `sudo nerdctl` (see above).
@@ -140,7 +145,7 @@ make container-build
 
 ```bash
 make k8s-operator-build
-# → knxvault-operator:0.5.1
+# → ghcr.io/kubenexis/knxvault-operator:0.5.1-<sha>  (+ :0.5.1)
 ```
 
 ### 3.4 Build host CLI
@@ -182,9 +187,9 @@ make container-export-all IMAGE_EXPORT_DIR=/tmp/airgap VERSION=0.5.1
 # containerd / nerdctl — use exact names from build-info-*.txt
 sudo nerdctl load -i build/images/knxvault-0.5.1-<commit>.tar
 sudo nerdctl load -i build/images/knxvault-operator-0.5.1-<commit>.tar   # if K8s operator
-sudo nerdctl images | grep knxvault
-# optional alias for manifests that pin knxvault:0.5.1
-# sudo nerdctl tag knxvault:0.5.1-<commit> knxvault:0.5.1
+sudo nerdctl images | grep -E 'kubenexis/knxvault|REPOSITORY'
+# optional alias for manifests that pin :0.5.1 only
+# sudo nerdctl tag ghcr.io/kubenexis/knxvault:0.5.1-<commit> ghcr.io/kubenexis/knxvault:0.5.1
 
 # Docker Engine
 docker load -i build/images/knxvault-0.5.1-<commit>.tar
@@ -192,17 +197,23 @@ docker load -i build/images/knxvault-0.5.1-<commit>.tar
 
 Also ship **host `knxvault-cli`** (`make build-cli` → copy `build/bin/knxvault-cli`) — not an image.
 
-Kubernetes nodes: load into each node’s containerd **or** push to an internal registry and set `image:` on manifests.
+Kubernetes nodes: load into each node’s containerd **or** push to GHCR / an internal registry (image refs already use `ghcr.io/…` by default).
 
-### 3.6 Registry push (Kubernetes)
+### 3.6 Registry push (Kubernetes / GHCR)
 
 ```bash
+# After make container-build-all — images are already named for GHCR
+# Authenticate once: echo $GHCR_TOKEN | nerdctl login ghcr.io -u USER --password-stdin
+nerdctl push ghcr.io/kubenexis/knxvault:0.5.1
+nerdctl push ghcr.io/kubenexis/knxvault:0.5.1-$(git rev-parse --short HEAD)
+nerdctl push ghcr.io/kubenexis/knxvault-operator:0.5.1
+nerdctl push ghcr.io/kubenexis/knxvault-operator:0.5.1-$(git rev-parse --short HEAD)
+
+# Mirror to a private registry if needed
 REG=registry.example.com/knx
-nerdctl tag knxvault:0.5.1 ${REG}/knxvault:0.5.1
-nerdctl tag knxvault-operator:0.5.1 ${REG}/knxvault-operator:0.5.1
+nerdctl tag ghcr.io/kubenexis/knxvault:0.5.1 ${REG}/knxvault:0.5.1
 nerdctl push ${REG}/knxvault:0.5.1
-nerdctl push ${REG}/knxvault-operator:0.5.1
-# Update image: fields in StatefulSet / operator Deployment
+# then set image: on StatefulSet / operator Deployment
 ```
 
 ---
@@ -214,8 +225,8 @@ End-to-end ops narrative: [standalone-distroless-day0-day2.md](standalone-distro
 ### 4.1 One-time on the host
 
 ```bash
-# build or load knxvault:0.5.1 into this host's containerd
-make container-build    # or nerdctl load -i knxvault-0.5.1.tar
+# build or load ghcr.io/kubenexis/knxvault:0.5.1 into this host's containerd
+make container-build    # or nerdctl load -i knxvault-0.5.1-<commit>.tar
 make build-cli
 
 mkdir -p /var/lib/knxvault/raft
@@ -242,7 +253,7 @@ nerdctl run -d --name knxvault --restart=unless-stopped \
   -e KNXVAULT_RAFT_ADDRESS=127.0.0.1:63001 \
   -e KNXVAULT_RAFT_DATA_DIR=/var/lib/knxvault/raft \
   -e KNXVAULT_RAFT_INITIAL_MEMBERS=1=127.0.0.1:63001 \
-  knxvault:0.5.1 serve
+  ghcr.io/kubenexis/knxvault:0.5.1 serve
 ```
 
 Lab without persistence (data lost on stop):
@@ -251,7 +262,7 @@ Lab without persistence (data lost on stop):
 nerdctl run -d --name knxvault -p 8200:8200 \
   -e KNXVAULT_MASTER_KEY="$MASTER" \
   -e KNXVAULT_ROOT_TOKEN="$ROOT" \
-  knxvault:0.5.1 serve
+  ghcr.io/kubenexis/knxvault:0.5.1 serve
 ```
 
 ### 4.3 Admin from the host (CLI, not exec)
@@ -333,10 +344,10 @@ Then CRDs + operator RBAC + Deployment + sample Certificate CRDs.
 
 ```bash
 # Inspect config (nerdctl)
-nerdctl image inspect knxvault:0.5.1 --format '{{.Config.Entrypoint}} {{.Config.Cmd}} {{.Config.User}}'
+nerdctl image inspect ghcr.io/kubenexis/knxvault:0.5.1 --format '{{.Config.Entrypoint}} {{.Config.Cmd}} {{.Config.User}}'
 
 # Run one-shot (no serve): version
-nerdctl run --rm --entrypoint /usr/local/bin/knxvault knxvault:0.5.1 -version
+nerdctl run --rm --entrypoint /usr/local/bin/knxvault ghcr.io/kubenexis/knxvault:0.5.1 -version
 ```
 
 Expect non-root user, entrypoint `knxvault`, no shell.
@@ -372,7 +383,7 @@ sudo nerdctl load -i build/images/knxvault-0.5.1-<commit>.tar
 sudo nerdctl load -i build/images/knxvault-operator-0.5.1-<commit>.tar   # K8s operator
 
 # Standalone (containerd)
-nerdctl run -d --name knxvault -p 8200:8200 … knxvault:0.5.1 serve
+nerdctl run -d --name knxvault -p 8200:8200 … ghcr.io/kubenexis/knxvault:0.5.1 serve
 export KNXVAULT_ADDR=http://127.0.0.1:8200
 ./build/bin/knxvault-cli sys unseal "$UNSEAL"
 

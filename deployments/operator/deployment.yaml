@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Host-path style Deployment for lab when image registry is unavailable.
-# Prefer: load image knxvault-operator:0.5.1 or run binary via DaemonSet/host process.
+# Prefer: load image ghcr.io/kubenexis/knxvault-operator:0.5.1 or run binary via DaemonSet/host process.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -23,7 +23,7 @@ spec:
       serviceAccountName: knxvault-operator
       containers:
         - name: operator
-          image: knxvault-operator:0.5.1
+          image: ghcr.io/kubenexis/knxvault-operator:0.5.1
           imagePullPolicy: IfNotPresent
           args: []
           env:

@@ -90,13 +90,14 @@ curl -s http://localhost:8200/secrets/kv/app/db \
 (Debian 13 / Trixie). PKI is **always** in-process Go `crypto/x509` — there is no OpenSSL CLI backend and no openssl binary in the image.
 
 ```bash
-make container-build          # builds knxvault:0.5.1 (distroless/static-debian13)
+make container-build          # builds ghcr.io/kubenexis/knxvault:0.5.1-<sha> (+ :0.5.1 alias)
 make container-export-all     # air-gap tarballs: build/images/*-$(VERSION)-$(COMMIT).tar + build-info (server + operator)
 docker run --rm -p 8200:8200 \
   -e KNXVAULT_MASTER_KEY="$(openssl rand -base64 32)" \
   -e KNXVAULT_ROOT_TOKEN=dev-root-token \
-  knxvault:0.5.1 serve
+  ghcr.io/kubenexis/knxvault:0.5.1 serve
 # (nerdctl works the same: make container-build uses docker or nerdctl)
+# Forks: make container-build IMAGE_ORG=my-github-org
 ```
 
 For containerized **Raft**, also pass `KNXVAULT_UNSEAL_KEY` (≠ master) and the `KNXVAULT_RAFT_*` variables — see [Installation](docs/installation/install.md#option-2-docker).

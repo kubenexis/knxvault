@@ -823,7 +823,7 @@ spec:
       serviceAccountName: knxvault
       containers:
       - name: knxvault
-        image: "knxvault:latest"
+        image: "ghcr.io/kubenexis/knxvault:0.5.1"
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8200
