@@ -133,6 +133,10 @@ type Config struct {
 	RaftAllowInsecure bool
 	// ManagedSQLStrict enables template-only SQL validation for managed DB roles (W50-22).
 	ManagedSQLStrict bool
+	// AllowCoarsePKIWrite permits legacy resource "pki" write as a fallback for
+	// fine-grained pki/ca|roles|issue|sign|revoke (W79/W80). Production forces false.
+	// Env: KNXVAULT_ALLOW_COARSE_PKI_WRITE. YAML: security.allow_coarse_pki_write.
+	AllowCoarsePKIWrite bool
 	// RequireHTTPSClients rejects non-HTTPS vault addresses in CSI/ESO clients (W52-06).
 	// Loopback http://127.0.0.1 and http://localhost remain allowed for lab.
 	RequireHTTPSClients bool

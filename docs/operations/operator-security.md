@@ -9,9 +9,11 @@ Production checklist for KNXVault operators. Complements the [security model](..
 
 > **Day-0 + Day-2 narrative** (bring-up through first apps, then operate): [Operator runbook](operator-runbook.md).
 
-## 0. RBAC for TLS Secrets (W78-06 / W79-02)
+## 0. RBAC for TLS Secrets (W78-06 / W79-02 / W80-04)
 
 Default `deployments/operator/rbac.yaml` does **not** grant cluster-scoped Secrets access (no get/list/watch/write on Secrets in the ClusterRole). The operator SA can manage Secrets only in the **`knxvault` namespace** via a namespaced Role in the same file.
+
+**W80-04 least privilege:** namespaced Secret verbs are **`get`, `create`, `update`, `patch` only** (no `list`/`watch`/`delete`). Controllers reconcile by known Secret names from Certificate CRs.
 
 For application namespaces, apply [`rbac-namespaced-example.yaml`](../../deployments/operator/rbac-namespaced-example.yaml) (Role + RoleBinding per app NS) so the operator can materialize `kubernetes.io/tls` Secrets without cluster-wide read or write.
 

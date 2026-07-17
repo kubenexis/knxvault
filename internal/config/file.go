@@ -78,6 +78,8 @@ type SecurityFile struct {
 	ExposureAutoRevoke     *bool    `yaml:"exposure_auto_revoke,omitempty"`
 	ExposureWebhookURL     string   `yaml:"exposure_webhook_url,omitempty"`
 	RotationWebhookURL     string   `yaml:"rotation_webhook_url,omitempty"`
+	// AllowCoarsePKIWrite enables legacy "pki" write fallback (lab only; production forces off).
+	AllowCoarsePKIWrite *bool `yaml:"allow_coarse_pki_write,omitempty"`
 }
 
 // TracingFile configures OpenTelemetry export.
@@ -292,6 +294,9 @@ func applyFile(cfg Config, file File) (Config, error) {
 		}
 		if v := strings.TrimSpace(file.Security.RotationWebhookURL); v != "" {
 			cfg.RotationWebhookURL = v
+		}
+		if file.Security.AllowCoarsePKIWrite != nil {
+			cfg.AllowCoarsePKIWrite = *file.Security.AllowCoarsePKIWrite
 		}
 	}
 	if file.Tracing != nil {

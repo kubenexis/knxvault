@@ -250,37 +250,24 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 		}
 		r.POST("/pki/ocsp/:id", ocspHandlers...)
 		if deps.AuthService != nil {
-			// W79-03: prefer fine-grained resources (pki/ca, pki/roles, pki/issue, pki/sign);
-			// fall back to coarse "pki" write for legacy policies.
+			// W79-03 / W80-03: fine-grained resources first; optional coarse "pki" write fallback (lab only).
+			pkiWrite := func(resource string) gin.HandlerFunc {
+				if deps.AllowCoarsePKIWrite {
+					return middleware.RequireAnyPermission(deps.AuthService, resource, "write", "pki", "write")
+				}
+				return middleware.RequirePermission(deps.AuthService, resource, "write")
+			}
 			pkiGroup := secured.Group("/pki")
 			{
-				pkiGroup.POST("/root",
-					middleware.RequireAnyPermission(deps.AuthService, "pki/ca", "write", "pki", "write"),
-					pkiHandler.CreateRoot)
-				pkiGroup.POST("/intermediate",
-					middleware.RequireAnyPermission(deps.AuthService, "pki/ca", "write", "pki", "write"),
-					pkiHandler.CreateIntermediate)
-				pkiGroup.PUT("/roles/:name",
-					middleware.RequireAnyPermission(deps.AuthService, "pki/roles", "write", "pki", "write"),
-					pkiHandler.PutRole)
-				pkiGroup.POST("/issue",
-					middleware.RequireAnyPermission(deps.AuthService, "pki/issue", "write", "pki", "write"),
-					pkiHandler.Issue)
-				pkiGroup.POST("/issue-client-cert",
-					middleware.RequireAnyPermission(deps.AuthService, "pki/issue", "write", "pki", "write"),
-					pkiHandler.IssueClientCert)
-				pkiGroup.POST("/sign",
-					middleware.RequireAnyPermission(deps.AuthService, "pki/sign", "write", "pki", "write"),
-					pkiHandler.SignCSR)
-				pkiGroup.POST("/renew",
-					middleware.RequireAnyPermission(deps.AuthService, "pki/issue", "write", "pki", "write"),
-					pkiHandler.Renew)
-				pkiGroup.POST("/revoke",
-					middleware.RequireAnyPermission(deps.AuthService, "pki/revoke", "write", "pki", "write"),
-					pkiHandler.Revoke)
-				pkiGroup.POST("/ca/import",
-					middleware.RequireAnyPermission(deps.AuthService, "pki/ca", "write", "pki", "write"),
-					pkiHandler.ImportCA)
+				pkiGroup.POST("/root", pkiWrite("pki/ca"), pkiHandler.CreateRoot)
+				pkiGroup.POST("/intermediate", pkiWrite("pki/ca"), pkiHandler.CreateIntermediate)
+				pkiGroup.PUT("/roles/:name", pkiWrite("pki/roles"), pkiHandler.PutRole)
+				pkiGroup.POST("/issue", pkiWrite("pki/issue"), pkiHandler.Issue)
+				pkiGroup.POST("/issue-client-cert", pkiWrite("pki/issue"), pkiHandler.IssueClientCert)
+				pkiGroup.POST("/sign", pkiWrite("pki/sign"), pkiHandler.SignCSR)
+				pkiGroup.POST("/renew", pkiWrite("pki/issue"), pkiHandler.Renew)
+				pkiGroup.POST("/revoke", pkiWrite("pki/revoke"), pkiHandler.Revoke)
+				pkiGroup.POST("/ca/import", pkiWrite("pki/ca"), pkiHandler.ImportCA)
 				pkiGroup.POST("/ca/:id/rotate",
 					middleware.RequirePathCapability(deps.AuthService, "pki/ca", auth.CapWrite, "id", deps.AuthzAudit),
 					pkiHandler.RotateCA,
@@ -606,6 +593,9 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 
 	if deps.ExposureSigningKey != "" {
 		exposureSigning := middleware.NewExposureSigning(deps.ExposureSigningKey)
+		if deps.ExposureReplayStore != nil {
+			exposureSigning.SetReplayStore(deps.ExposureReplayStore)
+		}
 		r.POST("/sys/exposure/report", exposureSigning.Middleware(), func(c *gin.Context) {
 			if deps.AuthService == nil {
 				c.JSON(http.StatusServiceUnavailable, gin.H{"message": "not configured"})

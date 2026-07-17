@@ -26,7 +26,7 @@ Follow-up to the post-W78 full audit. Closes highest-value residuals.
 
 - Seal does not wipe master key from memory (API fence).
 - Soft multi-tenant (W64), HSM/KMS (W63), cleartext Raft metadata (ADR-0005).
-- Exposure report HA replay store (future).
+- Exposure report HA replay store — **addressed in W80** (shared Valkey/cache `Incr`).
 
 ## Verify
 

@@ -23,6 +23,8 @@ Honest grades, known gaps (set-and-forget Medium, custody vs HSM, DIY footguns),
 
 **W79 residual pack (2026-07-17):** Disable env proxy on SafeHTTP; operator Secret read not cluster-wide; fine-grained PKI permissions with legacy `pki` fallback; managed SQL privilege-attr deny; OIDC audience + HTTPS JWKS; CGNAT/metadata SSRF blocks; reject unseal `/0` CIDRs; AppRole salted-only; client-cert issue forces client EKU. Report: [security-remediation-w79-2026-07-17.md](../audit/security-remediation-w79-2026-07-17.md).
 
+**W80 High/Medium pack (2026-07-17):** Cloudflare SafeHTTP; SQL `GRANT ALL`/`IN ROLE` deny; production disables coarse PKI write; operator Secrets least-priv; unseal CIDR max breadth; exposure HA replay via Valkey; doctor lab-profile warn; base NetPol egress. Report: [security-remediation-w80-2026-07-17.md](../audit/security-remediation-w80-2026-07-17.md).
+
 ## Threat model
 
 | Threat | Impact | Mitigations |

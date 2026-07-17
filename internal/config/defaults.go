@@ -33,10 +33,12 @@ func defaults() Config {
 		AuthLockoutTTL:                defaultAuthLockoutTTL,
 		RBACSyncFailClosed:            true,
 		ManagedSQLStrict:              true,
-		RootTokenTTL:                  72 * time.Hour,
-		RequireHTTPSClients:           true, // W52-06: CSI/ESO/operator prefer HTTPS
-		SecurityProfile:               SecurityProfileLab,
-		Raft:                          defaultRaft(),
+		// Lab default: legacy policies with resource "pki" still work. Production disables (W80-03).
+		AllowCoarsePKIWrite: true,
+		RootTokenTTL:        72 * time.Hour,
+		RequireHTTPSClients: true, // W52-06: CSI/ESO/operator prefer HTTPS
+		SecurityProfile:     SecurityProfileLab,
+		Raft:                defaultRaft(),
 	}
 }
 

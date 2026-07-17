@@ -9,9 +9,10 @@ metadata:
   name: knxvault-operator-secrets
   namespace: app-team-a
 rules:
+  # W80-04: least privilege — get + create/update/patch (no list/watch/delete)
   - apiGroups: [""]
     resources: ["secrets"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    verbs: ["get", "create", "update", "patch"]
   - apiGroups: [knxvault.kubenexis.dev]
     resources: ["knxvaultcertificates", "knxvaultcertificates/status", "knxvaultissuers", "knxvaultissuers/status", "knxvaultcertificaterequests", "knxvaultcertificaterequests/status"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]

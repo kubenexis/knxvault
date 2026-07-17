@@ -63,4 +63,10 @@ type RouterDeps struct {
 	MetricsDedicatedOnly bool
 	// UnsealAllowCIDRs restricts POST /sys/unseal clients (empty = allow all).
 	UnsealAllowCIDRs []string
+	// AllowCoarsePKIWrite enables legacy "pki" write fallback for native /pki routes (lab).
+	// Production profile forces false (W80-03).
+	AllowCoarsePKIWrite bool
+	// ExposureReplayStore when set enables shared HA replay protection for exposure reports (W80-06).
+	// Prefer Valkey/IncrStore; falls back to process-local map inside ExposureSigning.
+	ExposureReplayStore middleware.ExposureReplayStore
 }

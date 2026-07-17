@@ -1,6 +1,8 @@
 # Copyright Kubenexis Systems Private Limited.
 # SPDX-License-Identifier: Apache-2.0
 
+# Lab / base NetworkPolicy (W80-08). Prefer deployments/k8s/production/networkpolicy.yaml
+# for production (default-deny egress + unseal-client labels).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -14,6 +16,7 @@ spec:
       app.kubernetes.io/name: knxvault
   policyTypes:
     - Ingress
+    - Egress
   ingress:
     # API clients via ingress controller (do not expose /metrics on this path in production
     # without KNXVAULT_METRICS_BEARER_TOKEN or a separate scrape NetworkPolicy — W50-19).
@@ -39,3 +42,32 @@ spec:
       ports:
         - protocol: TCP
           port: 63001
+  egress:
+    # Raft peers
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: knxvault
+      ports:
+        - protocol: TCP
+          port: 63001
+    # Cluster DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Kubernetes API (TokenReview) — adjust for your control-plane endpoint if needed.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: default
+      ports:
+        - protocol: TCP
+          port: 443
+    # NOTE: ACME / DNS / audit forward need extra egress (see production/networkpolicy-acme-egress.yaml).
+    # Do not open 0.0.0.0/0 here for production workloads.

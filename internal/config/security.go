@@ -62,6 +62,8 @@ func ApplySecurityProfileDefaults(cfg *Config) error {
 	cfg.RBACSyncFailClosed = true
 	cfg.RequireHTTPSClients = true
 	cfg.ManagedSQLStrict = true
+	// W80-03: fine-grained PKI ACLs only — no legacy "pki" write fallback.
+	cfg.AllowCoarsePKIWrite = false
 	// Cap bootstrap root lifetime (bootstrap-complete / root death is W62-10).
 	if cfg.RootTokenTTL <= 0 || cfg.RootTokenTTL > MaxProductionRootTokenTTL {
 		cfg.RootTokenTTL = MaxProductionRootTokenTTL
@@ -205,6 +207,14 @@ func validateProductionSecurity(cfg Config) error {
 	if err := validateUnsealCIDRsNotWorldOpen(cfg.UnsealAllowCIDRs); err != nil {
 		return err
 	}
+	// W80-05: reject overly broad unseal CIDRs (e.g. /1–/7 IPv4, ultra-wide IPv6).
+	if err := validateUnsealCIDRsMaxBreadth(cfg.UnsealAllowCIDRs); err != nil {
+		return err
+	}
+	// W80-03: production never accepts coarse pki write fallback.
+	if cfg.AllowCoarsePKIWrite {
+		return fmt.Errorf("production profile: coarse PKI write fallback is not allowed (KNXVAULT_ALLOW_COARSE_PKI_WRITE)")
+	}
 	// W78-09: audit forward URL must pass SSRF checks when set.
 	if strings.TrimSpace(cfg.AuditForwardURL) != "" {
 		if err := acme.ValidateOutboundURL(cfg.AuditForwardURL); err != nil {
@@ -235,6 +245,42 @@ func validateUnsealCIDRsNotWorldOpen(cidrs []string) error {
 		ones, bits := n.Mask.Size()
 		if ones == 0 && bits > 0 {
 			return fmt.Errorf("production profile: unseal allow CIDR %q is too broad (must not be /0)", raw)
+		}
+	}
+	return nil
+}
+
+// MinUnsealCIDRPrefixIPv4 / IPv6 are the shortest allowed unseal prefixes in production (W80-05).
+// /8 matches common RFC1918 10.0.0.0/8 ops; tighter is recommended (admin jump /32 or /24).
+const (
+	MinUnsealCIDRPrefixIPv4 = 8
+	MinUnsealCIDRPrefixIPv6 = 32
+)
+
+// validateUnsealCIDRsMaxBreadth rejects CIDRs wider than MinUnsealCIDRPrefix* (half-open nets, /1–/7).
+func validateUnsealCIDRsMaxBreadth(cidrs []string) error {
+	for _, raw := range cidrs {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		_, n, err := net.ParseCIDR(raw)
+		if err != nil {
+			continue
+		}
+		ones, bits := n.Mask.Size()
+		if ones < 0 || bits <= 0 {
+			continue
+		}
+		switch bits {
+		case 32: // IPv4
+			if ones < MinUnsealCIDRPrefixIPv4 {
+				return fmt.Errorf("production profile: unseal allow CIDR %q is too broad (IPv4 prefix must be >= /%d)", raw, MinUnsealCIDRPrefixIPv4)
+			}
+		case 128: // IPv6
+			if ones < MinUnsealCIDRPrefixIPv6 {
+				return fmt.Errorf("production profile: unseal allow CIDR %q is too broad (IPv6 prefix must be >= /%d)", raw, MinUnsealCIDRPrefixIPv6)
+			}
 		}
 	}
 	return nil

@@ -16,11 +16,14 @@
 #   - rate limit on; HTTPS clients required
 #   - audit signing key + metrics bearer required
 #   - unseal_allow_cidrs required (or KNXVAULT_UNSEAL_ALLOW_CIDRS)
+#   - unseal CIDRs must not be world-open (/0) or broader than /8 IPv4 /32 IPv6 (W80-05)
+#   - coarse PKI write fallback disabled (fine-grained pki/ca|roles|issue|sign|revoke)
 #   - managed SQL strict mode on
 #   - server TLS (paths below) OR tls_termination: ingress
 #   - multi-node Raft requires peer mTLS
 #   - root token TTL capped at 4h
 #   - Valkey URL if set must be rediss:// or include credentials
+#   - prefer KNXVAULT_VALKEY_CACHE_URL for HA exposure-report replay (W80-06)
 #
 # See docs/design/production-security-posture.md
 

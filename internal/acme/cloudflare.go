@@ -119,7 +119,8 @@ func (c *CloudflareDNS01) api(ctx context.Context, method, path string, payload 
 	}
 	client := c.Client
 	if client == nil {
-		client = &http.Client{Timeout: 30 * time.Second}
+		// W80-01: never use a bare http.Client (env proxy / SSRF class).
+		client = SafeHTTPClient(30 * time.Second)
 	}
 	var body io.Reader
 	if payload != nil {

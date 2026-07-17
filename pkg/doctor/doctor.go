@@ -74,12 +74,23 @@ func (r *Runner) Run(ctx context.Context) *Report {
 func (r *Runner) checkProductionProfile(report *Report) {
 	profile := strings.ToLower(strings.TrimSpace(r.Config.Profile))
 	if profile != "production" && profile != "prod" {
-		report.add(Check{
-			ID:      "profile.mode",
-			Status:  StatusSkip,
-			Message: "Production profile checks skipped",
-			Detail:  "Pass --profile production for fail-closed Day-0 gate",
-		})
+		// W80-07: lab is the process default — warn when doctoring a non-loopback API.
+		addr := strings.TrimSpace(r.Config.Addr)
+		if u, err := url.Parse(addr); err == nil && u.Hostname() != "" && !isLoopbackHost(u.Hostname()) {
+			report.add(Check{
+				ID:      "profile.mode",
+				Status:  StatusWarn,
+				Message: "Doctor profile is lab; production deployments should use --profile production",
+				Detail:  "Server should set KNXVAULT_SECURITY_PROFILE=production (fail-closed TLS, unseal CIDRs, metrics bearer, no coarse PKI write)",
+			})
+		} else {
+			report.add(Check{
+				ID:      "profile.mode",
+				Status:  StatusSkip,
+				Message: "Production profile checks skipped",
+				Detail:  "Pass --profile production for fail-closed Day-0 gate",
+			})
+		}
 		return
 	}
 	// Production: HTTP is a hard fail (unless operator documents ingress TLS separately —
@@ -491,4 +502,14 @@ func (report *Report) add(check Check) {
 
 func (r *Runner) finalize(report *Report) {
 	report.Healthy = report.Fail == 0
+}
+
+// isLoopbackHost reports whether host is a loopback name/address (W80-07 doctor warn gate).
+func isLoopbackHost(host string) bool {
+	h := strings.ToLower(strings.TrimSpace(host))
+	switch h {
+	case "localhost", "127.0.0.1", "::1", "0.0.0.0":
+		return true
+	}
+	return strings.HasPrefix(h, "127.")
 }

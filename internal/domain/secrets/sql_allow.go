@@ -44,6 +44,12 @@ var managedSQLDenySubstrings = []string{
 	"replication",
 	"bypassrls",
 	"with admin option",
+	// W80-02: broad grants and role membership escalation
+	"grant all",
+	"grant all privileges",
+	" in role ",
+	" in group ",
+	"set role ",
 }
 
 // ValidateManagedSQLStatements enforces template-only SQL for managed execution (W50-22).

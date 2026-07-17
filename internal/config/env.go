@@ -349,6 +349,13 @@ func overlayEnv(cfg Config) (Config, error) {
 		}
 		cfg.ManagedSQLStrict = b
 	}
+	if v := os.Getenv("KNXVAULT_ALLOW_COARSE_PKI_WRITE"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_ALLOW_COARSE_PKI_WRITE: %w", err)
+		}
+		cfg.AllowCoarsePKIWrite = b
+	}
 	if v := os.Getenv("KNXVAULT_REQUIRE_HTTPS_CLIENTS"); v != "" {
 		b, err := strconv.ParseBool(v)
 		if err != nil {

@@ -16,6 +16,7 @@ import (
 
 	"github.com/kubenexis/knxvault/internal/api"
 	"github.com/kubenexis/knxvault/internal/api/handlers"
+	"github.com/kubenexis/knxvault/internal/api/middleware"
 	"github.com/kubenexis/knxvault/internal/config"
 	"github.com/kubenexis/knxvault/internal/crypto/tlsconfig"
 	"github.com/kubenexis/knxvault/internal/infra/metrics"
@@ -106,6 +107,9 @@ func New(ctx context.Context, cfg config.Config, log *zap.Logger) (*App, error) 
 		MetricsBearerToken:   cfg.MetricsBearerToken,
 		MetricsDedicatedOnly: metricsDedicated,
 		UnsealAllowCIDRs:     cfg.UnsealAllowCIDRs,
+		AllowCoarsePKIWrite:  cfg.AllowCoarsePKIWrite,
+		// W80-06: share exposure replay with Valkey when configured (HA-safe).
+		ExposureReplayStore: middleware.NewCacheExposureReplayStore(deps.CacheStore),
 	})
 
 	server := &http.Server{
