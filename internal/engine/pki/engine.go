@@ -8,12 +8,15 @@ import (
 	"context"
 	"crypto"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
 	"math/big"
 	"strings"
 	"time"
+
+	"github.com/kubenexis/knxvault/internal/crypto/x509native"
 
 	"github.com/google/uuid"
 
@@ -514,6 +517,23 @@ func parseSigner(pemBytes []byte) (crypto.Signer, error) {
 	return rsaKey, nil
 }
 
+// validateImportedKeyStrength enforces W81-08 RSA floor on ImportCA (W82-02).
+func validateImportedKeyStrength(keyPEM []byte) error {
+	signer, err := parseSigner(keyPEM)
+	if err != nil {
+		return err
+	}
+	switch k := signer.(type) {
+	case *rsa.PrivateKey:
+		if k.N.BitLen() < x509native.MinRSAKeyBits {
+			return fmt.Errorf("rsa key must be >= %d bits (got %d)", x509native.MinRSAKeyBits, k.N.BitLen())
+		}
+	default:
+		// Non-RSA keys currently uncommon for this CA path; accept if parse succeeded.
+	}
+	return nil
+}
+
 // verifyCertKeyMatch ensures the PEM private key corresponds to the certificate public key.
 func verifyCertKeyMatch(certPEM, keyPEM []byte) error {
 	cert, err := parseCertificate(certPEM)
@@ -580,6 +600,10 @@ func (e *Engine) ImportCA(ctx context.Context, req ImportCARequest) (*CAResult, 
 	// W78: prove private key matches certificate before sealing.
 	if err := verifyCertKeyMatch([]byte(req.CertPEM), []byte(req.KeyPEM)); err != nil {
 		return nil, common.Wrap(common.ErrCodeValidation, "certificate and private key do not match", err)
+	}
+	// W82-02: enforce same RSA floor as generation (W81-08) on import.
+	if err := validateImportedKeyStrength([]byte(req.KeyPEM)); err != nil {
+		return nil, common.Wrap(common.ErrCodeValidation, "imported key strength", err)
 	}
 	keyEnc, dekEnc, err := e.crypto.Seal([]byte(req.KeyPEM))
 	if err != nil {
