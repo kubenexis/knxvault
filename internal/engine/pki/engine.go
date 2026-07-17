@@ -529,7 +529,8 @@ func validateImportedKeyStrength(keyPEM []byte) error {
 			return fmt.Errorf("rsa key must be >= %d bits (got %d)", x509native.MinRSAKeyBits, k.N.BitLen())
 		}
 	default:
-		// Non-RSA keys currently uncommon for this CA path; accept if parse succeeded.
+		// W83-03: generation is RSA-only; reject non-RSA imports for a consistent policy floor.
+		return fmt.Errorf("imported CA key must be RSA (got %T)", signer)
 	}
 	return nil
 }

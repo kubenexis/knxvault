@@ -47,6 +47,8 @@ type wrapMeta struct {
 	ExpiresAt time.Time `json:"expires_at"`
 	Used      bool      `json:"used"`
 	Creation  time.Time `json:"creation_time"`
+	// casVersion is the secret version used for PutAtomic CAS (not persisted in JSON).
+	casVersion *int `json:"-"`
 }
 
 // NewWrappingService constructs a wrapping service.
@@ -197,31 +199,39 @@ func (s *WrappingService) putMetaLocked(ctx context.Context, id string, meta wra
 		CreatedAt: time.Now().UTC(),
 		Labels:    map[string]string{"engine": "wrapping"},
 	}
-	_, err = s.repo.PutAtomic(ctx, sv, nil, 1)
+	// W83-02: CAS when marking used so multi-node single-use is atomic.
+	_, err = s.repo.PutAtomic(ctx, sv, meta.casVersion, 1)
 	return err
 }
 
 func (s *WrappingService) getMetaLocked(ctx context.Context, id string) (wrapMeta, error) {
+	// W83-02: when repo is configured, always load cluster state (do not trust process-local only).
+	if s.repo != nil && s.crypto != nil {
+		sv, err := s.repo.GetLatest(ctx, wrapMetaPrefix+id)
+		if err != nil {
+			// Fall back to local only when never persisted (single-process).
+			if meta, ok := s.wraps[id]; ok {
+				return meta, nil
+			}
+			return wrapMeta{}, common.New(common.ErrCodeNotFound, "wrapping token not found")
+		}
+		plain, err := s.crypto.Open(sv.DataEnc, sv.DEKEnc)
+		if err != nil {
+			return wrapMeta{}, err
+		}
+		var meta wrapMeta
+		if err := json.Unmarshal(plain, &meta); err != nil {
+			return wrapMeta{}, err
+		}
+		v := sv.Version
+		meta.casVersion = &v
+		s.wraps[id] = meta
+		return meta, nil
+	}
 	if meta, ok := s.wraps[id]; ok {
 		return meta, nil
 	}
-	if s.repo == nil || s.crypto == nil {
-		return wrapMeta{}, common.New(common.ErrCodeNotFound, "wrapping token not found")
-	}
-	sv, err := s.repo.GetLatest(ctx, wrapMetaPrefix+id)
-	if err != nil {
-		return wrapMeta{}, common.New(common.ErrCodeNotFound, "wrapping token not found")
-	}
-	plain, err := s.crypto.Open(sv.DataEnc, sv.DEKEnc)
-	if err != nil {
-		return wrapMeta{}, err
-	}
-	var meta wrapMeta
-	if err := json.Unmarshal(plain, &meta); err != nil {
-		return wrapMeta{}, err
-	}
-	s.wraps[id] = meta
-	return meta, nil
+	return wrapMeta{}, common.New(common.ErrCodeNotFound, "wrapping token not found")
 }
 
 func (s *WrappingService) gcExpiredLocked(ctx context.Context) {

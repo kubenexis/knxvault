@@ -84,6 +84,18 @@ func validateOneManagedSQL(stmt string) error {
 	if hasRoleMembershipEscalation(norm) {
 		return fmt.Errorf("disallowed SQL construct %q", "role membership (IN ROLE/ROLE/ADMIN/IN GROUP)")
 	}
+	// W83-01: deny bare role membership GRANT role TO user (not object grants GRANT x ON y TO z).
+	if isBareRoleMembershipGrant(norm) {
+		return fmt.Errorf("disallowed SQL construct %q", "GRANT role TO user (use GRANT privileges ON object TO role)")
+	}
+	for _, badRole := range []string{
+		"pg_read_server_files", "pg_write_server_files", "pg_execute_server_program",
+		"pg_checkpoint", "pg_monitor", "pg_read_all_data", "pg_write_all_data",
+	} {
+		if strings.Contains(norm, badRole) {
+			return fmt.Errorf("disallowed SQL construct %q", badRole)
+		}
+	}
 	ok := false
 	for _, p := range managedSQLAllowPrefixes {
 		if strings.HasPrefix(norm, p) {
@@ -98,6 +110,19 @@ func validateOneManagedSQL(stmt string) error {
 		return fmt.Errorf("password clauses must use template placeholders (e.g. {{password}})")
 	}
 	return nil
+}
+
+// isBareRoleMembershipGrant reports GRANT <role> TO <user> without ON <object> (W83-01).
+func isBareRoleMembershipGrant(norm string) bool {
+	if !strings.HasPrefix(norm, "grant ") {
+		return false
+	}
+	// Object grants contain " on " (ON TABLE/SCHEMA/DATABASE/...).
+	if strings.Contains(norm, " on ") {
+		return false
+	}
+	// REVOKE/GRANT ALL already denied; remaining GRANT … TO … without ON is role membership.
+	return strings.Contains(norm, " to ")
 }
 
 // hasRoleMembershipEscalation detects PostgreSQL role membership after the role name

@@ -28,3 +28,20 @@ func TestW82_ManagedSQLNormalizesEvasion(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestW83_ManagedSQLDeniesBareRoleGrant(t *testing.T) {
+	bad := []string{
+		`GRANT some_privileged_role TO "{{username}}";`,
+		`GRANT pg_read_server_files TO "{{username}}";`,
+		`GRANT pg_write_server_files TO "{{username}}";`,
+	}
+	for _, s := range bad {
+		if err := secrets.ValidateManagedSQLStatements([]string{s}); err == nil {
+			t.Fatalf("expected deny for %q", s)
+		}
+	}
+	ok := `GRANT SELECT ON TABLE app.orders TO "{{username}}";`
+	if err := secrets.ValidateManagedSQLStatements([]string{ok}); err != nil {
+		t.Fatal(err)
+	}
+}
