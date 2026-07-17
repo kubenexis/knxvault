@@ -284,3 +284,4 @@ Phase 4 may add compliance export bundles; see [Phase 4 design](../design/phase4
 - [Runbook: CA compromise](../operations/runbooks/ca-compromise.md)
 - [Configuration reference](../installation/configuration.md)
 - [Licensing policy](../licensing.md)
+**W85 cycle-4 residual (2026-07-17):** KVv2 rejects reserved internal engine paths (cubbyhole/wrap/creds/transit).
