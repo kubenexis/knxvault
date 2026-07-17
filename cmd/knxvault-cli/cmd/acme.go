@@ -44,10 +44,10 @@ func init() {
 				return err
 			}
 			return encodeJSON(os.Stdout, map[string]any{
-				"account_key_file": p.AccountKey,
+				"account_key_file":  p.AccountKey,
 				"created_or_loaded": true,
-				"key_type":         fmt.Sprintf("%T", key),
-				"directory_url":    p.DirectoryURL,
+				"key_type":          fmt.Sprintf("%T", key),
+				"directory_url":     p.DirectoryURL,
 			})
 		},
 	}
