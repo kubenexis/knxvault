@@ -74,6 +74,9 @@ func (s *DatabaseService) GenerateCredentials(ctx context.Context, req databasee
 
 // Renew extends a lease.
 func (s *DatabaseService) Renew(ctx context.Context, leaseID string, ttlSeconds int) (*databaseengine.CredsResult, error) {
+	if err := assertTenantLeaseAccess(ctx, s.tenantMode, leaseID); err != nil {
+		return nil, err
+	}
 	result, err := s.engine.Renew(ctx, leaseID, ttlSeconds)
 	audithelper.Record(s.audit, ctx, "database.lease.renew", "secrets/database/leases/"+leaseID, err, map[string]any{"lease_id": leaseID})
 	return result, err
@@ -81,6 +84,9 @@ func (s *DatabaseService) Renew(ctx context.Context, leaseID string, ttlSeconds 
 
 // Revoke revokes a lease and returns client-mode revocation SQL when applicable.
 func (s *DatabaseService) Revoke(ctx context.Context, leaseID string) (*databaseengine.RevokeResult, error) {
+	if err := assertTenantLeaseAccess(ctx, s.tenantMode, leaseID); err != nil {
+		return nil, err
+	}
 	result, err := s.engine.RevokeLease(ctx, leaseID)
 	audithelper.Record(s.audit, ctx, "database.lease.revoke", "secrets/database/leases/"+leaseID, err, map[string]any{"lease_id": leaseID})
 	return result, err

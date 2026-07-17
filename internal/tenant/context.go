@@ -46,17 +46,21 @@ func ValidateAccess(tenant, path string, enabled bool) bool {
 	return strings.HasPrefix(path, tenant+"/") || path == tenant
 }
 
+// LeaseIDSeparator separates tenant namespace from lease ID (path-safe; avoids Gin :lease_id slash issues).
+const LeaseIDSeparator = "."
+
 // ScopeLeaseID prefixes lease IDs with tenant (W64-01).
+// Uses "tenant.leaseid" (not slash) so path params and wildcards work.
 func ScopeLeaseID(tenant, leaseID string, enabled bool) string {
 	leaseID = strings.TrimSpace(leaseID)
 	if !enabled || tenant == "" || leaseID == "" {
 		return leaseID
 	}
-	prefix := tenant + "/"
-	if strings.HasPrefix(leaseID, prefix) {
+	// Accept legacy slash-prefix for in-flight IDs; normalize to dot form when re-scoping bare IDs.
+	if strings.HasPrefix(leaseID, tenant+LeaseIDSeparator) || strings.HasPrefix(leaseID, tenant+"/") {
 		return leaseID
 	}
-	return prefix + leaseID
+	return tenant + LeaseIDSeparator + leaseID
 }
 
 // ValidateLeaseIDAccess rejects cross-tenant lease ID use.
@@ -65,5 +69,5 @@ func ValidateLeaseIDAccess(tenant, leaseID string, enabled bool) bool {
 		return true
 	}
 	leaseID = strings.TrimSpace(leaseID)
-	return strings.HasPrefix(leaseID, tenant+"/")
+	return strings.HasPrefix(leaseID, tenant+LeaseIDSeparator) || strings.HasPrefix(leaseID, tenant+"/")
 }

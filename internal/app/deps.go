@@ -326,6 +326,16 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 	)
 	deps.LeaseService = service.NewLeaseService(deps.LeaseRepo, deps.DatabaseEngine, deps.SSHEngine, deps.AuditService)
 	deps.LeaseService.SetTenantMode(cfg.TenantMode)
+	if cfg.ExposureWebhookURL != "" {
+		if err := notify.ValidateURL(cfg.ExposureWebhookURL); err != nil {
+			return nil, fmt.Errorf("KNXVAULT_EXPOSURE_WEBHOOK_URL: %w", err)
+		}
+	}
+	if cfg.RotationWebhookURL != "" {
+		if err := notify.ValidateURL(cfg.RotationWebhookURL); err != nil {
+			return nil, fmt.Errorf("KNXVAULT_ROTATION_WEBHOOK_URL: %w", err)
+		}
+	}
 	deps.ExposureWebhook = notify.NewWebhook(cfg.ExposureWebhookURL)
 
 	if deps.SecretRepo != nil && deps.Crypto != nil {
@@ -466,6 +476,9 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 		cfg,
 		log,
 	)
+	if deps.Seal != nil {
+		deps.JobRunner.SetSeal(deps.Seal)
+	}
 
 	return deps, nil
 }

@@ -43,3 +43,24 @@ func TestAssertTenantAccess(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestAssertTenantLeaseAccess(t *testing.T) {
+	ctx := context.Background()
+	if err := assertTenantLeaseAccess(ctx, false, "any"); err != nil {
+		t.Fatal(err)
+	}
+	if err := assertTenantLeaseAccess(ctx, true, "ns.lease"); err == nil {
+		t.Fatal("expected namespace required")
+	}
+	ctx = tenant.WithContext(ctx, "ns-a")
+	if err := assertTenantLeaseAccess(ctx, true, "ns-a.lease1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := assertTenantLeaseAccess(ctx, true, "ns-b.lease1"); err == nil {
+		t.Fatal("expected cross-tenant deny")
+	}
+	// Legacy slash-prefixed IDs still accepted for same tenant.
+	if err := assertTenantLeaseAccess(ctx, true, "ns-a/legacy"); err != nil {
+		t.Fatal(err)
+	}
+}

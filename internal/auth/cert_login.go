@@ -55,12 +55,17 @@ func (s *Service) LoginWithClientCert(ctx context.Context, certs []*x509.Certifi
 
 	policies := append([]string(nil), opts.DefaultPolicies...)
 	if s.roles != nil {
-		// Treat CN as role name when a matching role exists.
+		// Map CN/SAN → role only when an explicit role exists.
 		if rolePolicies := s.roles.PoliciesForRole(ctx, identity); len(rolePolicies) > 0 {
 			policies = rolePolicies
 		}
 	}
 	if len(policies) == 0 {
+		// Do not auto-bind privileged names from CN alone without a defined role (W76).
+		if isPrivilegedRoleName(identity) {
+			s.recordLoginFailure(ctx, lockKey, auditCtx, "privileged cert identity requires explicit role")
+			return "", nil, common.New(common.ErrCodeForbidden, "privileged cert identity requires explicit role mapping")
+		}
 		// Fall back to a single synthetic policy name matching identity for RBAC lookup.
 		policies = []string{identity}
 	}
@@ -75,4 +80,13 @@ func (s *Service) LoginWithClientCert(ctx context.Context, certs []*x509.Certifi
 	}
 	s.recordLoginAudit(ctx, true, auditCtx)
 	return token, record, nil
+}
+
+func isPrivilegedRoleName(name string) bool {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "admin", "root", "superuser", "sudo", "operator":
+		return true
+	default:
+		return false
+	}
 }

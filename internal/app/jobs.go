@@ -18,6 +18,11 @@ import (
 	"github.com/kubenexis/knxvault/internal/service"
 )
 
+// SealChecker reports operational seal state (data-plane fence).
+type SealChecker interface {
+	Sealed() bool
+}
+
 // JobRunner executes background maintenance tasks on the elected leader.
 type JobRunner struct {
 	leader    leader.Elector
@@ -29,6 +34,7 @@ type JobRunner struct {
 	masterKey *service.MasterKeyService
 	cas       repository.CARepository
 	leases    repository.LeaseRepository
+	seal      SealChecker
 	cfg       config.Config
 	log       *zap.Logger
 }
@@ -60,6 +66,27 @@ func NewJobRunner(
 		cfg:       cfg,
 		log:       log,
 	}
+}
+
+// SetSeal wires seal awareness so crypto-touching jobs skip while sealed (W76).
+func (j *JobRunner) SetSeal(s SealChecker) {
+	if j != nil {
+		j.seal = s
+	}
+}
+
+func (j *JobRunner) sealed() bool {
+	return j != nil && j.seal != nil && j.seal.Sealed()
+}
+
+// RunSealedGuardChecks runs crypto-touching job entrypoints when sealed (unit tests only).
+// Safe no-ops with nil services.
+func (j *JobRunner) RunSealedGuardChecks(ctx context.Context) {
+	j.runLeaseCleanup(ctx)
+	j.runLeaseRenewal(ctx)
+	j.runCertRenewal(ctx)
+	j.runKVRotation(ctx)
+	j.runMasterKeyReencrypt(ctx)
 }
 
 // Start launches leader election and periodic jobs.
@@ -131,6 +158,10 @@ func (j *JobRunner) runOnLeader(ctx context.Context) {
 }
 
 func (j *JobRunner) runMasterKeyReencrypt(ctx context.Context) {
+	if j.sealed() {
+		j.log.Debug("skip master key reencrypt while sealed")
+		return
+	}
 	if j.masterKey == nil {
 		return
 	}
@@ -148,6 +179,10 @@ func (j *JobRunner) runMasterKeyReencrypt(ctx context.Context) {
 }
 
 func (j *JobRunner) runKVRotation(ctx context.Context) {
+	if j.sealed() {
+		j.log.Debug("skip kv rotation while sealed")
+		return
+	}
 	if j.rotation == nil {
 		return
 	}
@@ -162,6 +197,10 @@ func (j *JobRunner) runKVRotation(ctx context.Context) {
 }
 
 func (j *JobRunner) runLeaseRenewal(ctx context.Context) {
+	if j.sealed() {
+		j.log.Debug("skip lease renewal while sealed")
+		return
+	}
 	grace := leaseRenewGrace(j.cfg.RenewGrace)
 	if j.database != nil {
 		count, err := j.database.RenewExpiring(ctx, grace, 50)
@@ -194,6 +233,10 @@ func leaseRenewGrace(pkiRenewGrace time.Duration) time.Duration {
 }
 
 func (j *JobRunner) runCertRenewal(ctx context.Context) {
+	if j.sealed() {
+		j.log.Debug("skip cert renewal while sealed")
+		return
+	}
 	if j.pki == nil {
 		return
 	}
@@ -208,6 +251,10 @@ func (j *JobRunner) runCertRenewal(ctx context.Context) {
 }
 
 func (j *JobRunner) runLeaseCleanup(ctx context.Context) {
+	if j.sealed() {
+		j.log.Debug("skip lease cleanup while sealed")
+		return
+	}
 	revoked := 0
 	if j.database != nil {
 		count, err := j.database.CleanupExpired(ctx, 100)

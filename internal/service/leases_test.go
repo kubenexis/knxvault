@@ -129,7 +129,7 @@ func TestLeaseServiceRenewAndCascade(t *testing.T) {
 func TestLeaseServiceTenantModeCrossTenantDenied(t *testing.T) {
 	leases := memory.NewLeaseRepository()
 	now := time.Now().UTC()
-	for _, id := range []string{"ns-a/lease1", "ns-b/lease2"} {
+	for _, id := range []string{"ns-a.lease1", "ns-b.lease2"} {
 		lease := &domainsecrets.Lease{
 			ID: id, Engine: "database", RoleName: "role", Path: "database/creds/" + id,
 			TTLSeconds: 3600, CreatedAt: now, ExpiresAt: now.Add(time.Hour), Renewable: true,
@@ -142,17 +142,17 @@ func TestLeaseServiceTenantModeCrossTenantDenied(t *testing.T) {
 	svc.SetTenantMode(true)
 
 	ctxA := auth.WithRequestContext(context.Background(), auth.RequestContext{Namespace: "ns-a"})
-	if _, err := svc.Get(ctxA, "ns-b/lease2"); err == nil {
+	if _, err := svc.Get(ctxA, "ns-b.lease2"); err == nil {
 		t.Fatal("expected cross-tenant Get denied")
 	}
-	if _, err := svc.Renew(ctxA, "ns-b/lease2", 60); err == nil {
+	if _, err := svc.Renew(ctxA, "ns-b.lease2", 60); err == nil {
 		t.Fatal("expected cross-tenant Renew denied")
 	}
 	list, err := svc.List(ctxA, service.LeaseListFilter{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(list) != 1 || list[0].ID != "ns-a/lease1" {
+	if len(list) != 1 || list[0].ID != "ns-a.lease1" {
 		t.Fatalf("list should be tenant-scoped, got %+v", list)
 	}
 
@@ -164,7 +164,7 @@ func TestLeaseServiceTenantModeCrossTenantDenied(t *testing.T) {
 	if err := svc.Register(ctxA, reg); err != nil {
 		t.Fatal(err)
 	}
-	if reg.ID != "ns-a/newlease" {
+	if reg.ID != "ns-a.newlease" {
 		t.Fatalf("Register should scope lease ID, got %s", reg.ID)
 	}
 }

@@ -146,6 +146,14 @@ func TestProductionProfileAllowsIngressTLSTermination(t *testing.T) {
 	}
 }
 
+func TestValidateSecurityRejectsInvalidUnsealCIDRs(t *testing.T) {
+	cfg := config.Config{SecurityProfile: config.SecurityProfileLab, UnsealAllowCIDRs: []string{"not-a-cidr"}}
+	err := config.ValidateSecurity(cfg, "")
+	if err == nil || !strings.Contains(err.Error(), "UNSEAL_ALLOW_CIDRS") {
+		t.Fatalf("expected unseal CIDR error, got %v", err)
+	}
+}
+
 func TestProductionProfileRejectsLabEscapes(t *testing.T) {
 	cases := []struct {
 		name string

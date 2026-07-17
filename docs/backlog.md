@@ -711,6 +711,21 @@ Report: `docs/audit/formal-w53-residual-features-2026-07-16.md`.
 
 ---
 
+## Milestone W76 — Three-cycle security remediation (2026-07-17)
+
+**Status:** **Complete** (3 review cycles).  
+**Report:** [`docs/audit/security-remediation-w76-3cycle-2026-07-17.md`](audit/security-remediation-w76-3cycle-2026-07-17.md)
+
+| ID | Priority | Status | Title |
+|----|----------|--------|-------|
+| ~~W76-01~~ | P0 | **Complete** | Unseal CIDR fail-closed |
+| ~~W76-02~~ | P0 | **Complete** | Seal-aware JobRunner |
+| ~~W76-03~~ | P0 | **Complete** | Webhook SSRF + SafeHTTPClient |
+| ~~W76-04~~ | P0 | **Complete** | DB/SSH tenant lease renew/revoke |
+| ~~W76-05~~ | P0 | **Complete** | Path-safe lease ID prefix (`ns.id`) |
+| ~~W76-06~~ | P1 | **Complete** | Tenant lease empty-ns fail-closed |
+| ~~W76-07~~ | P1 | **Complete** | Cert login privileged CN guard |
+
 ## Milestone W75 — CIS hardening (network, defaults, multi-tenant stance)
 
 **Status:** **Complete** (P0–P3 / 2026-07-17).  

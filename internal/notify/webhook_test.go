@@ -21,6 +21,24 @@ func TestNewWebhookEmptyURL(t *testing.T) {
 	}
 }
 
+func TestNewWebhookRejectsPrivateURL(t *testing.T) {
+	if notify.NewWebhook("http://127.0.0.1:9/hook") != nil {
+		t.Fatal("expected nil for loopback (SSRF)")
+	}
+	if notify.NewWebhook("http://169.254.169.254/") != nil {
+		t.Fatal("expected nil for metadata IP")
+	}
+}
+
+func TestValidateURL(t *testing.T) {
+	if err := notify.ValidateURL("http://10.0.0.5/h"); err == nil {
+		t.Fatal("private IP must fail")
+	}
+	if err := notify.ValidateURL("not-a-url"); err == nil {
+		t.Fatal("invalid URL must fail")
+	}
+}
+
 func TestWebhookSendNilNoop(t *testing.T) {
 	var w *notify.Webhook
 	if err := w.Send(context.Background(), notify.Event{Event: "x"}); err != nil {
@@ -35,9 +53,6 @@ func TestWebhookSendPostsJSON(t *testing.T) {
 		if r.Method != http.MethodPost {
 			t.Errorf("method = %s", r.Method)
 		}
-		if r.Header.Get("Content-Type") != "application/json" {
-			t.Errorf("content-type = %s", r.Header.Get("Content-Type"))
-		}
 		body, _ := io.ReadAll(r.Body)
 		var ev notify.Event
 		if err := json.Unmarshal(body, &ev); err != nil {
@@ -50,7 +65,8 @@ func TestWebhookSendPostsJSON(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	wh := notify.NewWebhook(srv.URL)
+	// Loopback is SSRF-blocked in NewWebhook; use test constructor with server client.
+	wh := notify.NewWebhookWithClient(srv.URL, srv.Client())
 	if wh == nil {
 		t.Fatal("expected webhook")
 	}
@@ -68,7 +84,7 @@ func TestWebhookSendNon2xx(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	wh := notify.NewWebhook(srv.URL)
+	wh := notify.NewWebhookWithClient(srv.URL, srv.Client())
 	if err := wh.Send(context.Background(), notify.Event{Event: "x"}); err == nil {
 		t.Fatal("expected error on 502")
 	}

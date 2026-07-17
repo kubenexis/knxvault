@@ -9,6 +9,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/kubenexis/knxvault/internal/netutil"
 )
 
 // NormalizeSecurityProfile returns lab or production; empty defaults to lab.
@@ -78,6 +80,13 @@ func ApplySecurityProfileDefaults(cfg *Config) error {
 func ValidateSecurity(cfg Config, configPath string) error {
 	if _, err := NormalizeSecurityProfile(cfg.SecurityProfile); err != nil {
 		return err
+	}
+
+	// Unseal CIDR allowlist must parse when set (fail-closed; empty nets must not mean "allow all" by accident).
+	if len(cfg.UnsealAllowCIDRs) > 0 {
+		if err := parseCIDRsForValidation(cfg.UnsealAllowCIDRs); err != nil {
+			return fmt.Errorf("KNXVAULT_UNSEAL_ALLOW_CIDRS: %w", err)
+		}
 	}
 
 	// W52: insecure K8s JWT parse is lab-only (requires explicit RaftAllowInsecure).
@@ -250,4 +259,9 @@ func checkConfigFilePermissions(path string) error {
 // ProductionRootTokenTTL returns the effective root TTL under production (for docs/tests).
 func ProductionRootTokenTTL() time.Duration {
 	return MaxProductionRootTokenTTL
+}
+
+func parseCIDRsForValidation(cidrs []string) error {
+	_, err := netutil.ParseCIDRs(cidrs)
+	return err
 }

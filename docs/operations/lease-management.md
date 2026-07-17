@@ -42,7 +42,7 @@ New dynamic engines should call `RegisterRevoker` / `RegisterRenewer` and set `L
 
 - Monitor `knxvault_active_leases` (leader job).  
 - After mass compromise: bulk revoke by `path_prefix` or tidy + rotate roles.  
-- Tenant mode: per-tenant path prefixes and **lease ID prefixes** (`tenant.ScopeLeaseID` / W64-01); LeaseService denies cross-tenant renew/lookup.
+- Tenant mode: per-tenant path prefixes and **lease ID prefixes** (`tenant.ScopeLeaseID` → `ns.leaseid`, W64-01 / W76); DB/SSH and LeaseService deny cross-tenant renew/revoke/lookup.
 
 ## Related
 

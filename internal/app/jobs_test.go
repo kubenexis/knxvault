@@ -34,6 +34,24 @@ func (e *staticElector) Run(ctx context.Context, onLeadership func(context.Conte
 
 func (e *staticElector) IsLeader() bool { return e.leader }
 
+type sealedStub struct{ sealed bool }
+
+func (s sealedStub) Sealed() bool { return s.sealed }
+
+func TestJobRunnerSkipsCryptoJobsWhenSealed(t *testing.T) {
+	cfg := config.Config{
+		JobLeaseCleanupInterval:       time.Hour,
+		JobCRLRefreshInterval:         time.Hour,
+		JobCertRenewInterval:          time.Hour,
+		JobKVRotationInterval:         time.Hour,
+		JobMasterKeyReencryptInterval: time.Hour,
+	}
+	runner := app.NewJobRunner(&staticElector{leader: true}, leader.NewMonitor(), nil, nil, nil, nil, nil, nil, nil, cfg, zap.NewNop())
+	runner.SetSeal(sealedStub{sealed: true})
+	// Should not panic when sealed with nil services.
+	runner.RunSealedGuardChecks(context.Background())
+}
+
 func TestJobRunnerActiveLeasesMetric(t *testing.T) {
 	leases := memory.NewLeaseRepository()
 	now := time.Now().UTC()

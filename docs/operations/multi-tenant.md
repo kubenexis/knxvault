@@ -17,8 +17,8 @@ SPDX-License-Identifier: CC-BY-4.0
 
 - Secret paths scoped by tenant namespace (`tenant.ScopePath`).  
 - SA tokens cannot spoof `X-KNX-Namespace`.  
-- Dynamic **lease IDs** prefixed with `tenant/` (W64-01) for DB/SSH when namespace is present.  
-- Cross-tenant lease access should use `tenant.ValidateLeaseIDAccess`.
+- Dynamic **lease IDs** use path-safe prefix `tenant.leaseid` (W64-01 / W76-05) for DB/SSH when namespace is present (dot separator so Gin `:lease_id` works; legacy `tenant/` prefix still validated).  
+- Cross-tenant lease renew/revoke denied via `assertTenantLeaseAccess` on DB/SSH and `LeaseService` (W76-04).
 
 ## Hard isolation
 

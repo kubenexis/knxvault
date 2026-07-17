@@ -25,10 +25,21 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 	r := gin.New()
 	var unsealNets []*net.IPNet
 	if len(deps.UnsealAllowCIDRs) > 0 {
-		if nets, err := netutil.ParseCIDRs(deps.UnsealAllowCIDRs); err == nil {
+		// Fail closed: invalid CIDRs must not silently become "allow all".
+		nets, err := netutil.ParseCIDRs(deps.UnsealAllowCIDRs)
+		if err != nil {
+			if log != nil {
+				log.Error("invalid unseal allow CIDRs; refusing to start with open unseal", zap.Error(err))
+			}
+			// Leave unsealNets as a single impossible network so all unseal attempts fail closed
+			// until config is fixed (empty nets = allow all).
+			_, denyAll, _ := net.ParseCIDR("0.0.0.0/32")
+			if denyAll != nil {
+				// 0.0.0.0/32 only matches 0.0.0.0 — effectively deny typical clients
+				unsealNets = []*net.IPNet{denyAll}
+			}
+		} else {
 			unsealNets = nets
-		} else if log != nil {
-			log.Warn("invalid unseal allow CIDRs; unseal allowlist disabled", zap.Error(err))
 		}
 	}
 	// W50-18: do not trust X-Forwarded-For unless operators configure TrustedProxies.

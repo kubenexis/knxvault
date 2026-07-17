@@ -11,7 +11,7 @@ import (
 
 func TestScopeAndValidateLeaseID(t *testing.T) {
 	id := tenant.ScopeLeaseID("ns-a", "lease1", true)
-	if id != "ns-a/lease1" {
+	if id != "ns-a.lease1" {
 		t.Fatalf("got %s", id)
 	}
 	if !tenant.ValidateLeaseIDAccess("ns-a", id, true) {

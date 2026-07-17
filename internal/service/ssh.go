@@ -75,6 +75,9 @@ func (s *SSHService) GenerateCredentials(ctx context.Context, req sshengine.Cred
 
 // Renew extends a lease.
 func (s *SSHService) Renew(ctx context.Context, leaseID string, ttlSeconds int) (*sshengine.CredsResult, error) {
+	if err := assertTenantLeaseAccess(ctx, s.tenantMode, leaseID); err != nil {
+		return nil, err
+	}
 	result, err := s.engine.Renew(ctx, leaseID, ttlSeconds)
 	audithelper.Record(s.audit, ctx, "ssh.lease.renew", "secrets/ssh/leases/"+leaseID, err, map[string]any{"lease_id": leaseID})
 	return result, err
@@ -82,6 +85,9 @@ func (s *SSHService) Renew(ctx context.Context, leaseID string, ttlSeconds int) 
 
 // Revoke revokes a lease.
 func (s *SSHService) Revoke(ctx context.Context, leaseID string) error {
+	if err := assertTenantLeaseAccess(ctx, s.tenantMode, leaseID); err != nil {
+		return err
+	}
 	err := s.engine.RevokeLease(ctx, leaseID)
 	audithelper.Record(s.audit, ctx, "ssh.lease.revoke", "secrets/ssh/leases/"+leaseID, err, map[string]any{"lease_id": leaseID})
 	return err

@@ -10,7 +10,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
+
+	"github.com/kubenexis/knxvault/internal/acme"
 )
 
 // Event is a webhook payload.
@@ -30,19 +33,40 @@ type Webhook struct {
 }
 
 // NewWebhook constructs a webhook notifier.
+// URL must pass SSRF checks (public http/https). Empty URL returns nil (disabled).
+// Invalid URL returns nil and is treated as disabled — callers that require webhooks
+// should validate with ValidateURL first (deps does this for production configs).
 func NewWebhook(url string) *Webhook {
+	url = strings.TrimSpace(url)
 	if url == "" {
 		return nil
 	}
+	if err := ValidateURL(url); err != nil {
+		return nil
+	}
 	return &Webhook{
-		url: url,
-		client: &http.Client{
-			Timeout: 10 * time.Second,
-		},
+		url:    url,
+		client: acme.SafeHTTPClient(10 * time.Second),
 	}
 }
 
-// Send posts an event asynchronously when URL is configured.
+// ValidateURL rejects SSRF-prone webhook destinations (shared with ACME outbound policy).
+func ValidateURL(raw string) error {
+	return acme.ValidateOutboundURL(raw)
+}
+
+// NewWebhookWithClient is for tests that need loopback httptest destinations.
+func NewWebhookWithClient(url string, client *http.Client) *Webhook {
+	if strings.TrimSpace(url) == "" {
+		return nil
+	}
+	if client == nil {
+		client = &http.Client{Timeout: 10 * time.Second}
+	}
+	return &Webhook{url: url, client: client}
+}
+
+// Send posts an event when URL is configured.
 func (w *Webhook) Send(ctx context.Context, event Event) error {
 	if w == nil || w.url == "" {
 		return nil
