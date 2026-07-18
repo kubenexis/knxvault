@@ -1,16 +1,16 @@
 # Copyright Kubenexis Systems Private Limited.
 # SPDX-License-Identifier: Apache-2.0
 #
-# CI/CD: quality gate → host binaries (incl. knxvault-cli) → validated container builds → GHCR
-# Images: ghcr.io/<owner>/knxvault and ghcr.io/<owner>/knxvault-operator
-# Host artifacts: build/bin/knxvault + build/bin/knxvault-cli (uploaded every run).
-# knxvault-cli is admin-only: never baked into container images (download via artifact / make build-cli).
+# CI/CD: quality gate → host binaries → multi-platform knxvault-cli packages →
+# validated container builds → GHCR. On v* tags, publish knxvault-cli release assets.
 #
-# Push to GHCR when:
-#   - push to main, or
-#   - push of tag v*, or
-#   - workflow_dispatch on main / tag
-# Pull requests run quality + image build/scan but do not push.
+# Images: ghcr.io/<owner>/knxvault and ghcr.io/<owner>/knxvault-operator
+# knxvault-cli is a SEPARATE admin package (never in container images):
+#   - Workflow artifacts every run (linux amd64 host build + multi-platform archives)
+#   - GitHub Release assets on tag v* (tar.gz/zip + SHA256SUMS)
+#
+# Push images to GHCR when: push to main, tag v*, or workflow_dispatch on main/tag.
+# Pull requests run quality + image build/scan but do not push images or create releases.
 
 name: CI
 
@@ -42,9 +42,26 @@ jobs:
     name: Quality
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      commit: ${{ steps.meta.outputs.commit }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Resolve version metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          COMMIT="$(git rev-parse --short HEAD)"
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="${DEFAULT_VERSION}"
+          fi
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "commit=${COMMIT}" >> "${GITHUB_OUTPUT}"
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -69,7 +86,7 @@ jobs:
       - name: Integration tests + host binaries + SBOM
         run: |
           make test-integration
-          make build build-cli
+          make build build-cli VERSION="${{ steps.meta.outputs.version }}" COMMIT="${{ steps.meta.outputs.commit }}"
           test -x build/bin/knxvault
           test -x build/bin/knxvault-cli
           # Smoke-check both host binaries report build metadata.
@@ -77,7 +94,24 @@ jobs:
           build/bin/knxvault-cli -v
           make sbom
 
-      - name: Upload host binaries (knxvault + knxvault-cli)
+      - name: Upload host server binary (linux/amd64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: knxvault-server-linux-amd64-${{ github.sha }}
+          path: build/bin/knxvault
+          if-no-files-found: error
+          retention-days: 30
+
+      # Dedicated CLI artifact (separate package from server) for every CI run.
+      - name: Upload knxvault-cli host binary (linux/amd64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: knxvault-cli-linux-amd64-${{ github.sha }}
+          path: build/bin/knxvault-cli
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload combined host binaries (compat)
         uses: actions/upload-artifact@v4
         with:
           name: knxvault-binaries-linux-amd64-${{ github.sha }}
@@ -97,6 +131,97 @@ jobs:
             build/sbom-binary.json
           if-no-files-found: ignore
           retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # knxvault-cli multi-platform release package (separate from container images)
+  # ---------------------------------------------------------------------------
+  cli-package:
+    name: knxvault-cli package
+    needs: [quality]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write # required to attach assets on GitHub Releases (tag builds)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.5"
+          check-latest: false
+          cache: true
+
+      - name: Build multi-platform knxvault-cli packages
+        env:
+          VERSION: ${{ needs.quality.outputs.version }}
+          COMMIT: ${{ needs.quality.outputs.commit }}
+          BUILD_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          make package-cli-release VERSION="${VERSION}" COMMIT="${COMMIT}" BUILD_ID="${BUILD_ID}"
+          test -f build/release/cli/SHA256SUMS
+          ls -la build/release/cli/
+          # Sanity: at least linux/amd64 archive exists
+          test -f "build/release/cli/knxvault-cli_${VERSION}_linux_amd64.tar.gz"
+
+      - name: Upload knxvault-cli multi-platform packages (workflow artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: knxvault-cli-packages-${{ needs.quality.outputs.version }}-${{ needs.quality.outputs.commit }}
+          path: build/release/cli/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish knxvault-cli to GitHub Release (tag v* only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/release/cli/knxvault-cli_*.tar.gz
+            build/release/cli/knxvault-cli_*.zip
+            build/release/cli/SHA256SUMS
+            build/release/cli/build-info.txt
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          body: |
+            ## knxvault-cli (admin host package)
+
+            Download platform archives below. **CLI is not a container image** and is never baked into `ghcr.io/.../knxvault`.
+
+            | Package | Platform |
+            |---------|----------|
+            | `knxvault-cli_*_linux_amd64.tar.gz` | Linux x86_64 |
+            | `knxvault-cli_*_linux_arm64.tar.gz` | Linux aarch64 |
+            | `knxvault-cli_*_darwin_amd64.tar.gz` | macOS Intel |
+            | `knxvault-cli_*_darwin_arm64.tar.gz` | macOS Apple Silicon |
+            | `knxvault-cli_*_windows_amd64.zip` | Windows x86_64 |
+
+            Verify: `sha256sum -c SHA256SUMS`
+
+            Server/operator container images are published separately to GHCR (`knxvault`, `knxvault-operator`).
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        shell: bash
+        run: |
+          {
+            echo "## knxvault-cli package"
+            echo ""
+            echo "| Field | Value |"
+            echo "|-------|-------|"
+            echo "| Version | \`${{ needs.quality.outputs.version }}\` |"
+            echo "| Commit | \`${{ needs.quality.outputs.commit }}\` |"
+            echo "| Workflow artifact | \`knxvault-cli-packages-${{ needs.quality.outputs.version }}-${{ needs.quality.outputs.commit }}\` |"
+            echo "| GitHub Release assets | \`${{ startsWith(github.ref, 'refs/tags/v') && 'yes (tag)' || 'no (branch/PR)' }}\` |"
+            echo ""
+            echo "### Archives"
+            echo '```'
+            ls -1 build/release/cli/ || true
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
 
   # ---------------------------------------------------------------------------
   # Container images: build → scan → push to GHCR (validated)

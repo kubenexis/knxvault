@@ -30,6 +30,27 @@ export KNXVAULT_ROOT_TOKEN=dev-root-token
 ./build/bin/knxvault serve
 ```
 
+### Admin CLI only (prebuilt package)
+
+`knxvault-cli` is published as a **separate multi-platform package** (not a container image):
+
+| Source | How |
+|--------|-----|
+| GitHub Release (`v*` tag) | Download `knxvault-cli_<ver>_<os>_<arch>.tar.gz` + `SHA256SUMS` from the release page |
+| CI workflow artifact | `knxvault-cli-packages-*` or `knxvault-cli-linux-amd64-*` from Actions |
+| From source | `make build-cli` or `make package-cli-release` |
+
+```bash
+# Example (adjust version/arch)
+curl -fsSL -O https://github.com/kubenexis/knxvault/releases/download/v0.5.1/knxvault-cli_0.5.1_linux_amd64.tar.gz
+tar -xzf knxvault-cli_0.5.1_linux_amd64.tar.gz
+export KNXVAULT_ADDR=https://knxvault.example:8200
+export KNXVAULT_TOKEN=<token>
+./knxvault-cli doctor --profile production
+```
+
+Full matrix: [Build and deploy images § CLI package](../operations/build-and-deploy-images.md#34-build-host-cli-separate-package--not-in-the-image).
+
 Without `KNXVAULT_RAFT_ENABLED`, the server uses **in-memory** repositories. Data is lost on restart.
 
 When `/etc/knxvault.conf` exists, `knxvault serve` loads it automatically. Override with `knxvault -c /path/knxvault.conf serve`. See [Configuration reference](configuration.md).

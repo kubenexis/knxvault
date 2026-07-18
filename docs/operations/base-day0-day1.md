@@ -19,12 +19,14 @@ This path deploys **base only** — no CSI, ESO, webhook, or public ACME/OIDC.
 | Artifact | Required |
 |----------|----------|
 | `ghcr.io/kubenexis/knxvault` | Yes |
-| Host `knxvault-cli` | Yes |
+| Host **`knxvault-cli` package** (separate from images) | Yes |
 | `knxvault-operator` | No (optional private CRDs later) |
 
 ```bash
-make container-build build-cli
-# airgap: make container-export
+make container-build
+make package-cli-release   # multi-platform CLI archives → build/release/cli/
+# Or download from GitHub Release: knxvault-cli_<ver>_linux_amd64.tar.gz
+# airgap: make container-export + copy CLI archive
 ```
 
 ### 0.2 Secrets (custody)

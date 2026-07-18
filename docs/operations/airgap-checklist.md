@@ -14,7 +14,7 @@ SPDX-License-Identifier: CC-BY-4.0
 |----------|----------------|--------------------------|
 | `knxvault` server image | `make container-build` → `make container-export` | **Yes** |
 | `knxvault-operator` image | `make k8s-operator-build` → export | Only if private CRD PKI |
-| `knxvault-cli` host binary | `make build-cli` or CI artifact | **Yes** (admin host) |
+| `knxvault-cli` host package | `make package-cli-release` / GitHub Release `knxvault-cli_*` archives / CI artifact | **Yes** (admin host; **separate** from container images) |
 | CSI / ESO / webhook | same server image, different command | **No** for airgap core |
 | Upstream CSI Driver / ESO | third-party | **No** for airgap core |
 

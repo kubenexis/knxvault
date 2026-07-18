@@ -160,16 +160,40 @@ make k8s-operator-build
 # → ghcr.io/kubenexis/knxvault-operator:0.5.1-<sha>  (+ :0.5.1)
 ```
 
-### 3.4 Build host CLI (separate download — not in the image)
+### 3.4 Build host CLI (separate package — not in the image)
+
+`knxvault-cli` is a **separate admin package** (N5 / DTP): host binary only, never in the server container.
 
 ```bash
+# Local host (current OS/arch)
 make build-cli
 # → build/bin/knxvault-cli
+
+# Multi-platform release archives (linux/darwin/windows amd64+arm64) + SHA256SUMS
+make package-cli-release
+# → build/release/cli/knxvault-cli_<version>_<os>_<arch>.tar.gz|.zip
+# → build/release/cli/SHA256SUMS
 ```
 
-GitHub Actions **Quality** job builds the same binary and uploads it as a workflow artifact
-(`knxvault-binaries-linux-amd64-<sha>` contains `knxvault` + `knxvault-cli`). Use that for
-air-gap admin workstations; do **not** expect `knxvault-cli` inside the server container.
+#### GitHub Actions / download
+
+| Source | When | Artifact name |
+|--------|------|----------------|
+| **Workflow artifact (CLI only)** | Every CI run | `knxvault-cli-linux-amd64-<sha>` (host binary) |
+| **Workflow artifact (multi-platform packages)** | Every CI run after quality | `knxvault-cli-packages-<version>-<commit>` |
+| **GitHub Release assets** | Push tag `v*` | `knxvault-cli_<version>_<os>_<arch>.tar.gz` / `.zip` + `SHA256SUMS` |
+| Combined host binaries (compat) | Every CI run | `knxvault-binaries-linux-amd64-<sha>` (`knxvault` + `knxvault-cli`) |
+
+```bash
+# Example: download from a GitHub Release
+curl -fsSL -O https://github.com/kubenexis/knxvault/releases/download/v0.5.1/knxvault-cli_0.5.1_linux_amd64.tar.gz
+curl -fsSL -O https://github.com/kubenexis/knxvault/releases/download/v0.5.1/SHA256SUMS
+sha256sum -c SHA256SUMS --ignore-missing
+tar -xzf knxvault-cli_0.5.1_linux_amd64.tar.gz
+./knxvault-cli doctor --json
+```
+
+Do **not** expect `knxvault-cli` inside the server container.
 
 ### 3.5 Air-gap / export images as tarballs
 
@@ -211,7 +235,7 @@ sudo nerdctl images | grep -E 'kubenexis/knxvault|REPOSITORY'
 docker load -i build/images/knxvault-0.5.1-<commit>.tar
 ```
 
-Also ship **host `knxvault-cli`** (`make build-cli` → copy `build/bin/knxvault-cli`) — not an image.
+Also ship **host `knxvault-cli`** as a **separate release package** (`make package-cli-release` or GitHub Release assets) — not an image.
 
 Kubernetes nodes: load into each node’s containerd **or** push to GHCR / an internal registry (image refs already use `ghcr.io/…` by default).
 
@@ -232,14 +256,15 @@ nerdctl push ${REG}/knxvault:0.5.1
 # then set image: on StatefulSet / operator Deployment
 ```
 
-### 3.7 GitHub Actions CI/CD (validated builds → GHCR)
+### 3.7 GitHub Actions CI/CD (validated builds → GHCR + CLI release)
 
 Workflow: [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml).
 
 | Stage | Job | What runs |
 |-------|-----|-----------|
-| **Quality** | `quality` | `make install-tools` → `make quality` (fmt, vet, lint, docs-lint, gosec, licenses, SPDX headers, Trivy FS, unit tests, coverage gates) → integration tests → host binaries → SBOM |
-| **Images** | `images` (matrix: server + operator) | Buildx build with `VERSION`/`COMMIT`/`BUILD_ID` → **Trivy image scan** (HIGH/CRITICAL gate) → push to **GHCR** only if scan passes |
+| **Quality** | `quality` | `make install-tools` → `make quality` → integration tests → host binaries → SBOM; upload **separate** `knxvault-cli-linux-amd64-*` artifact |
+| **CLI package** | `cli-package` | `make package-cli-release` (linux/darwin/windows amd64+arm64) → workflow artifact `knxvault-cli-packages-*`; on **`v*` tags** attach archives to **GitHub Release** |
+| **Images** | `images` (matrix: server + operator) | Buildx build → **Trivy image scan** → push to **GHCR** only if scan passes |
 
 **When images are pushed**
 

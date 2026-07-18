@@ -155,7 +155,7 @@ all: ## quality + test-integration + build + build-cli + sbom
 # Go quality
 # =============================================================================
 
-.PHONY: fmt vet lint docs-lint dtp-surface gosec semgrep licenses license-headers license-headers-check test test-integration test-coverage build build-cli build-csi build-webhook build-eso build-operator generate-clients test-clients check-client-drift sbom scan tidy install-tools container-build k8s-operator-build container-build-all container-export k8s-operator-export container-export-all docker-build docker-build-operator docker-build-all clean
+.PHONY: fmt vet lint docs-lint dtp-surface gosec semgrep licenses license-headers license-headers-check test test-integration test-coverage build build-cli package-cli-release build-csi build-webhook build-eso build-operator generate-clients test-clients check-client-drift sbom scan tidy install-tools container-build k8s-operator-build container-build-all container-export k8s-operator-export container-export-all docker-build docker-build-operator docker-build-all clean
 
 fmt: ## Check Go formatting (gofmt)
 	$(call log,Checking gofmt)
@@ -384,6 +384,16 @@ build-cli: ## Build statically linked CLI binary to $(CLI_BINARY)
 	$(call require_cmd,go)
 	@mkdir -p $(BIN_DIR)
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags="$(LDFLAGS)" -o $(CLI_BINARY) $(CLI_PKG)
+
+# Multi-platform knxvault-cli packages for GitHub Releases / air-gap admin hosts.
+CLI_RELEASE_DIR ?= $(BUILD_DIR)/release/cli
+package-cli-release: ## Cross-compile knxvault-cli packages → $(CLI_RELEASE_DIR)
+	$(call log,Packaging multi-platform knxvault-cli release archives)
+	$(call require_cmd,go)
+	$(call require_cmd,bash)
+	@VERSION=$(VERSION) COMMIT=$(COMMIT) BUILD_ID=$(BUILD_ID) \
+		CLI_RELEASE_DIR=$(CLI_RELEASE_DIR) GO_TOOLCHAIN=$(GO_TOOLCHAIN) \
+		bash scripts/package-cli-release.sh
 
 build-csi: ## Build Secrets Store CSI provider binary
 	$(call log,Building CSI provider $(CSI_BINARY))
