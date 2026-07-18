@@ -11,6 +11,8 @@ Lightweight, production-grade secrets management and private PKI built in Go.
 
 **Product surface (Distributed Trust Platform):** **Base = Core + Kubernetes** (Raft, seal/unseal, KV, private CA, policies, audit, host `knxvault-cli`). **Add-ons** (compose only when needed): certificate operator, CSI provider, mutating webhook, External Secrets adapter, public OIDC/LDAP, public ACME/Let's Encrypt. High-assurance and airgap instances deploy **base only**. Design: [distributed-trust-platform.md](docs/design/distributed-trust-platform.md) · ops: [instance-roles.md](docs/operations/instance-roles.md).
 
+**Non-negotiable principles (N1–N5)** for contributors and coding agents: **[`AGENTS.md`](AGENTS.md)** — custody plane stays small; instances over mega-vault; add-ons are clients; no sealed-core microservice/plugin split; default install base-only. Agents must flag violations immediately.
+
 **Container images (GHCR):** `ghcr.io/kubenexis/knxvault` · `ghcr.io/kubenexis/knxvault-operator`  
 Validated builds are produced by GitHub Actions (`make quality` + Trivy image scan) and pushed on `main` and `v*` tags. Details: [Build and deploy images § CI/CD](docs/operations/build-and-deploy-images.md#37-github-actions-cicd-validated-builds--ghcr).
 

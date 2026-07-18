@@ -19,6 +19,7 @@ Version-controlled documentation for architects, operators, developers, and inte
 | [**Security posture assessment**](architecture/security-posture-assessment.md) | Architects / Security | Honest baseline grades; gaps vs set-and-forget / Vault Ent / DIY |
 | [**Production security posture design**](design/production-security-posture.md) | Engineers | M-PRODSEC-1 / M-CUSTODY-1 programs A–C; W62–W64 |
 | [**Distributed Trust Platform (DTP)**](design/distributed-trust-platform.md) | Architects / SRE | **Accepted:** Base Core+K8s; add-ons opt-in; multi-instance; **M-DTP-0…4** |
+| [**AGENTS.md — non-negotiable principles N1–N5**](../AGENTS.md) | Humans + AI agents | Project rules: custody plane, instances, add-ons as clients, no sealed-core split, base-only defaults |
 | [**Vault-class capability plan**](design/vault-class-capability-plan.md) | Architects / Engineers | Transit, wrap, cubbyhole, leases, identity, dyn engines, DR; W65–W73; deferred cloud/KMIP/plugins |
 | [**CIS hardening improvements**](design/cis-hardening-improvements.md) | Architects / SRE | Network segmentation, secure defaults, multi-tenant stance; **W75** |
 | [Secret sync matrix](integration/secret-sync.md) | Operators | CSI vs ESO vs wrap (M-SYNC-1) |

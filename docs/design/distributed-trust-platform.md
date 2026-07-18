@@ -266,6 +266,15 @@ Canonical table: [`docs/backlog.md`](../backlog.md) § **Milestone M-DTP / W90**
 | knxvault-cli | **Host/CI artifact only** — never server image |
 | Tracking branch | `knxvault-distributed-trust-platform` |
 
+### 9.1 Non-negotiable principles (project rules)
+
+These decisions are binding project rules **N1–N5** for humans and coding agents:
+
+- **Canonical instructions:** [`AGENTS.md`](../../AGENTS.md) (must be loaded by Grok/agents; tripwires + response template)
+- **Contributing checklist:** [`docs/engineering/contributing.md`](../engineering/contributing.md)
+
+Agents **must immediately highlight** any request or change that would violate N1–N5 and propose a compliant alternative before implementing.
+
 ---
 
 ## 10. Implementation status (M-DTP-0…4)

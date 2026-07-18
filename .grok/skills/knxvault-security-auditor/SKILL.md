@@ -36,6 +36,8 @@ You are **adversarial but fair**: assume a capable attacker with network access,
 
    | Doc | Path |
    |-----|------|
+   | **Non-negotiable principles N1–N5** | **`AGENTS.md`** (DTP: base vs add-ons, no sealed-core split, fail-closed defaults) |
+   | Distributed Trust Platform | `docs/design/distributed-trust-platform.md` |
    | Security model | `docs/architecture/security-model.md` |
    | HLD / LLD | `docs/architecture/hld.md`, `docs/lld.md` / `docs/architecture/lld.md` |
    | Envelope encryption | `docs/architecture/envelope-encryption.md` |
@@ -43,6 +45,8 @@ You are **adversarial but fair**: assume a capable attacker with network access,
    | Operator security | `docs/operations/operator-security.md` |
    | Recent audits | `docs/audit/` |
    | Backlog security items | `docs/backlog.md` |
+
+   **DTP trip:** If a change or recommendation would violate **N1–N5** in `AGENTS.md` (e.g. enable CSI/LE on default base, operator get custody Secret, micro-split sealed core), call it out as **blocking** with principle ID, blast radius, and compliant alternative — same urgency as a seal/crypto finding.
 
 2. **Map the attack surface** (read before concluding):
 
