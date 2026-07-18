@@ -71,25 +71,50 @@ func MutatePod(pod *corev1.Pod) (bool, error) {
 }
 
 // BuildJSONPatch returns a JSON Patch for the pod mutation.
+// Uses full-array replace when volumes/volumeMounts were empty so RFC 6902
+// does not fail on null parents (tech review M12).
 func BuildJSONPatch(pod *corev1.Pod) ([]byte, error) {
+	if pod == nil {
+		return nil, fmt.Errorf("pod is nil")
+	}
+	hadVolumes := len(pod.Spec.Volumes) > 0
+	hadMounts := make([]bool, len(pod.Spec.Containers))
+	for i := range pod.Spec.Containers {
+		hadMounts[i] = len(pod.Spec.Containers[i].VolumeMounts) > 0
+	}
 	changed, err := MutatePod(pod)
 	if err != nil || !changed {
 		return nil, err
 	}
-	ops := []map[string]any{
-		{
+	var ops []map[string]any
+	if !hadVolumes {
+		ops = append(ops, map[string]any{
+			"op":    "add",
+			"path":  "/spec/volumes",
+			"value": pod.Spec.Volumes,
+		})
+	} else {
+		ops = append(ops, map[string]any{
 			"op":    "add",
 			"path":  "/spec/volumes/-",
 			"value": pod.Spec.Volumes[len(pod.Spec.Volumes)-1],
-		},
+		})
 	}
 	for i, c := range pod.Spec.Containers {
 		mount := c.VolumeMounts[len(c.VolumeMounts)-1]
-		ops = append(ops, map[string]any{
-			"op":    "add",
-			"path":  fmt.Sprintf("/spec/containers/%d/volumeMounts/-", i),
-			"value": mount,
-		})
+		if !hadMounts[i] {
+			ops = append(ops, map[string]any{
+				"op":    "add",
+				"path":  fmt.Sprintf("/spec/containers/%d/volumeMounts", i),
+				"value": c.VolumeMounts,
+			})
+		} else {
+			ops = append(ops, map[string]any{
+				"op":    "add",
+				"path":  fmt.Sprintf("/spec/containers/%d/volumeMounts/-", i),
+				"value": mount,
+			})
+		}
 	}
 	return json.Marshal(ops)
 }

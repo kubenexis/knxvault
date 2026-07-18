@@ -436,10 +436,51 @@ func overlayEnv(cfg Config) (Config, error) {
 	if err := ApplySecurityProfileDefaults(&cfg); err != nil {
 		return Config{}, err
 	}
+	// Production profile forces gates off; re-apply explicit feature-gate env so
+	// platform-edge ConfigMaps can set KNXVAULT_AUTH_OIDC_ENABLED=true after profile defaults.
+	if err := overlayFeatureGateEnv(&cfg); err != nil {
+		return Config{}, err
+	}
 	if err := ValidateSecurity(cfg, ""); err != nil {
 		return Config{}, err
 	}
 	return cfg, nil
+}
+
+// overlayFeatureGateEnv applies M-DTP-2 feature gate env vars (may re-enable after production defaults).
+func overlayFeatureGateEnv(cfg *Config) error {
+	if cfg == nil {
+		return nil
+	}
+	if v := os.Getenv("KNXVAULT_AUTH_OIDC_ENABLED"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return fmt.Errorf("KNXVAULT_AUTH_OIDC_ENABLED: %w", err)
+		}
+		cfg.AuthOIDCEnabled = b
+	}
+	if v := os.Getenv("KNXVAULT_AUTH_LDAP_ENABLED"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return fmt.Errorf("KNXVAULT_AUTH_LDAP_ENABLED: %w", err)
+		}
+		cfg.AuthLDAPEnabled = b
+	}
+	if v := os.Getenv("KNXVAULT_AUDIT_FORWARD_ENABLED"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return fmt.Errorf("KNXVAULT_AUDIT_FORWARD_ENABLED: %w", err)
+		}
+		cfg.AuditForwardEnabled = b
+	}
+	if v := os.Getenv("KNXVAULT_ACME_RELATED_ENABLED"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return fmt.Errorf("KNXVAULT_ACME_RELATED_ENABLED: %w", err)
+		}
+		cfg.ACMERelatedEnabled = b
+	}
+	return nil
 }
 
 func overlayRaftEnv(cfg RaftConfig) (RaftConfig, error) {

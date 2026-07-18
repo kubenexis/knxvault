@@ -53,6 +53,13 @@ var managedSQLDenySubstrings = []string{
 	"with grant option",
 	"security invoker",
 	"security definer",
+	// W86-15: CTAS exfil and public grants
+	" as select",
+	" as (select",
+	" to public",
+	"to public",
+	`to "public"`,
+	"to 'public'",
 }
 
 // ValidateManagedSQLStatements enforces template-only SQL for managed execution (W50-22).

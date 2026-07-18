@@ -55,6 +55,8 @@ Tag security findings in future audits:
 
 **Phase A/B/C (post-DTP):** Base unseal/Ingress hygiene (W86-09/14); add-on ESO TLS+auth (W86-04/05); Certificate OwnerRef-only (W86-03); webhook caBundle Day-0 (W86-13). Design [phase-abc-hardening-capability.md](../design/phase-abc-hardening-capability.md). Ops: [base-day0-day1.md](../operations/base-day0-day1.md), [platform-edge-day0-day1.md](../operations/platform-edge-day0-day1.md).
 
+**Technical review pack (2026-07-18):** ESO per-request tokens; operator Secret write isolation + namespaced leases; ACME issue-time gate; ImportCA IsCA; SQL CTAS/PUBLIC deny; sqlite admin ban in production; production feature-gate fail-closed with edge env override. Report: [technical-review-remediation-2026-07-18.md](../audit/technical-review-remediation-2026-07-18.md).
+
 ## Threat model
 
 | Threat | Impact | Mitigations |

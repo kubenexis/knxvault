@@ -1,0 +1,29 @@
+# Copyright Kubenexis Systems Private Limited.
+# SPDX-License-Identifier: Apache-2.0
+
+# W86-20: restrict operator metrics :8080 to monitoring namespace only.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: knxvault-operator-metrics
+  namespace: knxvault
+  labels:
+    app.kubernetes.io/name: knxvault-operator
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: knxvault-operator
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 8080
+    # probes from same namespace / kubelet path may need cluster-specific rules
+    - ports:
+        - protocol: TCP
+          port: 8081

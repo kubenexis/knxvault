@@ -251,6 +251,10 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 		deps.PKIEngine.SetPKIRoleRepository(deps.PKIRoleRepo)
 		deps.SecretsEngine = secretsengine.NewKVV2Engine(deps.SecretRepo, deps.Crypto)
 		deps.DatabaseEngine = databaseengine.NewEngine(deps.DBRoleRepo, deps.LeaseRepo, deps.SecretRepo, deps.Crypto)
+		// W86-17: production / strict managed SQL rejects sqlite:/file: admin URLs.
+		if config.IsProductionProfile(cfg) || cfg.ManagedSQLStrict {
+			databaseengine.AllowFileAdminURLs = false
+		}
 		deps.SSHEngine = sshengine.NewEngine(deps.SSHRoleRepo, deps.LeaseRepo, deps.SecretRepo, deps.Crypto)
 
 		deps.EngineRegistry = engine.NewRegistry()

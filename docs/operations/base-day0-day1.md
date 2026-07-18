@@ -38,7 +38,7 @@ Edit or create Secret `knxvault` (label `knxvault.kubenexis.dev/custody=true`):
 
 ### 0.3 Unseal plane (W86-09)
 
-Production ConfigMap uses **tight CIDRs** (admin jump `/32` and/or pod range ≤ `/24`), not whole `/16` RFC1918.
+Production ConfigMap uses **admin jump `/32` only** (not pod `/24` — api-client pods must not reach unseal).
 
 Unseal traffic: only namespaces labeled `knxvault.kubenexis.dev/unseal-client=true` (NetworkPolicy).  
 **Do not** expose `/sys/unseal` on public Ingress (see `deployments/k8s/production/ingress-api-no-unseal.yaml`, W86-14).

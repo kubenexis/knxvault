@@ -65,6 +65,15 @@ func NewServer(cfg Config) *Server {
 	return &Server{cfg: cfg, client: client.New(cfg.VaultAddr, "")}
 }
 
+// ValidateConfig checks vault address HTTPS policy (W52-06) for non-lab listen.
+func (s *Server) ValidateConfig() error {
+	if s == nil {
+		return fmt.Errorf("server is nil")
+	}
+	cli := client.New(s.cfg.VaultAddr, "")
+	return cli.ValidateBaseURL()
+}
+
 // Handler returns the HTTP handler for the adapter.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
@@ -137,14 +146,16 @@ func (s *Server) handleFetch(w http.ResponseWriter, r *http.Request) {
 
 	token, err := s.resolveToken(ctx, role, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
+		// W86 tech review: do not leak internal auth detail to callers.
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	s.client.Token = token
+	// Per-request client — never mutate shared Token (concurrent /fetch race).
+	cli := client.New(s.cfg.VaultAddr, token)
 
-	secret, err := s.client.KVGet(ctx, req.Path)
+	secret, err := cli.KVGet(ctx, req.Path)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
+		http.Error(w, "upstream vault error", http.StatusBadGateway)
 		return
 	}
 	data := secret.Data

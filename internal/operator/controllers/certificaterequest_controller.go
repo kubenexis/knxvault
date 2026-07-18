@@ -5,6 +5,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -97,7 +98,9 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	if cr.Spec.SecretName != "" {
 		sec := secretutil.CertOnlySecret(cr.Namespace, cr.Spec.SecretName, result.CertPEM, caPEM)
-		_ = controllerutil.SetControllerReference(&cr, sec, r.Scheme)
+		if err := controllerutil.SetControllerReference(&cr, sec, r.Scheme); err != nil {
+			return ctrl.Result{}, err
+		}
 		var current corev1.Secret
 		key := client.ObjectKey{Namespace: cr.Namespace, Name: cr.Spec.SecretName}
 		if err := r.Get(ctx, key, &current); err != nil {
@@ -109,7 +112,17 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 				return ctrl.Result{}, err
 			}
 		} else {
+			// W86-03 tech review: OwnerRef-only; same class as Certificate TLS Secret.
+			if !secretOwnedByObject(&current, &cr) {
+				return ctrl.Result{}, fmt.Errorf("secret %q exists and is not owned by CertificateRequest %q; refusing overwrite", cr.Spec.SecretName, cr.Name)
+			}
 			current.Data = sec.Data
+			if current.Labels == nil {
+				current.Labels = map[string]string{}
+			}
+			for k, v := range sec.Labels {
+				current.Labels[k] = v
+			}
 			if err := r.Update(ctx, &current); err != nil {
 				return ctrl.Result{}, err
 			}

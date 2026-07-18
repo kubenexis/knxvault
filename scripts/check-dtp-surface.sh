@@ -85,10 +85,13 @@ if grep -A8 'name: KNXVAULT_TOKEN' deployments/operator/deployment.yaml 2>/dev/n
 fi
 printf 'ok: operator deployment has no root token binding\n'
 
-# Operator Role must not grant combined get+create on all secrets (W86-01).
-if grep -A30 'name: knxvault-operator-secrets' deployments/operator/rbac.yaml | grep -E 'verbs: \["get", "create", "update", "patch"\]' >/dev/null 2>&1; then
+# Operator Role must not grant combined get+create+update on all secrets (W86-01 + write isolation).
+if grep -A40 'name: knxvault-operator-secrets' deployments/operator/rbac.yaml | grep -E 'verbs: \["get", "create", "update", "patch"\]' >/dev/null 2>&1; then
   fail "operator secrets Role grants combined get on all secrets (W86-01)"
 fi
-printf 'ok: operator secrets Role avoids blanket get (W86-01)\n'
+if grep -A40 'name: knxvault-operator-secrets' deployments/operator/rbac.yaml | grep -E 'verbs: \["create", "update", "patch"\]' >/dev/null 2>&1; then
+  fail "operator secrets Role grants blanket update/patch (custody write risk)"
+fi
+printf 'ok: operator secrets Role avoids blanket get/update (W86-01)\n'
 
 printf 'DTP surface check passed.\n'

@@ -32,6 +32,9 @@ func main() {
 		AllowPlaintext:      strings.EqualFold(os.Getenv("KNXVAULT_ESO_ALLOW_PLAINTEXT"), "true"),
 	}
 	server := eso.NewServer(cfg)
+	if err := server.ValidateConfig(); err != nil {
+		log.Fatalf("knxvault-eso: vault address: %v", err)
+	}
 	log.Printf("knxvault-eso listening on %s (vault=%s role=%s tls=%v)", addr, cfg.VaultAddr, cfg.Role,
 		cfg.TLSCertFile != "" && cfg.TLSKeyFile != "")
 	if err := server.ListenAndServe(addr); err != nil {

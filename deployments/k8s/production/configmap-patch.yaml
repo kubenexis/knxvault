@@ -19,10 +19,9 @@ data:
   KNXVAULT_RAFT_ALLOW_INSECURE: "false"
   # W75-03: dedicated metrics plane (Service knxvault-metrics)
   KNXVAULT_METRICS_ADDR: ":8201"
-  # W75-04 / W86-09: prefer admin jump /32 or tight pod CIDR ≤ /24 — not entire /16.
-  # Adjust for your CNI. Empty = allow all (lab only; rejected for production profile validation when missing).
-  # Example: single admin jump + control-plane pod range
-  KNXVAULT_UNSEAL_ALLOW_CIDRS: "10.0.0.10/32,10.244.0.0/24"
+  # W75-04 / W86-09 / tech review: prefer admin jump /32 only (not pod /24 — api-client pods must not unseal).
+  # Adjust for your jump host. Empty = allow all (lab only; production profile requires non-empty).
+  KNXVAULT_UNSEAL_ALLOW_CIDRS: "10.0.0.10/32"
   KNXVAULT_K8S_TOKEN_AUDIENCES: "knxvault"
   # Soft multi-tenant off by default (ADR-0011 single trust domain)
   KNXVAULT_TENANT_MODE: "false"

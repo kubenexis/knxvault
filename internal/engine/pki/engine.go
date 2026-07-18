@@ -517,6 +517,21 @@ func parseSigner(pemBytes []byte) (crypto.Signer, error) {
 	return rsaKey, nil
 }
 
+// validateImportedCACert requires BasicConstraints CA + KeyUsageCertSign (W86-16).
+func validateImportedCACert(certPEM []byte) error {
+	cert, err := parseCertificate(certPEM)
+	if err != nil {
+		return err
+	}
+	if !cert.BasicConstraintsValid || !cert.IsCA {
+		return fmt.Errorf("certificate must have BasicConstraints CA=true")
+	}
+	if cert.KeyUsage&x509.KeyUsageCertSign == 0 {
+		return fmt.Errorf("certificate must include KeyUsage certSign")
+	}
+	return nil
+}
+
 // validateImportedKeyStrength enforces W81-08 RSA floor on ImportCA (W82-02).
 func validateImportedKeyStrength(keyPEM []byte) error {
 	signer, err := parseSigner(keyPEM)
@@ -601,6 +616,10 @@ func (e *Engine) ImportCA(ctx context.Context, req ImportCARequest) (*CAResult, 
 	// W78: prove private key matches certificate before sealing.
 	if err := verifyCertKeyMatch([]byte(req.CertPEM), []byte(req.KeyPEM)); err != nil {
 		return nil, common.Wrap(common.ErrCodeValidation, "certificate and private key do not match", err)
+	}
+	// W86-16: imported material must be a CA with certSign key usage.
+	if err := validateImportedCACert([]byte(req.CertPEM)); err != nil {
+		return nil, common.Wrap(common.ErrCodeValidation, "imported certificate is not a usable CA", err)
 	}
 	// W82-02: enforce same RSA floor as generation (W81-08) on import.
 	if err := validateImportedKeyStrength([]byte(req.KeyPEM)); err != nil {

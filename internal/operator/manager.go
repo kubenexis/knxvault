@@ -105,8 +105,8 @@ func Run() error {
 
 	vault := vaultiface.NewHTTPWithSA(cfg.VaultAddr, cfg.VaultToken, cfg.K8sRole, cfg.SATokenPath)
 
-	// W50-07: process-wide HTTP-01 challenge presenter + optional listener.
-	if cfg.ACMEHTTP01Addr != "" {
+	// W50-07: HTTP-01 listener only when ACME is enabled (tech review / N1).
+	if cfg.ACMEEnabled && cfg.ACMEHTTP01Addr != "" {
 		controllers.SharedHTTP01 = acme.NewMemoryHTTP01()
 		go func() {
 			srv := &http.Server{
@@ -128,9 +128,10 @@ func Run() error {
 		return fmt.Errorf("ca controller: %w", err)
 	}
 	if err := (&controllers.CertificateReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		Vault:  vault,
+		Client:      mgr.GetClient(),
+		Scheme:      mgr.GetScheme(),
+		Vault:       vault,
+		ACMEEnabled: cfg.ACMEEnabled,
 	}).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("certificate controller: %w", err)
 	}

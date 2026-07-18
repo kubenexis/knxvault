@@ -66,6 +66,12 @@ func ApplySecurityProfileDefaults(cfg *Config) error {
 	cfg.AllowCoarsePKIWrite = false
 	// W81-07: never allow master-as-unseal in production.
 	cfg.LabUnsealEqualsMaster = false
+	// M-DTP / tech review: production fail-closed feature gates.
+	// Env re-applied after this in overlayEnv so edge overlays can re-enable OIDC/LDAP.
+	cfg.AuthOIDCEnabled = false
+	cfg.AuthLDAPEnabled = false
+	cfg.AuditForwardEnabled = false
+	cfg.ACMERelatedEnabled = false
 	// Cap bootstrap root lifetime (bootstrap-complete / root death is W62-10).
 	if cfg.RootTokenTTL <= 0 || cfg.RootTokenTTL > MaxProductionRootTokenTTL {
 		cfg.RootTokenTTL = MaxProductionRootTokenTTL

@@ -13,7 +13,7 @@ Production checklist for KNXVault operators. Complements the [security model](..
 
 Default `deployments/operator/rbac.yaml` does **not** grant cluster-scoped Secrets access (no get/list/watch/write on Secrets in the ClusterRole).
 
-**W86-01 custody isolation:** In the vault namespace, Secret `get` is **not** blanket — only `create`/`update`/`patch` plus `get` for **named** TLS/ACME Secrets via `resourceNames`. Custody Secret **`knxvault`** (master/unseal/root) is **not** get-able by the operator SA. Prefer delivering app TLS Secrets in **app namespaces** via [`rbac-namespaced-example.yaml`](../../deployments/operator/rbac-namespaced-example.yaml).
+**W86-01 custody isolation (read + write):** In the vault namespace, the operator may **`create`** Secrets, but **`get`/`update`/`patch` only** for **named** TLS/ACME Secrets via `resourceNames`. Custody Secret **`knxvault`** cannot be read **or** overwritten by the operator SA. Prefer delivering app TLS Secrets in **app namespaces** via [`rbac-namespaced-example.yaml`](../../deployments/operator/rbac-namespaced-example.yaml). Leader election uses a **namespaced** lease Role (not cluster-wide). Optional metrics NetPol: `deployments/operator/networkpolicy-metrics.yaml`.
 
 **W86-02:** Operator Deployment uses **K8s SA login only** — no `KNXVAULT_ROOT_TOKEN` from the custody Secret.
 

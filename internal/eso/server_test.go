@@ -6,10 +6,14 @@ package eso_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/kubenexis/knxvault/internal/eso"
@@ -108,6 +112,59 @@ func TestListenAndServeRequiresTLS(t *testing.T) {
 	err := s.ListenAndServe("127.0.0.1:0")
 	if err == nil {
 		t.Fatal("expected TLS required error")
+	}
+}
+
+func TestServerFetchConcurrentTokensIsolated(t *testing.T) {
+	// Distinct tokens must not clobber each other under concurrent /fetch.
+	var hits atomic.Int32
+	vault := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		auth := r.Header.Get("Authorization")
+		tok := strings.TrimPrefix(auth, "Bearer ")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{"who": tok},
+		})
+	}))
+	defer vault.Close()
+
+	server := eso.NewServer(eso.Config{VaultAddr: vault.URL, Role: "eso-reader"})
+	const n = 32
+	var wg sync.WaitGroup
+	errs := make(chan error, n)
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			want := fmt.Sprintf("tok-%d", i)
+			body, _ := json.Marshal(eso.FetchRequest{Path: "app/x"})
+			req := httptest.NewRequest(http.MethodPost, "/fetch", bytes.NewReader(body))
+			req.Header.Set("X-KNXVault-Token", want)
+			rec := httptest.NewRecorder()
+			server.Handler().ServeHTTP(rec, req)
+			if rec.Code != http.StatusOK {
+				errs <- fmt.Errorf("status=%d body=%s", rec.Code, rec.Body.String())
+				return
+			}
+			var resp eso.FetchResponse
+			if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+				errs <- err
+				return
+			}
+			if resp.Data["who"] != want {
+				errs <- fmt.Errorf("got who=%v want %s", resp.Data["who"], want)
+			}
+		}(i)
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if hits.Load() != n {
+		t.Fatalf("vault hits=%d want %d", hits.Load(), n)
 	}
 }
 

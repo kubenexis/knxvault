@@ -31,6 +31,8 @@ type CertificateReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 	Vault  vaultiface.API
+	// ACMEEnabled when false rejects ACME-backed issue (M-DTP-2 / tech review).
+	ACMEEnabled bool
 }
 
 // Reconcile issues or renews a certificate and optionally writes a TLS Secret.
@@ -80,6 +82,11 @@ func (r *CertificateReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	resolved, err := ResolveIssuerFromRef(ctx, r.Client, cert.Namespace, cert.Spec.IssuerRef)
 	if err != nil {
 		res := failCert(&cert, "certificate", reconcileutil.ReasonIssuerNotReady, err.Error())
+		_ = r.Status().Update(ctx, &cert)
+		return res, nil
+	}
+	if err := v1alpha1.RejectACMEIfDisabled(resolved.Mode, r.ACMEEnabled); err != nil {
+		res := failCert(&cert, "certificate", reconcileutil.ReasonInvalidSpec, err.Error())
 		_ = r.Status().Update(ctx, &cert)
 		return res, nil
 	}
@@ -198,11 +205,17 @@ func (r *CertificateReconciler) applyTLSSecret(ctx context.Context, cert *v1alph
 // Ownership is OwnerRef-only: a spoofable label must not authorize overwrite of an
 // unrelated Secret that already holds private key material.
 func secretOwnedByCertificate(sec *corev1.Secret, cert *v1alpha1.KNXVaultCertificate) bool {
-	if sec == nil || cert == nil {
+	return secretOwnedByObject(sec, cert)
+}
+
+// secretOwnedByObject is true when sec has a controller OwnerRef to obj (UID match).
+func secretOwnedByObject(sec *corev1.Secret, obj client.Object) bool {
+	if sec == nil || obj == nil {
 		return false
 	}
+	uid := obj.GetUID()
 	for _, ref := range sec.OwnerReferences {
-		if ref.UID == cert.UID && ref.Controller != nil && *ref.Controller {
+		if ref.UID == uid && ref.Controller != nil && *ref.Controller {
 			return true
 		}
 	}

@@ -7,7 +7,7 @@ SPDX-License-Identifier: CC-BY-4.0
 
 Actionable backlog derived from [`docs/lld.md`](lld.md). Items are **topologically sorted by dependency** — implement in listed order within each phase.
 
-**Current focus (2026-07-18):** **M-DTP-0…4 Complete** + **Phase A/B/C** (base unseal/Ingress lock; W86-03/04/05/09/13/14/22; platform-edge Day-0/1). Branch `knxvault-distributed-trust-platform`. Remaining: other W86 Medium/Low; Phase 5 tenant depth (W32), HSM (W31-02 / M-CUSTODY-1).
+**Current focus (2026-07-18):** **M-DTP + Phase A/B/C + technical review pack** (ESO race, operator write isolation, ACME issue gate, ImportCA/SQL/sqlite, production gates). Branch `knxvault-distributed-trust-platform`. Remaining: W86-10 shared RL, W86-11/12; Phase 5 tenant depth (W32), HSM (W31-02 / M-CUSTODY-1).
 
 **Milestone M-ACME-1 (P1):** Unified **Let's Encrypt / ACME** for **standalone + Kubernetes + `knxvault-cli acme`** — design [`docs/design/acme-letsencrypt-unified.md`](design/acme-letsencrypt-unified.md), backlog **W60-01…** below. K8s operator ACME already shipped; gap is CLI + standalone.
 
@@ -816,12 +816,12 @@ Report: `docs/audit/formal-w53-residual-features-2026-07-16.md`.
 | **W86-12** | P1 | Not started | M | auth | W44-02 | Bind ABAC env/cluster to trusted claims | Do not trust client headers alone for production policies | Docs + optional deny when headers not from trusted path |
 | **W86-13** | P1 | **Complete** | S | k8s | W81-03 | Webhook caBundle Day-0 wiring | cert-manager inject or bootstrap Secret; no bare placeholder in happy path | Production webhook apply path includes real caBundle |
 | **W86-14** | P1 | **Complete** | S | k8s | W86-07 | Ingress path deny for unseal | Document/sample Ingress rules excluding `/sys/unseal` | Recipe or kustomize Ingress patch |
-| **W86-15** | P1 | Not started | M | security | W83-01 | Managed SQL deny AS SELECT / PUBLIC / tighten DDL | Close post-W83 allowlist holes | Unit tests deny exfil shapes; object GRANT still works |
-| **W86-16** | P1 | Not started | S | crypto | W82-02 | ImportCA requires IsCA + certSign KU | Align import with generated CA policy | Unit test rejects leaf import as CA |
-| **W86-17** | P1 | Not started | S | security | W50-22 | Ban sqlite/file managed admin URLs in production | Managed connection_url postgres-only under production | ValidateSecurity or engine gate |
+| **W86-15** | P1 | **Complete** | M | security | W83-01 | Managed SQL deny AS SELECT / PUBLIC / tighten DDL | Close post-W83 allowlist holes | Unit tests deny exfil shapes; object GRANT still works |
+| **W86-16** | P1 | **Complete** | S | crypto | W82-02 | ImportCA requires IsCA + certSign KU | Align import with generated CA policy | Unit test rejects leaf import as CA |
+| **W86-17** | P1 | **Complete** | S | security | W50-22 | Ban sqlite/file managed admin URLs in production | Managed connection_url postgres-only under production | ValidateSecurity or engine gate |
 | **W86-18** | P2 | Not started | M | auth | W81-09 | Vault-compat mount ↔ CA binding | Document or enforce mount-name to allowed CA set | Docs or policy test multi-mount isolation |
-| **W86-19** | P2 | Not started | S | k8s | — | Operator leader lease namespaced Role | Avoid cluster-wide leases CRUD | Role in knxvault NS only |
-| **W86-20** | P2 | Not started | S | k8s | — | Operator metrics auth/NetPol sample | Bearer or NetPol on :8080 | Manifest + note |
+| **W86-19** | P2 | **Complete** | S | k8s | — | Operator leader lease namespaced Role | Avoid cluster-wide leases CRUD | Role in knxvault NS only |
+| **W86-20** | P2 | **Complete** | S | k8s | — | Operator metrics auth/NetPol sample | Bearer or NetPol on :8080 | Manifest + note |
 | ~~**W86-21**~~ | P2 | **Complete** | S | security | — | CLI not in server image | `knxvault-cli` host/CI artifact only; Dockerfile has no CLI | Image binaries: serve + CSI + webhook + ESO only |
 | **W86-22** | P2 | **Complete** | S | k8s | W86-04 | Operator default vault URL https | Code default matches HTTPS posture | Unit/default test |
 | **W86-L01** | P2 | Not started | S | security | W84 | OCSP response cache / dedicated signer | Reduce unauth decrypt DoS | Cache or rate doc |

@@ -49,12 +49,19 @@ func (DefaultSQLRunner) ExecStatements(ctx context.Context, connectionURL string
 	return nil
 }
 
+// AllowFileAdminURLs permits sqlite:/file: admin DSNs (lab/tests). Production
+// wiring sets this false (W86-17).
+var AllowFileAdminURLs = true
+
 func parseConnectionURL(raw string) (dsn, driver string, err error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return "", "", fmt.Errorf("connection_url is required")
 	}
 	if strings.HasPrefix(raw, "sqlite:") {
+		if !AllowFileAdminURLs {
+			return "", "", fmt.Errorf("sqlite: admin URLs are not allowed in this configuration (W86-17)")
+		}
 		return strings.TrimPrefix(raw, "sqlite:"), "sqlite", nil
 	}
 	parsed, err := url.Parse(raw)
@@ -63,6 +70,9 @@ func parseConnectionURL(raw string) (dsn, driver string, err error) {
 	}
 	switch parsed.Scheme {
 	case "sqlite", "file":
+		if !AllowFileAdminURLs {
+			return "", "", fmt.Errorf("%s: admin URLs are not allowed in this configuration (W86-17)", parsed.Scheme)
+		}
 		path := strings.TrimPrefix(raw, parsed.Scheme+":")
 		return path, "sqlite", nil
 	case "mysql":
