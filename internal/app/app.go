@@ -102,6 +102,7 @@ func New(ctx context.Context, cfg config.Config, log *zap.Logger) (*App, error) 
 		SharedRateLimiter:    deps.SharedRateLimiter,
 		AuthLoginLimiter:     deps.AuthLoginLimiter,
 		TokenCreateLimiter:   deps.TokenCreateLimiter,
+		UnsealLimiter:        deps.UnsealLimiter,
 		RequestSigning:       deps.RequestSigning,
 		TrustedProxies:       cfg.TrustedProxies,
 		MetricsBearerToken:   cfg.MetricsBearerToken,
@@ -113,6 +114,10 @@ func New(ctx context.Context, cfg config.Config, log *zap.Logger) (*App, error) 
 		// M-DTP-2 feature gates
 		AuthOIDCEnabled: cfg.AuthOIDCEnabled,
 		AuthLDAPEnabled: cfg.AuthLDAPEnabled,
+		// W86-12: production ignores client ABAC headers unless explicitly re-enabled.
+		TrustClientABACHeaders: cfg.TrustClientABACHeaders,
+		ABACEnvironment:        cfg.ABACEnvironment,
+		ABACCluster:            cfg.ABACCluster,
 	})
 
 	server := &http.Server{

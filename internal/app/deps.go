@@ -96,8 +96,9 @@ type Dependencies struct {
 	RateLimiter        *middleware.RateLimiter
 	SharedRateLimiter  *middleware.SharedRateLimiter
 	SharedLockout      *auth.SharedLockoutTracker
-	AuthLoginLimiter   *middleware.RateLimiter
-	TokenCreateLimiter *middleware.RateLimiter
+	AuthLoginLimiter   *middleware.SharedRateLimiter
+	TokenCreateLimiter *middleware.SharedRateLimiter
+	UnsealLimiter      *middleware.SharedRateLimiter
 	RequestSigning     *middleware.RequestSigning
 
 	Leader           leader.Elector
@@ -500,11 +501,13 @@ func NewDependencies(ctx context.Context, cfg config.Config, log *zap.Logger) (*
 		}
 	}
 
-	// Shared rate limiters use Valkey when available (W53).
+	// Shared rate limiters use Valkey when available (W53 / W86-10).
 	deps.SharedRateLimiter = middleware.NewSharedRateLimiter(cfg.RateLimitRPM, cfg.RateLimitEnabled, deps.CacheStore)
 	deps.RateLimiter = deps.SharedRateLimiter.Local()
-	deps.AuthLoginLimiter = middleware.NewRateLimiter(cfg.AuthLoginRateLimitRPM, true)
-	deps.TokenCreateLimiter = middleware.NewRateLimiter(cfg.TokenCreateRateLimitRPM, true)
+	deps.AuthLoginLimiter = middleware.NewSharedRateLimiterPrefixed(cfg.AuthLoginRateLimitRPM, true, deps.CacheStore, "knxvault:ratelimit:login:")
+	deps.TokenCreateLimiter = middleware.NewSharedRateLimiterPrefixed(cfg.TokenCreateRateLimitRPM, true, deps.CacheStore, "knxvault:ratelimit:tokencreate:")
+	// Unseal: tight per-IP budget; cluster-wide when Valkey is configured.
+	deps.UnsealLimiter = middleware.NewSharedRateLimiterPrefixed(10, true, deps.CacheStore, "knxvault:ratelimit:unseal:")
 	deps.RequestSigning = middleware.NewRequestSigning(cfg.RequestSigningKey, cfg.RequestSigningRequired)
 
 	deps.LeaderMonitor = leader.NewMonitor()

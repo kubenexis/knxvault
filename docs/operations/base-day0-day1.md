@@ -96,6 +96,14 @@ knxvault-cli doctor --profile production \
 5. Confirm monitoring scrapes **:8201** only (not API :8200).
 6. Document break-glass unseal owners (Shamir if used).
 
+### Day-1 hardening notes (W86-10/11/12)
+
+| Control | Recommendation |
+|---------|----------------|
+| Shared rate limits | Set `KNXVAULT_VALKEY_CACHE_URL` so login/unseal counters are cluster-wide |
+| Request signing | Optional `KNXVAULT_REQUEST_SIGNING_KEY` (production requires signatures when key is set) |
+| ABAC | Do **not** trust client `X-KNX-Environment` / `X-KNX-Cluster` on production; set server `KNXVAULT_ABAC_*` if policies use those conditions |
+
 ### Explicit non-goals for Day-1 on base
 
 | Do not | Why |

@@ -164,6 +164,14 @@ type Config struct {
 	// Operator uses KNXVAULT_OPERATOR_ACME_ENABLED separately.
 	ACMERelatedEnabled bool
 
+	// TrustClientABACHeaders when true accepts X-KNX-Environment / X-KNX-Cluster from clients (lab).
+	// Production forces false (W86-12). Env: KNXVAULT_TRUST_CLIENT_ABAC_HEADERS.
+	TrustClientABACHeaders bool
+	// ABACEnvironment / ABACCluster are server-authoritative ABAC attributes when client headers are not trusted.
+	// Env: KNXVAULT_ABAC_ENVIRONMENT, KNXVAULT_ABAC_CLUSTER.
+	ABACEnvironment string
+	ABACCluster     string
+
 	Raft RaftConfig
 }
 

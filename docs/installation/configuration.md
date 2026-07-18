@@ -56,6 +56,11 @@ See [`config/knxvault.example.yaml`](../../config/knxvault.example.yaml) for the
 | `KNXVAULT_AUDIT_FORWARD_ENABLED` | `false` | When `false`, ignore `KNXVAULT_AUDIT_FORWARD_URL` (W90-21) |
 | `KNXVAULT_ACME_RELATED_ENABLED` | `true` (lab) | Server-side ACME-related surface; airgap/production base sets `false` |
 | `KNXVAULT_OPERATOR_ACME_ENABLED` | `false` | Operator only: allow ACME issuer types when `true` (W90-22) |
+| `KNXVAULT_TRUST_CLIENT_ABAC_HEADERS` | `true` lab / **`false` production** | When false, ignore client `X-KNX-Environment` / `X-KNX-Cluster` (W86-12) |
+| `KNXVAULT_ABAC_ENVIRONMENT` | — | Server-authoritative environment for ABAC when client headers are untrusted |
+| `KNXVAULT_ABAC_CLUSTER` | — | Server-authoritative cluster name for ABAC |
+| `KNXVAULT_VALKEY_CACHE_URL` | — | Enables **cluster-wide** login/unseal/API rate limits (W86-10) + cache |
+| `KNXVAULT_REQUEST_SIGNING_KEY` | — | HMAC key for request signatures; production forces `REQUEST_SIGNING_REQUIRED` when set (W86-11) |
 
 YAML: `security.auth_oidc_enabled`, `security.auth_ldap_enabled`, `security.acme_related_enabled`, `audit.forward_enabled`.
 

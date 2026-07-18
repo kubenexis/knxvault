@@ -37,14 +37,14 @@ SPDX-License-Identifier: CC-BY-4.0
 | Med | Unseal sample CIDR | Jump `/32` only |
 | Low/Med | ESO error leak | Generic unauthorized / upstream messages |
 
-## Residual (tracked, not fully closed)
+## Residual Medium pack follow-up (2026-07-19) — closed
 
 | ID | Severity | Notes |
 |----|----------|--------|
-| W86-10 | Medium | Shared login/unseal rate limits (Valkey) |
-| W86-11 | Medium | Request signing optional — doctor/docs only |
-| W86-12 | Medium | Client ABAC headers — prefer claim binding (design) |
-| W86-08 | Low/Med | Lab default profile — doctor warns non-loopback |
+| W86-10 | Medium → **Complete** | Shared login/token-create/unseal rate limits via Valkey prefixes |
+| W86-11 | Medium → **Complete** | Production forces signing required when key set; doctor warn |
+| W86-12 | Medium → **Complete** | Production rejects client ABAC header trust; server ABAC env/cluster |
+| W86-08 | Low/Med → **Complete** | Doctor lab-on-non-loopback warn (existing) + production defaults |
 
 ## Positive controls confirmed
 

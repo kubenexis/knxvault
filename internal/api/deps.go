@@ -49,11 +49,17 @@ type RouterDeps struct {
 	TokenTTL             time.Duration
 	RateLimiter          *middleware.RateLimiter
 	SharedRateLimiter    *middleware.SharedRateLimiter
-	AuthLoginLimiter     *middleware.RateLimiter
-	TokenCreateLimiter   *middleware.RateLimiter
-	RequestSigning       *middleware.RequestSigning
-	HAStatus             handlers.HAStatusProvider
-	IsLeader             func() bool
+	// AuthLoginLimiter / TokenCreateLimiter / UnsealLimiter use Valkey when configured (W86-10).
+	AuthLoginLimiter   *middleware.SharedRateLimiter
+	TokenCreateLimiter *middleware.SharedRateLimiter
+	UnsealLimiter      *middleware.SharedRateLimiter
+	RequestSigning     *middleware.RequestSigning
+	// TrustClientABACHeaders when false ignores client X-KNX-Environment/Cluster (W86-12).
+	TrustClientABACHeaders bool
+	ABACEnvironment        string
+	ABACCluster            string
+	HAStatus               handlers.HAStatusProvider
+	IsLeader               func() bool
 	// TrustedProxies configures Gin X-Forwarded-For trust (W50-18). nil/empty = trust none.
 	TrustedProxies []string
 	// MetricsBearerToken when set authenticates GET /metrics (W50-19).

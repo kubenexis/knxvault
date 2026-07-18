@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/kubenexis/knxvault/pkg/client"
@@ -58,6 +59,8 @@ type Config struct {
 	AuthLDAPEnabled     string
 	AuditForwardEnabled string
 	ACMERelatedEnabled  string
+	// RequestSigningKey when set indicates signing is configured (W86-11).
+	RequestSigningKey string
 }
 
 // Runner executes doctor checks against a KNXVault deployment.
@@ -153,6 +156,25 @@ func (r *Runner) checkProductionProfile(report *Report) {
 		Message: "Production profile doctor gate executed",
 		Detail:  "Ensure vault process uses KNXVAULT_SECURITY_PROFILE=production and required secrets",
 	})
+	// W86-11: optional request signing guidance (local/env — not server-probed).
+	signKey := strings.TrimSpace(r.Config.RequestSigningKey)
+	if signKey == "" {
+		signKey = strings.TrimSpace(os.Getenv("KNXVAULT_REQUEST_SIGNING_KEY"))
+	}
+	if signKey == "" {
+		report.add(Check{
+			ID:      "profile.production.request_signing",
+			Status:  StatusWarn,
+			Message: "Request signing key not visible to doctor (optional defense-in-depth)",
+			Detail:  "Configure KNXVAULT_REQUEST_SIGNING_KEY on vault; production forces required=true when key is set",
+		})
+	} else {
+		report.add(Check{
+			ID:      "profile.production.request_signing",
+			Status:  StatusOK,
+			Message: "Request signing material present for doctor guidance",
+		})
+	}
 	r.checkFeatureGates(report)
 }
 

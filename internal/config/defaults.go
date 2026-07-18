@@ -43,7 +43,9 @@ func defaults() Config {
 		AuthLDAPEnabled:     true,
 		AuditForwardEnabled: false, // explicit enable required (W90-21)
 		ACMERelatedEnabled:  true,  // server-side; airgap overlays set false
-		Raft:                defaultRaft(),
+		// W86-12: lab may use client ABAC headers; production forces false.
+		TrustClientABACHeaders: true,
+		Raft:                   defaultRaft(),
 	}
 }
 

@@ -30,6 +30,15 @@ data:
   KNXVAULT_AUTH_LDAP_ENABLED: "false"
   KNXVAULT_AUDIT_FORWARD_ENABLED: "false"
   KNXVAULT_ACME_RELATED_ENABLED: "false"
+  # W86-12: do not trust client X-KNX-Environment / X-KNX-Cluster
+  KNXVAULT_TRUST_CLIENT_ABAC_HEADERS: "false"
+  # Optional server-side ABAC attributes (not client-asserted):
+  # KNXVAULT_ABAC_ENVIRONMENT: "prod"
+  # KNXVAULT_ABAC_CLUSTER: "core"
+  # W86-10: configure Valkey for cluster-wide login/unseal rate limits
+  # KNXVAULT_VALKEY_CACHE_URL: "rediss://valkey:6379/0"
+  # W86-11: optional request signing (required=true when key set under production)
+  # KNXVAULT_REQUEST_SIGNING_KEY: "from-secret"
   # W86-06: Raft peer mTLS paths (mounted from knxvault-raft-tls Secret)
   KNXVAULT_RAFT_MTLS_CERT: "/etc/knxvault/raft-tls/tls.crt"
   KNXVAULT_RAFT_MTLS_KEY: "/etc/knxvault/raft-tls/tls.key"

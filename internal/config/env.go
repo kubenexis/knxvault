@@ -262,6 +262,19 @@ func overlayEnv(cfg Config) (Config, error) {
 		}
 		cfg.ACMERelatedEnabled = b
 	}
+	if v := os.Getenv("KNXVAULT_TRUST_CLIENT_ABAC_HEADERS"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("KNXVAULT_TRUST_CLIENT_ABAC_HEADERS: %w", err)
+		}
+		cfg.TrustClientABACHeaders = b
+	}
+	if v := os.Getenv("KNXVAULT_ABAC_ENVIRONMENT"); v != "" {
+		cfg.ABACEnvironment = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("KNXVAULT_ABAC_CLUSTER"); v != "" {
+		cfg.ABACCluster = strings.TrimSpace(v)
+	}
 	if v := os.Getenv("KNXVAULT_K8S_AUTH_INSECURE"); v != "" {
 		insecure, err := strconv.ParseBool(v)
 		if err != nil {
@@ -479,6 +492,28 @@ func overlayFeatureGateEnv(cfg *Config) error {
 			return fmt.Errorf("KNXVAULT_ACME_RELATED_ENABLED: %w", err)
 		}
 		cfg.ACMERelatedEnabled = b
+	}
+	// Do not re-apply TRUST_CLIENT_ABAC_HEADERS after production defaults — must stay false in production.
+	if v := os.Getenv("KNXVAULT_ABAC_ENVIRONMENT"); v != "" {
+		cfg.ABACEnvironment = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("KNXVAULT_ABAC_CLUSTER"); v != "" {
+		cfg.ABACCluster = strings.TrimSpace(v)
+	}
+	// Signing required can still be set explicitly, but production rejects key without required.
+	if v := os.Getenv("KNXVAULT_REQUEST_SIGNING_REQUIRED"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return fmt.Errorf("KNXVAULT_REQUEST_SIGNING_REQUIRED: %w", err)
+		}
+		cfg.RequestSigningRequired = b
+	}
+	// Re-apply signing key after profile so production can force required when key present.
+	if v := os.Getenv("KNXVAULT_REQUEST_SIGNING_KEY"); v != "" {
+		cfg.RequestSigningKey = strings.TrimSpace(v)
+		if IsProductionProfile(*cfg) {
+			cfg.RequestSigningRequired = true
+		}
 	}
 	return nil
 }

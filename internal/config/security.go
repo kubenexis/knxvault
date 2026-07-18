@@ -72,6 +72,12 @@ func ApplySecurityProfileDefaults(cfg *Config) error {
 	cfg.AuthLDAPEnabled = false
 	cfg.AuditForwardEnabled = false
 	cfg.ACMERelatedEnabled = false
+	// W86-12: never trust client-asserted environment/cluster headers in production.
+	cfg.TrustClientABACHeaders = false
+	// W86-11: when a signing key is configured, require signatures in production.
+	if strings.TrimSpace(cfg.RequestSigningKey) != "" {
+		cfg.RequestSigningRequired = true
+	}
 	// Cap bootstrap root lifetime (bootstrap-complete / root death is W62-10).
 	if cfg.RootTokenTTL <= 0 || cfg.RootTokenTTL > MaxProductionRootTokenTTL {
 		cfg.RootTokenTTL = MaxProductionRootTokenTTL
@@ -239,6 +245,14 @@ func validateProductionSecurity(cfg Config) error {
 	}
 	if !cfg.ManagedSQLStrict {
 		return fmt.Errorf("production profile: managed SQL strict mode must be enabled")
+	}
+	// W86-12: client-asserted environment/cluster headers are not production-safe.
+	if cfg.TrustClientABACHeaders {
+		return fmt.Errorf("production profile: KNXVAULT_TRUST_CLIENT_ABAC_HEADERS must be false (use KNXVAULT_ABAC_ENVIRONMENT/CLUSTER)")
+	}
+	// W86-11: signing key without required is not allowed (defaults force required when key set).
+	if strings.TrimSpace(cfg.RequestSigningKey) != "" && !cfg.RequestSigningRequired {
+		return fmt.Errorf("production profile: request signing must be required when KNXVAULT_REQUEST_SIGNING_KEY is set")
 	}
 	return nil
 }

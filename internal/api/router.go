@@ -53,7 +53,11 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 		r.Use(otelgin.Middleware("knxvault"))
 	}
 	r.Use(middleware.RequestID())
-	r.Use(middleware.EnvironmentHeader())
+	r.Use(middleware.EnvironmentHeaderWithConfig(middleware.ABACHeaderConfig{
+		TrustClient:       deps.TrustClientABACHeaders,
+		ServerEnvironment: deps.ABACEnvironment,
+		ServerCluster:     deps.ABACCluster,
+	}))
 	r.Use(middleware.SecurityHeaders(middleware.SecurityHeadersConfig{
 		CORSAllowedOrigins: deps.CORSAllowedOrigins,
 	}))
@@ -593,8 +597,15 @@ func NewRouter(log *zap.Logger, version string, tracingEnabled bool, deps Router
 		)
 		sysUnseal.SetUnsealAllowNets(unsealNets)
 		sysUnseal.SetExposurePathPrefixes(deps.ExposurePathPrefixes)
-		unsealLimiter := middleware.NewRateLimiter(10, true)
-		r.POST("/sys/unseal", unsealLimiter.Middleware(), sysUnseal.Unseal)
+		// W86-10: shared unseal throttle when Valkey configured (else process-local).
+		unsealMW := gin.HandlersChain{}
+		if deps.UnsealLimiter != nil {
+			unsealMW = append(unsealMW, deps.UnsealLimiter.Middleware())
+		} else {
+			unsealMW = append(unsealMW, middleware.NewRateLimiter(10, true).Middleware())
+		}
+		unsealMW = append(unsealMW, sysUnseal.Unseal)
+		r.POST("/sys/unseal", unsealMW...)
 	}
 
 	if deps.ExposureSigningKey != "" {

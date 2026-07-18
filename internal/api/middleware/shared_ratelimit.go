@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -29,12 +30,21 @@ type SharedRateLimiter struct {
 
 // NewSharedRateLimiter wraps a local limiter with optional Valkey-backed counters.
 func NewSharedRateLimiter(rpm int, enabled bool, store cache.Store) *SharedRateLimiter {
+	return NewSharedRateLimiterPrefixed(rpm, enabled, store, "knxvault:ratelimit:")
+}
+
+// NewSharedRateLimiterPrefixed is like NewSharedRateLimiter with a custom key prefix
+// so login/unseal/API counters do not collide (W86-10).
+func NewSharedRateLimiterPrefixed(rpm int, enabled bool, store cache.Store, prefix string) *SharedRateLimiter {
+	if strings.TrimSpace(prefix) == "" {
+		prefix = "knxvault:ratelimit:"
+	}
 	return &SharedRateLimiter{
 		local:   NewRateLimiter(rpm, enabled),
 		store:   store,
 		limit:   rpm,
 		enabled: enabled,
-		prefix:  "knxvault:ratelimit:",
+		prefix:  prefix,
 	}
 }
 

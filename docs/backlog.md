@@ -809,11 +809,11 @@ Report: `docs/audit/formal-w53-residual-features-2026-07-16.md`.
 | **W86-05** | P0 | **Complete** | M | security | W86-04 | ESO fetch requires caller identity | No silent TokenFile shared proxy; require header token or authenticated SA path | Unauthenticated `/fetch` → 401 even with TokenFile unless explicit break-glass |
 | **W86-06** | P0 | **Complete** | M | k8s | W75-02, W50-20 | Production Raft mTLS materials in overlay | Mounts/Secrets for `KNXVAULT_RAFT_MTLS_*` in production kustomize | Multi-node production materials documented |
 | **W86-07** | P0 | **Complete** | S | k8s | W75-03 | Base NetPol metrics-only for monitoring | Monitoring must not reach API :8200 (use :8201 + bearer) | Base + production NetPol deny monitoring→8200 |
-| **W86-08** | P1 | Not started | S | security | W62-01 | Reduce lab profile set-and-forget risk | Doctor/docs/CI: non-loopback or Raft warns/fails without production | Documented gate; unit/doctor test |
+| **W86-08** | P1 | **Complete** | S | security | W62-01 | Reduce lab profile set-and-forget risk | Doctor warns lab profile on non-loopback; production defaults fail-closed | Doctor + production gates |
 | **W86-09** | P1 | **Complete** | M | security | W75-04, W81-02 | Tighten unseal plane examples | Prefer admin jump `/32`; document Ingress path deny for `/sys/unseal` | Production samples ≤ `/24` or jump CIDR; runbook path deny |
-| **W86-10** | P1 | Not started | M | security | W43-03 | Shared login/unseal rate limits (Valkey) | HA multiplies process-local limits | With Valkey, cluster-wide login/unseal counters |
-| **W86-11** | P1 | Not started | S | security | W19-02 | Production request-signing guidance | Optional force when key set, or doctor warn | Docs + optional ValidateSecurity/doctor check |
-| **W86-12** | P1 | Not started | M | auth | W44-02 | Bind ABAC env/cluster to trusted claims | Do not trust client headers alone for production policies | Docs + optional deny when headers not from trusted path |
+| **W86-10** | P1 | **Complete** | M | security | W43-03 | Shared login/unseal rate limits (Valkey) | HA multiplies process-local limits | With Valkey, cluster-wide login/unseal counters |
+| **W86-11** | P1 | **Complete** | S | security | W19-02 | Production request-signing guidance | Force required when key set; doctor warn | Docs + ValidateSecurity/doctor |
+| **W86-12** | P1 | **Complete** | M | auth | W44-02 | Bind ABAC env/cluster to trusted claims | Production ignores client headers; server ABAC attrs | Docs + production reject trust-client |
 | **W86-13** | P1 | **Complete** | S | k8s | W81-03 | Webhook caBundle Day-0 wiring | cert-manager inject or bootstrap Secret; no bare placeholder in happy path | Production webhook apply path includes real caBundle |
 | **W86-14** | P1 | **Complete** | S | k8s | W86-07 | Ingress path deny for unseal | Document/sample Ingress rules excluding `/sys/unseal` | Recipe or kustomize Ingress patch |
 | **W86-15** | P1 | **Complete** | M | security | W83-01 | Managed SQL deny AS SELECT / PUBLIC / tighten DDL | Close post-W83 allowlist holes | Unit tests deny exfil shapes; object GRANT still works |

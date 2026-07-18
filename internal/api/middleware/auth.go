@@ -58,6 +58,10 @@ func Auth(svc *auth.Service) gin.HandlerFunc {
 		})
 		env, _ := c.Get("knx_environment")
 		envStr, _ := env.(string)
+		clusterVal, _ := c.Get("knx_cluster")
+		clusterStr, _ := clusterVal.(string)
+		// If EnvironmentHeader middleware did not run with trust policy, fall back to empty
+		// (do not read spoofable headers here — W86-12).
 		ns, nsErr := auth.ResolveTenantNamespace(c.GetHeader(auth.NamespaceHeader), record.Subject)
 		if nsErr != nil {
 			_ = c.Error(nsErr)
@@ -73,7 +77,7 @@ func Auth(svc *auth.Service) gin.HandlerFunc {
 			AgentID:     record.AgentID,
 			Namespace:   ns,
 			Environment: envStr,
-			Cluster:     strings.TrimSpace(c.GetHeader(auth.ClusterHeader)),
+			Cluster:     clusterStr,
 			RequestPath: reqPath,
 			RequestID:   c.GetHeader("X-Request-ID"),
 		})

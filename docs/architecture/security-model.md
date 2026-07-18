@@ -57,6 +57,8 @@ Tag security findings in future audits:
 
 **Technical review pack (2026-07-18):** ESO per-request tokens; operator Secret write isolation + namespaced leases; ACME issue-time gate; ImportCA IsCA; SQL CTAS/PUBLIC deny; sqlite admin ban in production; production feature-gate fail-closed with edge env override. Report: [technical-review-remediation-2026-07-18.md](../audit/technical-review-remediation-2026-07-18.md).
 
+**Residual Medium pack (2026-07-19):** **W86-10** shared login/unseal rate limits via Valkey (`SharedRateLimiter` prefixes); **W86-11** production forces request signing required when key set + doctor warn; **W86-12** production ignores client ABAC headers (use `KNXVAULT_ABAC_ENVIRONMENT` / `CLUSTER`); **W86-08** doctor already warns lab profile on non-loopback.
+
 ## Threat model
 
 | Threat | Impact | Mitigations |

@@ -27,7 +27,7 @@ func TestAuthLoginThrottleReturns429(t *testing.T) {
 	handler := handlers.NewAuthHandler(authSvc, 0)
 
 	r := gin.New()
-	r.Use(middleware.AuthLoginThrottle(limiter), middleware.ErrorHandler())
+	r.Use(middleware.AuthLoginThrottleLocal(limiter), middleware.ErrorHandler())
 	r.POST("/auth/kubernetes", handler.LoginKubernetes)
 
 	body, _ := json.Marshal(dto.K8sLoginRequest{Role: "app", JWT: "bad"})
