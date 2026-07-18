@@ -73,11 +73,11 @@ security:
   auth_oidc_enabled: false
   auth_ldap_enabled: false
   acme_related_enabled: false
-  # Restrict unseal plane (required). Override for your admin network.
+  # Restrict unseal plane (required). Prefer admin jump /32 or ≤ /24 (W86-09).
+  # Max breadth /16 (W81-02); avoid whole RFC1918 /16 when possible.
   unseal_allow_cidrs:
-    - 10.0.0.0/16
-    - 192.168.0.0/16
-  # Prefer admin jump /32; max breadth /16 (W81-02).
+    - 10.0.0.10/32
+    - 10.244.0.0/24
   # metrics_bearer_token: ""  # use KNXVAULT_METRICS_BEARER_TOKEN
   # TokenReview audiences (required with raft in production):
   # set via KNXVAULT_K8S_TOKEN_AUDIENCES=knxvault

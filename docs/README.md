@@ -64,8 +64,11 @@ Version-controlled documentation for architects, operators, developers, and inte
 | [PKI security best practices](operations/pki-security-practices.md) | Security / SRE | Trust hierarchy, key handling, access control |
 | [Operator security](operations/operator-security.md) | Operators | Credential placement, master/unseal custody, audit rules |
 | [**Instance roles (DTP)**](operations/instance-roles.md) | Operators / SRE | Core vs platform-edge vs public TLS edge |
+| [**Base Day-0 / Day-1**](operations/base-day0-day1.md) | Operators | Custody instance bring-up (base only) |
+| [**Platform-edge Day-0 / Day-1**](operations/platform-edge-day0-day1.md) | Operators | CSI / webhook / ESO golden path |
 | [**Airgap checklist**](operations/airgap-checklist.md) | Operators | Offline images, base apply, feature gates |
 | [**Cross-instance trust**](operations/cross-instance-trust.md) | Architects / Operators | Edge as client of core; scoped policies |
+| [**Phase A/B/C design**](design/phase-abc-hardening-capability.md) | Architects | Base lock, add-on harden, capability placement |
 | [Runbook: CA compromise](operations/runbooks/ca-compromise.md) | SRE | CA key compromise recovery |
 | [Runbook: Raft failover](operations/runbooks/raft-failover.md) | SRE | Leader loss, quorum loss, recovery |
 | [Runbook: Scaling](operations/runbooks/scaling.md) | SRE | Horizontal scaling and capacity |

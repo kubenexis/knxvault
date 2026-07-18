@@ -48,6 +48,15 @@ make dtp-surface   # CI: base/production must not include CSI/ESO/webhook/ACME
 
 Unseal is unauthenticated by design. This overlay **only** allows unseal traffic from namespaces labeled `knxvault.kubenexis.dev/unseal-client=true`. Do **not** put Service type LoadBalancer/NodePort on the public internet.
 
+**W86-09:** ConfigMap unseal CIDRs prefer admin jump `/32` and pod ranges ≤ `/24`.  
+**W86-14:** Optional Ingress sample denies `/sys/unseal` on the public path:
+
+```bash
+kubectl apply -f deployments/k8s/production/ingress-api-no-unseal.yaml
+```
+
+Day-0 narrative: [base-day0-day1.md](../../../docs/operations/base-day0-day1.md).
+
 ## Related
 
 - [Distributed Trust Platform](../../../docs/design/distributed-trust-platform.md)  

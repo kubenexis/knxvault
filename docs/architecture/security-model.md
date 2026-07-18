@@ -53,6 +53,8 @@ Tag security findings in future audits:
 
 **Base Critical path (M-DTP-4):** W86-01 (custody Secret isolation), W86-02 (no root on operator sample), W86-06 (Raft mTLS overlay), W86-07 (metrics-only NetPol).
 
+**Phase A/B/C (post-DTP):** Base unseal/Ingress hygiene (W86-09/14); add-on ESO TLS+auth (W86-04/05); Certificate OwnerRef-only (W86-03); webhook caBundle Day-0 (W86-13). Design [phase-abc-hardening-capability.md](../design/phase-abc-hardening-capability.md). Ops: [base-day0-day1.md](../operations/base-day0-day1.md), [platform-edge-day0-day1.md](../operations/platform-edge-day0-day1.md).
+
 ## Threat model
 
 | Threat | Impact | Mitigations |

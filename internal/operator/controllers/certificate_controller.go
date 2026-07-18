@@ -194,7 +194,9 @@ func (r *CertificateReconciler) applyTLSSecret(ctx context.Context, cert *v1alph
 	return r.Update(ctx, &current)
 }
 
-// secretOwnedByCertificate reports whether sec is controlled by cert (W81-12).
+// secretOwnedByCertificate reports whether sec is controlled by cert (W81-12 / W86-03).
+// Ownership is OwnerRef-only: a spoofable label must not authorize overwrite of an
+// unrelated Secret that already holds private key material.
 func secretOwnedByCertificate(sec *corev1.Secret, cert *v1alpha1.KNXVaultCertificate) bool {
 	if sec == nil || cert == nil {
 		return false
@@ -203,10 +205,6 @@ func secretOwnedByCertificate(sec *corev1.Secret, cert *v1alpha1.KNXVaultCertifi
 		if ref.UID == cert.UID && ref.Controller != nil && *ref.Controller {
 			return true
 		}
-	}
-	// Label set by this operator on prior writes (migration without owner ref).
-	if sec.Labels != nil && sec.Labels["knxvault.kubenexis.dev/certificate"] == cert.Name {
-		return true
 	}
 	return false
 }

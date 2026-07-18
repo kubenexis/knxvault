@@ -11,6 +11,8 @@ A hands-on introduction to KNXVault secrets, PKI, access control, **Transit**, *
 
 A running KNXVault instance. See [Installation guide](../installation/install.md).
 
+**Production topology (Distributed Trust Platform):** high-assurance installs use **base only** (core secrets + private PKI). CSI, External Secrets, webhooks, and public OIDC/ACME are **add-ons** on platform/public-edge instances — see [base Day-0/Day-1](../operations/base-day0-day1.md) and [platform-edge Day-0/Day-1](../operations/platform-edge-day0-day1.md). Product rules: [`AGENTS.md`](../../AGENTS.md).
+
 ```bash
 export KNXVAULT_ADDR=http://localhost:8200
 export KNXVAULT_TOKEN=dev-root-token   # bootstrap token

@@ -59,6 +59,20 @@ See [`config/knxvault.example.yaml`](../../config/knxvault.example.yaml) for the
 
 YAML: `security.auth_oidc_enabled`, `security.auth_ldap_enabled`, `security.acme_related_enabled`, `audit.forward_enabled`.
 
+### Add-on binaries (not server process)
+
+| Variable | Default | Component | Description |
+|----------|---------|-----------|-------------|
+| `KNXVAULT_ESO_ADDR` | `:8443` | knxvault-eso | Listen address |
+| `KNXVAULT_ESO_TLS_CERT_FILE` / `_KEY_FILE` | — | knxvault-eso | **Required** for TLS (W86-04) unless plaintext lab flag |
+| `KNXVAULT_ESO_ALLOW_PLAINTEXT` | `false` | knxvault-eso | Lab only: allow HTTP without TLS |
+| `KNXVAULT_ESO_ALLOW_TOKEN_FILE_PROXY` | `false` | knxvault-eso | Break-glass: allow TokenFile without request header (W86-05) |
+| `KNXVAULT_ESO_ALLOW_INSECURE_SA_AUTH` | `false` | knxvault-eso | Opt-in SA JWT login without caller header |
+| `KNXVAULT_WEBHOOK_TLS_CERT_FILE` / `_KEY_FILE` | — | knxvault-webhook | Required for admission TLS |
+| `KNXVAULT_WEBHOOK_ALLOW_PLAINTEXT` | `false` | knxvault-webhook | Lab only |
+
+Unseal CIDRs in production samples prefer admin jump `/32` and pod ranges ≤ `/24` (W86-09). Public Ingress sample: `deployments/k8s/production/ingress-api-no-unseal.yaml` (W86-14).
+
 ## Dragonboat Raft (production storage)
 
 | Variable | Default | Required | Description |

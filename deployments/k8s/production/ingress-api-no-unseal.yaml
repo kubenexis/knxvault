@@ -1,0 +1,49 @@
+# Copyright Kubenexis Systems Private Limited.
+# SPDX-License-Identifier: Apache-2.0
+
+# W86-14 / Phase A: public Ingress must not expose POST /sys/unseal.
+# Unseal remains available on ClusterIP from namespaces labeled
+# knxvault.kubenexis.dev/unseal-client=true (NetworkPolicy).
+#
+# Apply optionally after production base:
+#   kubectl apply -f deployments/k8s/production/ingress-api-no-unseal.yaml
+#
+# Requires ingress-nginx (or compatible) with regex path support.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: knxvault-api
+  namespace: knxvault
+  labels:
+    app.kubernetes.io/name: knxvault
+    knxvault.kubenexis.dev/security-profile: production
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    # Deny unseal and seal admin on the public path (adjust controller annotations as needed).
+    nginx.ingress.kubernetes.io/server-snippet: |
+      location ~* ^/sys/unseal {
+        deny all;
+        return 403;
+      }
+      location ~* ^/sys/seal$ {
+        deny all;
+        return 403;
+      }
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: knxvault.example.com
+      http:
+        paths:
+          # API only — do not path-route /sys/unseal through this Ingress.
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: knxvault
+                port:
+                  number: 8200
+  tls:
+    - hosts:
+        - knxvault.example.com
+      secretName: knxvault-ingress-tls

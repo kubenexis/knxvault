@@ -18,8 +18,10 @@ Prefer [CSI driver](csi-driver-integration.md) when file mounts suffice.
 ## Prerequisites
 
 - External Secrets Operator installed
-- `knxvault-eso` webhook adapter deployed
+- TLS Secret `knxvault-eso-tls` (`tls.crt` / `tls.key`) for the adapter (W86-04)
+- Scoped vault token in Secret `knxvault-eso-caller` key `token` (W86-05 — **not** root)
 - KV secret exists
+- Prefer **platform-edge** topology: [platform-edge-day0-day1.md](../operations/platform-edge-day0-day1.md)
 
 ## Step 1 — Seed KV
 
@@ -27,13 +29,24 @@ Prefer [CSI driver](csi-driver-integration.md) when file mounts suffice.
 knxvault-cli kv put app/db password=eso-secret username=appuser
 ```
 
-## Step 2 — Deploy knxvault-eso adapter
+## Step 2 — Deploy knxvault-eso adapter (TLS + caller auth)
 
 ```bash
-make build-eso
+# TLS for adapter listen (:8443 HTTPS)
+kubectl -n knxvault create secret tls knxvault-eso-tls --cert=eso.crt --key=eso.key
+# Scoped token for ClusterSecretStore Authorization header
+kubectl -n knxvault create secret generic knxvault-eso-caller --from-literal=token="$SCOPED_TOKEN"
+
 kubectl apply -f deployments/external-secrets/knxvault-eso-deployment.yaml
 kubectl apply -f deployments/external-secrets/clustersecretstore-webhook.yaml
 ```
+
+**Security (W86-04/05):**
+
+- Adapter requires TLS cert/key env (or lab-only `KNXVAULT_ESO_ALLOW_PLAINTEXT=true`).
+- Unauthenticated `POST /fetch` returns **401**.
+- `KNXVAULT_TOKEN_FILE` alone does **not** authenticate unless `KNXVAULT_ESO_ALLOW_TOKEN_FILE_PROXY=true` (break-glass).
+- ClusterSecretStore URL is `https://knxvault-eso…:8443/fetch` with Bearer from `knxvault-eso-caller`.
 
 ## Step 3 — Install ESO (if needed)
 

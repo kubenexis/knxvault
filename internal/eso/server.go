@@ -6,6 +6,7 @@ package eso
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -33,11 +34,21 @@ type FetchResponse struct {
 type Config struct {
 	VaultAddr string
 	Role      string
+	// TokenFile is only used when AllowTokenFileProxy is true (explicit break-glass).
+	// Env: KNXVAULT_TOKEN_FILE + KNXVAULT_ESO_ALLOW_TOKEN_FILE_PROXY=true (W86-05).
 	TokenFile string
-	// AllowInsecureSAAuth enables falling back to the pod ServiceAccount JWT
-	// when the request has no Authorization / X-KNXVault-Token header.
-	// Default false (W50-01) — unauthenticated callers must not obtain secrets.
+	// AllowInsecureSAAuth enables SA JWT login when the request has no caller token.
+	// Default false — unauthenticated callers must not obtain secrets.
 	AllowInsecureSAAuth bool
+	// AllowTokenFileProxy when true allows TokenFile as the sole credential without
+	// a per-request header (shared proxy). Default false (W86-05).
+	AllowTokenFileProxy bool
+	// TLSCertFile / TLSKeyFile enable HTTPS listen (W86-04). Required unless AllowPlaintext.
+	TLSCertFile string
+	TLSKeyFile  string
+	// AllowPlaintext permits HTTP listen without TLS (lab only). Default false.
+	// Env: KNXVAULT_ESO_ALLOW_PLAINTEXT=true
+	AllowPlaintext bool
 }
 
 // Server serves ESO webhook fetch requests.
@@ -61,6 +72,30 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/fetch", s.handleFetch)
 	mux.HandleFunc("/v1/fetch", s.handleFetch)
 	return mux
+}
+
+// ListenAndServe starts the adapter with TLS by default (W86-04).
+func (s *Server) ListenAndServe(addr string) error {
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           s.Handler(),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+	certFile := strings.TrimSpace(s.cfg.TLSCertFile)
+	keyFile := strings.TrimSpace(s.cfg.TLSKeyFile)
+	if certFile == "" || keyFile == "" {
+		if !s.cfg.AllowPlaintext {
+			return fmt.Errorf("TLS required: set KNXVAULT_ESO_TLS_CERT_FILE and KNXVAULT_ESO_TLS_KEY_FILE (or KNXVAULT_ESO_ALLOW_PLAINTEXT=true for lab only)")
+		}
+		return srv.ListenAndServe()
+	}
+	if _, err := tls.LoadX509KeyPair(certFile, keyFile); err != nil {
+		return fmt.Errorf("load ESO TLS cert: %w", err)
+	}
+	return srv.ListenAndServeTLS(certFile, keyFile)
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
@@ -138,14 +173,15 @@ func validateESOPath(path string) error {
 }
 
 func (s *Server) resolveToken(ctx context.Context, role string, r *http.Request) (string, error) {
+	// Per-request caller identity preferred (W86-05).
 	if token := strings.TrimSpace(r.Header.Get("X-KNXVault-Token")); token != "" {
 		return token, nil
 	}
 	if token := strings.TrimSpace(r.Header.Get("Authorization")); strings.HasPrefix(strings.ToLower(token), "bearer ") {
 		return strings.TrimSpace(token[7:]), nil
 	}
-	// Optional static token file (operator-mounted secret) still counts as configured auth.
-	if s.cfg.TokenFile != "" {
+	// TokenFile is a shared proxy — only when explicitly break-glassed (W86-05).
+	if s.cfg.AllowTokenFileProxy && s.cfg.TokenFile != "" {
 		raw, err := os.ReadFile(s.cfg.TokenFile)
 		if err == nil {
 			if token := strings.TrimSpace(string(raw)); token != "" {
@@ -153,10 +189,10 @@ func (s *Server) resolveToken(ctx context.Context, role string, r *http.Request)
 			}
 		}
 	}
-	// SA auto-login is opt-in only (W50-01). Unauthenticated network peers must not
+	// SA auto-login is opt-in only (W50-01 / W86-05). Unauthenticated network peers must not
 	// force the adapter to mint a vault token with the pod identity.
 	if !s.cfg.AllowInsecureSAAuth {
-		return "", fmt.Errorf("missing authentication: provide X-KNXVault-Token or Authorization Bearer (SA auto-login disabled)")
+		return "", fmt.Errorf("missing authentication: provide X-KNXVault-Token or Authorization Bearer (TokenFile proxy and SA auto-login disabled unless explicitly enabled)")
 	}
 	jwtPath := "/var/run/secrets/kubernetes.io/serviceaccount/token"
 	if raw, err := os.ReadFile(jwtPath); err == nil {

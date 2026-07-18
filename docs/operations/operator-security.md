@@ -9,11 +9,17 @@ Production checklist for KNXVault operators. Complements the [security model](..
 
 > **Day-0 + Day-2 narrative** (bring-up through first apps, then operate): [Operator runbook](operator-runbook.md).
 
-## 0. RBAC for TLS Secrets (W78-06 / W79-02 / W80-04)
+## 0. RBAC for TLS Secrets (W78-06 / W79-02 / W80-04 / W86-01)
 
-Default `deployments/operator/rbac.yaml` does **not** grant cluster-scoped Secrets access (no get/list/watch/write on Secrets in the ClusterRole). The operator SA can manage Secrets only in the **`knxvault` namespace** via a namespaced Role in the same file.
+Default `deployments/operator/rbac.yaml` does **not** grant cluster-scoped Secrets access (no get/list/watch/write on Secrets in the ClusterRole).
 
-**W80-04 least privilege:** namespaced Secret verbs are **`get`, `create`, `update`, `patch` only** (no `list`/`watch`/`delete`). Controllers reconcile by known Secret names from Certificate CRs.
+**W86-01 custody isolation:** In the vault namespace, Secret `get` is **not** blanket — only `create`/`update`/`patch` plus `get` for **named** TLS/ACME Secrets via `resourceNames`. Custody Secret **`knxvault`** (master/unseal/root) is **not** get-able by the operator SA. Prefer delivering app TLS Secrets in **app namespaces** via [`rbac-namespaced-example.yaml`](../../deployments/operator/rbac-namespaced-example.yaml).
+
+**W86-02:** Operator Deployment uses **K8s SA login only** — no `KNXVAULT_ROOT_TOKEN` from the custody Secret.
+
+**W86-03:** Certificate Secret overwrite is **OwnerRef-only** (label spoof alone cannot authorize clobber).
+
+**W86-22:** Default vault address is **HTTPS**.
 
 For application namespaces, apply [`rbac-namespaced-example.yaml`](../../deployments/operator/rbac-namespaced-example.yaml) (Role + RoleBinding per app NS) so the operator can materialize `kubernetes.io/tls` Secrets without cluster-wide read or write.
 

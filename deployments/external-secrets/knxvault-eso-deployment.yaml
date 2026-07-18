@@ -1,11 +1,15 @@
 # Copyright Kubenexis Systems Private Limited.
 # SPDX-License-Identifier: Apache-2.0
 
+# ESO adapter (DTP add-on). TLS listen + caller identity required (W86-04 / W86-05).
+# Create Secret knxvault-eso-tls with tls.crt / tls.key before apply.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: knxvault-eso
   namespace: knxvault
+  labels:
+    knxvault.kubenexis.dev/api-client: "true"
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -43,6 +47,7 @@ spec:
     metadata:
       labels:
         app: knxvault-eso
+        knxvault.kubenexis.dev/api-client: "true"
     spec:
       serviceAccountName: knxvault-eso
       containers:
@@ -51,18 +56,38 @@ spec:
           command: ["/usr/local/bin/knxvault-eso"]
           env:
             - name: KNXVAULT_ESO_ADDR
-              value: ":8080"
+              value: ":8443"
             - name: KNXVAULT_ADDR
               value: "https://knxvault.knxvault.svc.cluster.local:8200"
             - name: KNXVAULT_ESO_ROLE
               value: "eso-reader"
+            # W86-04: TLS required (do not set ALLOW_PLAINTEXT in production)
+            - name: KNXVAULT_ESO_TLS_CERT_FILE
+              value: /etc/knxvault/eso-tls/tls.crt
+            - name: KNXVAULT_ESO_TLS_KEY_FILE
+              value: /etc/knxvault/eso-tls/tls.key
+            # W86-05: no silent TokenFile proxy; ESO must send bearer/header token
+            - name: KNXVAULT_ESO_ALLOW_TOKEN_FILE_PROXY
+              value: "false"
+            - name: KNXVAULT_ESO_ALLOW_INSECURE_SA_AUTH
+              value: "false"
           ports:
-            - containerPort: 8080
-              name: http
+            - containerPort: 8443
+              name: https
+          volumeMounts:
+            - name: eso-tls
+              mountPath: /etc/knxvault/eso-tls
+              readOnly: true
           securityContext:
             runAsNonRoot: true
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: eso-tls
+          secret:
+            secretName: knxvault-eso-tls
 ---
 apiVersion: v1
 kind: Service
@@ -73,5 +98,6 @@ spec:
   selector:
     app: knxvault-eso
   ports:
-    - port: 8080
-      targetPort: http
+    - name: https
+      port: 8443
+      targetPort: https

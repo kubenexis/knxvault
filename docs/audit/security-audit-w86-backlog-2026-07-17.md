@@ -51,9 +51,9 @@ SPDX-License-Identifier: CC-BY-4.0
 | Audit ID | Severity | Finding | Backlog | Area | DTP | Status |
 |----------|----------|---------|--------|------|-----|--------|
 | H1 | High | Operator Deployment optional-binds vault root token | **W86-02** | k8s | **base** | **Complete** — SA login only |
-| H2 | High | Certificate Secret ownership accepts spoofable label (weakens W81-12) | **W86-03** | k8s | addon:operator | Open |
-| H3 | High | ESO adapter cleartext HTTP vs HTTPS ClusterSecretStore | **W86-04** | k8s | addon:eso | Open |
-| H4 | High | ESO `TokenFile` → unauthenticated shared vault proxy | **W86-05** | security | addon:eso | Open |
+| H2 | High | Certificate Secret ownership accepts spoofable label (weakens W81-12) | **W86-03** | k8s | addon:operator | **Complete** — OwnerRef-only |
+| H3 | High | ESO adapter cleartext HTTP vs HTTPS ClusterSecretStore | **W86-04** | k8s | addon:eso | **Complete** — TLS listen + HTTPS store |
+| H4 | High | ESO `TokenFile` → unauthenticated shared vault proxy | **W86-05** | security | addon:eso | **Complete** — header required; TokenFile break-glass only |
 | H5 | High | Production multi-node Raft mTLS required in code, not provisioned in overlays | **W86-06** | k8s | **base** | **Complete** — `knxvault-raft-tls` + STS mounts |
 | H6 | High | Lab base NetPol: monitoring → full API :8200 (unseal co-resides) | **W86-07** | k8s | **base** | **Complete** — monitoring → :8201 only |
 

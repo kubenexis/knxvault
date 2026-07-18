@@ -54,7 +54,8 @@ type Config struct {
 // ConfigFromEnv loads configuration from environment.
 func ConfigFromEnv() Config {
 	return Config{
-		VaultAddr:      envOr("KNXVAULT_ADDR", "http://knxvault.knxvault.svc:8200"),
+		// W86-22: default HTTPS to match production RequireHTTPSClients posture.
+		VaultAddr:      envOr("KNXVAULT_ADDR", "https://knxvault.knxvault.svc.cluster.local:8200"),
 		VaultToken:     strings.TrimSpace(os.Getenv("KNXVAULT_TOKEN")),
 		K8sRole:        envOr("KNXVAULT_K8S_ROLE", "knxvault-operator"),
 		SATokenPath:    envOr("KNXVAULT_SA_TOKEN_FILE", "/var/run/secrets/kubernetes.io/serviceaccount/token"),
