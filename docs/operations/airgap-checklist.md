@@ -12,18 +12,23 @@ SPDX-License-Identifier: CC-BY-4.0
 
 | Artifact | Build / export | Required for airgap core |
 |----------|----------------|--------------------------|
-| `knxvault` server image | `make container-build` → `make container-export` | **Yes** |
-| `knxvault-operator` image | `make k8s-operator-build` → export | Only if private CRD PKI |
+| `knxvault` server image | `make container-build` → `make container-export` **or** GitHub Release `knxvault-*.tar` | **Yes** |
+| `knxvault-operator` image | `make k8s-operator-build` → export **or** Release `knxvault-operator-*.tar` | Only if private CRD PKI |
 | `knxvault-cli` host package | `make package-cli-release` / GitHub Release `knxvault-cli_*` archives / CI artifact | **Yes** (admin host; **separate** from container images) |
+| `IMAGE-DIGESTS.txt` | GitHub Release (tag `v*`) | Recommended (pin / inventory) |
 | CSI / ESO / webhook | same server image, different command | **No** for airgap core |
 | Upstream CSI Driver / ESO | third-party | **No** for airgap core |
 
-Offline matrix details: [build-and-deploy-images.md](build-and-deploy-images.md) § offline / airgap.
+Offline matrix details: [build-and-deploy-images.md](build-and-deploy-images.md) § offline / airgap. On `v*` tags, CI attaches **CLI + digests + air-gap tarballs** to one Release (§3.7).
 
 ```bash
+# Local export
 make container-export-all   # build/images/*-$(VERSION)-$(COMMIT).tar
-make build-cli
+make package-cli-release    # multi-platform CLI archives
 # Copy tarballs + knxvault-cli to airgap media
+
+# Or download the unified GitHub Release bundle (tag v*)
+# knxvault-*.tar + knxvault-cli_* + IMAGE-DIGESTS.txt + SHA256SUMS
 ```
 
 ## 2. Load images (airgap cluster)

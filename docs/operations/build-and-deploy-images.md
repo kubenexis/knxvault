@@ -181,11 +181,11 @@ make package-cli-release
 |--------|------|----------------|
 | **Workflow artifact (CLI only)** | Every CI run | `knxvault-cli-linux-amd64-<sha>` (host binary) |
 | **Workflow artifact (multi-platform packages)** | Every CI run after quality | `knxvault-cli-packages-<version>-<commit>` |
-| **GitHub Release assets** | Push tag `v*` | `knxvault-cli_<version>_<os>_<arch>.tar.gz` / `.zip` + `SHA256SUMS` |
+| **GitHub Release assets (unified)** | Push tag `v*` | CLI archives + `IMAGE-DIGESTS.txt` + air-gap `*.tar` + combined `SHA256SUMS` (see §3.7) |
 | Combined host binaries (compat) | Every CI run | `knxvault-binaries-linux-amd64-<sha>` (`knxvault` + `knxvault-cli`) |
 
 ```bash
-# Example: download from a GitHub Release
+# Example: download CLI from a GitHub Release
 curl -fsSL -O https://github.com/kubenexis/knxvault/releases/download/v0.5.1/knxvault-cli_0.5.1_linux_amd64.tar.gz
 curl -fsSL -O https://github.com/kubenexis/knxvault/releases/download/v0.5.1/SHA256SUMS
 sha256sum -c SHA256SUMS --ignore-missing
@@ -235,7 +235,7 @@ sudo nerdctl images | grep -E 'kubenexis/knxvault|REPOSITORY'
 docker load -i build/images/knxvault-0.5.1-<commit>.tar
 ```
 
-Also ship **host `knxvault-cli`** as a **separate release package** (`make package-cli-release` or GitHub Release assets) — not an image.
+Also ship **host `knxvault-cli`** as a **separate package** (`make package-cli-release` or GitHub Release CLI archives) — not an image. On `v*` tags, CI attaches the same air-gap tarballs to the **unified GitHub Release** next to the CLI packages (see §3.7).
 
 Kubernetes nodes: load into each node’s containerd **or** push to GHCR / an internal registry (image refs already use `ghcr.io/…` by default).
 
@@ -256,24 +256,27 @@ nerdctl push ${REG}/knxvault:0.5.1
 # then set image: on StatefulSet / operator Deployment
 ```
 
-### 3.7 GitHub Actions CI/CD (validated builds → GHCR + CLI release)
+### 3.7 GitHub Actions CI/CD (validated builds → GHCR + unified Release)
 
 Workflow: [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml).
 
 | Stage | Job | What runs |
 |-------|-----|-----------|
 | **Quality** | `quality` | `make install-tools` → `make quality` → integration tests → host binaries → SBOM; upload **separate** `knxvault-cli-linux-amd64-*` artifact |
-| **CLI package** | `cli-package` | `make package-cli-release` (linux/darwin/windows amd64+arm64) → workflow artifact `knxvault-cli-packages-*`; on **`v*` tags** attach archives to **GitHub Release** |
-| **Images** | `images` (matrix: server + operator) | Buildx build → **Trivy image scan** → push to **GHCR** only if scan passes |
+| **CLI package** | `cli-package` | `make package-cli-release` (linux/darwin/windows amd64+arm64) → workflow artifact `knxvault-cli-packages-*` (no Release attach here) |
+| **Images** | `images` (matrix: server + operator) | Buildx build → **Trivy image scan** → push to **GHCR** if allowed; upload digest metadata; on **`v*`** also `docker save` air-gap tarballs as artifacts |
+| **GitHub Release** | `release` (tag `v*` only) | After CLI + both images succeed: attach **CLI archives + `IMAGE-DIGESTS.txt` + air-gap `*.tar` + combined `SHA256SUMS`** to one GitHub Release |
+
+**Why one Release job?** GHCR package pages and GitHub Release assets are different surfaces. The unified `release` job puts downloadable **CLI + digests + air-gap tarballs** on the same Release page so operators do not hunt GHCR for offline install media. Online installs still pull from GHCR (preferred).
 
 **When images are pushed**
 
-| Event | Push to GHCR? |
-|-------|----------------|
-| Pull request | No (build + scan only) |
-| Push to `main` | Yes |
-| Tag `v*` (e.g. `v0.5.1`) | Yes |
-| `workflow_dispatch` on `main` or `v*` tag | Yes |
+| Event | Push to GHCR? | GitHub Release assets? |
+|-------|----------------|------------------------|
+| Pull request | No (build + scan only) | No |
+| Push to `main` | Yes | No |
+| Tag `v*` (e.g. `v0.5.1`) | Yes | Yes (CLI + digests + air-gap tarballs) |
+| `workflow_dispatch` on `main` or `v*` tag | Yes (main/tag refs) | Yes only if ref is `v*` |
 
 **Published image names** (org = GitHub owner, lowercased):
 
@@ -294,9 +297,33 @@ Workflow: [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml).
 
 On `v*` tags, `<version>` is taken from the tag name (`v0.5.1` → `0.5.1`). On `main`, version defaults to Makefile `VERSION` / workflow `DEFAULT_VERSION` (keep them aligned when bumping).
 
+**Unified Release assets (tag `v*`)**
+
+| Asset | Purpose |
+|-------|---------|
+| `knxvault-cli_<ver>_<os>_<arch>.tar.gz` / `.zip` | Host admin CLI (not a container) |
+| `IMAGE-DIGESTS.txt` | GHCR repository refs + content digests for this build |
+| `knxvault-meta.txt` / `knxvault-operator-meta.txt` | Per-image metadata (tags, digests, push status) |
+| `knxvault-<ver>-<sha>.tar` / `knxvault-operator-<ver>-<sha>.tar` | Air-gap `docker save` / `nerdctl load` media |
+| `SHA256SUMS` | Combined checksums for all of the above |
+| `build-info.txt` | Bundle inventory (version, commit, includes) |
+
+```bash
+# Online: pull from GHCR (prefer digest pin from IMAGE-DIGESTS.txt)
+nerdctl pull ghcr.io/kubenexis/knxvault:0.5.1
+nerdctl pull ghcr.io/kubenexis/knxvault-operator:0.5.1
+
+# Offline: download Release tarballs + CLI
+curl -fsSL -O https://github.com/kubenexis/knxvault/releases/download/v0.5.1/SHA256SUMS
+curl -fsSL -O https://github.com/kubenexis/knxvault/releases/download/v0.5.1/knxvault-0.5.1-<commit>.tar
+curl -fsSL -O https://github.com/kubenexis/knxvault/releases/download/v0.5.1/knxvault-cli_0.5.1_linux_amd64.tar.gz
+sha256sum -c SHA256SUMS --ignore-missing
+nerdctl load -i knxvault-0.5.1-<commit>.tar
+```
+
 **Auth / package setup (one-time, org owners)**
 
-1. Workflow uses `permissions: packages: write` and `GITHUB_TOKEN` — no extra secret required for pushes from this repo.
+1. Workflow uses `permissions: packages: write` (images) and `contents: write` (release job) with `GITHUB_TOKEN` — no extra secret required for pushes from this repo.
 2. After the first successful push, open each package under the org → **Package settings** → link to the `knxvault` repository and set visibility (**Public** for open pull, or **Private** + `imagePullSecret`).
 3. Pull example:
 
@@ -314,6 +341,8 @@ nerdctl pull ghcr.io/kubenexis/knxvault:0.5.1
 make quality
 make test-integration build build-cli sbom
 make container-build-all   # same GHCR-style names as CI
+make container-export-all  # air-gap tarballs (same idea as CI release assets)
+make package-cli-release   # multi-platform CLI archives
 ```
 
 ---

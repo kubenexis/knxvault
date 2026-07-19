@@ -36,7 +36,7 @@ export KNXVAULT_ROOT_TOKEN=dev-root-token
 
 | Source | How |
 |--------|-----|
-| GitHub Release (`v*` tag) | Download `knxvault-cli_<ver>_<os>_<arch>.tar.gz` + `SHA256SUMS` from the release page |
+| GitHub Release (`v*` tag) | Unified release: `knxvault-cli_<ver>_<os>_<arch>.tar.gz` (+ image digests / air-gap tarballs) and combined `SHA256SUMS` |
 | CI workflow artifact | `knxvault-cli-packages-*` or `knxvault-cli-linux-amd64-*` from Actions |
 | From source | `make build-cli` or `make package-cli-release` |
 

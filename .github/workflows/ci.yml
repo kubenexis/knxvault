@@ -1,13 +1,16 @@
 # Copyright Kubenexis Systems Private Limited.
 # SPDX-License-Identifier: Apache-2.0
 #
-# CI/CD: quality gate → host binaries → multi-platform knxvault-cli packages →
-# validated container builds → GHCR. On v* tags, publish knxvault-cli release assets.
+# CI/CD: quality gate → multi-platform knxvault-cli packages → validated container
+# builds → GHCR. On v* tags, a unified "release" job attaches to one GitHub Release:
+#   - knxvault-cli multi-platform archives + SHA256SUMS
+#   - IMAGE-DIGESTS.txt (GHCR refs + content digests for knxvault + knxvault-operator)
+#   - Air-gap docker-save tarballs for both images (+ build-info)
 #
 # Images: ghcr.io/<owner>/knxvault and ghcr.io/<owner>/knxvault-operator
-# knxvault-cli is a SEPARATE admin package (never in container images):
-#   - Workflow artifacts every run (linux amd64 host build + multi-platform archives)
-#   - GitHub Release assets on tag v* (tar.gz/zip + SHA256SUMS)
+# knxvault-cli is a SEPARATE admin package (never baked into container images):
+#   - Workflow artifacts every run (host binary + multi-platform archives)
+#   - GitHub Release assets on tag v* (alongside image digests / air-gap tarballs)
 #
 # Push images to GHCR when: push to main, tag v*, or workflow_dispatch on main/tag.
 # Pull requests run quality + image build/scan but do not push images or create releases.
@@ -133,15 +136,14 @@ jobs:
           retention-days: 14
 
   # ---------------------------------------------------------------------------
-  # knxvault-cli multi-platform release package (separate from container images)
+  # knxvault-cli multi-platform package (build + artifact; Release is the
+  # unified "release" job so CLI and images land on the same GitHub Release)
   # ---------------------------------------------------------------------------
   cli-package:
     name: knxvault-cli package
     needs: [quality]
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    permissions:
-      contents: write # required to attach assets on GitHub Releases (tag builds)
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -174,36 +176,6 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-      - name: Publish knxvault-cli to GitHub Release (tag v* only)
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            build/release/cli/knxvault-cli_*.tar.gz
-            build/release/cli/knxvault-cli_*.zip
-            build/release/cli/SHA256SUMS
-            build/release/cli/build-info.txt
-          generate_release_notes: true
-          fail_on_unmatched_files: true
-          body: |
-            ## knxvault-cli (admin host package)
-
-            Download platform archives below. **CLI is not a container image** and is never baked into `ghcr.io/.../knxvault`.
-
-            | Package | Platform |
-            |---------|----------|
-            | `knxvault-cli_*_linux_amd64.tar.gz` | Linux x86_64 |
-            | `knxvault-cli_*_linux_arm64.tar.gz` | Linux aarch64 |
-            | `knxvault-cli_*_darwin_amd64.tar.gz` | macOS Intel |
-            | `knxvault-cli_*_darwin_arm64.tar.gz` | macOS Apple Silicon |
-            | `knxvault-cli_*_windows_amd64.zip` | Windows x86_64 |
-
-            Verify: `sha256sum -c SHA256SUMS`
-
-            Server/operator container images are published separately to GHCR (`knxvault`, `knxvault-operator`).
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Summary
         shell: bash
         run: |
@@ -215,7 +187,7 @@ jobs:
             echo "| Version | \`${{ needs.quality.outputs.version }}\` |"
             echo "| Commit | \`${{ needs.quality.outputs.commit }}\` |"
             echo "| Workflow artifact | \`knxvault-cli-packages-${{ needs.quality.outputs.version }}-${{ needs.quality.outputs.commit }}\` |"
-            echo "| GitHub Release assets | \`${{ startsWith(github.ref, 'refs/tags/v') && 'yes (tag)' || 'no (branch/PR)' }}\` |"
+            echo "| GitHub Release | via unified \`release\` job on \`v*\` tags |"
             echo ""
             echo "### Archives"
             echo '```'
@@ -356,6 +328,7 @@ jobs:
           version: v0.69.3
 
       - name: Push validated image to GHCR
+        id: push
         if: steps.meta.outputs.push == 'true'
         uses: docker/build-push-action@v6
         with:
@@ -380,6 +353,83 @@ jobs:
           provenance: mode=max
           sbom: true
 
+      # Prefer push digest when available (GHCR truth); fall back to local build digest.
+      - name: Capture image digests and metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          REPO="${{ steps.meta.outputs.repository }}"
+          IMAGE_TAG="${{ steps.meta.outputs.image_tag }}"
+          VERSION="${{ steps.meta.outputs.version }}"
+          COMMIT="${{ steps.meta.outputs.commit }}"
+          BUILD_DIGEST="${{ steps.build.outputs.digest }}"
+          PUSH_DIGEST="${{ steps.push.outputs.digest }}"
+          DIGEST="${PUSH_DIGEST:-${BUILD_DIGEST}}"
+          mkdir -p build/release/images
+          cat > "build/release/images/${{ matrix.image_name }}-meta.txt" <<EOF
+          name=${{ matrix.image_name }}
+          repository=${REPO}
+          image_tag=${IMAGE_TAG}
+          version=${VERSION}
+          commit=${COMMIT}
+          digest=${DIGEST}
+          build_digest=${BUILD_DIGEST}
+          push_digest=${PUSH_DIGEST}
+          ref=${REPO}@${DIGEST}
+          tagged_ref=${REPO}:${IMAGE_TAG}
+          version_alias=${REPO}:${VERSION}
+          tags=${{ steps.meta.outputs.tags }}
+          pushed=${{ steps.meta.outputs.push }}
+          EOF
+          # One-line digest index (aggregated by release job into IMAGE-DIGESTS.txt)
+          printf '%s\n' \
+            "${REPO}:${IMAGE_TAG} ${DIGEST}" \
+            "${REPO}:${VERSION} ${DIGEST}" \
+            "${REPO}@${DIGEST}" \
+            > "build/release/images/${{ matrix.image_name }}.digest"
+          cat "build/release/images/${{ matrix.image_name }}-meta.txt"
+
+      - name: Export air-gap image tarball
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          set -euo pipefail
+          REPO="${{ steps.meta.outputs.repository }}"
+          IMAGE_TAG="${{ steps.meta.outputs.image_tag }}"
+          VERSION="${{ steps.meta.outputs.version }}"
+          COMMIT="${{ steps.meta.outputs.commit }}"
+          mkdir -p build/release/images
+          OUT="build/release/images/${{ matrix.image_name }}-${VERSION}-${COMMIT}.tar"
+          # Local load from build step — same content that was scanned (and pushed).
+          docker save -o "${OUT}" "${REPO}:${IMAGE_TAG}"
+          test -s "${OUT}"
+          ls -lh "${OUT}"
+          (
+            cd build/release/images
+            sha256sum "$(basename "${OUT}")" > "${{ matrix.image_name }}-${VERSION}-${COMMIT}.tar.sha256"
+          )
+
+      - name: Upload image metadata artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-meta-${{ matrix.image_name }}-${{ needs.quality.outputs.version }}-${{ needs.quality.outputs.commit }}
+          path: |
+            build/release/images/${{ matrix.image_name }}-meta.txt
+            build/release/images/${{ matrix.image_name }}.digest
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload air-gap image tarball artifact
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-tar-${{ matrix.image_name }}-${{ needs.quality.outputs.version }}-${{ needs.quality.outputs.commit }}
+          path: |
+            build/release/images/${{ matrix.image_name }}-*.tar
+            build/release/images/${{ matrix.image_name }}-*.tar.sha256
+          if-no-files-found: error
+          retention-days: 90
+
       - name: Summary
         shell: bash
         run: |
@@ -393,4 +443,214 @@ jobs:
             echo "| Tags | \`${{ steps.meta.outputs.tags }}\` |"
             echo "| Pushed | \`${{ steps.meta.outputs.push }}\` |"
             echo "| Digest (build) | \`${{ steps.build.outputs.digest }}\` |"
+            echo "| Digest (push) | \`${{ steps.push.outputs.digest }}\` |"
+            echo "| Air-gap tarball | \`${{ startsWith(github.ref, 'refs/tags/v') && 'yes (tag)' || 'no (branch/PR)' }}\` |"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  # ---------------------------------------------------------------------------
+  # Unified GitHub Release (v* tags only): CLI + image digests + air-gap tarballs
+  # ---------------------------------------------------------------------------
+  release:
+    name: GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [quality, cli-package, images]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - name: Download knxvault-cli packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: knxvault-cli-packages-*
+          path: staging/cli
+          merge-multiple: true
+
+      - name: Download image metadata
+        uses: actions/download-artifact@v4
+        with:
+          pattern: image-meta-*
+          path: staging/meta
+          merge-multiple: true
+
+      - name: Download air-gap image tarballs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: image-tar-*
+          path: staging/images
+          merge-multiple: true
+
+      - name: Assemble release assets
+        id: assemble
+        shell: bash
+        env:
+          VERSION: ${{ needs.quality.outputs.version }}
+          COMMIT: ${{ needs.quality.outputs.commit }}
+          REPO: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+        run: |
+          set -euo pipefail
+          OUT=build/release/github
+          mkdir -p "${OUT}"
+
+          # CLI archives
+          cp -a staging/cli/. "${OUT}/"
+          # Drop nested SHA256SUMS from CLI package; rebuild combined below.
+          rm -f "${OUT}/SHA256SUMS"
+
+          # Image digests → IMAGE-DIGESTS.txt (human + machine readable)
+          {
+            echo "# KNXVault container image digests"
+            echo "# version=${VERSION} commit=${COMMIT}"
+            echo "# Generated by CI unified release job"
+            echo "#"
+            echo "# Prefer digest-pinned pulls for supply-chain integrity:"
+            echo "#   docker pull ghcr.io/<org>/knxvault@sha256:..."
+            echo "#"
+            if [[ -d staging/meta ]]; then
+              find staging/meta -type f -name '*.digest' | sort | while read -r f; do
+                cat "${f}"
+                echo ""
+              done
+            fi
+          } > "${OUT}/IMAGE-DIGESTS.txt"
+
+          # Per-image meta files
+          if [[ -d staging/meta ]]; then
+            find staging/meta -type f -name '*-meta.txt' -exec cp -t "${OUT}/" {} +
+          fi
+
+          # Air-gap tarballs + per-tar sha256 sidecars
+          if [[ -d staging/images ]]; then
+            find staging/images -type f \( -name '*.tar' -o -name '*.tar.sha256' \) -exec cp -t "${OUT}/" {} +
+          fi
+
+          # build-info for the whole release bundle
+          {
+            echo "package=knxvault-release"
+            echo "version=${VERSION}"
+            echo "commit=${COMMIT}"
+            echo "tag=v${VERSION}"
+            echo "repository=${REPO}"
+            echo "includes=knxvault-cli,image-digests,air-gap-tarballs"
+            echo "server_image=ghcr.io (see IMAGE-DIGESTS.txt / knxvault-meta.txt)"
+            echo "operator_image=ghcr.io (see IMAGE-DIGESTS.txt / knxvault-operator-meta.txt)"
+            echo "cli_note=knxvault-cli is a host admin package; never baked into container images"
+          } > "${OUT}/build-info.txt"
+
+          # Combined SHA256SUMS over all non-checksum release files
+          (
+            cd "${OUT}"
+            # shellcheck disable=SC2035
+            files=( knxvault-cli_* IMAGE-DIGESTS.txt build-info.txt *-meta.txt *.tar )
+            # Only hash files that exist
+            to_hash=()
+            for f in "${files[@]}"; do
+              [[ -e "${f}" ]] || continue
+              to_hash+=("${f}")
+            done
+            if command -v sha256sum >/dev/null 2>&1; then
+              sha256sum "${to_hash[@]}" > SHA256SUMS
+            else
+              shasum -a 256 "${to_hash[@]}" > SHA256SUMS
+            fi
+          )
+
+          echo "=== Release assets ==="
+          ls -lah "${OUT}"
+          test -f "${OUT}/IMAGE-DIGESTS.txt"
+          test -f "${OUT}/SHA256SUMS"
+          # Require at least one CLI archive and one image tarball
+          ls "${OUT}"/knxvault-cli_*.tar.gz >/dev/null
+          ls "${OUT}"/knxvault-*.tar >/dev/null
+          test -s "${OUT}/knxvault-meta.txt"
+          test -s "${OUT}/knxvault-operator-meta.txt"
+
+          # Build release notes body (markdown)
+          BODY_FILE="${OUT}/RELEASE_BODY.md"
+          {
+            echo "## KNXVault v${VERSION}"
+            echo ""
+            echo "Unified release assets for **knxvault-cli** (host admin package) and **container images** (server + operator)."
+            echo ""
+            echo "### knxvault-cli (admin host package)"
+            echo ""
+            echo "CLI is **not** a container image and is never baked into \`ghcr.io/.../knxvault\`."
+            echo ""
+            echo "| Package | Platform |"
+            echo "|---------|----------|"
+            echo "| \`knxvault-cli_${VERSION}_linux_amd64.tar.gz\` | Linux x86_64 |"
+            echo "| \`knxvault-cli_${VERSION}_linux_arm64.tar.gz\` | Linux aarch64 |"
+            echo "| \`knxvault-cli_${VERSION}_darwin_amd64.tar.gz\` | macOS Intel |"
+            echo "| \`knxvault-cli_${VERSION}_darwin_arm64.tar.gz\` | macOS Apple Silicon |"
+            echo "| \`knxvault-cli_${VERSION}_windows_amd64.zip\` | Windows x86_64 |"
+            echo ""
+            echo "### Container images (GHCR)"
+            echo ""
+            echo "Images are pushed to GHCR on this tag. Digests for this build:"
+            echo ""
+            echo '```'
+            cat "${OUT}/IMAGE-DIGESTS.txt"
+            echo '```'
+            echo ""
+            echo "Pull (digest-pinned recommended):"
+            echo ""
+            echo '```bash'
+            # Extract first @sha256 line if present
+            if grep -q '@sha256:' "${OUT}/IMAGE-DIGESTS.txt"; then
+              grep '@sha256:' "${OUT}/IMAGE-DIGESTS.txt" | head -20 | while read -r line; do
+                echo "docker pull ${line}"
+              done
+            else
+              echo "docker pull ghcr.io/<org>/knxvault:${VERSION}"
+              echo "docker pull ghcr.io/<org>/knxvault-operator:${VERSION}"
+            fi
+            echo '```'
+            echo ""
+            echo "### Air-gap tarballs"
+            echo ""
+            echo "Load on offline hosts (same engine as build when possible):"
+            echo ""
+            echo '```bash'
+            echo "docker load -i knxvault-${VERSION}-${COMMIT}.tar"
+            echo "docker load -i knxvault-operator-${VERSION}-${COMMIT}.tar"
+            echo "# or: nerdctl load -i ..."
+            echo '```'
+            echo ""
+            echo "Verify: \`sha256sum -c SHA256SUMS --ignore-missing\`"
+            echo ""
+            echo "Docs: ${SERVER_URL}/${REPO}/blob/v${VERSION}/docs/operations/build-and-deploy-images.md"
+          } > "${BODY_FILE}"
+
+          echo "body_path=${BODY_FILE}" >> "${GITHUB_OUTPUT}"
+          echo "assets_dir=${OUT}" >> "${GITHUB_OUTPUT}"
+
+      - name: Publish GitHub Release (CLI + digests + air-gap tarballs)
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/release/github/knxvault-cli_*.tar.gz
+            build/release/github/knxvault-cli_*.zip
+            build/release/github/*.tar
+            build/release/github/IMAGE-DIGESTS.txt
+            build/release/github/*-meta.txt
+            build/release/github/build-info.txt
+            build/release/github/SHA256SUMS
+          body_path: ${{ steps.assemble.outputs.body_path }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        shell: bash
+        run: |
+          {
+            echo "## GitHub Release v${{ needs.quality.outputs.version }}"
+            echo ""
+            echo "Unified assets: knxvault-cli + IMAGE-DIGESTS + air-gap tarballs."
+            echo ""
+            echo '```'
+            ls -1 build/release/github/ || true
+            echo '```'
           } >> "${GITHUB_STEP_SUMMARY}"

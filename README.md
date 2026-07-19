@@ -14,8 +14,9 @@ Lightweight, production-grade secrets management and private PKI built in Go.
 **Non-negotiable principles (N1–N5)** for contributors and coding agents: **[`AGENTS.md`](AGENTS.md)** — custody plane stays small; instances over mega-vault; add-ons are clients; no sealed-core microservice/plugin split; default install base-only. Agents must flag violations immediately.
 
 **Container images (GHCR):** `ghcr.io/kubenexis/knxvault` · `ghcr.io/kubenexis/knxvault-operator`  
-**Admin CLI (separate package):** `knxvault-cli` — multi-platform archives on **GitHub Releases** (`v*` tags) and CI workflow artifacts (`knxvault-cli-packages-*`). Never baked into container images.  
-Validated builds are produced by GitHub Actions (`make quality` + Trivy image scan) and pushed on `main` and `v*` tags. Details: [Build and deploy images](docs/operations/build-and-deploy-images.md#34-build-host-cli-separate-package--not-in-the-image).
+**Admin CLI (separate package):** `knxvault-cli` — multi-platform archives; never baked into container images.  
+**GitHub Releases (`v*` tags):** unified assets — CLI archives + `IMAGE-DIGESTS.txt` + air-gap image tarballs + combined `SHA256SUMS` (same page). CI workflow artifacts still publish packages every run.  
+Validated builds: GitHub Actions (`make quality` + Trivy) → GHCR on `main`/`v*`. Details: [Build and deploy images](docs/operations/build-and-deploy-images.md#37-github-actions-cicd-validated-builds--ghcr--unified-release).
 
 ## License
 
