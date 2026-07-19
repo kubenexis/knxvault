@@ -22,10 +22,10 @@ SPDX-License-Identifier: CC-BY-4.0
 Offline matrix details: [build-and-deploy-images.md](build-and-deploy-images.md) § offline / airgap. On `v*` tags, CI attaches **CLI + digests + air-gap tarballs** to one Release (§3.7).
 
 ```bash
-# Local export
+# Local packaging (CI packaging parity + air-gap export)
+make package-all            # both images + multi-platform CLI packages
 make container-export-all   # build/images/*-$(VERSION)-$(COMMIT).tar
-make package-cli-release    # multi-platform CLI archives
-# Copy tarballs + knxvault-cli to airgap media
+# Copy tarballs + build/release/cli/* to airgap media
 
 # Or download the unified GitHub Release bundle (tag v*)
 # knxvault-*.tar + knxvault-cli_* + IMAGE-DIGESTS.txt + SHA256SUMS

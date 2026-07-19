@@ -27,6 +27,7 @@ cd knxvault
 
 make quality      # pre-merge: fmt, vet, lint, docs-lint, gosec, licenses, scan, test, test-coverage
 make all          # quality + test-integration + build + build-cli + sbom
+make package-all  # both container images + multi-platform knxvault-cli (CI packaging parity)
 make build        # binary only
 make build-cli      # knxvault-cli
 make build-csi      # knxvault-csi (Secrets Store provider)
@@ -39,6 +40,8 @@ Artifacts:
 |--------|------|
 | Server binary | `build/bin/knxvault` |
 | CLI binary | `build/bin/knxvault-cli` |
+| Multi-platform CLI packages | `build/release/cli/` (`make package-cli-release` / `make package-all`) |
+| Container images | local tags via `make package-all` / `make container-build-all` |
 | SBOM | `sbom.json`, `sbom-binary.json` |
 
 ## Run locally
@@ -84,7 +87,8 @@ See [LLD §3.1](../lld.md) for the full directory specification.
 | Target | Purpose |
 |--------|---------|
 | **`make quality`** | **Pre-merge gate:** fmt, vet, lint, docs-lint, gosec, licenses, scan, test, test-coverage |
-| `make all` | quality + test-integration + build + build-cli + sbom |
+| `make all` | quality + test-integration + build + build-cli + sbom (no images / multi-arch CLI) |
+| `make package-all` | **CI packaging parity:** both distroless images + multi-platform `knxvault-cli` archives |
 | `make fmt` | `gofmt` check |
 | `make vet` | `go vet` |
 | `make lint` | golangci-lint v2 |

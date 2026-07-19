@@ -173,6 +173,10 @@ make build-cli
 make package-cli-release
 # → build/release/cli/knxvault-cli_<version>_<os>_<arch>.tar.gz|.zip
 # → build/release/cli/SHA256SUMS
+
+# Full packaging parity with CI (both container images + multi-platform CLI)
+make package-all
+# = container-build-all + package-cli-release
 ```
 
 #### GitHub Actions / download
@@ -340,9 +344,9 @@ nerdctl pull ghcr.io/kubenexis/knxvault:0.5.1
 ```bash
 make quality
 make test-integration build build-cli sbom
-make container-build-all   # same GHCR-style names as CI
-make container-export-all  # air-gap tarballs (same idea as CI release assets)
-make package-cli-release   # multi-platform CLI archives
+make package-all           # CI packaging parity: both images + multi-platform CLI packages
+# equivalent to: make container-build-all package-cli-release
+make container-export-all  # optional air-gap tarballs (same idea as CI release assets on v*)
 ```
 
 ---

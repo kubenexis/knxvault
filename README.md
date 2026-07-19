@@ -204,6 +204,7 @@ Reference: [`docs/cli/reference.md`](docs/cli/reference.md) · Backup: [`docs/de
 ```bash
 make quality               # pre-merge: fmt, vet, lint, docs-lint, gosec, licenses, scan, test, coverage
 make all                   # quality + test-integration + build + build-cli + sbom
+make package-all           # both container images + multi-platform knxvault-cli (CI packaging parity)
 make test                  # unit tests only
 make test-integration      # API + 3-node Raft integration tests
 make gosec                 # security static analysis

@@ -58,6 +58,7 @@ OPERATOR_IMAGE_VERSION ?= $(OPERATOR_IMAGE_REPOSITORY):$(VERSION)
 # All build artifacts live under BUILD_DIR (binaries, image tarballs, SBOM, coverage).
 BUILD_DIR       ?= build
 BIN_DIR         ?= $(BUILD_DIR)/bin
+CLI_RELEASE_DIR ?= $(BUILD_DIR)/release/cli
 IMAGE_EXPORT_DIR ?= $(BUILD_DIR)/images
 IMAGE_TAR       ?= $(IMAGE_EXPORT_DIR)/knxvault-$(IMAGE_TAG).tar
 OPERATOR_TAR    ?= $(IMAGE_EXPORT_DIR)/knxvault-operator-$(IMAGE_TAG).tar
@@ -126,7 +127,7 @@ endef
 # Primary pipeline
 # =============================================================================
 
-.PHONY: all quality
+.PHONY: all quality package-all
 # Pre-merge quality gate (no container image build, no integration suite).
 quality: ## Pre-merge gate: fmt vet lint docs-lint dtp-surface gosec licenses license-headers-check scan test test-coverage
 	@$(MAKE) --no-print-directory fmt
@@ -143,6 +144,7 @@ quality: ## Pre-merge gate: fmt vet lint docs-lint dtp-surface gosec licenses li
 	@printf "$(COLOR_GREEN)Quality gate passed.$(COLOR_RESET)\n"
 
 # Full local pipeline including integration tests, binaries, and SBOM.
+# Does NOT build container images or multi-platform CLI packages — use package-all.
 all: ## quality + test-integration + build + build-cli + sbom
 	@$(MAKE) --no-print-directory quality
 	@$(MAKE) --no-print-directory test-integration
@@ -151,11 +153,22 @@ all: ## quality + test-integration + build + build-cli + sbom
 	@$(MAKE) --no-print-directory sbom
 	@printf "$(COLOR_GREEN)All pipeline stages passed.$(COLOR_RESET)\n"
 
+# CI packaging parity: both container images + multi-platform knxvault-cli archives.
+# Requires a working container CLI (docker / nerdctl). Does not push or export air-gap tarballs.
+package-all: ## container-build-all + package-cli-release (CI packaging parity)
+	$(call log,package-all: server + operator images and multi-platform knxvault-cli packages)
+	@$(MAKE) --no-print-directory container-build-all
+	@$(MAKE) --no-print-directory package-cli-release
+	@printf "$(COLOR_GREEN)package-all complete.$(COLOR_RESET)\n"
+	@printf "  Images:  $(IMAGE)  $(OPERATOR_IMAGE)\n"
+	@printf "  CLI:     $(CLI_RELEASE_DIR)/\n"
+	@printf "  Optional air-gap: make container-export-all\n"
+
 # =============================================================================
 # Go quality
 # =============================================================================
 
-.PHONY: fmt vet lint docs-lint dtp-surface gosec semgrep licenses license-headers license-headers-check test test-integration test-coverage build build-cli package-cli-release build-csi build-webhook build-eso build-operator generate-clients test-clients check-client-drift sbom scan tidy install-tools container-build k8s-operator-build container-build-all container-export k8s-operator-export container-export-all docker-build docker-build-operator docker-build-all clean
+.PHONY: all quality package-all fmt vet lint docs-lint dtp-surface gosec semgrep licenses license-headers license-headers-check test test-integration test-coverage build build-cli package-cli-release build-csi build-webhook build-eso build-operator generate-clients test-clients check-client-drift sbom scan tidy install-tools container-build k8s-operator-build container-build-all container-export k8s-operator-export container-export-all docker-build docker-build-operator docker-build-all clean
 
 fmt: ## Check Go formatting (gofmt)
 	$(call log,Checking gofmt)
@@ -386,7 +399,7 @@ build-cli: ## Build statically linked CLI binary to $(CLI_BINARY)
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags="$(LDFLAGS)" -o $(CLI_BINARY) $(CLI_PKG)
 
 # Multi-platform knxvault-cli packages for GitHub Releases / air-gap admin hosts.
-CLI_RELEASE_DIR ?= $(BUILD_DIR)/release/cli
+# (CLI_RELEASE_DIR is set with other BUILD_DIR paths above; default build/release/cli.)
 package-cli-release: ## Cross-compile knxvault-cli packages → $(CLI_RELEASE_DIR)
 	$(call log,Packaging multi-platform knxvault-cli release archives)
 	$(call require_cmd,go)
@@ -509,6 +522,7 @@ help: ## Show available targets and descriptions
 	@printf "  $(COLOR_CYAN)GO_TOOLCHAIN$(COLOR_RESET)    = $(GO_TOOLCHAIN)\n"
 	@printf "\n$(COLOR_BOLD)Examples$(COLOR_RESET)\n\n"
 	@printf "  make all\n"
+	@printf "  make package-all    # images + multi-platform CLI (CI packaging parity)\n"
 	@printf "  make build\n"
 	@printf "  make clean\n"
 	@printf "  make test\n"
